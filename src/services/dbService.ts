@@ -139,26 +139,34 @@ export const getProductById = (id: number): Product | null => {
   return product as unknown as Product;
 };
 
-export const createProduct = (product: Omit<Product, 'id'>): number => {
-  if (!db) return -1;
+export const createProduct = (product: Omit<Product, 'id'>): { success: boolean; id?: number; error?: string } => {
+  if (!db) return { success: false, error: 'Base de données non initialisée' };
   
-  db.run(
-    `INSERT INTO products (name, sku, category, fournisseur, size, quantity, price, min_stock, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [product.name, product.sku, product.category, product.fournisseur, product.size, product.quantity, product.price, product.min_stock, product.image]
-  );
-  
-  const result = db.exec('SELECT last_insert_rowid()');
-  const newId = result[0].values[0][0] as number;
-  
-  // Create initial transaction
-  const now = new Date().toISOString();
-  db.run(
-    `INSERT INTO transactions (product_id, product_name, type, quantity, date, note) VALUES (?, ?, 'IN', ?, ?, ?)`,
-    [newId, product.name, product.quantity, now, 'Stock initial']
-  );
-  
-  saveDatabase();
-  return newId;
+  try {
+    db.run(
+      `INSERT INTO products (name, sku, category, fournisseur, size, quantity, price, min_stock, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [product.name, product.sku, product.category, product.fournisseur, product.size, product.quantity, product.price, product.min_stock, product.image || null]
+    );
+    
+    const result = db.exec('SELECT last_insert_rowid()');
+    const newId = result[0].values[0][0] as number;
+    
+    // Create initial transaction
+    const now = new Date().toISOString();
+    db.run(
+      `INSERT INTO transactions (product_id, product_name, type, quantity, date, note) VALUES (?, ?, 'IN', ?, ?, ?)`,
+      [newId, product.name, product.quantity, now, 'Stock initial']
+    );
+    
+    saveDatabase();
+    return { success: true, id: newId };
+  } catch (error: any) {
+    console.error('Erreur lors de la création du produit:', error);
+    if (error.message?.includes('UNIQUE constraint failed')) {
+      return { success: false, error: 'Ce code article existe déjà' };
+    }
+    return { success: false, error: error.message || 'Erreur inconnue' };
+  }
 };
 
 export const updateProduct = (id: number, product: Partial<Product>): void => {
