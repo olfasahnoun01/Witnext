@@ -111,12 +111,17 @@ export const Inventory = () => {
     
     if (editingProduct) {
       updateProduct(editingProduct.id, formData);
+      loadProducts();
+      handleCloseModal();
     } else {
-      createProduct(formData);
+      const result = createProduct(formData);
+      if (result.success) {
+        loadProducts();
+        handleCloseModal();
+      } else {
+        alert(result.error || 'Erreur lors de la création du produit');
+      }
     }
-    
-    loadProducts();
-    handleCloseModal();
   };
 
   const handleDelete = (e: React.MouseEvent, product: Product) => {
