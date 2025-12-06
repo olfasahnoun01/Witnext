@@ -6,10 +6,10 @@ import {
   Bot, 
   Settings,
   Menu,
-  X,
-  ShieldCheck
+  X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import grosafeLogo from '@/assets/grosafe-logo.png';
 
 interface SidebarProps {
   activeTab: string;
@@ -48,15 +48,13 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-between p-6 border-b border-sidebar-border">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                <ShieldCheck className="w-6 h-6 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-sidebar-foreground">GROSAFE</h1>
-                <p className="text-xs text-sidebar-foreground/60">Gestion</p>
-              </div>
+          <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
+            <div className="flex items-center">
+              <img 
+                src={grosafeLogo} 
+                alt="Grosafe Équipement" 
+                className="h-12 w-auto object-contain"
+              />
             </div>
             <button 
               onClick={onToggle}
