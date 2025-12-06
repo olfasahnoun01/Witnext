@@ -12,7 +12,24 @@ import autoTable from 'jspdf-autotable';
 import { getAllProducts, getLowStockProducts } from '@/services/dbService';
 import { Product, DocumentData, DocumentItem } from '@/types';
 import { Button } from '@/components/ui/button';
+import grosafeLogo from '@/assets/grosafe-logo.png';
 
+// Convert image to base64 for PDF embedding
+const getLogoBase64 = (): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.src = grosafeLogo;
+  });
+};
 type DocumentType = 'bon_livraison' | 'bon_sortie' | 'bon_entree';
 
 const documentTypes: { value: DocumentType; label: string; color: string }[] = [
@@ -171,91 +188,145 @@ export const Reports = () => {
     setDocItems(prev => prev.filter((_, i) => i !== index));
   };
 
-  const generateOfficialPDF = () => {
+  const generateOfficialPDF = async () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     
-    // Header
-    doc.setFillColor(37, 99, 235);
-    doc.rect(0, 0, pageWidth, 35, 'F');
+    // Get logo base64
+    const logoBase64 = await getLogoBase64();
     
-    doc.setFontSize(22);
-    doc.setTextColor(255, 255, 255);
-    doc.text('GROSAFE ÉQUIPEMENT', 14, 22);
+    // Add logo
+    doc.addImage(logoBase64, 'PNG', 14, 8, 40, 20);
     
-    // Document type box
+    // Company name next to logo
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95); // Navy blue
+    doc.text('GROSAFE ÉQUIPEMENT', 60, 20);
+    
+    // Horizontal line under header
+    doc.setDrawColor(199, 62, 62); // Red accent
+    doc.setLineWidth(1);
+    doc.line(14, 32, pageWidth - 14, 32);
+    
+    // Document type title
     const typeInfo = documentTypes.find(t => t.value === docType)!;
-    const boxColor = isEntree ? [34, 197, 94] : [220, 38, 38];
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text(typeInfo.label.toUpperCase(), pageWidth / 2, 45, { align: 'center' });
     
-    doc.setFillColor(boxColor[0], boxColor[1], boxColor[2]);
-    doc.roundedRect(pageWidth - 80, 45, 70, 25, 3, 3, 'F');
+    // Document number and date box (right side)
+    doc.setDrawColor(30, 58, 95);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(pageWidth - 75, 52, 61, 22, 2, 2);
     
     doc.setFontSize(10);
-    doc.setTextColor(255, 255, 255);
-    doc.text(typeInfo.label.toUpperCase(), pageWidth - 75, 55);
-    doc.setFontSize(12);
-    doc.text(`N° ${docNumber || '____'}`, pageWidth - 75, 64);
-    
-    // Third party box
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.5);
-    doc.roundedRect(14, 45, 90, 40, 3, 3);
-    
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text(thirdPartyLabel.toUpperCase(), 18, 53);
-    
-    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
-    doc.text(thirdPartyName || '________________________', 18, 62);
-    doc.setFontSize(9);
-    doc.text(thirdPartyAddress || '________________________', 18, 70);
-    doc.text(`MF: ${thirdPartyTaxId || '____________'}`, 18, 78);
+    doc.text(`N° : ${docNumber || '______'}`, pageWidth - 72, 60);
+    doc.text(`Date : ${new Date(docDate).toLocaleDateString('fr-FR')}`, pageWidth - 72, 68);
     
-    // Info row
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Date: ${docDate}`, 14, 95);
-    doc.text(`Validité: ${docValidity || '______'}`, 70, 95);
-    doc.text(`Transport: ${transportRef || '______'}`, 130, 95);
+    // Validity info
+    if (docValidity) {
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Ce bon de commande est valable jusqu'au ${docValidity}`, 14, 58);
+    }
+    
+    // Third party section
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text(thirdPartyLabel, 14, 82);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Raison sociale : ${thirdPartyName || '________________________'}`, 14, 90);
+    doc.text(`Adresse de livraison : ${thirdPartyAddress || '________________________'}`, 14, 98);
+    doc.text(`Identification Fiscale : ${thirdPartyTaxId || '________________________'}`, 14, 106);
+    
+    // Delivery details section
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text('Détails de la livraison', 14, 120);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Immatriculation voiture : ${transportRef || '________________________'}`, 14, 128);
     
     // Items table
-    const tableData = docItems.map(item => [
-      item.ref,
+    const tableData = docItems.map((item, index) => [
+      (index + 1).toString(),
       item.designation,
       item.description,
       item.quantity.toString()
     ]);
     
     autoTable(doc, {
-      startY: 105,
-      head: [['Réf.', 'Désignation', 'Description', 'Quantité']],
+      startY: 135,
+      head: [['Référence', 'Désignation', 'Description', 'Quantité']],
       body: tableData.length > 0 ? tableData : [['', '', '', '']],
       theme: 'grid',
       headStyles: { 
-        fillColor: isEntree ? [34, 197, 94] : [220, 38, 38],
-        fontSize: 10
+        fillColor: [30, 58, 95],
+        fontSize: 10,
+        fontStyle: 'bold',
+        halign: 'center'
       },
-      styles: { fontSize: 9 },
+      styles: { 
+        fontSize: 9,
+        cellPadding: 4
+      },
       columnStyles: {
-        0: { cellWidth: 25 },
-        1: { cellWidth: 50 },
-        2: { cellWidth: 80 },
+        0: { cellWidth: 22, halign: 'center' },
+        1: { cellWidth: 55 },
+        2: { cellWidth: 75 },
         3: { cellWidth: 25, halign: 'center' }
+      },
+      alternateRowStyles: {
+        fillColor: [245, 247, 250]
       }
     });
     
     // Signature boxes
-    const finalY = Math.max((doc as any).lastAutoTable?.finalY || 150, 200);
+    const finalY = Math.max((doc as any).lastAutoTable?.finalY || 150, 180);
     
-    doc.setDrawColor(200, 200, 200);
-    doc.roundedRect(14, finalY + 10, 80, 35, 3, 3);
-    doc.roundedRect(pageWidth - 94, finalY + 10, 80, 35, 3, 3);
+    doc.setDrawColor(30, 58, 95);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(14, finalY + 15, 80, 30, 2, 2);
+    doc.roundedRect(pageWidth - 94, finalY + 15, 80, 30, 2, 2);
     
     doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text('Signature GROSAFE', 20, finalY + 20);
-    doc.text(`Signature ${thirdPartyLabel}`, pageWidth - 88, finalY + 20);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text('Signature et cachet Grosafe équipement', 16, finalY + 23);
+    doc.text(`Signature et cachet ${thirdPartyLabel}`, pageWidth - 92, finalY + 23);
+    
+    // Footer section
+    const footerY = pageHeight - 25;
+    
+    // Footer divider
+    doc.setDrawColor(199, 62, 62);
+    doc.setLineWidth(0.5);
+    doc.line(14, footerY - 5, pageWidth - 14, footerY - 5);
+    
+    // Company info in footer
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text('Société Grosafe Equipment', 14, footerY);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80, 80, 80);
+    doc.text('Adresse : Immeuble Salma Dar Fadhal Aouina, Tunis', 14, footerY + 5);
+    doc.text('Email : contact@grosafe.net', 14, footerY + 10);
+    doc.text('Tel : +216 22219219 ; +216 27277777', pageWidth / 2, footerY + 10, { align: 'center' });
+    doc.text('Code TVA : 1752965/M/A/M', pageWidth - 14, footerY + 10, { align: 'right' });
     
     const fileName = `${docType}_${docNumber || 'nouveau'}_${docDate}.pdf`;
     doc.save(fileName);
