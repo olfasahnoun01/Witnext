@@ -24,12 +24,16 @@ export const Dashboard = () => {
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
 
   useEffect(() => {
-    const loadData = () => {
-      setStats(getDashboardStats());
-      setRecentTransactions(getRecentTransactions(8));
+    const loadData = async () => {
+      const [statsData, transactionsData] = await Promise.all([
+        getDashboardStats(),
+        getRecentTransactions(8)
+      ]);
+      setStats(statsData);
+      setRecentTransactions(transactionsData);
     };
     loadData();
-    const interval = setInterval(loadData, 3000);
+    const interval = setInterval(loadData, 5000);
     return () => clearInterval(interval);
   }, []);
 

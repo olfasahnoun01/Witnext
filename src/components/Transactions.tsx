@@ -19,21 +19,26 @@ export const Transactions = () => {
   const [quantity, setQuantity] = useState<number>(1);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 2000);
+    const interval = setInterval(loadData, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  const loadData = () => {
-    setProducts(getAllProducts());
-    setTransactions(getAllTransactions());
+  const loadData = async () => {
+    const [productsData, transactionsData] = await Promise.all([
+      getAllProducts(),
+      getAllTransactions()
+    ]);
+    setProducts(productsData);
+    setTransactions(transactionsData);
   };
 
   const selectedProduct = products.find(p => p.id === selectedProductId);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -52,20 +57,30 @@ export const Transactions = () => {
       return;
     }
 
-    createTransaction({
-      product_id: selectedProduct.id,
-      product_name: selectedProduct.name,
-      type: activeTab === 'in' ? 'IN' : 'OUT',
-      quantity,
-      date: new Date().toISOString(),
-      note
-    });
+    setIsSubmitting(true);
+    try {
+      const result = await createTransaction({
+        product_id: selectedProduct.id,
+        product_name: selectedProduct.name,
+        type: activeTab === 'in' ? 'IN' : 'OUT',
+        quantity,
+        date: new Date().toISOString(),
+        note
+      });
 
-    // Reset form
-    setSelectedProductId('');
-    setQuantity(1);
-    setNote('');
-    loadData();
+      if (!result.success) {
+        setError(result.error || 'Erreur lors de la création de la transaction');
+        return;
+      }
+
+      // Reset form
+      setSelectedProductId('');
+      setQuantity(1);
+      setNote('');
+      await loadData();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const recentTransactions = transactions
@@ -183,9 +198,12 @@ export const Transactions = () => {
 
             <Button 
               type="submit" 
+              disabled={isSubmitting}
               className={`w-full ${activeTab === 'in' ? 'bg-success hover:bg-success/90' : 'bg-destructive hover:bg-destructive/90'}`}
             >
-              {activeTab === 'in' ? (
+              {isSubmitting ? (
+                'Enregistrement...'
+              ) : activeTab === 'in' ? (
                 <>
                   <ArrowDownLeft className="w-4 h-4 mr-2" />
                   Enregistrer Entrée

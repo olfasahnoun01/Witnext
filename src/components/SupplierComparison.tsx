@@ -47,8 +47,8 @@ export const SupplierComparison = () => {
     loadProducts();
   }, []);
 
-  const loadProducts = () => {
-    const allProducts = getAllProducts();
+  const loadProducts = async () => {
+    const allProducts = await getAllProducts();
     setProducts(allProducts);
   };
 

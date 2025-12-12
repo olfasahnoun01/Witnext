@@ -27,8 +27,15 @@ export const AIAssistant = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setProducts(getAllProducts());
-    setTransactions(getAllTransactions());
+    const loadData = async () => {
+      const [productsData, transactionsData] = await Promise.all([
+        getAllProducts(),
+        getAllTransactions()
+      ]);
+      setProducts(productsData);
+      setTransactions(transactionsData);
+    };
+    loadData();
   }, []);
 
   useEffect(() => {

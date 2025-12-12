@@ -12,8 +12,8 @@ export const Header = ({ title }: HeaderProps) => {
   const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
-    const loadLowStock = () => {
-      const products = getLowStockProducts();
+    const loadLowStock = async () => {
+      const products = await getLowStockProducts();
       setLowStockProducts(products);
     };
     loadLowStock();

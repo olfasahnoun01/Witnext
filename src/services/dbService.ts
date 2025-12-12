@@ -1,251 +1,213 @@
-import initSqlJs, { Database } from 'sql.js';
+import { supabase } from '@/integrations/supabase/client';
 import { Product, Transaction, DashboardStats, CategoryValue } from '@/types';
 
-let db: Database | null = null;
-
-const DB_STORAGE_KEY = 'grosafe_inventory_db';
-
+// Initialize database (now just a compatibility function)
 export const initDatabase = async (): Promise<void> => {
-  const SQL = await initSqlJs({
-    locateFile: (file) => `https://sql.js.org/dist/${file}`,
-  });
-
-  // Try to load existing database from localStorage
-  const savedDb = localStorage.getItem(DB_STORAGE_KEY);
-  
-  if (savedDb) {
-    try {
-      const binaryArray = Uint8Array.from(atob(savedDb), c => c.charCodeAt(0));
-      db = new SQL.Database(binaryArray);
-    } catch (error) {
-      console.error('Erreur lors du chargement de la base de données:', error);
-      db = new SQL.Database();
-      createTables();
-    }
-  } else {
-    db = new SQL.Database();
-    createTables();
-    insertSampleData();
-  }
+  // No initialization needed for PostgreSQL - tables are already created
+  console.log('Connected to PostgreSQL database');
 };
 
-const createTables = (): void => {
-  if (!db) return;
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      sku TEXT UNIQUE NOT NULL,
-      category TEXT NOT NULL,
-      fournisseur TEXT NOT NULL,
-      size TEXT NOT NULL,
-      quantity INTEGER NOT NULL DEFAULT 0,
-      price REAL NOT NULL DEFAULT 0,
-      min_stock INTEGER NOT NULL DEFAULT 5,
-      image TEXT
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS transactions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      product_id INTEGER NOT NULL,
-      product_name TEXT NOT NULL,
-      type TEXT NOT NULL CHECK(type IN ('IN', 'OUT', 'ADJUSTMENT')),
-      quantity INTEGER NOT NULL,
-      date TEXT NOT NULL,
-      note TEXT,
-      FOREIGN KEY (product_id) REFERENCES products(id)
-    )
-  `);
-};
-
-const insertSampleData = (): void => {
-  if (!db) return;
-
-  const sampleProducts = [
-    { name: 'Pantalon de Travail Pro', sku: 'PAN-001', category: 'Pantalons', fournisseur: 'Workwear Tunisia', size: '42', quantity: 45, price: 89.900, min_stock: 10 },
-    { name: 'Blouson Sécurité Haute Visibilité', sku: 'BLO-002', category: 'Blousons', fournisseur: 'SafeEquip', size: 'L', quantity: 3, price: 145.000, min_stock: 5 },
-    { name: 'Brodequin Sécurité S3', sku: 'BRD-003', category: 'Bordequin', fournisseur: 'BootMaster', size: '43', quantity: 0, price: 125.500, min_stock: 8 },
-    { name: 'Gants de Protection', sku: 'GAN-004', category: 'Accessoires', fournisseur: 'ProGloves', size: 'M', quantity: 120, price: 15.900, min_stock: 20 },
-    { name: 'Casque de Chantier', sku: 'CAS-005', category: 'Accessoires', fournisseur: 'SafeHead', size: 'Unique', quantity: 8, price: 35.000, min_stock: 10 },
-    { name: 'Gilet Réfléchissant', sku: 'GIL-006', category: 'Blousons', fournisseur: 'VisioSafe', size: 'XL', quantity: 50, price: 22.500, min_stock: 15 },
-  ];
-
-  sampleProducts.forEach(product => {
-    db!.run(
-      `INSERT INTO products (name, sku, category, fournisseur, size, quantity, price, min_stock, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [product.name, product.sku, product.category, product.fournisseur, product.size, product.quantity, product.price, product.min_stock, null]
-    );
-  });
-
-  // Add sample transactions
-  const now = new Date().toISOString();
-  const sampleTransactions = [
-    { product_id: 1, product_name: 'Pantalon de Travail Pro', type: 'IN', quantity: 50, date: now, note: 'Réception commande initiale' },
-    { product_id: 1, product_name: 'Pantalon de Travail Pro', type: 'OUT', quantity: 5, date: now, note: 'Vente client ABC' },
-    { product_id: 4, product_name: 'Gants de Protection', type: 'IN', quantity: 150, date: now, note: 'Réapprovisionnement' },
-    { product_id: 4, product_name: 'Gants de Protection', type: 'OUT', quantity: 30, date: now, note: 'Commande chantier' },
-  ];
-
-  sampleTransactions.forEach(tx => {
-    db!.run(
-      `INSERT INTO transactions (product_id, product_name, type, quantity, date, note) VALUES (?, ?, ?, ?, ?, ?)`,
-      [tx.product_id, tx.product_name, tx.type, tx.quantity, tx.date, tx.note]
-    );
-  });
-
-  saveDatabase();
-};
-
+// Save database (no-op for PostgreSQL - auto-saved)
 export const saveDatabase = (): void => {
-  if (!db) return;
-  
-  const data = db.export();
-  const base64 = btoa(String.fromCharCode(...data));
-  localStorage.setItem(DB_STORAGE_KEY, base64);
+  // PostgreSQL auto-saves, no action needed
 };
 
 // Products CRUD
-export const getAllProducts = (): Product[] => {
-  if (!db) return [];
+export const getAllProducts = async (): Promise<Product[]> => {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .order('name');
   
-  const results = db.exec('SELECT * FROM products ORDER BY name');
-  if (results.length === 0) return [];
+  if (error) {
+    console.error('Erreur lors de la récupération des produits:', error);
+    return [];
+  }
   
-  const columns = results[0].columns;
-  return results[0].values.map(row => {
-    const product: Record<string, unknown> = {};
-    columns.forEach((col, i) => {
-      product[col] = row[i];
-    });
-    return product as unknown as Product;
-  });
+  return data.map(p => ({
+    id: p.id,
+    name: p.name,
+    sku: p.sku,
+    category: p.category,
+    fournisseur: p.fournisseur || '',
+    size: p.size || '',
+    quantity: p.quantity,
+    price: Number(p.price),
+    min_stock: p.min_stock,
+    image: p.image || undefined
+  }));
 };
 
-export const getProductById = (id: number): Product | null => {
-  if (!db) return null;
+export const getProductById = async (id: number): Promise<Product | null> => {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
   
-  const results = db.exec('SELECT * FROM products WHERE id = ?', [id]);
-  if (results.length === 0 || results[0].values.length === 0) return null;
+  if (error || !data) {
+    console.error('Erreur lors de la récupération du produit:', error);
+    return null;
+  }
   
-  const columns = results[0].columns;
-  const row = results[0].values[0];
-  const product: Record<string, unknown> = {};
-  columns.forEach((col, i) => {
-    product[col] = row[i];
-  });
-  return product as unknown as Product;
+  return {
+    id: data.id,
+    name: data.name,
+    sku: data.sku,
+    category: data.category,
+    fournisseur: data.fournisseur || '',
+    size: data.size || '',
+    quantity: data.quantity,
+    price: Number(data.price),
+    min_stock: data.min_stock,
+    image: data.image || undefined
+  };
 };
 
-export const createProduct = (product: Omit<Product, 'id'>): { success: boolean; id?: number; error?: string } => {
-  if (!db) return { success: false, error: 'Base de données non initialisée' };
-  
+export const createProduct = async (product: Omit<Product, 'id'>): Promise<{ success: boolean; id?: number; error?: string }> => {
   try {
-    db.run(
-      `INSERT INTO products (name, sku, category, fournisseur, size, quantity, price, min_stock, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [product.name, product.sku, product.category, product.fournisseur, product.size, product.quantity, product.price, product.min_stock, product.image || null]
-    );
+    const { data, error } = await supabase
+      .from('products')
+      .insert({
+        name: product.name,
+        sku: product.sku,
+        category: product.category,
+        fournisseur: product.fournisseur || null,
+        size: product.size || null,
+        quantity: product.quantity,
+        price: product.price,
+        min_stock: product.min_stock,
+        image: product.image || null
+      })
+      .select()
+      .single();
     
-    const result = db.exec('SELECT last_insert_rowid()');
-    const newId = result[0].values[0][0] as number;
+    if (error) {
+      console.error('Erreur lors de la création du produit:', error);
+      if (error.code === '23505') {
+        return { success: false, error: 'Ce code article existe déjà' };
+      }
+      return { success: false, error: error.message };
+    }
     
     // Create initial transaction
-    const now = new Date().toISOString();
-    db.run(
-      `INSERT INTO transactions (product_id, product_name, type, quantity, date, note) VALUES (?, ?, 'IN', ?, ?, ?)`,
-      [newId, product.name, product.quantity, now, 'Stock initial']
-    );
+    await supabase.from('transactions').insert({
+      product_id: data.id,
+      product_name: product.name,
+      type: 'IN',
+      quantity: product.quantity,
+      note: 'Stock initial'
+    });
     
-    saveDatabase();
-    return { success: true, id: newId };
+    return { success: true, id: data.id };
   } catch (error: any) {
     console.error('Erreur lors de la création du produit:', error);
-    if (error.message?.includes('UNIQUE constraint failed')) {
-      return { success: false, error: 'Ce code article existe déjà' };
-    }
     return { success: false, error: error.message || 'Erreur inconnue' };
   }
 };
 
-export const updateProduct = (id: number, product: Partial<Product>): void => {
-  if (!db) return;
+export const updateProduct = async (id: number, product: Partial<Product>): Promise<void> => {
+  const updateData: Record<string, unknown> = {};
   
-  const fields: string[] = [];
-  const values: unknown[] = [];
+  if (product.name !== undefined) updateData.name = product.name;
+  if (product.sku !== undefined) updateData.sku = product.sku;
+  if (product.category !== undefined) updateData.category = product.category;
+  if (product.fournisseur !== undefined) updateData.fournisseur = product.fournisseur || null;
+  if (product.size !== undefined) updateData.size = product.size || null;
+  if (product.quantity !== undefined) updateData.quantity = product.quantity;
+  if (product.price !== undefined) updateData.price = product.price;
+  if (product.min_stock !== undefined) updateData.min_stock = product.min_stock;
+  if (product.image !== undefined) updateData.image = product.image || null;
   
-  Object.entries(product).forEach(([key, value]) => {
-    if (key !== 'id' && value !== undefined) {
-      fields.push(`${key} = ?`);
-      values.push(value);
-    }
-  });
+  const { error } = await supabase
+    .from('products')
+    .update(updateData)
+    .eq('id', id);
   
-  if (fields.length === 0) return;
-  
-  values.push(id);
-  db.run(`UPDATE products SET ${fields.join(', ')} WHERE id = ?`, values);
-  saveDatabase();
+  if (error) {
+    console.error('Erreur lors de la mise à jour du produit:', error);
+  }
 };
 
-export const deleteProduct = (id: number): void => {
-  if (!db) return;
+export const deleteProduct = async (id: number): Promise<void> => {
+  // Transactions are deleted automatically via CASCADE
+  const { error } = await supabase
+    .from('products')
+    .delete()
+    .eq('id', id);
   
-  db.run('DELETE FROM transactions WHERE product_id = ?', [id]);
-  db.run('DELETE FROM products WHERE id = ?', [id]);
-  saveDatabase();
+  if (error) {
+    console.error('Erreur lors de la suppression du produit:', error);
+  }
 };
 
 // Transactions
-export const getAllTransactions = (): Transaction[] => {
-  if (!db) return [];
+export const getAllTransactions = async (): Promise<Transaction[]> => {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .order('date', { ascending: false })
+    .limit(100);
   
-  const results = db.exec('SELECT * FROM transactions ORDER BY date DESC LIMIT 100');
-  if (results.length === 0) return [];
+  if (error) {
+    console.error('Erreur lors de la récupération des transactions:', error);
+    return [];
+  }
   
-  const columns = results[0].columns;
-  return results[0].values.map(row => {
-    const tx: Record<string, unknown> = {};
-    columns.forEach((col, i) => {
-      tx[col] = row[i];
-    });
-    return tx as unknown as Transaction;
-  });
+  return data.map(tx => ({
+    id: tx.id,
+    product_id: tx.product_id,
+    product_name: tx.product_name,
+    type: tx.type as 'IN' | 'OUT' | 'ADJUSTMENT',
+    quantity: tx.quantity,
+    date: tx.date,
+    note: tx.note || undefined
+  }));
 };
 
-export const createTransaction = (tx: Omit<Transaction, 'id'>): void => {
-  if (!db) return;
-  
-  // Update product quantity
-  const product = getProductById(tx.product_id);
-  if (!product) return;
+export const createTransaction = async (tx: Omit<Transaction, 'id'>): Promise<{ success: boolean; error?: string }> => {
+  // Get current product quantity
+  const product = await getProductById(tx.product_id);
+  if (!product) {
+    return { success: false, error: 'Produit non trouvé' };
+  }
   
   let newQuantity = product.quantity;
   if (tx.type === 'IN') {
     newQuantity += tx.quantity;
   } else if (tx.type === 'OUT') {
     newQuantity -= tx.quantity;
-    if (newQuantity < 0) return; // Prevent negative stock
+    if (newQuantity < 0) {
+      return { success: false, error: 'Stock insuffisant' };
+    }
   } else {
     newQuantity = tx.quantity;
   }
   
-  updateProduct(tx.product_id, { quantity: newQuantity });
+  // Update product quantity
+  await updateProduct(tx.product_id, { quantity: newQuantity });
   
-  db.run(
-    `INSERT INTO transactions (product_id, product_name, type, quantity, date, note) VALUES (?, ?, ?, ?, ?, ?)`,
-    [tx.product_id, tx.product_name, tx.type, tx.quantity, tx.date, tx.note]
-  );
+  // Create transaction
+  const { error } = await supabase.from('transactions').insert({
+    product_id: tx.product_id,
+    product_name: tx.product_name,
+    type: tx.type,
+    quantity: tx.quantity,
+    date: tx.date,
+    note: tx.note || null
+  });
   
-  saveDatabase();
+  if (error) {
+    console.error('Erreur lors de la création de la transaction:', error);
+    return { success: false, error: error.message };
+  }
+  
+  return { success: true };
 };
 
 // Dashboard Stats
-export const getDashboardStats = (): DashboardStats => {
-  if (!db) return { totalValue: 0, totalProducts: 0, lowStockCount: 0, outOfStockCount: 0, categoryValues: [] };
-  
-  const products = getAllProducts();
+export const getDashboardStats = async (): Promise<DashboardStats> => {
+  const products = await getAllProducts();
   
   const totalValue = products.reduce((sum, p) => sum + (p.price * p.quantity), 0);
   const totalProducts = products.length;
@@ -269,49 +231,82 @@ export const getDashboardStats = (): DashboardStats => {
   return { totalValue, totalProducts, lowStockCount, outOfStockCount, categoryValues };
 };
 
-// Export/Import Database
-export const exportDatabase = (): Uint8Array | null => {
-  if (!db) return null;
-  return db.export();
+// Export/Import Database - now exports data as JSON
+export const exportDatabase = async (): Promise<Uint8Array | null> => {
+  const products = await getAllProducts();
+  const transactions = await getAllTransactions();
+  
+  const data = JSON.stringify({ products, transactions }, null, 2);
+  const encoder = new TextEncoder();
+  return encoder.encode(data);
 };
 
 export const importDatabase = async (data: Uint8Array): Promise<void> => {
-  const SQL = await initSqlJs({
-    locateFile: (file) => `https://sql.js.org/dist/${file}`,
-  });
+  const decoder = new TextDecoder();
+  const jsonString = decoder.decode(data);
   
-  db = new SQL.Database(data);
-  saveDatabase();
+  try {
+    const { products, transactions } = JSON.parse(jsonString);
+    
+    // Clear existing data
+    await supabase.from('transactions').delete().neq('id', 0);
+    await supabase.from('products').delete().neq('id', 0);
+    
+    // Insert products
+    for (const product of products) {
+      const { id, ...productData } = product;
+      await supabase.from('products').insert(productData);
+    }
+    
+    // Insert transactions
+    for (const tx of transactions) {
+      const { id, ...txData } = tx;
+      await supabase.from('transactions').insert(txData);
+    }
+    
+    console.log('Base de données importée avec succès');
+  } catch (error) {
+    console.error('Erreur lors de l\'import:', error);
+    throw error;
+  }
 };
 
-export const getRecentTransactions = (limit: number = 10): Transaction[] => {
-  if (!db) return [];
+export const getRecentTransactions = async (limit: number = 10): Promise<Transaction[]> => {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .order('date', { ascending: false })
+    .limit(limit);
   
-  const results = db.exec(`SELECT * FROM transactions ORDER BY date DESC LIMIT ${limit}`);
-  if (results.length === 0) return [];
+  if (error) {
+    console.error('Erreur lors de la récupération des transactions:', error);
+    return [];
+  }
   
-  const columns = results[0].columns;
-  return results[0].values.map(row => {
-    const tx: Record<string, unknown> = {};
-    columns.forEach((col, i) => {
-      tx[col] = row[i];
-    });
-    return tx as unknown as Transaction;
-  });
+  return data.map(tx => ({
+    id: tx.id,
+    product_id: tx.product_id,
+    product_name: tx.product_name,
+    type: tx.type as 'IN' | 'OUT' | 'ADJUSTMENT',
+    quantity: tx.quantity,
+    date: tx.date,
+    note: tx.note || undefined
+  }));
 };
 
-export const getLowStockProducts = (): Product[] => {
-  if (!db) return [];
+export const getLowStockProducts = async (): Promise<Product[]> => {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .or('quantity.lte.min_stock')
+    .order('quantity', { ascending: true });
   
-  const results = db.exec('SELECT * FROM products WHERE quantity <= min_stock ORDER BY quantity ASC');
-  if (results.length === 0) return [];
+  if (error) {
+    console.error('Erreur lors de la récupération des produits en rupture:', error);
+    return [];
+  }
   
-  const columns = results[0].columns;
-  return results[0].values.map(row => {
-    const product: Record<string, unknown> = {};
-    columns.forEach((col, i) => {
-      product[col] = row[i];
-    });
-    return product as unknown as Product;
-  });
+  // Filter in JS since we can't compare columns directly in the query
+  const products = await getAllProducts();
+  return products.filter(p => p.quantity <= p.min_stock).sort((a, b) => a.quantity - b.quantity);
 };
