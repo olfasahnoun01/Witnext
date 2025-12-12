@@ -40,6 +40,7 @@ const documentTypes: { value: DocumentType; label: string; color: string }[] = [
 
 export const Reports = () => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
   const [activeSection, setActiveSection] = useState<'reports' | 'documents'>('reports');
   
   // Document state
@@ -59,7 +60,15 @@ export const Reports = () => {
   const [itemQuantity, setItemQuantity] = useState<number>(1);
 
   useEffect(() => {
-    setProducts(getAllProducts());
+    const loadData = async () => {
+      const [productsData, lowStockData] = await Promise.all([
+        getAllProducts(),
+        getLowStockProducts()
+      ]);
+      setProducts(productsData);
+      setLowStockProducts(lowStockData);
+    };
+    loadData();
   }, []);
 
   const isEntree = docType === 'bon_entree';
@@ -111,7 +120,6 @@ export const Reports = () => {
 
   const generateLowStockPDF = () => {
     const doc = new jsPDF();
-    const lowStockProducts = getLowStockProducts();
     
     doc.setFontSize(20);
     doc.setTextColor(220, 38, 38);
@@ -396,7 +404,7 @@ export const Reports = () => {
                   Liste tous les produits en rupture ou avec un stock inférieur au minimum.
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  {getLowStockProducts().length} produits nécessitent attention
+                  {lowStockProducts.length} produits nécessitent attention
                 </p>
                 <Button onClick={generateLowStockPDF} variant="outline" className="mt-4">
                   <Download className="w-4 h-4 mr-2" />
@@ -487,7 +495,7 @@ export const Reports = () => {
                   value={thirdPartyName}
                   onChange={(e) => setThirdPartyName(e.target.value)}
                   className="form-input"
-                  placeholder={`Nom ${thirdPartyLabel}`}
+                  placeholder="Raison sociale"
                 />
                 <input
                   type="text"
@@ -501,20 +509,15 @@ export const Reports = () => {
                   value={thirdPartyTaxId}
                   onChange={(e) => setThirdPartyTaxId(e.target.value)}
                   className="form-input"
-                  placeholder="Matricule Fiscale"
+                  placeholder="Identification Fiscale"
                 />
               </div>
             </div>
-          </div>
 
-          {/* Items Builder */}
-          <div className="bg-card rounded-xl border border-border p-6 space-y-6">
-            <h3 className="text-lg font-semibold text-foreground">Articles du Document</h3>
-
-            {/* Add Item Form */}
-            <div className="p-4 rounded-xl bg-muted/50 space-y-3">
-              <div>
-                <label className="form-label">Produit</label>
+            {/* Add Items */}
+            <div>
+              <h4 className="font-medium text-foreground mb-3">Ajouter Article</h4>
+              <div className="space-y-3">
                 <select
                   value={selectedProductId}
                   onChange={(e) => setSelectedProductId(e.target.value ? parseInt(e.target.value) : '')}
@@ -525,72 +528,73 @@ export const Reports = () => {
                     <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
                   ))}
                 </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="form-label">Description</label>
-                  <input
-                    type="text"
-                    value={itemDescription}
-                    onChange={(e) => setItemDescription(e.target.value)}
-                    className="form-input"
-                    placeholder="Ex: 20 Tailles 40, 10 Tailles L"
-                  />
-                </div>
-                <div>
-                  <label className="form-label">Quantité</label>
+                <input
+                  type="text"
+                  value={itemDescription}
+                  onChange={(e) => setItemDescription(e.target.value)}
+                  className="form-input"
+                  placeholder="Description (optionnel)"
+                />
+                <div className="flex gap-3">
                   <input
                     type="number"
                     min="1"
                     value={itemQuantity}
                     onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
-                    className="form-input"
+                    className="form-input w-24"
+                    placeholder="Qté"
                   />
+                  <Button onClick={addDocItem} disabled={!selectedProductId}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Ajouter
+                  </Button>
                 </div>
               </div>
-              <Button onClick={addDocItem} disabled={!selectedProductId} className="w-full">
-                <Plus className="w-4 h-4 mr-2" />
-                Ajouter Article
-              </Button>
             </div>
 
-            {/* Items List */}
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {docItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Aucun article ajouté
+            <Button onClick={generateOfficialPDF} className="w-full">
+              <Download className="w-4 h-4 mr-2" />
+              Générer Document PDF
+            </Button>
+          </div>
+
+          {/* Preview / Items List */}
+          <div className="bg-card rounded-xl border border-border p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Articles du Document</h3>
+            
+            {docItems.length === 0 ? (
+              <div className="text-center py-12">
+                <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-sm text-muted-foreground">
+                  Aucun article ajouté. Utilisez le formulaire pour ajouter des articles.
                 </p>
-              ) : (
-                docItems.map((item, index) => (
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {docItems.map((item, index) => (
                   <div
                     key={index}
-                    className="flex items-center gap-3 p-3 rounded-lg bg-muted/50"
+                    className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground">{item.designation}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.ref} • {item.description || 'Pas de description'} • Qté: {item.quantity}
+                    <div className="flex-1">
+                      <p className="font-medium text-foreground">{item.designation}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Réf: {item.ref} • Qté: {item.quantity}
                       </p>
+                      {item.description && (
+                        <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+                      )}
                     </div>
                     <button
                       onClick={() => removeDocItem(index)}
-                      className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                      className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                ))
-              )}
-            </div>
-
-            <Button 
-              onClick={generateOfficialPDF} 
-              className={`w-full ${isEntree ? 'bg-success hover:bg-success/90' : 'bg-destructive hover:bg-destructive/90'}`}
-              disabled={docItems.length === 0}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Générer {documentTypes.find(t => t.value === docType)?.label}
-            </Button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

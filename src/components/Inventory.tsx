@@ -59,16 +59,18 @@ export const Inventory = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState<ProductFormData>(emptyFormData);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadProducts();
-    const interval = setInterval(loadProducts, 2000);
+    const interval = setInterval(loadProducts, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  const loadProducts = () => {
-    setProducts(getAllProducts());
+  const loadProducts = async () => {
+    const data = await getAllProducts();
+    setProducts(data);
   };
 
   const filteredProducts = products.filter(product => {
@@ -91,7 +93,7 @@ export const Inventory = () => {
         quantity: product.quantity,
         price: product.price,
         min_stock: product.min_stock,
-        image: product.image
+        image: product.image || null
       });
     } else {
       setEditingProduct(null);
@@ -106,29 +108,34 @@ export const Inventory = () => {
     setFormData(emptyFormData);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     
-    if (editingProduct) {
-      updateProduct(editingProduct.id, formData);
-      loadProducts();
-      handleCloseModal();
-    } else {
-      const result = createProduct(formData);
-      if (result.success) {
-        loadProducts();
+    try {
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, formData);
+        await loadProducts();
         handleCloseModal();
       } else {
-        alert(result.error || 'Erreur lors de la création du produit');
+        const result = await createProduct(formData);
+        if (result.success) {
+          await loadProducts();
+          handleCloseModal();
+        } else {
+          alert(result.error || 'Erreur lors de la création du produit');
+        }
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleDelete = (e: React.MouseEvent, product: Product) => {
+  const handleDelete = async (e: React.MouseEvent, product: Product) => {
     e.stopPropagation();
     if (window.confirm(`Êtes-vous sûr de vouloir supprimer "${product.name}" ?`)) {
-      deleteProduct(product.id);
-      loadProducts();
+      await deleteProduct(product.id);
+      await loadProducts();
     }
   };
 
@@ -410,8 +417,8 @@ export const Inventory = () => {
                 <Button type="button" variant="outline" onClick={handleCloseModal}>
                   Annuler
                 </Button>
-                <Button type="submit">
-                  {editingProduct ? 'Enregistrer' : 'Ajouter'}
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Enregistrement...' : editingProduct ? 'Enregistrer' : 'Ajouter'}
                 </Button>
               </div>
             </form>
