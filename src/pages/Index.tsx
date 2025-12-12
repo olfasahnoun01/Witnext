@@ -7,12 +7,14 @@ import { Transactions } from '@/components/Transactions';
 import { Reports } from '@/components/Reports';
 import { AIAssistant } from '@/components/AIAssistant';
 import { Settings } from '@/components/Settings';
+import { SupplierComparison } from '@/components/SupplierComparison';
 import { initDatabase } from '@/services/dbService';
 import { Loader2 } from 'lucide-react';
 
 const tabTitles: Record<string, string> = {
   dashboard: 'Tableau de Bord',
   inventory: 'Inventaire',
+  comparison: 'Comparaison Prix Fournisseurs',
   transactions: 'Transactions',
   reports: 'Rapports & Documents',
   ai: 'Assistant IA',
@@ -55,6 +57,8 @@ const Index = () => {
         return <Dashboard />;
       case 'inventory':
         return <Inventory />;
+      case 'comparison':
+        return <SupplierComparison />;
       case 'transactions':
         return <Transactions />;
       case 'reports':
