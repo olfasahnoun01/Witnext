@@ -5,29 +5,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Mail, Lock, User, LogIn, UserPlus } from 'lucide-react';
+import { Loader2, Mail, Lock, LogIn } from 'lucide-react';
 import grosafeLogo from '@/assets/grosafe-logo.png';
 
-type AuthMode = 'login' | 'signup';
-
 export default function Auth() {
-  const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check if already logged in
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         navigate('/', { replace: true });
       }
     });
 
-    // Check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         navigate('/', { replace: true });
@@ -42,69 +36,32 @@ export default function Auth() {
     setIsLoading(true);
 
     try {
-      if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-        if (error) {
-          if (error.message.includes('Invalid login credentials')) {
-            toast({
-              variant: 'destructive',
-              title: 'Erreur de connexion',
-              description: 'Email ou mot de passe incorrect',
-            });
-          } else {
-            toast({
-              variant: 'destructive',
-              title: 'Erreur',
-              description: error.message,
-            });
-          }
-          return;
+      if (error) {
+        if (error.message.includes('Invalid login credentials')) {
+          toast({
+            variant: 'destructive',
+            title: 'Erreur de connexion',
+            description: 'Email ou mot de passe incorrect',
+          });
+        } else {
+          toast({
+            variant: 'destructive',
+            title: 'Erreur',
+            description: error.message,
+          });
         }
-
-        toast({
-          title: 'Connexion réussie',
-          description: 'Bienvenue sur Grosafe Gestion!',
-        });
-      } else {
-        const redirectUrl = `${window.location.origin}/`;
-        
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: redirectUrl,
-            data: {
-              full_name: fullName,
-            },
-          },
-        });
-
-        if (error) {
-          if (error.message.includes('already registered')) {
-            toast({
-              variant: 'destructive',
-              title: 'Compte existant',
-              description: 'Cet email est déjà enregistré. Veuillez vous connecter.',
-            });
-          } else {
-            toast({
-              variant: 'destructive',
-              title: 'Erreur',
-              description: error.message,
-            });
-          }
-          return;
-        }
-
-        toast({
-          title: 'Inscription réussie',
-          description: 'Votre compte a été créé avec succès!',
-        });
+        return;
       }
+
+      toast({
+        title: 'Connexion réussie',
+        description: 'Bienvenue sur Grosafe Gestion!',
+      });
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -136,52 +93,13 @@ export default function Auth() {
 
         {/* Auth Card */}
         <div className="bg-card rounded-2xl border border-border shadow-xl p-8">
-          {/* Tab Switch */}
-          <div className="flex gap-2 p-1 bg-muted rounded-xl mb-6">
-            <button
-              onClick={() => setMode('login')}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all ${
-                mode === 'login'
-                  ? 'bg-primary text-primary-foreground shadow-md'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <LogIn className="w-4 h-4" />
-              Connexion
-            </button>
-            <button
-              onClick={() => setMode('signup')}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all ${
-                mode === 'signup'
-                  ? 'bg-primary text-primary-foreground shadow-md'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <UserPlus className="w-4 h-4" />
-              Inscription
-            </button>
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <LogIn className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-semibold text-foreground">Connexion</h2>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'signup' && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName" className="text-foreground">Nom complet</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="fullName"
-                    type="text"
-                    placeholder="Votre nom"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="pl-10"
-                    required={mode === 'signup'}
-                  />
-                </div>
-              </div>
-            )}
-
             <div className="space-y-2">
               <Label htmlFor="email" className="text-foreground">Email</Label>
               <div className="relative">
@@ -213,36 +131,26 @@ export default function Auth() {
                   minLength={6}
                 />
               </div>
-              {mode === 'signup' && (
-                <p className="text-xs text-muted-foreground">
-                  Minimum 6 caractères
-                </p>
-              )}
             </div>
 
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {mode === 'login' ? 'Connexion...' : 'Inscription...'}
+                  Connexion...
                 </>
               ) : (
                 <>
-                  {mode === 'login' ? (
-                    <>
-                      <LogIn className="w-4 h-4 mr-2" />
-                      Se connecter
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="w-4 h-4 mr-2" />
-                      S'inscrire
-                    </>
-                  )}
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Se connecter
                 </>
               )}
             </Button>
           </form>
+
+          <p className="text-xs text-muted-foreground text-center mt-4">
+            Contactez l'administrateur pour obtenir un compte
+          </p>
         </div>
 
         {/* Footer */}
