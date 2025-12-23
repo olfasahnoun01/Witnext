@@ -1,7 +1,9 @@
-import { Bell, Search } from 'lucide-react';
+import { Bell, Search, LogOut } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getLowStockProducts } from '@/services/dbService';
 import { Product } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
 
 interface HeaderProps {
   title: string;
@@ -10,6 +12,7 @@ interface HeaderProps {
 export const Header = ({ title }: HeaderProps) => {
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const { user, signOut } = useAuth();
 
   useEffect(() => {
     const loadLowStock = async () => {
@@ -85,6 +88,24 @@ export const Header = ({ title }: HeaderProps) => {
               </div>
             )}
           </div>
+
+          {/* User info & Sign out */}
+          {user && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground hidden md:block">
+                {user.email}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={signOut}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                <span className="hidden md:inline">Déconnexion</span>
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </header>

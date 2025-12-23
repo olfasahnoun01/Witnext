@@ -1,6 +1,5 @@
 import { Product, Transaction } from '@/types';
-
-const GEMINI_API_KEY = 'YOUR_API_KEY'; // User should add their own key
+import { supabase } from '@/integrations/supabase/client';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -23,9 +22,44 @@ export const generateStrategicAnalysis = async (
   const outOfStock = products.filter(p => p.quantity === 0);
   const totalValue = products.reduce((sum, p) => sum + p.price * p.quantity, 0);
 
-  // For demo purposes, return a mock analysis
-  // In production, this would call the actual Gemini API
-  return `## 📊 Analyse Stratégique de l'Inventaire Grosafe
+  const prompt = `Analyse cet inventaire et fournis une analyse stratégique complète:
+
+## État de l'inventaire:
+- Valeur totale: ${totalValue.toFixed(3)} TND
+- Nombre de produits: ${products.length}
+- Produits en rupture: ${outOfStock.length}
+- Produits en stock faible: ${lowStock.length}
+
+## Liste des produits:
+${inventorySummary}
+
+## Mouvements récents:
+${recentMovements || 'Aucun mouvement récent'}
+
+## Produits en alerte:
+${lowStock.length > 0 ? lowStock.map(p => `- ${p.name}: ${p.quantity}/${p.min_stock} unités`).join('\n') : 'Aucun produit en alerte'}
+
+Fournis une analyse stratégique avec:
+1. Résumé de la situation
+2. Alertes prioritaires
+3. Recommandations d'action
+4. Opportunités d'optimisation`;
+
+  try {
+    const { data, error } = await supabase.functions.invoke('gemini-chat', {
+      body: { prompt, type: 'analysis' }
+    });
+
+    if (error) {
+      console.error('Error calling Gemini:', error);
+      throw error;
+    }
+
+    return data.response;
+  } catch (error) {
+    console.error('Gemini API error:', error);
+    // Return fallback analysis if API fails
+    return `## 📊 Analyse Stratégique de l'Inventaire Grosafe
 
 ### État Actuel
 - **Valeur totale du stock**: ${totalValue.toFixed(3)} TND
@@ -39,48 +73,66 @@ ${lowStock.length > 0 ? lowStock.map(p => `- **${p.name}**: Seulement ${p.quanti
 ### 💡 Recommandations
 1. **Réapprovisionnement urgent**: ${outOfStock.length > 0 ? outOfStock.map(p => p.name).join(', ') : 'Aucun produit en rupture'}
 2. **Optimisation des stocks**: Considérez d'augmenter le stock minimum pour les articles à forte rotation
-3. **Analyse des tendances**: Les mouvements récents montrent une activité ${transactions.length > 10 ? 'soutenue' : 'modérée'}
 
-### 📈 Opportunités
-- Négocier des remises volume avec les fournisseurs pour les articles à forte demande
-- Établir des alertes automatiques pour le réapprovisionnement
+*Analyse générée le ${new Date().toLocaleDateString('fr-TN')}*
 
-*Analyse générée le ${new Date().toLocaleDateString('fr-TN')}*`;
+⚠️ *Note: Cette analyse est basée sur un mode hors-ligne. Connectez-vous à l'API Gemini pour des analyses plus détaillées.*`;
+  }
 };
 
 export const chatWithInventory = async (
   message: string,
   products: Product[],
-  _chatHistory: ChatMessage[]
+  chatHistory: ChatMessage[]
 ): Promise<string> => {
-  const messageLower = message.toLowerCase();
+  const inventoryContext = products.map(p => 
+    `${p.name} (${p.sku}): ${p.quantity} unités, ${p.price.toFixed(3)} TND, Catégorie: ${p.category}, Fournisseur: ${p.fournisseur || 'N/A'}`
+  ).join('\n');
 
-  // Simple keyword-based responses for demo
-  if (messageLower.includes('rupture') || messageLower.includes('stock')) {
-    const outOfStock = products.filter(p => p.quantity === 0);
-    if (outOfStock.length === 0) {
-      return "Excellente nouvelle ! Aucun produit n'est actuellement en rupture de stock.";
-    }
-    return `Les produits suivants sont en rupture de stock:\n${outOfStock.map(p => `- ${p.name} (${p.sku})`).join('\n')}`;
-  }
+  const historyContext = chatHistory.slice(-5).map(m => 
+    `${m.role === 'user' ? 'Utilisateur' : 'Assistant'}: ${m.content}`
+  ).join('\n');
 
-  if (messageLower.includes('valeur') || messageLower.includes('total')) {
-    const totalValue = products.reduce((sum, p) => sum + p.price * p.quantity, 0);
-    return `La valeur totale de votre inventaire est de **${totalValue.toFixed(3)} TND**.`;
-  }
+  const prompt = `Contexte de l'inventaire:
+${inventoryContext}
 
-  if (messageLower.includes('catégorie') || messageLower.includes('categorie')) {
-    const categories: Record<string, number> = {};
-    products.forEach(p => {
-      categories[p.category] = (categories[p.category] || 0) + 1;
+Historique de conversation:
+${historyContext}
+
+Question de l'utilisateur: ${message}
+
+Réponds de manière concise et utile en français.`;
+
+  try {
+    const { data, error } = await supabase.functions.invoke('gemini-chat', {
+      body: { prompt, type: 'chat' }
     });
-    return `Répartition par catégorie:\n${Object.entries(categories).map(([cat, count]) => `- ${cat}: ${count} produits`).join('\n')}`;
-  }
 
-  if (messageLower.includes('fournisseur')) {
-    const suppliers = [...new Set(products.map(p => p.fournisseur))];
-    return `Vos fournisseurs:\n${suppliers.map(s => `- ${s}`).join('\n')}`;
-  }
+    if (error) {
+      console.error('Error calling Gemini:', error);
+      throw error;
+    }
 
-  return "Je suis l'assistant IA de Grosafe. Vous pouvez me poser des questions sur votre inventaire, comme:\n- Quels produits sont en rupture?\n- Quelle est la valeur totale du stock?\n- Quelles sont les catégories?\n- Qui sont mes fournisseurs?";
+    return data.response;
+  } catch (error) {
+    console.error('Chat API error:', error);
+    
+    // Fallback to simple keyword-based responses
+    const messageLower = message.toLowerCase();
+
+    if (messageLower.includes('rupture') || messageLower.includes('stock')) {
+      const outOfStock = products.filter(p => p.quantity === 0);
+      if (outOfStock.length === 0) {
+        return "Excellente nouvelle ! Aucun produit n'est actuellement en rupture de stock.";
+      }
+      return `Les produits suivants sont en rupture de stock:\n${outOfStock.map(p => `- ${p.name} (${p.sku})`).join('\n')}`;
+    }
+
+    if (messageLower.includes('valeur') || messageLower.includes('total')) {
+      const totalValue = products.reduce((sum, p) => sum + p.price * p.quantity, 0);
+      return `La valeur totale de votre inventaire est de **${totalValue.toFixed(3)} TND**.`;
+    }
+
+    return "Je suis l'assistant IA de Grosafe. L'API Gemini n'est pas disponible actuellement, mais vous pouvez me poser des questions simples sur votre inventaire.";
+  }
 };
