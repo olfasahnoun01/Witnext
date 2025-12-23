@@ -10,10 +10,13 @@ import {
 import { exportDatabase, importDatabase } from '@/services/dbService';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { UserManagement } from './UserManagement';
 
 export const Settings = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
@@ -77,7 +80,6 @@ export const Settings = () => {
       setIsImporting(false);
     }
     
-    // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -85,6 +87,9 @@ export const Settings = () => {
 
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl">
+      {/* User Management - Admin Only */}
+      {isAdmin && <UserManagement />}
+
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-3 rounded-xl bg-primary/10">
