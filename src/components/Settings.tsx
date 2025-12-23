@@ -30,7 +30,7 @@ export const Settings = () => {
         return;
       }
 
-      const blob = new Blob([data.buffer], { type: 'application/json' });
+      const blob = new Blob([new Uint8Array(data).buffer], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

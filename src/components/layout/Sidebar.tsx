@@ -7,7 +7,8 @@ import {
   Settings,
   Menu,
   X,
-  GitCompare
+  GitCompare,
+  ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import grosafeLogo from '@/assets/grosafe-logo.png';
@@ -35,7 +36,7 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
       {/* Mobile overlay */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-foreground/50 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-foreground/60 backdrop-blur-sm z-40 lg:hidden"
           onClick={onToggle}
         />
       )}
@@ -43,57 +44,71 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed top-0 left-0 z-50 h-full sidebar-gradient transition-transform duration-300 lg:translate-x-0",
+          "fixed top-0 left-0 z-50 h-full bg-sidebar border-r border-sidebar-border transition-transform duration-300 lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full",
           "w-72 lg:w-72"
         )}
       >
         <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
-            <div className="flex items-center">
-              <img 
-                src={grosafeLogo} 
-                alt="Grosafe Équipement" 
-                className="h-12 w-auto object-contain"
-              />
+          {/* Logo Section */}
+          <div className="flex items-center justify-between p-5 border-b border-sidebar-border/50">
+            <div className="flex items-center gap-3">
+              <div className="bg-card rounded-xl p-2 shadow-sm">
+                <img 
+                  src={grosafeLogo} 
+                  alt="Grosafe Équipement" 
+                  className="h-10 w-auto object-contain"
+                />
+              </div>
             </div>
             <button 
               onClick={onToggle}
-              className="lg:hidden p-2 rounded-lg hover:bg-sidebar-accent text-sidebar-foreground"
+              className="lg:hidden p-2 rounded-lg hover:bg-sidebar-accent/50 text-sidebar-foreground transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  onTabChange(item.id);
-                  if (window.innerWidth < 1024) onToggle();
-                }}
-                className={cn(
-                  "nav-item w-full",
-                  activeTab === item.id && "nav-item-active"
-                )}
-              >
-                <item.icon className="w-5 h-5" />
-                <span>{item.label}</span>
-              </button>
-            ))}
+          <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
+            <p className="px-3 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+              Menu Principal
+            </p>
+            {navItems.map((item) => {
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    onTabChange(item.id);
+                    if (window.innerWidth < 1024) onToggle();
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group",
+                    isActive 
+                      ? "bg-primary text-primary-foreground shadow-md" 
+                      : "text-sidebar-foreground hover:bg-sidebar-accent/30 hover:text-sidebar-foreground"
+                  )}
+                >
+                  <item.icon className={cn(
+                    "w-5 h-5 transition-transform duration-200",
+                    !isActive && "group-hover:scale-110"
+                  )} />
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {isActive && <ChevronRight className="w-4 h-4" />}
+                </button>
+              );
+            })}
           </nav>
 
           {/* Footer */}
-          <div className="p-4 border-t border-sidebar-border">
-            <div className="p-4 rounded-xl bg-sidebar-accent">
-              <p className="text-sm text-sidebar-foreground/80">
+          <div className="p-4 border-t border-sidebar-border/50">
+            <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
+              <p className="text-sm font-medium text-sidebar-foreground">
                 Grosafe Équipement
               </p>
-              <p className="text-xs text-sidebar-foreground/50 mt-1">
-                Système hors-ligne v1.0
+              <p className="text-xs text-sidebar-foreground/60 mt-1">
+                Base de données Cloud • v2.0
               </p>
             </div>
           </div>
@@ -103,7 +118,7 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
       {/* Mobile menu button */}
       <button
         onClick={onToggle}
-        className="fixed top-4 left-4 z-30 lg:hidden p-2 rounded-lg bg-card shadow-lg border border-border"
+        className="fixed top-4 left-4 z-30 lg:hidden p-2.5 rounded-xl bg-card shadow-lg border border-border hover:bg-muted transition-colors"
       >
         <Menu className="w-5 h-5 text-foreground" />
       </button>
