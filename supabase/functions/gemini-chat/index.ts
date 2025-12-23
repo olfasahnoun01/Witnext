@@ -30,7 +30,7 @@ serve(async (req) => {
       : "Tu es l'assistant IA de Grosafe, spécialisé en gestion d'inventaire. Tu réponds en français de manière concise et utile. Tu peux aider avec les questions sur le stock, les fournisseurs, les catégories et les tendances.";
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
