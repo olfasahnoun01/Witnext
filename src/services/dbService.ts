@@ -295,18 +295,7 @@ export const getRecentTransactions = async (limit: number = 10): Promise<Transac
 };
 
 export const getLowStockProducts = async (): Promise<Product[]> => {
-  const { data, error } = await supabase
-    .from('products')
-    .select('*')
-    .or('quantity.lte.min_stock')
-    .order('quantity', { ascending: true });
-  
-  if (error) {
-    console.error('Erreur lors de la récupération des produits en rupture:', error);
-    return [];
-  }
-  
-  // Filter in JS since we can't compare columns directly in the query
+  // Get all products and filter in JS since we can't compare columns directly in Supabase
   const products = await getAllProducts();
   return products.filter(p => p.quantity <= p.min_stock).sort((a, b) => a.quantity - b.quantity);
 };
