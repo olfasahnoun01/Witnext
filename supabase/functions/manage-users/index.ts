@@ -101,18 +101,40 @@ Deno.serve(async (req) => {
         })
 
         if (createError) {
+          console.error('Error creating user:', createError.message)
           return new Response(JSON.stringify({ error: createError.message }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
 
-        // Assign role if specified and not 'user' (default)
-        if (role && role !== 'user' && newUser.user) {
-          await supabaseAdmin.from('user_roles').insert({
+        if (newUser.user) {
+          // Explicitly insert into profiles table
+          const { error: profileError } = await supabaseAdmin.from('profiles').insert({
             user_id: newUser.user.id,
-            role: role
+            email: email,
+            full_name: full_name || null
           })
+
+          if (profileError) {
+            console.error('Error creating profile:', profileError.message)
+            // Don't fail the whole operation, profile might already exist from trigger
+          } else {
+            console.log('Profile created for user:', newUser.user.id)
+          }
+
+          // Assign role - always insert into user_roles table
+          const userRole = role || 'user'
+          const { error: roleError } = await supabaseAdmin.from('user_roles').insert({
+            user_id: newUser.user.id,
+            role: userRole
+          })
+
+          if (roleError) {
+            console.error('Error assigning role:', roleError.message)
+          } else {
+            console.log('Role assigned:', userRole, 'for user:', newUser.user.id)
+          }
         }
 
         return new Response(JSON.stringify({ success: true, user: newUser.user }), {
