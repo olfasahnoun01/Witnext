@@ -144,37 +144,68 @@ Deno.serve(async (req) => {
 
       case 'update': {
         const { user_id, password, full_name, role } = params
+        
+        console.log('Updating user:', user_id, 'password provided:', !!password, 'full_name:', full_name, 'role:', role)
 
-        // Update user
+        // Update auth user (password and metadata)
         const updateData: any = {}
-        if (password) updateData.password = password
-        if (full_name !== undefined) updateData.user_metadata = { full_name }
+        if (password && password.length >= 6) {
+          updateData.password = password
+          console.log('Password will be updated for user:', user_id)
+        }
+        if (full_name !== undefined) {
+          updateData.user_metadata = { full_name }
+        }
 
         if (Object.keys(updateData).length > 0) {
-          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+          console.log('Calling updateUserById with data keys:', Object.keys(updateData))
+          const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
             user_id,
             updateData
           )
 
           if (updateError) {
+            console.error('Error updating auth user:', updateError.message)
             return new Response(JSON.stringify({ error: updateError.message }), {
               status: 400,
               headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             })
           }
+          console.log('Auth user updated successfully:', updatedUser?.user?.id)
+        }
+
+        // Update profiles table
+        if (full_name !== undefined) {
+          const { error: profileError } = await supabaseAdmin
+            .from('profiles')
+            .update({ full_name, updated_at: new Date().toISOString() })
+            .eq('user_id', user_id)
+          
+          if (profileError) {
+            console.error('Error updating profile:', profileError.message)
+          } else {
+            console.log('Profile updated for user:', user_id)
+          }
         }
 
         // Update role if specified
         if (role) {
+          console.log('Updating role to:', role, 'for user:', user_id)
           // Remove existing roles
-          await supabaseAdmin.from('user_roles').delete().eq('user_id', user_id)
+          const { error: deleteRoleError } = await supabaseAdmin.from('user_roles').delete().eq('user_id', user_id)
+          if (deleteRoleError) {
+            console.error('Error deleting old roles:', deleteRoleError.message)
+          }
           
-          // Add new role if not 'user'
-          if (role !== 'user') {
-            await supabaseAdmin.from('user_roles').insert({
-              user_id,
-              role
-            })
+          // Always insert the role (including 'user')
+          const { error: insertRoleError } = await supabaseAdmin.from('user_roles').insert({
+            user_id,
+            role
+          })
+          if (insertRoleError) {
+            console.error('Error inserting new role:', insertRoleError.message)
+          } else {
+            console.log('Role updated to:', role, 'for user:', user_id)
           }
         }
 
