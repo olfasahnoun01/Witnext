@@ -9,6 +9,7 @@ export interface Product {
   price: number;
   min_stock: number;
   image: string | null;
+  color: string | null;
 }
 
 export interface Transaction {

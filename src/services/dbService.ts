@@ -34,7 +34,8 @@ export const getAllProducts = async (): Promise<Product[]> => {
     quantity: p.quantity,
     price: Number(p.price),
     min_stock: p.min_stock,
-    image: p.image || undefined
+    image: p.image || null,
+    color: (p as any).color || null
   }));
 };
 
@@ -60,7 +61,8 @@ export const getProductById = async (id: number): Promise<Product | null> => {
     quantity: data.quantity,
     price: Number(data.price),
     min_stock: data.min_stock,
-    image: data.image || undefined
+    image: data.image || null,
+    color: (data as any).color || null
   };
 };
 
@@ -77,8 +79,9 @@ export const createProduct = async (product: Omit<Product, 'id'>): Promise<{ suc
         quantity: product.quantity,
         price: product.price,
         min_stock: product.min_stock,
-        image: product.image || null
-      })
+        image: product.image || null,
+        color: product.color || null
+      } as any)
       .select()
       .single();
     
@@ -118,6 +121,7 @@ export const updateProduct = async (id: number, product: Partial<Product>): Prom
   if (product.price !== undefined) updateData.price = product.price;
   if (product.min_stock !== undefined) updateData.min_stock = product.min_stock;
   if (product.image !== undefined) updateData.image = product.image || null;
+  if (product.color !== undefined) updateData.color = product.color || null;
   
   const { error } = await supabase
     .from('products')

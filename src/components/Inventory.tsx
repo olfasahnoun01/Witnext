@@ -28,6 +28,8 @@ const statusLabels: Record<StockStatus, { label: string; class: string }> = {
   out_of_stock: { label: 'Rupture', class: 'status-badge-danger' }
 };
 
+const COLORS = ['Noir', 'Blanc', 'Bleu', 'Rouge', 'Vert', 'Jaune', 'Orange', 'Gris', 'Marron', 'Beige'];
+
 interface ProductFormData {
   name: string;
   sku: string;
@@ -38,6 +40,7 @@ interface ProductFormData {
   price: number;
   min_stock: number;
   image: string | null;
+  color: string;
 }
 
 const emptyFormData: ProductFormData = {
@@ -49,7 +52,8 @@ const emptyFormData: ProductFormData = {
   quantity: 0,
   price: 0,
   min_stock: 5,
-  image: null
+  image: null,
+  color: ''
 };
 
 export const Inventory = () => {
@@ -93,7 +97,8 @@ export const Inventory = () => {
         quantity: product.quantity,
         price: product.price,
         min_stock: product.min_stock,
-        image: product.image || null
+        image: product.image || null,
+        color: product.color || ''
       });
     } else {
       setEditingProduct(null);
@@ -197,6 +202,7 @@ export const Inventory = () => {
               <th>Code Article</th>
               <th>Catégorie</th>
               <th>Taille</th>
+              <th>Couleur</th>
               <th>Fournisseur</th>
               <th>Quantité</th>
               <th>Prix (TND)</th>
@@ -207,7 +213,7 @@ export const Inventory = () => {
           <tbody>
             {filteredProducts.length === 0 ? (
               <tr>
-                <td colSpan={10} className="text-center py-12 text-muted-foreground">
+                <td colSpan={11} className="text-center py-12 text-muted-foreground">
                   Aucun produit trouvé
                 </td>
               </tr>
@@ -231,6 +237,13 @@ export const Inventory = () => {
                     <td className="text-muted-foreground font-mono text-xs">{product.sku}</td>
                     <td>{product.category}</td>
                     <td>{product.size}</td>
+                    <td>
+                      {product.color && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{product.color}</span>
+                        </div>
+                      )}
+                    </td>
                     <td className="text-muted-foreground">{product.fournisseur}</td>
                     <td className="font-medium">{product.quantity}</td>
                     <td className="font-medium">{product.price.toFixed(3)}</td>
@@ -364,28 +377,44 @@ export const Inventory = () => {
                 </div>
 
                 <div>
-                  <label className="form-label">Fournisseur *</label>
+                  <label className="form-label">Fournisseur</label>
                   <input
                     type="text"
-                    required
                     value={formData.fournisseur}
                     onChange={(e) => setFormData(prev => ({ ...prev, fournisseur: e.target.value }))}
                     className="form-input"
-                    placeholder="Nom du fournisseur"
+                    placeholder="Nom du fournisseur (optionnel)"
                   />
                 </div>
 
                 <div>
-                  <label className="form-label">Prix (TND) *</label>
+                  <label className="form-label">Prix (TND)</label>
                   <input
                     type="number"
-                    required
                     step="0.001"
                     min="0"
                     value={formData.price}
                     onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
                     className="form-input"
+                    placeholder="0.000 (optionnel)"
                   />
+                </div>
+
+                <div>
+                  <label className="form-label">Couleur</label>
+                  <input
+                    type="text"
+                    list="colors"
+                    value={formData.color}
+                    onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                    className="form-input"
+                    placeholder="Sélectionner ou saisir (optionnel)"
+                  />
+                  <datalist id="colors">
+                    {COLORS.map(color => (
+                      <option key={color} value={color} />
+                    ))}
+                  </datalist>
                 </div>
 
                 <div>
