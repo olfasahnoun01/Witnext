@@ -362,18 +362,20 @@ export const Inventory = () => {
                 </div>
 
                 <div>
-                  <label className="form-label">Taille *</label>
-                  <select
-                    required
+                  <label className="form-label">Taille</label>
+                  <input
+                    type="text"
+                    list="sizes"
                     value={formData.size}
                     onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
                     className="form-input"
-                  >
-                    <option value="">Sélectionner...</option>
+                    placeholder="Sélectionner ou saisir (optionnel)"
+                  />
+                  <datalist id="sizes">
                     {SIZES.map(size => (
-                      <option key={size} value={size}>{size}</option>
+                      <option key={size} value={size} />
                     ))}
-                  </select>
+                  </datalist>
                 </div>
 
                 <div>
