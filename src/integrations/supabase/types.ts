@@ -17,6 +17,7 @@ export type Database = {
       products: {
         Row: {
           category: string
+          color: string | null
           created_at: string
           fournisseur: string | null
           id: number
@@ -31,6 +32,7 @@ export type Database = {
         }
         Insert: {
           category: string
+          color?: string | null
           created_at?: string
           fournisseur?: string | null
           id?: number
@@ -45,6 +47,7 @@ export type Database = {
         }
         Update: {
           category?: string
+          color?: string | null
           created_at?: string
           fournisseur?: string | null
           id?: number
