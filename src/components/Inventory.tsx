@@ -13,7 +13,7 @@ import { getAllProducts, createProduct, updateProduct, deleteProduct } from '@/s
 import { Product, StockStatus } from '@/types';
 import { Button } from '@/components/ui/button';
 
-const CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets'];
+const CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux'];
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
 
 const getStockStatus = (product: Product): StockStatus => {
