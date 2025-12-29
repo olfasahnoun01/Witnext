@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { 
   ArrowDownLeft, 
   ArrowUpRight, 
   Package,
   AlertCircle,
   Trash2,
-  Edit
+  Edit,
+  CalendarIcon
 } from 'lucide-react';
 import { getAllProducts, getAllTransactions, createTransaction } from '@/services/dbService';
 import { Product, Transaction } from '@/types';
@@ -13,6 +16,9 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 type TabType = 'in' | 'out';
 
@@ -29,6 +35,7 @@ export const Transactions = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editQuantity, setEditQuantity] = useState<number>(0);
   const [editNote, setEditNote] = useState('');
+  const [transactionDate, setTransactionDate] = useState<Date>(new Date());
 
   const handleDeleteTransaction = async (transactionId: number) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette transaction ?')) return;
@@ -114,7 +121,7 @@ export const Transactions = () => {
         product_name: selectedProduct.name,
         type: activeTab === 'in' ? 'IN' : 'OUT',
         quantity,
-        date: new Date().toISOString(),
+        date: transactionDate.toISOString(),
         note
       });
 
@@ -127,6 +134,7 @@ export const Transactions = () => {
       setSelectedProductId('');
       setQuantity(1);
       setNote('');
+      setTransactionDate(new Date());
       await loadData();
     } finally {
       setIsSubmitting(false);
@@ -233,6 +241,33 @@ export const Transactions = () => {
                   Maximum disponible: {selectedProduct.quantity} unités
                 </p>
               )}
+            </div>
+
+            <div>
+              <label className="form-label">Date *</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !transactionDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {transactionDate ? format(transactionDate, "PPP", { locale: fr }) : <span>Choisir une date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={transactionDate}
+                    onSelect={(date) => date && setTransactionDate(date)}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div>
