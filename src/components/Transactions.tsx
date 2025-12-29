@@ -3,15 +3,21 @@ import {
   ArrowDownLeft, 
   ArrowUpRight, 
   Package,
-  AlertCircle
+  AlertCircle,
+  Trash2,
+  Edit
 } from 'lucide-react';
 import { getAllProducts, getAllTransactions, createTransaction } from '@/services/dbService';
 import { Product, Transaction } from '@/types';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 type TabType = 'in' | 'out';
 
 export const Transactions = () => {
+  const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('in');
   const [products, setProducts] = useState<Product[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -20,6 +26,50 @@ export const Transactions = () => {
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editQuantity, setEditQuantity] = useState<number>(0);
+  const [editNote, setEditNote] = useState('');
+
+  const handleDeleteTransaction = async (transactionId: number) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette transaction ?')) return;
+    
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', transactionId);
+    
+    if (error) {
+      toast.error('Erreur lors de la suppression');
+      return;
+    }
+    
+    toast.success('Transaction supprimée');
+    await loadData();
+  };
+
+  const handleEditTransaction = (tx: Transaction) => {
+    setEditingTransaction(tx);
+    setEditQuantity(tx.quantity);
+    setEditNote(tx.note || '');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingTransaction) return;
+    
+    const { error } = await supabase
+      .from('transactions')
+      .update({ quantity: editQuantity, note: editNote })
+      .eq('id', editingTransaction.id);
+    
+    if (error) {
+      toast.error('Erreur lors de la modification');
+      return;
+    }
+    
+    toast.success('Transaction modifiée');
+    setEditingTransaction(null);
+    await loadData();
+  };
 
   useEffect(() => {
     loadData();
@@ -245,19 +295,60 @@ export const Transactions = () => {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground">{tx.product_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {tx.quantity} unités • {new Date(tx.date).toLocaleDateString('fr-TN', {
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                    {tx.note && (
-                      <p className="text-xs text-muted-foreground mt-1 truncate">{tx.note}</p>
+                    {editingTransaction?.id === tx.id ? (
+                      <div className="space-y-2">
+                        <input
+                          type="number"
+                          value={editQuantity}
+                          onChange={(e) => setEditQuantity(parseInt(e.target.value) || 0)}
+                          className="form-input text-sm py-1"
+                          min="1"
+                        />
+                        <input
+                          type="text"
+                          value={editNote}
+                          onChange={(e) => setEditNote(e.target.value)}
+                          className="form-input text-sm py-1"
+                          placeholder="Note..."
+                        />
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={handleSaveEdit}>Enregistrer</Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditingTransaction(null)}>Annuler</Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="font-medium text-foreground">{tx.product_name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {tx.quantity} unités • {new Date(tx.date).toLocaleDateString('fr-TN', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                        {tx.note && (
+                          <p className="text-xs text-muted-foreground mt-1 truncate">{tx.note}</p>
+                        )}
+                      </>
                     )}
                   </div>
+                  {isAdmin && !editingTransaction && (
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleEditTransaction(tx)}
+                        className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTransaction(tx.id)}
+                        className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))
             )}
