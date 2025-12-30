@@ -5,14 +5,35 @@ import {
   Plus, 
   Trash2, 
   AlertTriangle,
-  Package
+  Package,
+  Edit,
+  History,
+  Eye
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getAllProducts, getLowStockProducts } from '@/services/dbService';
 import { Product, DocumentData, DocumentItem } from '@/types';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import grosafeLogo from '@/assets/grosafe-logo.png';
+
+interface SavedDocument {
+  id: number;
+  type: 'bon_livraison' | 'bon_sortie' | 'bon_entree';
+  doc_number: string;
+  doc_date: string;
+  validity: string | null;
+  transport_ref: string | null;
+  third_party_name: string | null;
+  third_party_address: string | null;
+  third_party_tax_id: string | null;
+  items: DocumentItem[];
+  total_amount: number;
+  created_at: string;
+}
 
 // Convert image to base64 for PDF embedding
 const getLogoBase64 = (): Promise<string> => {
@@ -39,9 +60,10 @@ const documentTypes: { value: DocumentType; label: string; color: string }[] = [
 ];
 
 export const Reports = () => {
+  const { isAdmin } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
-  const [activeSection, setActiveSection] = useState<'reports' | 'documents'>('reports');
+  const [activeSection, setActiveSection] = useState<'reports' | 'documents' | 'history'>('reports');
   
   // Document state
   const [docType, setDocType] = useState<DocumentType>('bon_livraison');
@@ -60,6 +82,10 @@ export const Reports = () => {
   const [itemQuantity, setItemQuantity] = useState<number>(1);
   const [itemPrice, setItemPrice] = useState<number>(0);
 
+  // Document history state
+  const [savedDocuments, setSavedDocuments] = useState<SavedDocument[]>([]);
+  const [editingDocument, setEditingDocument] = useState<SavedDocument | null>(null);
+
   useEffect(() => {
     const loadData = async () => {
       const [productsData, lowStockData] = await Promise.all([
@@ -71,6 +97,128 @@ export const Reports = () => {
     };
     loadData();
   }, []);
+
+  useEffect(() => {
+    loadDocuments();
+  }, []);
+
+  const loadDocuments = async () => {
+    const { data, error } = await supabase
+      .from('documents')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (!error && data) {
+      setSavedDocuments(data.map(doc => ({
+        ...doc,
+        type: doc.type as 'bon_livraison' | 'bon_sortie' | 'bon_entree',
+        items: doc.items as unknown as DocumentItem[]
+      })));
+    }
+  };
+
+  const saveDocument = async () => {
+    const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
+    const totalAmount = showPrice 
+      ? docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)
+      : 0;
+
+    const { error } = await supabase.from('documents').insert({
+      type: docType,
+      doc_number: docNumber,
+      doc_date: docDate,
+      validity: docValidity || null,
+      transport_ref: transportRef || null,
+      third_party_name: thirdPartyName || null,
+      third_party_address: thirdPartyAddress || null,
+      third_party_tax_id: thirdPartyTaxId || null,
+      items: JSON.parse(JSON.stringify(docItems)),
+      total_amount: totalAmount
+    });
+
+    if (error) {
+      toast.error('Erreur lors de la sauvegarde du document');
+      console.error(error);
+    } else {
+      toast.success('Document sauvegardé avec succès');
+      loadDocuments();
+    }
+  };
+
+  const deleteDocument = async (id: number) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce document?')) return;
+
+    const { error } = await supabase.from('documents').delete().eq('id', id);
+    
+    if (error) {
+      toast.error('Erreur lors de la suppression');
+    } else {
+      toast.success('Document supprimé');
+      loadDocuments();
+    }
+  };
+
+  const startEditDocument = (doc: SavedDocument) => {
+    setEditingDocument(doc);
+    setDocType(doc.type);
+    setDocNumber(doc.doc_number);
+    setDocDate(doc.doc_date);
+    setDocValidity(doc.validity || '');
+    setTransportRef(doc.transport_ref || '');
+    setThirdPartyName(doc.third_party_name || '');
+    setThirdPartyAddress(doc.third_party_address || '');
+    setThirdPartyTaxId(doc.third_party_tax_id || '');
+    setDocItems(doc.items);
+    setActiveSection('documents');
+  };
+
+  const updateDocument = async () => {
+    if (!editingDocument) return;
+
+    const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
+    const totalAmount = showPrice 
+      ? docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)
+      : 0;
+
+    const { error } = await supabase.from('documents').update({
+      type: docType,
+      doc_number: docNumber,
+      doc_date: docDate,
+      validity: docValidity || null,
+      transport_ref: transportRef || null,
+      third_party_name: thirdPartyName || null,
+      third_party_address: thirdPartyAddress || null,
+      third_party_tax_id: thirdPartyTaxId || null,
+      items: JSON.parse(JSON.stringify(docItems)),
+      total_amount: totalAmount
+    }).eq('id', editingDocument.id);
+
+    if (error) {
+      toast.error('Erreur lors de la mise à jour');
+    } else {
+      toast.success('Document mis à jour');
+      setEditingDocument(null);
+      resetForm();
+      loadDocuments();
+    }
+  };
+
+  const resetForm = () => {
+    setDocType('bon_livraison');
+    setDocNumber('');
+    setDocDate(new Date().toISOString().split('T')[0]);
+    setDocValidity('');
+    setTransportRef('');
+    setThirdPartyName('');
+    setThirdPartyAddress('');
+    setThirdPartyTaxId('');
+    setDocItems([]);
+  };
+
+  const cancelEdit = () => {
+    setEditingDocument(null);
+    resetForm();
+  };
 
   const isEntree = docType === 'bon_entree';
   const thirdPartyLabel = isEntree ? 'Fournisseur' : 'Client';
@@ -381,7 +529,7 @@ export const Reports = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Section tabs */}
-      <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit">
+      <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit flex-wrap">
         <button
           onClick={() => setActiveSection('reports')}
           className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
@@ -394,7 +542,7 @@ export const Reports = () => {
           Rapports Standards
         </button>
         <button
-          onClick={() => setActiveSection('documents')}
+          onClick={() => { setActiveSection('documents'); if (!editingDocument) resetForm(); }}
           className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
             activeSection === 'documents'
               ? 'bg-primary text-primary-foreground shadow-md'
@@ -404,9 +552,20 @@ export const Reports = () => {
           <Package className="w-4 h-4" />
           Générateur Documents
         </button>
+        <button
+          onClick={() => setActiveSection('history')}
+          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+            activeSection === 'history'
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          Historique Documents
+        </button>
       </div>
 
-      {activeSection === 'reports' ? (
+      {activeSection === 'reports' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Inventory Report */}
           <div className="bg-card rounded-xl border border-border p-6">
@@ -452,11 +611,22 @@ export const Reports = () => {
             </div>
           </div>
         </div>
-      ) : (
+      )}
+
+      {activeSection === 'documents' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Document Form */}
           <div className="bg-card rounded-xl border border-border p-6 space-y-6">
-            <h3 className="text-lg font-semibold text-foreground">Informations Document</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-foreground">
+                {editingDocument ? 'Modifier Document' : 'Nouveau Document'}
+              </h3>
+              {editingDocument && (
+                <Button variant="outline" size="sm" onClick={cancelEdit}>
+                  Annuler
+                </Button>
+              )}
+            </div>
 
             {/* Document Type */}
             <div>
@@ -601,10 +771,23 @@ export const Reports = () => {
               </div>
             </div>
 
-            <Button onClick={generateOfficialPDF} className="w-full">
-              <Download className="w-4 h-4 mr-2" />
-              Générer Document PDF
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={generateOfficialPDF} className="flex-1">
+                <Download className="w-4 h-4 mr-2" />
+                Générer PDF
+              </Button>
+              {editingDocument ? (
+                <Button onClick={updateDocument} variant="secondary" className="flex-1">
+                  <Edit className="w-4 h-4 mr-2" />
+                  Mettre à jour
+                </Button>
+              ) : (
+                <Button onClick={saveDocument} variant="secondary" className="flex-1">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Sauvegarder
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Preview / Items List */}
@@ -646,6 +829,86 @@ export const Reports = () => {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {activeSection === 'history' && (
+        <div className="bg-card rounded-xl border border-border p-6">
+          <h3 className="text-lg font-semibold text-foreground mb-6">Historique des Documents</h3>
+          
+          {savedDocuments.length === 0 ? (
+            <div className="text-center py-12">
+              <History className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-sm text-muted-foreground">
+                Aucun document dans l'historique.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Type</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">N°</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Client/Fournisseur</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {savedDocuments.map(doc => {
+                    const typeInfo = documentTypes.find(t => t.value === doc.type);
+                    return (
+                      <tr key={doc.id} className="border-b border-border/50 hover:bg-muted/30">
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            doc.type === 'bon_entree' 
+                              ? 'bg-success/10 text-success' 
+                              : 'bg-destructive/10 text-destructive'
+                          }`}>
+                            {typeInfo?.label}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-sm font-medium text-foreground">{doc.doc_number}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">
+                          {new Date(doc.doc_date).toLocaleDateString('fr-FR')}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-foreground">{doc.third_party_name || '-'}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">{doc.items.length} articles</td>
+                        <td className="py-3 px-4 text-sm font-medium text-foreground">
+                          {doc.total_amount > 0 ? `${doc.total_amount.toFixed(3)} TND` : '-'}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex gap-2">
+                            {isAdmin && (
+                              <>
+                                <button
+                                  onClick={() => startEditDocument(doc)}
+                                  className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                                  title="Modifier"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => deleteDocument(doc.id)}
+                                  className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                  title="Supprimer"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
