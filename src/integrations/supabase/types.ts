@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      documents: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          doc_date: string
+          doc_number: string
+          id: number
+          items: Json
+          third_party_address: string | null
+          third_party_name: string | null
+          third_party_tax_id: string | null
+          total_amount: number | null
+          transport_ref: string | null
+          type: string
+          updated_at: string
+          validity: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          doc_date?: string
+          doc_number: string
+          id?: number
+          items?: Json
+          third_party_address?: string | null
+          third_party_name?: string | null
+          third_party_tax_id?: string | null
+          total_amount?: number | null
+          transport_ref?: string | null
+          type: string
+          updated_at?: string
+          validity?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          doc_date?: string
+          doc_number?: string
+          id?: number
+          items?: Json
+          third_party_address?: string | null
+          third_party_name?: string | null
+          third_party_tax_id?: string | null
+          total_amount?: number | null
+          transport_ref?: string | null
+          type?: string
+          updated_at?: string
+          validity?: string | null
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           category: string
