@@ -102,6 +102,31 @@ export const Reports = () => {
     loadDocuments();
   }, []);
 
+  // Auto-generate document number when type changes
+  useEffect(() => {
+    if (editingDocument) return; // Don't auto-generate when editing
+    generateNextDocNumber(docType);
+  }, [docType, savedDocuments, editingDocument]);
+
+  const generateNextDocNumber = (type: DocumentType) => {
+    const prefix = type === 'bon_entree' ? 'BE' : type === 'bon_sortie' ? 'BS' : 'BL';
+    
+    // Find all documents of this type and extract their numbers
+    const docsOfType = savedDocuments.filter(d => d.type === type);
+    let maxNumber = 0;
+    
+    docsOfType.forEach(doc => {
+      const match = doc.doc_number.match(new RegExp(`^${prefix}-(\\d+)$`));
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNumber) maxNumber = num;
+      }
+    });
+    
+    const nextNumber = (maxNumber + 1).toString().padStart(2, '0');
+    setDocNumber(`${prefix}-${nextNumber}`);
+  };
+
   const loadDocuments = async () => {
     const { data, error } = await supabase
       .from('documents')
