@@ -27,6 +27,7 @@ export interface DocumentItem {
   designation: string;
   description: string;
   quantity: number;
+  price?: number;
 }
 
 export interface DocumentData {
