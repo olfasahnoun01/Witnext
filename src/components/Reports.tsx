@@ -58,6 +58,7 @@ export const Reports = () => {
   const [selectedProductId, setSelectedProductId] = useState<number | ''>('');
   const [itemDescription, setItemDescription] = useState('');
   const [itemQuantity, setItemQuantity] = useState<number>(1);
+  const [itemPrice, setItemPrice] = useState<number>(0);
 
   useEffect(() => {
     const loadData = async () => {
@@ -180,16 +181,20 @@ export const Reports = () => {
     const product = products.find(p => p.id === selectedProductId);
     if (!product) return;
     
+    const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
+    
     setDocItems(prev => [...prev, {
       ref: product.sku,
       designation: product.name,
       description: itemDescription,
-      quantity: itemQuantity
+      quantity: itemQuantity,
+      ...(showPrice && { price: itemPrice || product.price })
     }]);
     
     setSelectedProductId('');
     setItemDescription('');
     setItemQuantity(1);
+    setItemPrice(0);
   };
 
   const removeDocItem = (index: number) => {
@@ -267,18 +272,34 @@ export const Reports = () => {
     doc.setTextColor(0, 0, 0);
     doc.text(`Immatriculation voiture : ${transportRef || '________________________'}`, 14, 128);
     
-    // Items table
-    const tableData = docItems.map((item, index) => [
-      (index + 1).toString(),
-      item.designation,
-      item.description,
-      item.quantity.toString()
-    ]);
+    // Items table - with price for Bon de Livraison and Bon de Sortie
+    const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
+    
+    const tableData = docItems.map((item, index) => {
+      const baseRow = [
+        (index + 1).toString(),
+        item.designation,
+        item.description,
+        item.quantity.toString()
+      ];
+      if (showPrice) {
+        const price = item.price || 0;
+        const total = price * item.quantity;
+        baseRow.push(`${price.toFixed(3)} TND`, `${total.toFixed(3)} TND`);
+      }
+      return baseRow;
+    });
+    
+    const tableHead = showPrice 
+      ? [['Réf', 'Désignation', 'Description', 'Qté', 'Prix Unit.', 'Total']]
+      : [['Référence', 'Désignation', 'Description', 'Quantité']];
+    
+    const emptyRow = showPrice ? ['', '', '', '', '', ''] : ['', '', '', ''];
     
     autoTable(doc, {
       startY: 135,
-      head: [['Référence', 'Désignation', 'Description', 'Quantité']],
-      body: tableData.length > 0 ? tableData : [['', '', '', '']],
+      head: tableHead,
+      body: tableData.length > 0 ? tableData : [emptyRow],
       theme: 'grid',
       headStyles: { 
         fillColor: [30, 58, 95],
@@ -290,7 +311,14 @@ export const Reports = () => {
         fontSize: 9,
         cellPadding: 4
       },
-      columnStyles: {
+      columnStyles: showPrice ? {
+        0: { cellWidth: 18, halign: 'center' },
+        1: { cellWidth: 45 },
+        2: { cellWidth: 50 },
+        3: { cellWidth: 18, halign: 'center' },
+        4: { cellWidth: 28, halign: 'right' },
+        5: { cellWidth: 28, halign: 'right' }
+      } : {
         0: { cellWidth: 22, halign: 'center' },
         1: { cellWidth: 55 },
         2: { cellWidth: 75 },
@@ -300,6 +328,16 @@ export const Reports = () => {
         fillColor: [245, 247, 250]
       }
     });
+    
+    // Add total for documents with price
+    if (showPrice && docItems.length > 0) {
+      const grandTotal = docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+      const tableY = (doc as any).lastAutoTable?.finalY || 150;
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 58, 95);
+      doc.text(`Total Général : ${grandTotal.toFixed(3)} TND`, pageWidth - 14, tableY + 8, { align: 'right' });
+    }
     
     // Signature boxes
     const finalY = Math.max((doc as any).lastAutoTable?.finalY || 150, 180);
@@ -535,7 +573,7 @@ export const Reports = () => {
                   className="form-input"
                   placeholder="Description (optionnel)"
                 />
-                <div className="flex gap-3">
+                <div className="flex gap-3 flex-wrap">
                   <input
                     type="number"
                     min="1"
@@ -544,6 +582,17 @@ export const Reports = () => {
                     className="form-input w-24"
                     placeholder="Qté"
                   />
+                  {(docType === 'bon_livraison' || docType === 'bon_sortie') && (
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      value={itemPrice || ''}
+                      onChange={(e) => setItemPrice(parseFloat(e.target.value) || 0)}
+                      className="form-input w-32"
+                      placeholder="Prix TND"
+                    />
+                  )}
                   <Button onClick={addDocItem} disabled={!selectedProductId}>
                     <Plus className="w-4 h-4 mr-2" />
                     Ajouter
@@ -580,6 +629,7 @@ export const Reports = () => {
                       <p className="font-medium text-foreground">{item.designation}</p>
                       <p className="text-sm text-muted-foreground">
                         Réf: {item.ref} • Qté: {item.quantity}
+                        {item.price !== undefined && ` • ${item.price.toFixed(3)} TND`}
                       </p>
                       {item.description && (
                         <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
