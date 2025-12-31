@@ -134,11 +134,26 @@ export const Reports = () => {
       .order('created_at', { ascending: false });
     
     if (!error && data) {
-      setSavedDocuments(data.map(doc => ({
-        ...doc,
-        type: doc.type as 'bon_livraison' | 'bon_sortie' | 'bon_entree',
-        items: doc.items as unknown as DocumentItem[]
-      })));
+      setSavedDocuments(data.map(doc => {
+        // Ensure items is always a proper array
+        let parsedItems: DocumentItem[] = [];
+        if (doc.items) {
+          if (typeof doc.items === 'string') {
+            try {
+              parsedItems = JSON.parse(doc.items);
+            } catch {
+              parsedItems = [];
+            }
+          } else if (Array.isArray(doc.items)) {
+            parsedItems = doc.items as unknown as DocumentItem[];
+          }
+        }
+        return {
+          ...doc,
+          type: doc.type as 'bon_livraison' | 'bon_sortie' | 'bon_entree',
+          items: parsedItems
+        };
+      }));
     }
   };
 
