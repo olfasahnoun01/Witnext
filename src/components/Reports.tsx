@@ -564,6 +564,58 @@ export const Reports = () => {
     
     const fileName = `${docType}_${docNumber || 'nouveau'}_${docDate}.pdf`;
     doc.save(fileName);
+    
+    // Auto-save document after PDF generation
+    if (docItems.length > 0) {
+      const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
+      const totalAmount = showPrice 
+        ? docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)
+        : 0;
+
+      if (editingDocument) {
+        // Update existing document
+        const { error } = await supabase.from('documents').update({
+          type: docType,
+          doc_number: docNumber,
+          doc_date: docDate,
+          validity: docValidity || null,
+          transport_ref: transportRef || null,
+          third_party_name: thirdPartyName || null,
+          third_party_address: thirdPartyAddress || null,
+          third_party_tax_id: thirdPartyTaxId || null,
+          items: JSON.parse(JSON.stringify(docItems)),
+          total_amount: totalAmount
+        }).eq('id', editingDocument.id);
+
+        if (!error) {
+          toast.success('Document mis à jour automatiquement');
+          setEditingDocument(null);
+          loadDocuments();
+        }
+      } else {
+        // Check if document already exists (by doc_number)
+        const existingDoc = savedDocuments.find(d => d.doc_number === docNumber);
+        if (!existingDoc) {
+          const { error } = await supabase.from('documents').insert({
+            type: docType,
+            doc_number: docNumber,
+            doc_date: docDate,
+            validity: docValidity || null,
+            transport_ref: transportRef || null,
+            third_party_name: thirdPartyName || null,
+            third_party_address: thirdPartyAddress || null,
+            third_party_tax_id: thirdPartyTaxId || null,
+            items: JSON.parse(JSON.stringify(docItems)),
+            total_amount: totalAmount
+          });
+
+          if (!error) {
+            toast.success('Document sauvegardé automatiquement');
+            loadDocuments();
+          }
+        }
+      }
+    }
   };
 
   return (
