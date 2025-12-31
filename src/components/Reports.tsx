@@ -108,6 +108,37 @@ export const Reports = () => {
     generateNextDocNumber(docType);
   }, [docType, savedDocuments, editingDocument]);
 
+  // Auto-save when editing a document from history
+  useEffect(() => {
+    if (!editingDocument) return;
+    
+    const timeoutId = setTimeout(async () => {
+      const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
+      const totalAmount = showPrice 
+        ? docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)
+        : 0;
+
+      const { error } = await supabase.from('documents').update({
+        type: docType,
+        doc_number: docNumber,
+        doc_date: docDate,
+        validity: docValidity || null,
+        transport_ref: transportRef || null,
+        third_party_name: thirdPartyName || null,
+        third_party_address: thirdPartyAddress || null,
+        third_party_tax_id: thirdPartyTaxId || null,
+        items: JSON.parse(JSON.stringify(docItems)),
+        total_amount: totalAmount
+      }).eq('id', editingDocument.id);
+
+      if (!error) {
+        loadDocuments();
+      }
+    }, 1000); // Debounce 1 second
+
+    return () => clearTimeout(timeoutId);
+  }, [editingDocument, docType, docNumber, docDate, docValidity, transportRef, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems]);
+
   const generateNextDocNumber = (type: DocumentType) => {
     const prefix = type === 'bon_entree' ? 'BE' : type === 'bon_sortie' ? 'BS' : 'BL';
     
