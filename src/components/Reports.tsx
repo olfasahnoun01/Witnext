@@ -649,6 +649,182 @@ export const Reports = () => {
     }
   };
 
+  // Download PDF for a saved document from history
+  const downloadDocumentPDF = async (savedDoc: SavedDocument) => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    const logoBase64 = await getLogoBase64();
+    
+    // Add logo
+    doc.addImage(logoBase64, 'PNG', 14, 8, 40, 20);
+    
+    // Company name next to logo
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text('GROSAFE ÉQUIPEMENT', 60, 20);
+    
+    // Horizontal line under header
+    doc.setDrawColor(199, 62, 62);
+    doc.setLineWidth(1);
+    doc.line(14, 32, pageWidth - 14, 32);
+    
+    // Document type title
+    const typeInfo = documentTypes.find(t => t.value === savedDoc.type)!;
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text(typeInfo.label.toUpperCase(), pageWidth / 2, 45, { align: 'center' });
+    
+    // Document number and date box
+    doc.setDrawColor(30, 58, 95);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(pageWidth - 75, 52, 61, 22, 2, 2);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`N° : ${savedDoc.doc_number}`, pageWidth - 72, 60);
+    doc.text(`Date : ${new Date(savedDoc.doc_date).toLocaleDateString('fr-FR')}`, pageWidth - 72, 68);
+    
+    // Validity info
+    if (savedDoc.validity) {
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Ce bon de commande est valable jusqu'au ${savedDoc.validity}`, 14, 58);
+    }
+    
+    // Third party section
+    const thirdPartyLabel = savedDoc.type === 'bon_entree' ? 'Fournisseur' : 'Client';
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text(thirdPartyLabel, 14, 82);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Raison sociale : ${savedDoc.third_party_name || '________________________'}`, 14, 90);
+    doc.text(`Adresse de livraison : ${savedDoc.third_party_address || '________________________'}`, 14, 98);
+    doc.text(`Identification Fiscale : ${savedDoc.third_party_tax_id || '________________________'}`, 14, 106);
+    
+    // Delivery details section
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text('Détails de la livraison', 14, 120);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Immatriculation voiture : ${savedDoc.transport_ref || '________________________'}`, 14, 128);
+    
+    // Items table
+    const showPrice = savedDoc.type === 'bon_livraison' || savedDoc.type === 'bon_sortie';
+    
+    const tableData = savedDoc.items.map((item, index) => {
+      const baseRow = [
+        (index + 1).toString(),
+        item.designation,
+        item.description || '',
+        item.quantity.toString()
+      ];
+      if (showPrice) {
+        const price = item.price || 0;
+        const total = price * item.quantity;
+        baseRow.push(`${price.toFixed(3)} TND`, `${total.toFixed(3)} TND`);
+      }
+      return baseRow;
+    });
+    
+    const tableHead = showPrice 
+      ? [['Réf', 'Désignation', 'Description', 'Qté', 'Prix Unit.', 'Total']]
+      : [['Référence', 'Désignation', 'Description', 'Quantité']];
+    
+    const emptyRow = showPrice ? ['', '', '', '', '', ''] : ['', '', '', ''];
+    
+    autoTable(doc, {
+      startY: 135,
+      head: tableHead,
+      body: tableData.length > 0 ? tableData : [emptyRow],
+      theme: 'grid',
+      headStyles: { 
+        fillColor: [30, 58, 95],
+        fontSize: 10,
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      styles: { 
+        fontSize: 9,
+        cellPadding: 4
+      },
+      columnStyles: showPrice ? {
+        0: { cellWidth: 18, halign: 'center' },
+        1: { cellWidth: 45 },
+        2: { cellWidth: 50 },
+        3: { cellWidth: 18, halign: 'center' },
+        4: { cellWidth: 28, halign: 'right' },
+        5: { cellWidth: 28, halign: 'right' }
+      } : {
+        0: { cellWidth: 22, halign: 'center' },
+        1: { cellWidth: 55 },
+        2: { cellWidth: 75 },
+        3: { cellWidth: 25, halign: 'center' }
+      },
+      alternateRowStyles: {
+        fillColor: [245, 247, 250]
+      }
+    });
+    
+    // Add total for documents with price
+    if (showPrice && savedDoc.items.length > 0) {
+      const grandTotal = savedDoc.items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+      const tableY = (doc as any).lastAutoTable?.finalY || 150;
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 58, 95);
+      doc.text(`Total Général : ${grandTotal.toFixed(3)} TND`, pageWidth - 14, tableY + 8, { align: 'right' });
+    }
+    
+    // Signature boxes
+    const finalY = Math.max((doc as any).lastAutoTable?.finalY || 150, 180);
+    
+    doc.setDrawColor(30, 58, 95);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(14, finalY + 15, 80, 30, 2, 2);
+    doc.roundedRect(pageWidth - 94, finalY + 15, 80, 30, 2, 2);
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text('Signature et cachet Grosafe équipement', 16, finalY + 23);
+    doc.text(`Signature et cachet ${thirdPartyLabel}`, pageWidth - 92, finalY + 23);
+    
+    // Footer section
+    const footerY = pageHeight - 25;
+    
+    doc.setDrawColor(199, 62, 62);
+    doc.setLineWidth(0.5);
+    doc.line(14, footerY - 5, pageWidth - 14, footerY - 5);
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text('Société Grosafe Equipment', 14, footerY);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80, 80, 80);
+    doc.text('Adresse : Immeuble Salma Dar Fadhal Aouina, Tunis', 14, footerY + 5);
+    doc.text('Email : contact@grosafe.net', 14, footerY + 10);
+    doc.text('Tel : +216 22219219 ; +216 27277777', pageWidth / 2, footerY + 10, { align: 'center' });
+    doc.text('Code TVA : 1752965/M/A/M', pageWidth - 14, footerY + 10, { align: 'right' });
+    
+    const fileName = `${savedDoc.type}_${savedDoc.doc_number}_${savedDoc.doc_date}.pdf`;
+    doc.save(fileName);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Section tabs */}
@@ -983,6 +1159,7 @@ export const Reports = () => {
                 <tbody>
                   {savedDocuments.map(doc => {
                     const typeInfo = documentTypes.find(t => t.value === doc.type);
+                    const totalQuantity = doc.items.reduce((sum, item) => sum + item.quantity, 0);
                     return (
                       <tr key={doc.id} className="border-b border-border/50 hover:bg-muted/30">
                         <td className="py-3 px-4">
@@ -999,12 +1176,21 @@ export const Reports = () => {
                           {new Date(doc.doc_date).toLocaleDateString('fr-FR')}
                         </td>
                         <td className="py-3 px-4 text-sm text-foreground">{doc.third_party_name || '-'}</td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">{doc.items.length} articles</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">
+                          {doc.items.length} articles ({totalQuantity} unités)
+                        </td>
                         <td className="py-3 px-4 text-sm font-medium text-foreground">
                           {doc.total_amount > 0 ? `${doc.total_amount.toFixed(3)} TND` : '-'}
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex gap-2">
+                            <button
+                              onClick={() => downloadDocumentPDF(doc)}
+                              className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                              title="Télécharger PDF"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
                             {isAdmin && (
                               <>
                                 <button
