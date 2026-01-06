@@ -108,7 +108,7 @@ export const Reports = () => {
     generateNextDocNumber(docType);
   }, [docType, savedDocuments, editingDocument]);
 
-  // Auto-save when editing a document from history
+  // Auto-save when editing a document from history (debounced)
   useEffect(() => {
     if (!editingDocument) return;
     
@@ -118,7 +118,7 @@ export const Reports = () => {
         ? docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)
         : 0;
 
-      const { error } = await supabase.from('documents').update({
+      await supabase.from('documents').update({
         type: docType,
         doc_number: docNumber,
         doc_date: docDate,
@@ -130,14 +130,11 @@ export const Reports = () => {
         items: JSON.parse(JSON.stringify(docItems)),
         total_amount: totalAmount
       }).eq('id', editingDocument.id);
-
-      if (!error) {
-        loadDocuments();
-      }
-    }, 1000); // Debounce 1 second
+      // Don't reload documents on every auto-save - only on manual save/cancel
+    }, 2000); // Debounce 2 seconds
 
     return () => clearTimeout(timeoutId);
-  }, [editingDocument, docType, docNumber, docDate, docValidity, transportRef, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems]);
+  }, [editingDocument?.id, docType, docNumber, docDate, docValidity, transportRef, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, JSON.stringify(docItems)]);
 
   const generateNextDocNumber = (type: DocumentType) => {
     const prefix = type === 'bon_entree' ? 'BE' : type === 'bon_sortie' ? 'BS' : 'BL';
