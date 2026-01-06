@@ -155,7 +155,7 @@ export default function Auth() {
 
         {/* Footer */}
         <p className="text-center text-sm text-muted-foreground mt-6">
-          © 2024 Grosafe Équipement. Tous droits réservés.
+          © 2025 Grosafe Équipement. Tous droits réservés.
         </p>
       </div>
     </div>
