@@ -1,16 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
-import { Dashboard } from '@/components/Dashboard';
-import { Inventory } from '@/components/Inventory';
-import { Transactions } from '@/components/Transactions';
-import { Reports } from '@/components/Reports';
-import { AIAssistant } from '@/components/AIAssistant';
-import { Settings } from '@/components/Settings';
-import { SupplierComparison } from '@/components/SupplierComparison';
-import { Fournisseurs } from '@/components/Fournisseurs';
 import { initDatabase } from '@/services/dbService';
 import { Loader2 } from 'lucide-react';
+
+// Lazy load heavy components
+const Dashboard = lazy(() => import('@/components/Dashboard').then(m => ({ default: m.Dashboard })));
+const Inventory = lazy(() => import('@/components/Inventory').then(m => ({ default: m.Inventory })));
+const Transactions = lazy(() => import('@/components/Transactions').then(m => ({ default: m.Transactions })));
+const Reports = lazy(() => import('@/components/Reports').then(m => ({ default: m.Reports })));
+const AIAssistant = lazy(() => import('@/components/AIAssistant').then(m => ({ default: m.AIAssistant })));
+const Settings = lazy(() => import('@/components/Settings').then(m => ({ default: m.Settings })));
+const SupplierComparison = lazy(() => import('@/components/SupplierComparison').then(m => ({ default: m.SupplierComparison })));
+const Fournisseurs = lazy(() => import('@/components/Fournisseurs').then(m => ({ default: m.Fournisseurs })));
 
 const tabTitles: Record<string, string> = {
   dashboard: 'Tableau de Bord',
@@ -22,6 +24,12 @@ const tabTitles: Record<string, string> = {
   ai: 'Assistant IA',
   settings: 'Paramètres'
 };
+
+const ComponentLoader = () => (
+  <div className="flex items-center justify-center py-12">
+    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+  </div>
+);
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -54,26 +62,18 @@ const Index = () => {
   }
 
   const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'inventory':
-        return <Inventory />;
-      case 'fournisseurs':
-        return <Fournisseurs />;
-      case 'comparison':
-        return <SupplierComparison />;
-      case 'transactions':
-        return <Transactions />;
-      case 'reports':
-        return <Reports />;
-      case 'ai':
-        return <AIAssistant />;
-      case 'settings':
-        return <Settings />;
-      default:
-        return <Dashboard />;
-    }
+    return (
+      <Suspense fallback={<ComponentLoader />}>
+        {activeTab === 'dashboard' && <Dashboard />}
+        {activeTab === 'inventory' && <Inventory />}
+        {activeTab === 'fournisseurs' && <Fournisseurs />}
+        {activeTab === 'comparison' && <SupplierComparison />}
+        {activeTab === 'transactions' && <Transactions />}
+        {activeTab === 'reports' && <Reports />}
+        {activeTab === 'ai' && <AIAssistant />}
+        {activeTab === 'settings' && <Settings />}
+      </Suspense>
+    );
   };
 
   return (
