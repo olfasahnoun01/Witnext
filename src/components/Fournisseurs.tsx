@@ -51,6 +51,34 @@ const SPECIALITES = [
   'Autre'
 ];
 
+// Tunisian governorates and major cities
+const TUNISIA_LOCATIONS = [
+  { governorate: 'Tunis', cities: ['Tunis', 'Le Bardo', 'La Marsa', 'Carthage', 'Sidi Bou Saïd', 'Le Kram'] },
+  { governorate: 'Ariana', cities: ['Ariana', 'La Soukra', 'Raoued', 'Kalâat el-Andalous', 'Sidi Thabet', 'Mnihla'] },
+  { governorate: 'Ben Arous', cities: ['Ben Arous', 'Radès', 'Hammam Lif', 'Hammam Chott', 'Ezzahra', 'Mégrine', 'Mohamedia', 'Fouchana'] },
+  { governorate: 'Manouba', cities: ['Manouba', 'Den Den', 'Douar Hicher', 'Oued Ellil', 'Tebourba', 'El Battan'] },
+  { governorate: 'Nabeul', cities: ['Nabeul', 'Hammamet', 'Kélibia', 'Korba', 'Menzel Temime', 'Soliman', 'Grombalia', 'Dar Chaâbane'] },
+  { governorate: 'Zaghouan', cities: ['Zaghouan', 'El Fahs', 'Nadhour', 'Bir Mcherga', 'Zriba'] },
+  { governorate: 'Bizerte', cities: ['Bizerte', 'Menzel Bourguiba', 'Mateur', 'Ras Jebel', 'Menzel Jemil', 'Tinja', 'Sejnane'] },
+  { governorate: 'Béja', cities: ['Béja', 'Medjez el-Bab', 'Testour', 'Nefza', 'Téboursouk', 'Goubellat'] },
+  { governorate: 'Jendouba', cities: ['Jendouba', 'Tabarka', 'Aïn Draham', 'Bou Salem', 'Ghardimaou', 'Fernana'] },
+  { governorate: 'Le Kef', cities: ['Le Kef', 'Dahmani', 'Tajerouine', 'Sakiet Sidi Youssef', 'Nebeur', 'Kalaat Senan'] },
+  { governorate: 'Siliana', cities: ['Siliana', 'Bou Arada', 'Gaâfour', 'El Krib', 'Makthar', 'Rouhia'] },
+  { governorate: 'Sousse', cities: ['Sousse', 'Msaken', 'Kalaa Kebira', 'Hammam Sousse', 'Akouda', 'Kalaa Sghira', 'Enfidha'] },
+  { governorate: 'Monastir', cities: ['Monastir', 'Moknine', 'Jemmal', 'Ksar Hellal', 'Téboulba', 'Sahline', 'Bembla', 'Sayada'] },
+  { governorate: 'Mahdia', cities: ['Mahdia', 'Ksour Essef', 'El Jem', 'Chebba', 'Bou Merdes', 'Melloulech'] },
+  { governorate: 'Sfax', cities: ['Sfax', 'Sakiet Ezzit', 'Sakiet Eddaïer', 'El Ain', 'Thyna', 'Agareb', 'Jbeniana', 'Mahares', 'Kerkennah'] },
+  { governorate: 'Kairouan', cities: ['Kairouan', 'Sbikha', 'Haffouz', 'Nasrallah', 'Hajeb El Ayoun', 'Chebika', 'Oueslatia'] },
+  { governorate: 'Kasserine', cities: ['Kasserine', 'Sbeitla', 'Thala', 'Foussana', 'Fériana', 'Haïdra', 'Sbiba'] },
+  { governorate: 'Sidi Bouzid', cities: ['Sidi Bouzid', 'Regueb', 'Jilma', 'Menzel Bouzaiane', 'Meknassy', 'Bir El Hafey'] },
+  { governorate: 'Gabès', cities: ['Gabès', 'El Hamma', 'Mareth', 'Métouia', 'Ghannouch', 'Nouvelle Matmata', 'Matmata'] },
+  { governorate: 'Médenine', cities: ['Médenine', 'Zarzis', 'Ben Gardane', 'Houmt Souk (Djerba)', 'Midoun', 'Ajim', 'Beni Khedache'] },
+  { governorate: 'Tataouine', cities: ['Tataouine', 'Ghomrassen', 'Remada', 'Dehiba', 'Bir Lahmar', 'Smar'] },
+  { governorate: 'Gafsa', cities: ['Gafsa', 'Métlaoui', 'Redeyef', 'El Guettar', 'Mdhilla', 'Sned', 'Belkhir'] },
+  { governorate: 'Tozeur', cities: ['Tozeur', 'Nefta', 'Degache', 'Tameghza', 'Hazoua'] },
+  { governorate: 'Kébili', cities: ['Kébili', 'Douz', 'Souk Lahad', 'El Golâa', 'Jemna', 'Faouar'] },
+];
+
 export const Fournisseurs = () => {
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
   const [loading, setLoading] = useState(true);
@@ -297,12 +325,25 @@ export const Fournisseurs = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="location">Localisation</Label>
-                    <Input
-                      id="location"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      placeholder="Ville, Région"
-                    />
+                    <Select value={location} onValueChange={setLocation}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner une ville" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px]">
+                        {TUNISIA_LOCATIONS.map((region) => (
+                          <div key={region.governorate}>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 sticky top-0">
+                              {region.governorate}
+                            </div>
+                            {region.cities.map((city) => (
+                              <SelectItem key={`${region.governorate}-${city}`} value={`${city}, ${region.governorate}`}>
+                                {city}
+                              </SelectItem>
+                            ))}
+                          </div>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="outline" onClick={() => {
