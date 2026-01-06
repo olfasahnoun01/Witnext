@@ -90,7 +90,8 @@ export const Fournisseurs = () => {
   const [matriculeFiscale, setMatriculeFiscale] = useState('');
   const [specialite, setSpecialite] = useState('');
   const [phone, setPhone] = useState('');
-  const [location, setLocation] = useState('');
+  const [selectedGovernorate, setSelectedGovernorate] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
   
   // Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -121,9 +122,15 @@ export const Fournisseurs = () => {
     setMatriculeFiscale('');
     setSpecialite('');
     setPhone('');
-    setLocation('');
+    setSelectedGovernorate('');
+    setSelectedCity('');
     setEditingFournisseur(null);
   };
+
+  // Get cities for selected governorate
+  const availableCities = selectedGovernorate
+    ? TUNISIA_LOCATIONS.find(r => r.governorate === selectedGovernorate)?.cities || []
+    : [];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,12 +140,16 @@ export const Fournisseurs = () => {
       return;
     }
 
+    const locationValue = selectedCity && selectedGovernorate 
+      ? `${selectedCity}, ${selectedGovernorate}` 
+      : null;
+
     const fournisseurData = {
       nom: nom.trim(),
       matricule_fiscale: matriculeFiscale.trim() || null,
       specialite,
       phone: phone.trim() || null,
-      location: location.trim() || null
+      location: locationValue
     };
 
     if (editingFournisseur) {
@@ -179,7 +190,18 @@ export const Fournisseurs = () => {
     setMatriculeFiscale(fournisseur.matricule_fiscale || '');
     setSpecialite(fournisseur.specialite);
     setPhone(fournisseur.phone || '');
-    setLocation(fournisseur.location || '');
+    
+    // Parse location back to governorate and city
+    if (fournisseur.location) {
+      const parts = fournisseur.location.split(', ');
+      if (parts.length === 2) {
+        setSelectedCity(parts[0]);
+        setSelectedGovernorate(parts[1]);
+      }
+    } else {
+      setSelectedGovernorate('');
+      setSelectedCity('');
+    }
     setDialogOpen(true);
   };
 
@@ -323,27 +345,47 @@ export const Fournisseurs = () => {
                       placeholder="Ex: +216 XX XXX XXX"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="location">Localisation</Label>
-                    <Select value={location} onValueChange={setLocation}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionner une ville" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[300px]">
-                        {TUNISIA_LOCATIONS.map((region) => (
-                          <div key={region.governorate}>
-                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 sticky top-0">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Gouvernorat</Label>
+                      <Select 
+                        value={selectedGovernorate} 
+                        onValueChange={(val) => {
+                          setSelectedGovernorate(val);
+                          setSelectedCity(''); // Reset city when governorate changes
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Région" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          {TUNISIA_LOCATIONS.map((region) => (
+                            <SelectItem key={region.governorate} value={region.governorate}>
                               {region.governorate}
-                            </div>
-                            {region.cities.map((city) => (
-                              <SelectItem key={`${region.governorate}-${city}`} value={`${city}, ${region.governorate}`}>
-                                {city}
-                              </SelectItem>
-                            ))}
-                          </div>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Ville</Label>
+                      <Select 
+                        value={selectedCity} 
+                        onValueChange={setSelectedCity}
+                        disabled={!selectedGovernorate}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={selectedGovernorate ? "Ville" : "Choisir région"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableCities.map((city) => (
+                            <SelectItem key={city} value={city}>
+                              {city}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="outline" onClick={() => {
