@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,8 @@ import {
 } from '@/components/ui/select';
 import { Plus, Pencil, Trash2, Search, Building2, Phone, MapPin, FileText } from 'lucide-react';
 import { toast } from 'sonner';
+import { SPECIALITES } from '@/constants/fournisseurs';
+import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
 
 interface Fournisseur {
   id: number;
@@ -40,50 +42,14 @@ interface Fournisseur {
   updated_at: string;
 }
 
-const SPECIALITES = [
-  'Chaussures',
-  'Vêtements',
-  'Matériels',
-  'Équipements de sécurité',
-  'Outillage',
-  'Électronique',
-  'Fournitures de bureau',
-  'Autre'
-];
+const ITEMS_PER_PAGE = 15;
 
-// Tunisian governorates and major cities
-const TUNISIA_LOCATIONS = [
-  { governorate: 'Tunis', cities: ['Tunis', 'Le Bardo', 'La Marsa', 'Carthage', 'Sidi Bou Saïd', 'Le Kram'] },
-  { governorate: 'Ariana', cities: ['Ariana', 'La Soukra', 'Raoued', 'Kalâat el-Andalous', 'Sidi Thabet', 'Mnihla'] },
-  { governorate: 'Ben Arous', cities: ['Ben Arous', 'Radès', 'Hammam Lif', 'Hammam Chott', 'Ezzahra', 'Mégrine', 'Mohamedia', 'Fouchana'] },
-  { governorate: 'Manouba', cities: ['Manouba', 'Den Den', 'Douar Hicher', 'Oued Ellil', 'Tebourba', 'El Battan'] },
-  { governorate: 'Nabeul', cities: ['Nabeul', 'Hammamet', 'Kélibia', 'Korba', 'Menzel Temime', 'Soliman', 'Grombalia', 'Dar Chaâbane'] },
-  { governorate: 'Zaghouan', cities: ['Zaghouan', 'El Fahs', 'Nadhour', 'Bir Mcherga', 'Zriba'] },
-  { governorate: 'Bizerte', cities: ['Bizerte', 'Menzel Bourguiba', 'Mateur', 'Ras Jebel', 'Menzel Jemil', 'Tinja', 'Sejnane'] },
-  { governorate: 'Béja', cities: ['Béja', 'Medjez el-Bab', 'Testour', 'Nefza', 'Téboursouk', 'Goubellat'] },
-  { governorate: 'Jendouba', cities: ['Jendouba', 'Tabarka', 'Aïn Draham', 'Bou Salem', 'Ghardimaou', 'Fernana'] },
-  { governorate: 'Le Kef', cities: ['Le Kef', 'Dahmani', 'Tajerouine', 'Sakiet Sidi Youssef', 'Nebeur', 'Kalaat Senan'] },
-  { governorate: 'Siliana', cities: ['Siliana', 'Bou Arada', 'Gaâfour', 'El Krib', 'Makthar', 'Rouhia'] },
-  { governorate: 'Sousse', cities: ['Sousse', 'Msaken', 'Kalaa Kebira', 'Hammam Sousse', 'Akouda', 'Kalaa Sghira', 'Enfidha'] },
-  { governorate: 'Monastir', cities: ['Monastir', 'Moknine', 'Jemmal', 'Ksar Hellal', 'Téboulba', 'Sahline', 'Bembla', 'Sayada'] },
-  { governorate: 'Mahdia', cities: ['Mahdia', 'Ksour Essef', 'El Jem', 'Chebba', 'Bou Merdes', 'Melloulech'] },
-  { governorate: 'Sfax', cities: ['Sfax', 'Sakiet Ezzit', 'Sakiet Eddaïer', 'El Ain', 'Thyna', 'Agareb', 'Jbeniana', 'Mahares', 'Kerkennah'] },
-  { governorate: 'Kairouan', cities: ['Kairouan', 'Sbikha', 'Haffouz', 'Nasrallah', 'Hajeb El Ayoun', 'Chebika', 'Oueslatia'] },
-  { governorate: 'Kasserine', cities: ['Kasserine', 'Sbeitla', 'Thala', 'Foussana', 'Fériana', 'Haïdra', 'Sbiba'] },
-  { governorate: 'Sidi Bouzid', cities: ['Sidi Bouzid', 'Regueb', 'Jilma', 'Menzel Bouzaiane', 'Meknassy', 'Bir El Hafey'] },
-  { governorate: 'Gabès', cities: ['Gabès', 'El Hamma', 'Mareth', 'Métouia', 'Ghannouch', 'Nouvelle Matmata', 'Matmata'] },
-  { governorate: 'Médenine', cities: ['Médenine', 'Zarzis', 'Ben Gardane', 'Houmt Souk (Djerba)', 'Midoun', 'Ajim', 'Beni Khedache'] },
-  { governorate: 'Tataouine', cities: ['Tataouine', 'Ghomrassen', 'Remada', 'Dehiba', 'Bir Lahmar', 'Smar'] },
-  { governorate: 'Gafsa', cities: ['Gafsa', 'Métlaoui', 'Redeyef', 'El Guettar', 'Mdhilla', 'Sned', 'Belkhir'] },
-  { governorate: 'Tozeur', cities: ['Tozeur', 'Nefta', 'Degache', 'Tameghza', 'Hazoua'] },
-  { governorate: 'Kébili', cities: ['Kébili', 'Douz', 'Souk Lahad', 'El Golâa', 'Jemna', 'Faouar'] },
-];
-
-export const Fournisseurs = () => {
+export const Fournisseurs = memo(() => {
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFournisseur, setEditingFournisseur] = useState<Fournisseur | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   
   // Form state
   const [nom, setNom] = useState('');
@@ -97,7 +63,7 @@ export const Fournisseurs = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSpecialite, setFilterSpecialite] = useState<string>('all');
 
-  const loadFournisseurs = async () => {
+  const loadFournisseurs = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('fournisseurs')
@@ -111,13 +77,13 @@ export const Fournisseurs = () => {
       setFournisseurs(data || []);
     }
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     loadFournisseurs();
-  }, []);
+  }, [loadFournisseurs]);
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setNom('');
     setMatriculeFiscale('');
     setSpecialite('');
@@ -125,14 +91,16 @@ export const Fournisseurs = () => {
     setSelectedGovernorate('');
     setSelectedCity('');
     setEditingFournisseur(null);
-  };
+  }, []);
 
   // Get cities for selected governorate
-  const availableCities = selectedGovernorate
-    ? TUNISIA_LOCATIONS.find(r => r.governorate === selectedGovernorate)?.cities || []
-    : [];
+  const availableCities = useMemo(() => {
+    return selectedGovernorate
+      ? TUNISIA_LOCATIONS.find(r => r.governorate === selectedGovernorate)?.cities || []
+      : [];
+  }, [selectedGovernorate]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!nom.trim() || !specialite) {
@@ -182,9 +150,9 @@ export const Fournisseurs = () => {
         loadFournisseurs();
       }
     }
-  };
+  }, [nom, specialite, selectedCity, selectedGovernorate, matriculeFiscale, phone, editingFournisseur, resetForm, loadFournisseurs]);
 
-  const handleEdit = (fournisseur: Fournisseur) => {
+  const handleEdit = useCallback((fournisseur: Fournisseur) => {
     setEditingFournisseur(fournisseur);
     setNom(fournisseur.nom);
     setMatriculeFiscale(fournisseur.matricule_fiscale || '');
@@ -203,9 +171,9 @@ export const Fournisseurs = () => {
       setSelectedCity('');
     }
     setDialogOpen(true);
-  };
+  }, []);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = useCallback(async (id: number) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce fournisseur ?')) return;
 
     const { error } = await supabase
@@ -220,23 +188,40 @@ export const Fournisseurs = () => {
       toast.success('Fournisseur supprimé');
       loadFournisseurs();
     }
-  };
+  }, [loadFournisseurs]);
 
-  // Filter fournisseurs
-  const filteredFournisseurs = fournisseurs.filter(f => {
-    const matchesSearch = searchQuery === '' || 
-      f.nom.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.matricule_fiscale?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.location?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesSpecialite = filterSpecialite === 'all' || f.specialite === filterSpecialite;
-    
-    return matchesSearch && matchesSpecialite;
-  });
+  // Filter fournisseurs - memoized
+  const filteredFournisseurs = useMemo(() => {
+    return fournisseurs.filter(f => {
+      const matchesSearch = searchQuery === '' || 
+        f.nom.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        f.matricule_fiscale?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        f.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        f.location?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesSpecialite = filterSpecialite === 'all' || f.specialite === filterSpecialite;
+      
+      return matchesSearch && matchesSpecialite;
+    });
+  }, [fournisseurs, searchQuery, filterSpecialite]);
 
-  // Get unique specialites from current data
-  const uniqueSpecialites = [...new Set(fournisseurs.map(f => f.specialite))].sort();
+  // Paginated results
+  const paginatedFournisseurs = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredFournisseurs.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredFournisseurs, currentPage]);
+
+  const totalPages = Math.ceil(filteredFournisseurs.length / ITEMS_PER_PAGE);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterSpecialite]);
+
+  // Get unique specialites from current data - memoized
+  const uniqueSpecialites = useMemo(() => {
+    return [...new Set(fournisseurs.map(f => f.specialite))].sort();
+  }, [fournisseurs]);
 
   return (
     <div className="space-y-6">
@@ -352,7 +337,7 @@ export const Fournisseurs = () => {
                         value={selectedGovernorate} 
                         onValueChange={(val) => {
                           setSelectedGovernorate(val);
-                          setSelectedCity(''); // Reset city when governorate changes
+                          setSelectedCity('');
                         }}
                       >
                         <SelectTrigger>
@@ -442,73 +427,100 @@ export const Fournisseurs = () => {
                 : 'Aucun fournisseur ne correspond aux filtres.'}
             </div>
           ) : (
-            <div className="rounded-lg border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Nom (Société)</TableHead>
-                    <TableHead>Matricule Fiscale</TableHead>
-                    <TableHead>Spécialité</TableHead>
-                    <TableHead>Téléphone</TableHead>
-                    <TableHead>Localisation</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredFournisseurs.map((fournisseur) => (
-                    <TableRow key={fournisseur.id}>
-                      <TableCell className="font-medium">{fournisseur.nom}</TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {fournisseur.matricule_fiscale || '-'}
-                      </TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                          {fournisseur.specialite}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {fournisseur.phone ? (
-                          <span className="flex items-center gap-1">
-                            <Phone className="w-3 h-3" />
-                            {fournisseur.phone}
-                          </span>
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell>
-                        {fournisseur.location ? (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3 h-3" />
-                            {fournisseur.location}
-                          </span>
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(fournisseur)}
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(fournisseur.id)}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+            <>
+              <div className="rounded-lg border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Nom (Société)</TableHead>
+                      <TableHead>Matricule Fiscale</TableHead>
+                      <TableHead>Spécialité</TableHead>
+                      <TableHead>Téléphone</TableHead>
+                      <TableHead>Localisation</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedFournisseurs.map((fournisseur) => (
+                      <TableRow key={fournisseur.id}>
+                        <TableCell className="font-medium">{fournisseur.nom}</TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {fournisseur.matricule_fiscale || '-'}
+                        </TableCell>
+                        <TableCell>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                            {fournisseur.specialite}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {fournisseur.phone ? (
+                            <span className="flex items-center gap-1">
+                              <Phone className="w-3 h-3" />
+                              {fournisseur.phone}
+                            </span>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {fournisseur.location ? (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {fournisseur.location}
+                            </span>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEdit(fournisseur)}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDelete(fournisseur.id)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 text-sm rounded border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Précédent
+                  </button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {currentPage} sur {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 text-sm rounded border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Suivant
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
     </div>
   );
-};
+});
+
+Fournisseurs.displayName = 'Fournisseurs';
