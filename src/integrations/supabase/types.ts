@@ -65,6 +65,39 @@ export type Database = {
         }
         Relationships: []
       }
+      fournisseurs: {
+        Row: {
+          created_at: string
+          id: number
+          location: string | null
+          matricule_fiscale: string | null
+          nom: string
+          phone: string | null
+          specialite: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          location?: string | null
+          matricule_fiscale?: string | null
+          nom: string
+          phone?: string | null
+          specialite: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          location?: string | null
+          matricule_fiscale?: string | null
+          nom?: string
+          phone?: string | null
+          specialite?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           category: string

@@ -8,7 +8,8 @@ import {
   Menu,
   X,
   GitCompare,
-  ChevronRight
+  ChevronRight,
+  Building2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import grosafeLogo from '@/assets/grosafe-logo.png';
@@ -23,6 +24,7 @@ interface SidebarProps {
 const navItems = [
   { id: 'dashboard', label: 'Tableau de Bord', icon: LayoutDashboard },
   { id: 'inventory', label: 'Inventaire', icon: Package },
+  { id: 'fournisseurs', label: 'Fournisseurs', icon: Building2 },
   { id: 'comparison', label: 'Comparaison Prix', icon: GitCompare },
   { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
   { id: 'reports', label: 'Rapports & Documents', icon: FileText },
