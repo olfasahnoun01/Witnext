@@ -85,7 +85,6 @@ export default function Auth() {
               className="h-16 w-auto object-contain"
             />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Grosafe Gestion</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Système de gestion d'inventaire
           </p>
