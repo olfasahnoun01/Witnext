@@ -9,7 +9,8 @@ import {
   X,
   GitCompare,
   ChevronRight,
-  Building2
+  Building2,
+  Phone
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import grosafeLogo from '@/assets/grosafe-logo.png';
@@ -109,9 +110,16 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
               <p className="text-sm font-medium text-sidebar-foreground">
                 Grosafe Équipement
               </p>
-              <p className="text-xs text-sidebar-foreground/60 mt-1">
-                Base de données Cloud • v2.0
-              </p>
+              <div className="flex items-center gap-2 mt-2 text-xs text-sidebar-foreground/80">
+                <Phone className="w-3.5 h-3.5" />
+                <span>Contactez l'administrateur</span>
+              </div>
+              <a 
+                href="tel:56244009" 
+                className="text-sm font-semibold text-primary hover:underline mt-1 block"
+              >
+                56 244 009
+              </a>
             </div>
           </div>
         </div>
