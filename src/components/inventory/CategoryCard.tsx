@@ -1,0 +1,70 @@
+import { memo } from 'react';
+import { Package, Shirt, HardHat, Footprints, Hand, Shield, ShieldCheck } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+
+interface CategoryCardProps {
+  name: string;
+  count: number;
+  onClick: () => void;
+}
+
+const getCategoryIcon = (category: string) => {
+  const lowerCategory = category.toLowerCase();
+  if (lowerCategory.includes('pantalon')) return Shirt;
+  if (lowerCategory.includes('blouson') || lowerCategory.includes('parka') || lowerCategory.includes('manteau')) return Shirt;
+  if (lowerCategory.includes('bordequin') || lowerCategory.includes('chaussure')) return Footprints;
+  if (lowerCategory.includes('gant')) return Hand;
+  if (lowerCategory.includes('casque')) return HardHat;
+  if (lowerCategory.includes('gilet')) return ShieldCheck;
+  if (lowerCategory.includes('polo') || lowerCategory.includes('t-shirt')) return Shirt;
+  if (lowerCategory.includes('accessoire')) return Shield;
+  return Package;
+};
+
+const getCategoryColor = (category: string): string => {
+  const lowerCategory = category.toLowerCase();
+  if (lowerCategory.includes('pantalon')) return 'from-blue-500 to-blue-600';
+  if (lowerCategory.includes('blouson')) return 'from-indigo-500 to-indigo-600';
+  if (lowerCategory.includes('bordequin')) return 'from-amber-500 to-amber-600';
+  if (lowerCategory.includes('accessoire')) return 'from-purple-500 to-purple-600';
+  if (lowerCategory.includes('gant')) return 'from-emerald-500 to-emerald-600';
+  if (lowerCategory.includes('casque')) return 'from-red-500 to-red-600';
+  if (lowerCategory.includes('gilet')) return 'from-orange-500 to-orange-600';
+  if (lowerCategory.includes('polo') || lowerCategory.includes('t-shirt')) return 'from-teal-500 to-teal-600';
+  if (lowerCategory.includes('parka') || lowerCategory.includes('manteau')) return 'from-slate-500 to-slate-600';
+  return 'from-gray-500 to-gray-600';
+};
+
+export const CategoryCard = memo(({ name, count, onClick }: CategoryCardProps) => {
+  const Icon = getCategoryIcon(name);
+  const colorClass = getCategoryColor(name);
+
+  return (
+    <Card 
+      className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] group overflow-hidden"
+      onClick={onClick}
+    >
+      <CardContent className="p-0">
+        <div className={`bg-gradient-to-br ${colorClass} p-6 text-white`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+              <Icon className="w-8 h-8" />
+            </div>
+            <span className="text-3xl font-bold">{count}</span>
+          </div>
+          <h3 className="text-lg font-semibold truncate">{name}</h3>
+          <p className="text-sm text-white/80 mt-1">
+            {count === 0 ? 'Aucun article' : count === 1 ? '1 article' : `${count} articles`}
+          </p>
+        </div>
+        <div className="p-3 bg-card border-t border-border">
+          <span className="text-sm text-primary font-medium group-hover:underline">
+            Voir les articles →
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+});
+
+CategoryCard.displayName = 'CategoryCard';
