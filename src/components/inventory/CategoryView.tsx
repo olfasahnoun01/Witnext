@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { InventoryFilters } from './InventoryFilters';
 import { ProductTable } from './ProductTable';
 import { ProductModal, ProductFormData } from './ProductModal';
+import { sanitizeSearchInput, sanitizeNumericInput } from '@/lib/sanitize';
 import {
   Pagination,
   PaginationContent,
@@ -87,11 +88,14 @@ export const CategoryView = ({ category, onBack }: CategoryViewProps) => {
         countQuery = countQuery.ilike('category', category);
       }
 
-      // Apply search filter
+      // Apply search filter with sanitized input
       if (filters.search) {
-        countQuery = countQuery.or(
-          `name.ilike.%${filters.search}%,sku.ilike.%${filters.search}%,fournisseur.ilike.%${filters.search}%`
-        );
+        const sanitizedSearch = sanitizeSearchInput(filters.search);
+        if (sanitizedSearch) {
+          countQuery = countQuery.or(
+            `name.ilike.%${sanitizedSearch}%,sku.ilike.%${sanitizedSearch}%,fournisseur.ilike.%${sanitizedSearch}%`
+          );
+        }
       }
 
       // Apply size filter
@@ -104,12 +108,14 @@ export const CategoryView = ({ category, onBack }: CategoryViewProps) => {
         countQuery = countQuery.eq('color', filters.color);
       }
 
-      // Apply price filters
-      if (filters.priceMin) {
-        countQuery = countQuery.gte('price', parseFloat(filters.priceMin));
+      // Apply price filters with sanitized numeric input
+      const priceMin = sanitizeNumericInput(filters.priceMin);
+      const priceMax = sanitizeNumericInput(filters.priceMax);
+      if (priceMin !== null) {
+        countQuery = countQuery.gte('price', priceMin);
       }
-      if (filters.priceMax) {
-        countQuery = countQuery.lte('price', parseFloat(filters.priceMax));
+      if (priceMax !== null) {
+        countQuery = countQuery.lte('price', priceMax);
       }
 
       const { count } = await countQuery;
@@ -127,11 +133,14 @@ export const CategoryView = ({ category, onBack }: CategoryViewProps) => {
         dataQuery = dataQuery.ilike('category', category);
       }
 
-      // Apply search filter
+      // Apply search filter with sanitized input
       if (filters.search) {
-        dataQuery = dataQuery.or(
-          `name.ilike.%${filters.search}%,sku.ilike.%${filters.search}%,fournisseur.ilike.%${filters.search}%`
-        );
+        const sanitizedSearch = sanitizeSearchInput(filters.search);
+        if (sanitizedSearch) {
+          dataQuery = dataQuery.or(
+            `name.ilike.%${sanitizedSearch}%,sku.ilike.%${sanitizedSearch}%,fournisseur.ilike.%${sanitizedSearch}%`
+          );
+        }
       }
 
       // Apply size filter
@@ -144,12 +153,14 @@ export const CategoryView = ({ category, onBack }: CategoryViewProps) => {
         dataQuery = dataQuery.eq('color', filters.color);
       }
 
-      // Apply price filters
-      if (filters.priceMin) {
-        dataQuery = dataQuery.gte('price', parseFloat(filters.priceMin));
+      // Apply price filters with sanitized numeric input
+      const priceMinData = sanitizeNumericInput(filters.priceMin);
+      const priceMaxData = sanitizeNumericInput(filters.priceMax);
+      if (priceMinData !== null) {
+        dataQuery = dataQuery.gte('price', priceMinData);
       }
-      if (filters.priceMax) {
-        dataQuery = dataQuery.lte('price', parseFloat(filters.priceMax));
+      if (priceMaxData !== null) {
+        dataQuery = dataQuery.lte('price', priceMaxData);
       }
 
       // Order and paginate
