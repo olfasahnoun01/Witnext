@@ -1,5 +1,16 @@
 import { memo } from 'react';
-import { Package, Shirt, HardHat, Footprints, Hand, Shield, ShieldCheck } from 'lucide-react';
+import { 
+  Package, 
+  Shirt, 
+  HardHat, 
+  Footprints, 
+  Hand, 
+  Shield, 
+  ShieldCheck,
+  Snowflake,
+  ChefHat,
+  Layers
+} from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 
 interface CategoryCardProps {
@@ -10,14 +21,16 @@ interface CategoryCardProps {
 
 const getCategoryIcon = (category: string) => {
   const lowerCategory = category.toLowerCase();
-  if (lowerCategory.includes('pantalon')) return Shirt;
-  if (lowerCategory.includes('blouson') || lowerCategory.includes('parka') || lowerCategory.includes('manteau')) return Shirt;
+  if (lowerCategory.includes('pantalon')) return Layers;
+  if (lowerCategory.includes('blouson')) return Shirt;
   if (lowerCategory.includes('bordequin') || lowerCategory.includes('chaussure')) return Footprints;
   if (lowerCategory.includes('gant')) return Hand;
   if (lowerCategory.includes('casque')) return HardHat;
   if (lowerCategory.includes('gilet')) return ShieldCheck;
   if (lowerCategory.includes('polo') || lowerCategory.includes('t-shirt')) return Shirt;
   if (lowerCategory.includes('accessoire')) return Shield;
+  if (lowerCategory.includes('parka') || lowerCategory.includes('manteau')) return Snowflake;
+  if (lowerCategory.includes('tablier')) return ChefHat;
   return Package;
 };
 
@@ -31,8 +44,10 @@ const getCategoryColor = (category: string): string => {
   if (lowerCategory.includes('casque')) return 'from-red-500 to-red-600';
   if (lowerCategory.includes('gilet')) return 'from-orange-500 to-orange-600';
   if (lowerCategory.includes('polo') || lowerCategory.includes('t-shirt')) return 'from-teal-500 to-teal-600';
-  if (lowerCategory.includes('parka') || lowerCategory.includes('manteau')) return 'from-slate-500 to-slate-600';
-  return 'from-gray-500 to-gray-600';
+  if (lowerCategory.includes('parka') || lowerCategory.includes('manteau')) return 'from-sky-600 to-sky-700';
+  if (lowerCategory.includes('tablier')) return 'from-rose-500 to-rose-600';
+  if (lowerCategory.includes('non catégorisé')) return 'from-zinc-500 to-zinc-600';
+  return 'from-stone-500 to-stone-600';
 };
 
 export const CategoryCard = memo(({ name, count, onClick }: CategoryCardProps) => {
