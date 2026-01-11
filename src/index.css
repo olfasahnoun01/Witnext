@@ -107,14 +107,21 @@
     --input: 213 50% 18%;
     --ring: 356 62% 55%;
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 220 20% 25%;
+    --sidebar-background: 213 50% 11%;
+    --sidebar-foreground: 210 20% 90%;
     --sidebar-primary: 356 62% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 213 50% 15%;
+    --sidebar-accent: 213 50% 18%;
     --sidebar-accent-foreground: 210 20% 90%;
     --sidebar-border: 213 50% 20%;
     --sidebar-ring: 356 62% 55%;
+
+    /* Dark mode shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.3);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.4), 0 2px 4px -2px hsl(0 0% 0% / 0.3);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.4), 0 4px 6px -4px hsl(0 0% 0% / 0.3);
+    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.4), 0 8px 10px -6px hsl(0 0% 0% / 0.3);
+    --shadow-glow: 0 0 20px hsl(356 62% 55% / 0.3);
   }
 }
 
@@ -123,9 +130,15 @@
     @apply border-border;
   }
 
+  /* Smooth theme transition */
+  html {
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   h1, h2, h3, h4, h5, h6 {
