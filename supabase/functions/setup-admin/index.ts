@@ -2,7 +2,34 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-setup-token',
+}
+
+// Input validation
+const MAX_EMAIL_LENGTH = 255;
+const MAX_PASSWORD_LENGTH = 128;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function validateInput(email: string, password: string): string | null {
+  if (!email || typeof email !== 'string') {
+    return 'Email requis';
+  }
+  if (!password || typeof password !== 'string') {
+    return 'Mot de passe requis';
+  }
+  if (email.length > MAX_EMAIL_LENGTH) {
+    return `Email trop long (max ${MAX_EMAIL_LENGTH} caractères)`;
+  }
+  if (password.length < 6) {
+    return 'Le mot de passe doit contenir au moins 6 caractères';
+  }
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return `Mot de passe trop long (max ${MAX_PASSWORD_LENGTH} caractères)`;
+  }
+  if (!EMAIL_REGEX.test(email)) {
+    return 'Format d\'email invalide';
+  }
+  return null;
 }
 
 Deno.serve(async (req) => {
@@ -13,6 +40,7 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const setupToken = Deno.env.get('SETUP_ADMIN_TOKEN')
     
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
@@ -30,10 +58,26 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { email, password } = await req.json()
+    // If SETUP_ADMIN_TOKEN is configured, require it
+    if (setupToken) {
+      const providedToken = req.headers.get('X-Setup-Token')
+      if (!providedToken || providedToken !== setupToken) {
+        console.warn('Invalid setup token attempt')
+        return new Response(JSON.stringify({ error: 'Token de configuration invalide' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+    }
 
-    if (!email || !password) {
-      return new Response(JSON.stringify({ error: 'Email et mot de passe requis' }), {
+    const body = await req.json()
+    const email = body.email?.trim()
+    const password = body.password
+
+    // Validate inputs
+    const validationError = validateInput(email, password)
+    if (validationError) {
+      return new Response(JSON.stringify({ error: validationError }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -48,8 +92,13 @@ Deno.serve(async (req) => {
     })
 
     if (createError) {
-      console.error('Error creating user:', createError)
-      return new Response(JSON.stringify({ error: createError.message }), {
+      console.error('Error creating user:', createError.code)
+      // Map error to user-friendly message
+      let userMessage = 'Erreur lors de la création du compte';
+      if (createError.message?.includes('email')) {
+        userMessage = 'Cette adresse email est déjà utilisée';
+      }
+      return new Response(JSON.stringify({ error: userMessage }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -62,8 +111,8 @@ Deno.serve(async (req) => {
     })
 
     if (roleError) {
-      console.error('Error assigning role:', roleError)
-      return new Response(JSON.stringify({ error: roleError.message }), {
+      console.error('Error assigning role:', roleError.code)
+      return new Response(JSON.stringify({ error: 'Erreur lors de l\'attribution du rôle' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -79,9 +128,8 @@ Deno.serve(async (req) => {
     })
 
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Une erreur est survenue'
-    console.error('Setup admin error:', message)
-    return new Response(JSON.stringify({ error: message }), {
+    console.error('Setup admin error:', error instanceof Error ? error.message : 'Unknown error')
+    return new Response(JSON.stringify({ error: 'Une erreur est survenue' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })

@@ -7,16 +7,41 @@ interface AuthContextType {
   session: Session | null;
   isLoading: boolean;
   isAdmin: boolean;
+  isModerator: boolean;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * SECURITY NOTE - IMPORTANT
+ * =========================
+ * 
+ * The `isAdmin` and `isModerator` flags in this hook are for UI/UX purposes ONLY.
+ * They control which UI elements are displayed to the user.
+ * 
+ * ACTUAL AUTHORIZATION is enforced at the database level through Row-Level Security (RLS) policies.
+ * All sensitive operations (INSERT, UPDATE, DELETE) are protected by RLS policies that verify
+ * the user's role server-side using the `has_role()` database function.
+ * 
+ * DO NOT rely solely on these client-side flags for security decisions.
+ * Any attempt to manipulate these values client-side will result in RLS policy violations
+ * when trying to perform unauthorized database operations.
+ * 
+ * The security model:
+ * 1. Client-side: isAdmin/isModerator → Controls UI visibility (shows/hides buttons)
+ * 2. Server-side: RLS policies → Enforces actual permissions (blocks unauthorized operations)
+ * 
+ * If a user manipulates the client-side flags, they will see admin UI elements but:
+ * - Database operations will fail with "permission denied" errors
+ * - The user cannot actually modify protected data
+ */
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isModerator, setIsModerator] = useState(false);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -25,13 +50,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
 
-      // Check admin role with setTimeout to avoid deadlock
+      // Check roles with setTimeout to avoid deadlock
       if (session?.user) {
         setTimeout(() => {
-          checkAdminRole(session.user.id);
+          checkUserRoles(session.user.id);
         }, 0);
       } else {
         setIsAdmin(false);
+        setIsModerator(false);
       }
     });
 
@@ -42,27 +68,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(false);
 
       if (session?.user) {
-        checkAdminRole(session.user.id);
+        checkUserRoles(session.user.id);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const checkAdminRole = async (userId: string) => {
+  const checkUserRoles = async (userId: string) => {
     try {
-      const { data, error } = await supabase.rpc('has_role', {
+      // Check admin role
+      const { data: adminData, error: adminError } = await supabase.rpc('has_role', {
         _user_id: userId,
         _role: 'admin'
       });
 
-      if (!error && data) {
+      if (!adminError && adminData) {
         setIsAdmin(true);
+        setIsModerator(true); // Admin has all moderator permissions
       } else {
         setIsAdmin(false);
+        
+        // Check moderator role only if not admin
+        const { data: modData, error: modError } = await supabase.rpc('has_role', {
+          _user_id: userId,
+          _role: 'moderator'
+        });
+        
+        setIsModerator(!modError && !!modData);
       }
     } catch {
       setIsAdmin(false);
+      setIsModerator(false);
     }
   };
 
@@ -71,10 +108,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     setSession(null);
     setIsAdmin(false);
+    setIsModerator(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, isAdmin, signOut }}>
+    <AuthContext.Provider value={{ user, session, isLoading, isAdmin, isModerator, signOut }}>
       {children}
     </AuthContext.Provider>
   );
