@@ -44,7 +44,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isModerator, setIsModerator] = useState(false);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
+    // Check if this is a new browser session (browser was closed and reopened)
+    const isNewBrowserSession = !sessionStorage.getItem('browser_session_active');
+    
+    const initializeAuth = async () => {
+      if (isNewBrowserSession) {
+        // Mark this browser session as active
+        sessionStorage.setItem('browser_session_active', 'true');
+        
+        // Check if there's an existing auth session from localStorage
+        const { data: { session: existingSession } } = await supabase.auth.getSession();
+        
+        if (existingSession) {
+          // User closed browser without logging out - sign them out now
+          console.log('Browser was closed without logout - signing out user');
+          await supabase.auth.signOut();
+          setSession(null);
+          setUser(null);
+          setIsAdmin(false);
+          setIsModerator(false);
+          setIsLoading(false);
+          return;
+        }
+      }
+      
+      // Normal session initialization
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+      setUser(session?.user ?? null);
+      setIsLoading(false);
+
+      if (session?.user) {
+        checkUserRoles(session.user.id);
+      }
+    };
+
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -61,16 +96,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setIsLoading(false);
-
-      if (session?.user) {
-        checkUserRoles(session.user.id);
-      }
-    });
+    initializeAuth();
 
     return () => subscription.unsubscribe();
   }, []);
