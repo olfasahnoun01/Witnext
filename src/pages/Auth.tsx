@@ -36,7 +36,7 @@ export default function Auth() {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -58,10 +58,21 @@ export default function Auth() {
         return;
       }
 
-      toast({
-        title: 'Connexion réussie',
-        description: 'Bienvenue sur Grosafe Gestion!',
-      });
+      // Fetch user profile for personalized welcome message
+      if (data.user) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', data.user.id)
+          .single();
+
+        const userName = profileData?.full_name || data.user.email?.split('@')[0] || 'utilisateur';
+        
+        toast({
+          title: `Bienvenue, ${userName} ! 👋`,
+          description: 'Connexion réussie. Ravi de vous revoir sur Grosafe Gestion.',
+        });
+      }
     } catch (error: any) {
       toast({
         variant: 'destructive',
