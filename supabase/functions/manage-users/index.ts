@@ -5,6 +5,59 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Map database/auth errors to user-friendly messages
+function mapErrorToUserMessage(error: any): string {
+  // Log full error server-side for debugging
+  console.error('Operation error:', error?.code, error?.message);
+  
+  const code = error?.code;
+  const message = error?.message?.toLowerCase() || '';
+  
+  // Auth-specific errors
+  if (message.includes('email') && message.includes('already')) {
+    return 'Cette adresse email est déjà utilisée';
+  }
+  if (message.includes('password') && message.includes('weak')) {
+    return 'Le mot de passe est trop faible';
+  }
+  if (message.includes('invalid email')) {
+    return 'Format d\'email invalide';
+  }
+  
+  // PostgreSQL error codes
+  if (code === '23505') { // Unique violation
+    if (message.includes('email')) {
+      return 'Cette adresse email est déjà utilisée';
+    }
+    return 'Cette valeur existe déjà';
+  }
+  
+  if (code === '23503') { // Foreign key violation
+    return 'Impossible de supprimer: des données liées existent';
+  }
+  
+  if (code === '23502') { // Not null violation
+    return 'Tous les champs requis doivent être remplis';
+  }
+  
+  if (code === 'PGRST301') { // RLS policy violation
+    return 'Vous n\'avez pas les permissions nécessaires';
+  }
+  
+  // Generic fallback
+  return 'Une erreur est survenue. Veuillez réessayer.';
+}
+
+// Input validation
+function validateEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) && email.length <= 255;
+}
+
+function validatePassword(password: string): boolean {
+  return !!password && password.length >= 6 && password.length <= 128;
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -65,7 +118,7 @@ Deno.serve(async (req) => {
         const { data: users, error } = await supabaseAdmin.auth.admin.listUsers()
         
         if (error) {
-          return new Response(JSON.stringify({ error: error.message }), {
+          return new Response(JSON.stringify({ error: mapErrorToUserMessage(error) }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
@@ -92,17 +145,31 @@ Deno.serve(async (req) => {
       case 'create': {
         const { email, password, full_name, role } = params
 
+        // Validate inputs
+        if (!email || !validateEmail(email)) {
+          return new Response(JSON.stringify({ error: 'Format d\'email invalide' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+
+        if (!password || !validatePassword(password)) {
+          return new Response(JSON.stringify({ error: 'Le mot de passe doit contenir entre 6 et 128 caractères' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+
         // Create user
         const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-          email,
+          email: email.trim(),
           password,
           email_confirm: true,
-          user_metadata: { full_name }
+          user_metadata: { full_name: full_name?.trim() || '' }
         })
 
         if (createError) {
-          console.error('Error creating user:', createError.message)
-          return new Response(JSON.stringify({ error: createError.message }), {
+          return new Response(JSON.stringify({ error: mapErrorToUserMessage(createError) }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
@@ -112,12 +179,12 @@ Deno.serve(async (req) => {
           // Explicitly insert into profiles table
           const { error: profileError } = await supabaseAdmin.from('profiles').insert({
             user_id: newUser.user.id,
-            email: email,
-            full_name: full_name || null
+            email: email.trim(),
+            full_name: full_name?.trim() || null
           })
 
           if (profileError) {
-            console.error('Error creating profile:', profileError.message)
+            console.error('Error creating profile:', profileError.code)
             // Don't fail the whole operation, profile might already exist from trigger
           } else {
             console.log('Profile created for user:', newUser.user.id)
@@ -131,7 +198,7 @@ Deno.serve(async (req) => {
           })
 
           if (roleError) {
-            console.error('Error assigning role:', roleError.message)
+            console.error('Error assigning role:', roleError.code)
           } else {
             console.log('Role assigned:', userRole, 'for user:', newUser.user.id)
           }
@@ -145,28 +212,39 @@ Deno.serve(async (req) => {
       case 'update': {
         const { user_id, password, full_name, role } = params
         
-        console.log('Updating user:', user_id, 'password provided:', !!password, 'full_name:', full_name, 'role:', role)
+        if (!user_id) {
+          return new Response(JSON.stringify({ error: 'ID utilisateur requis' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+
+        console.log('Updating user:', user_id, 'password provided:', !!password)
 
         // Update auth user (password and metadata)
         const updateData: any = {}
-        if (password && password.length >= 6) {
+        if (password) {
+          if (!validatePassword(password)) {
+            return new Response(JSON.stringify({ error: 'Le mot de passe doit contenir entre 6 et 128 caractères' }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+          }
           updateData.password = password
           console.log('Password will be updated for user:', user_id)
         }
         if (full_name !== undefined) {
-          updateData.user_metadata = { full_name }
+          updateData.user_metadata = { full_name: full_name?.trim() || '' }
         }
 
         if (Object.keys(updateData).length > 0) {
-          console.log('Calling updateUserById with data keys:', Object.keys(updateData))
           const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
             user_id,
             updateData
           )
 
           if (updateError) {
-            console.error('Error updating auth user:', updateError.message)
-            return new Response(JSON.stringify({ error: updateError.message }), {
+            return new Response(JSON.stringify({ error: mapErrorToUserMessage(updateError) }), {
               status: 400,
               headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             })
@@ -178,11 +256,11 @@ Deno.serve(async (req) => {
         if (full_name !== undefined) {
           const { error: profileError } = await supabaseAdmin
             .from('profiles')
-            .update({ full_name, updated_at: new Date().toISOString() })
+            .update({ full_name: full_name?.trim() || '', updated_at: new Date().toISOString() })
             .eq('user_id', user_id)
           
           if (profileError) {
-            console.error('Error updating profile:', profileError.message)
+            console.error('Error updating profile:', profileError.code)
           } else {
             console.log('Profile updated for user:', user_id)
           }
@@ -194,7 +272,7 @@ Deno.serve(async (req) => {
           // Remove existing roles
           const { error: deleteRoleError } = await supabaseAdmin.from('user_roles').delete().eq('user_id', user_id)
           if (deleteRoleError) {
-            console.error('Error deleting old roles:', deleteRoleError.message)
+            console.error('Error deleting old roles:', deleteRoleError.code)
           }
           
           // Always insert the role (including 'user')
@@ -203,7 +281,7 @@ Deno.serve(async (req) => {
             role
           })
           if (insertRoleError) {
-            console.error('Error inserting new role:', insertRoleError.message)
+            console.error('Error inserting new role:', insertRoleError.code)
           } else {
             console.log('Role updated to:', role, 'for user:', user_id)
           }
@@ -217,6 +295,13 @@ Deno.serve(async (req) => {
       case 'delete': {
         const { user_id } = params
 
+        if (!user_id) {
+          return new Response(JSON.stringify({ error: 'ID utilisateur requis' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+
         // Prevent self-deletion
         if (user_id === requestingUser.id) {
           return new Response(JSON.stringify({ error: 'Vous ne pouvez pas supprimer votre propre compte' }), {
@@ -228,7 +313,7 @@ Deno.serve(async (req) => {
         const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user_id)
 
         if (deleteError) {
-          return new Response(JSON.stringify({ error: deleteError.message }), {
+          return new Response(JSON.stringify({ error: mapErrorToUserMessage(deleteError) }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
@@ -246,8 +331,8 @@ Deno.serve(async (req) => {
         })
     }
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Une erreur est survenue';
-    return new Response(JSON.stringify({ error: message }), {
+    console.error('Manage users error:', error instanceof Error ? error.message : 'Unknown error');
+    return new Response(JSON.stringify({ error: 'Une erreur est survenue. Veuillez réessayer.' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
