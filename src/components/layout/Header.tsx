@@ -4,6 +4,7 @@ import { getLowStockProducts } from '@/services/dbService';
 import { Product } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface HeaderProps {
   title: string;
@@ -88,6 +89,9 @@ export const Header = ({ title }: HeaderProps) => {
               </div>
             )}
           </div>
+
+          {/* Theme Toggle */}
+          <ThemeToggle />
 
           {/* User info & Sign out */}
           {user && (
