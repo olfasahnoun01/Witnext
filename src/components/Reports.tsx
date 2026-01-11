@@ -162,6 +162,9 @@ export const Reports = () => {
       ? docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)
       : 0;
 
+    // Get current user for document ownership
+    const { data: { user } } = await supabase.auth.getUser();
+
     const { error } = await supabase.from('documents').insert({
       type: docType,
       doc_number: docNumber,
@@ -172,7 +175,8 @@ export const Reports = () => {
       third_party_address: thirdPartyAddress || null,
       third_party_tax_id: thirdPartyTaxId || null,
       items: JSON.parse(JSON.stringify(docItems)),
-      total_amount: totalAmount
+      total_amount: totalAmount,
+      created_by: user?.id
     });
 
     if (error) {
