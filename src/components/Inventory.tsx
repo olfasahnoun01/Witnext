@@ -16,6 +16,7 @@ const MAIN_CATEGORIES = [
   'Gilets',
   'Polos & T-shirts',
   'Parkas et manteaux',
+  'Tablier',
 ];
 
 interface CategoryCount {
