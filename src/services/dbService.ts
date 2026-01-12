@@ -299,7 +299,31 @@ export const getRecentTransactions = async (limit: number = 10): Promise<Transac
 };
 
 export const getLowStockProducts = async (): Promise<Product[]> => {
-  // Get all products and filter in JS since we can't compare columns directly in Supabase
-  const products = await getAllProducts();
-  return products.filter(p => p.quantity <= p.min_stock).sort((a, b) => a.quantity - b.quantity);
+  // Use a direct query with raw filter to compare quantity with min_stock
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .order('quantity', { ascending: true });
+  
+  if (error) {
+    console.error('Erreur lors de la récupération des produits en stock faible:', error);
+    return [];
+  }
+  
+  // Filter products where quantity <= min_stock
+  return data
+    .filter(p => p.quantity <= p.min_stock)
+    .map(p => ({
+      id: p.id,
+      name: p.name,
+      sku: p.sku,
+      category: p.category,
+      fournisseur: p.fournisseur || '',
+      size: p.size || '',
+      quantity: p.quantity,
+      price: Number(p.price),
+      min_stock: p.min_stock,
+      image: p.image || null,
+      color: (p as any).color || null
+    }));
 };

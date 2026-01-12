@@ -33,7 +33,8 @@ export const Dashboard = () => {
       setRecentTransactions(transactionsData);
     };
     loadData();
-    const interval = setInterval(loadData, 5000);
+    // Reduce polling frequency to 30 seconds for better performance
+    const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
   }, []);
 
