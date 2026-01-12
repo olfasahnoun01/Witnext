@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { 
   TrendingUp, 
   Package, 
@@ -10,6 +10,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { getDashboardStats, getRecentTransactions } from '@/services/dbService';
 import { DashboardStats, Transaction } from '@/types';
+import { useRealtimeData } from '@/hooks/useRealtimeData';
 
 const CHART_COLORS = ['hsl(217, 91%, 50%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(0, 84%, 60%)', 'hsl(262, 83%, 58%)'];
 
@@ -23,20 +24,25 @@ export const Dashboard = () => {
   });
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
 
-  useEffect(() => {
-    const loadData = async () => {
-      const [statsData, transactionsData] = await Promise.all([
-        getDashboardStats(),
-        getRecentTransactions(8)
-      ]);
-      setStats(statsData);
-      setRecentTransactions(transactionsData);
-    };
-    loadData();
-    // Reduce polling frequency to 30 seconds for better performance
-    const interval = setInterval(loadData, 30000);
-    return () => clearInterval(interval);
+  const loadData = useCallback(async () => {
+    const [statsData, transactionsData] = await Promise.all([
+      getDashboardStats(),
+      getRecentTransactions(8)
+    ]);
+    setStats(statsData);
+    setRecentTransactions(transactionsData);
   }, []);
+
+  // Initial load
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Subscribe to realtime updates
+  useRealtimeData({
+    tables: ['products', 'transactions'],
+    onDataChange: loadData,
+  });
 
   const kpiCards = [
     {

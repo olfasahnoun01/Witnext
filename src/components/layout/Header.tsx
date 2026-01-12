@@ -1,10 +1,11 @@
 import { Bell, Search, LogOut, X } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getLowStockProducts } from '@/services/dbService';
 import { Product } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { useRealtimeData } from '@/hooks/useRealtimeData';
 
 interface HeaderProps {
   title: string;
@@ -16,16 +17,21 @@ export const Header = ({ title }: HeaderProps) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const { user, signOut } = useAuth();
 
-  useEffect(() => {
-    const loadLowStock = async () => {
-      const products = await getLowStockProducts();
-      setLowStockProducts(products);
-    };
-    loadLowStock();
-    // Reduce polling frequency to 30 seconds for better performance
-    const interval = setInterval(loadLowStock, 30000);
-    return () => clearInterval(interval);
+  const loadLowStock = useCallback(async () => {
+    const products = await getLowStockProducts();
+    setLowStockProducts(products);
   }, []);
+
+  // Initial load
+  useEffect(() => {
+    loadLowStock();
+  }, [loadLowStock]);
+
+  // Subscribe to realtime updates on products table
+  useRealtimeData({
+    tables: ['products'],
+    onDataChange: loadLowStock,
+  });
 
   // Filter out dismissed notifications
   const visibleNotifications = lowStockProducts.filter(p => !dismissedIds.has(p.id));
