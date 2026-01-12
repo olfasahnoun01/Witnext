@@ -72,7 +72,15 @@ export const useRealtimeData = ({ tables, onDataChange, showToast = true }: UseR
           },
           handleChange
         )
-        .subscribe();
+        .subscribe((status, err) => {
+          console.log(`Realtime subscription status for ${table}:`, status);
+          if (err) {
+            console.error(`Realtime subscription error for ${table}:`, err);
+          }
+          if (status === 'SUBSCRIBED') {
+            console.log(`✅ Successfully subscribed to ${table} changes`);
+          }
+        });
 
       return channel;
     });
