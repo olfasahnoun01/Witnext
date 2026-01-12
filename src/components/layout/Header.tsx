@@ -22,7 +22,8 @@ export const Header = ({ title }: HeaderProps) => {
       setLowStockProducts(products);
     };
     loadLowStock();
-    const interval = setInterval(loadLowStock, 5000);
+    // Reduce polling frequency to 30 seconds for better performance
+    const interval = setInterval(loadLowStock, 30000);
     return () => clearInterval(interval);
   }, []);
 
