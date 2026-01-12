@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { toast } from '@/hooks/use-toast';
@@ -24,9 +24,20 @@ const EVENT_LABELS: Record<string, string> = {
 
 export const useRealtimeData = ({ tables, onDataChange, showToast = true }: UseRealtimeOptions) => {
   const isFirstRender = useRef(true);
+  const onDataChangeRef = useRef(onDataChange);
+  
+  // Keep the callback ref updated
+  useEffect(() => {
+    onDataChangeRef.current = onDataChange;
+  }, [onDataChange]);
 
-  const handleChange = useCallback(
-    (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+  // Memoize tables array to prevent unnecessary re-subscriptions
+  const tablesKey = useMemo(() => tables.join(','), [tables]);
+
+  useEffect(() => {
+    const tableList = tablesKey.split(',') as TableName[];
+    
+    const handleChange = (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
       console.log('Realtime update:', payload.eventType, payload.table);
       
       // Show toast notification (skip on first render to avoid false notifications)
@@ -41,20 +52,17 @@ export const useRealtimeData = ({ tables, onDataChange, showToast = true }: UseR
         });
       }
       
-      onDataChange();
-    },
-    [onDataChange, showToast]
-  );
+      onDataChangeRef.current();
+    };
 
-  useEffect(() => {
     // Mark first render as complete after a short delay
     const timer = setTimeout(() => {
       isFirstRender.current = false;
     }, 1000);
 
-    const channels = tables.map((table) => {
+    const channels = tableList.map((table) => {
       const channel = supabase
-        .channel(`realtime-${table}`)
+        .channel(`realtime-${table}-${Date.now()}`)
         .on(
           'postgres_changes',
           {
@@ -75,5 +83,5 @@ export const useRealtimeData = ({ tables, onDataChange, showToast = true }: UseR
         supabase.removeChannel(channel);
       });
     };
-  }, [tables, handleChange]);
+  }, [tablesKey, showToast]);
 };
