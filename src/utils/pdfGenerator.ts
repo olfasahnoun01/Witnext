@@ -47,42 +47,100 @@ export const generateInventoryPDF = (products: Product[]) => {
   const doc = new jsPDF();
   
   doc.setFontSize(20);
-  doc.setTextColor(37, 99, 235);
+  doc.setTextColor(30, 58, 95);
   doc.text('GROSAFE ÉQUIPEMENT', 14, 22);
   
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
-  doc.text('Liste Inventaire', 14, 32);
+  doc.text('Liste Inventaire Complet', 14, 32);
   
   doc.setFontSize(10);
   doc.setTextColor(100, 100, 100);
   doc.text(`Généré le: ${new Date().toLocaleDateString('fr-TN')}`, 14, 40);
   
-  const tableData = products.map(p => [
-    p.sku,
-    p.name,
-    p.category,
-    p.size,
-    p.fournisseur,
-    p.quantity.toString(),
-    `${p.price.toFixed(3)} TND`,
-    `${(p.price * p.quantity).toFixed(3)} TND`
-  ]);
-  
-  autoTable(doc, {
-    startY: 48,
-    head: [['Code', 'Désignation', 'Catégorie', 'Taille', 'Fournisseur', 'Qté', 'Prix Unit.', 'Total']],
-    body: tableData,
-    theme: 'grid',
-    headStyles: { fillColor: [37, 99, 235] },
-    styles: { fontSize: 8 }
+  // Group products by category
+  const productsByCategory: Record<string, Product[]> = {};
+  products.forEach(p => {
+    const category = p.category || 'Non catégorisé';
+    if (!productsByCategory[category]) {
+      productsByCategory[category] = [];
+    }
+    productsByCategory[category].push(p);
   });
   
-  const totalValue = products.reduce((sum, p) => sum + p.price * p.quantity, 0);
-  const finalY = (doc as any).lastAutoTable.finalY || 48;
-  doc.setFontSize(12);
-  doc.setTextColor(0, 0, 0);
-  doc.text(`Valeur Totale: ${totalValue.toFixed(3)} TND`, 14, finalY + 10);
+  // Sort categories alphabetically
+  const sortedCategories = Object.keys(productsByCategory).sort((a, b) => 
+    a.localeCompare(b, 'fr')
+  );
+  
+  let startY = 48;
+  let grandTotal = 0;
+  
+  sortedCategories.forEach((category, catIndex) => {
+    const categoryProducts = productsByCategory[category];
+    const categoryTotal = categoryProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
+    grandTotal += categoryTotal;
+    
+    // Check if we need a new page
+    if (startY > 250) {
+      doc.addPage();
+      startY = 20;
+    }
+    
+    // Category header
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text(`${category} (${categoryProducts.length} articles)`, 14, startY);
+    
+    const tableData = categoryProducts.map(p => [
+      p.sku,
+      p.name,
+      p.size || '-',
+      p.fournisseur || '-',
+      p.quantity.toString(),
+      `${p.price.toFixed(3)} TND`,
+      `${(p.price * p.quantity).toFixed(3)} TND`
+    ]);
+    
+    autoTable(doc, {
+      startY: startY + 4,
+      head: [['Code', 'Désignation', 'Taille', 'Fournisseur', 'Qté', 'Prix Unit.', 'Total']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [30, 58, 95], fontSize: 8 },
+      styles: { fontSize: 8 },
+      margin: { left: 14, right: 14 }
+    });
+    
+    // Category subtotal
+    const tableEndY = (doc as any).lastAutoTable.finalY || startY + 20;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Sous-total ${category}: ${categoryTotal.toFixed(3)} TND`, 14, tableEndY + 6);
+    
+    startY = tableEndY + 14;
+  });
+  
+  // Grand total
+  if (startY > 270) {
+    doc.addPage();
+    startY = 20;
+  }
+  
+  doc.setDrawColor(199, 62, 62);
+  doc.setLineWidth(0.5);
+  doc.line(14, startY, doc.internal.pageSize.getWidth() - 14, startY);
+  
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 58, 95);
+  doc.text(`Valeur Totale Inventaire: ${grandTotal.toFixed(3)} TND`, 14, startY + 10);
+  
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  doc.text(`Total: ${products.length} articles en ${sortedCategories.length} catégories`, 14, startY + 18);
   
   doc.save('inventaire_grosafe.pdf');
 };
