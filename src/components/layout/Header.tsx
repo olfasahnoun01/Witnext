@@ -1,4 +1,4 @@
-import { Bell, Search, LogOut } from 'lucide-react';
+import { Bell, Search, LogOut, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getLowStockProducts } from '@/services/dbService';
 import { Product } from '@/types';
@@ -12,6 +12,7 @@ interface HeaderProps {
 
 export const Header = ({ title }: HeaderProps) => {
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set());
   const [showNotifications, setShowNotifications] = useState(false);
   const { user, signOut } = useAuth();
 
@@ -25,7 +26,19 @@ export const Header = ({ title }: HeaderProps) => {
     return () => clearInterval(interval);
   }, []);
 
-  const alertCount = lowStockProducts.length;
+  // Filter out dismissed notifications
+  const visibleNotifications = lowStockProducts.filter(p => !dismissedIds.has(p.id));
+  const alertCount = visibleNotifications.length;
+
+  const clearAllNotifications = () => {
+    const allIds = new Set(lowStockProducts.map(p => p.id));
+    setDismissedIds(allIds);
+    setShowNotifications(false);
+  };
+
+  const dismissNotification = (productId: number) => {
+    setDismissedIds(prev => new Set([...prev, productId]));
+  };
 
   return (
     <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b border-border">
@@ -67,25 +80,53 @@ export const Header = ({ title }: HeaderProps) => {
               )}
             </button>
 
-            {showNotifications && alertCount > 0 && (
-              <div className="absolute right-0 top-12 w-80 bg-card rounded-xl shadow-xl border border-border p-4 animate-scale-in">
-                <h3 className="font-semibold text-foreground mb-3">Alertes Stock</h3>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {lowStockProducts.map((product) => (
-                    <div
-                      key={product.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-muted"
+            {showNotifications && (
+              <div className="absolute right-0 top-12 w-80 bg-card rounded-xl shadow-xl border border-border p-4 animate-scale-in z-50">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-foreground">Alertes Stock</h3>
+                  {alertCount > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearAllNotifications}
+                      className="text-xs text-muted-foreground hover:text-foreground"
                     >
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{product.name}</p>
-                        <p className="text-xs text-muted-foreground">{product.sku}</p>
-                      </div>
-                      <span className={`status-badge ${product.quantity === 0 ? 'status-badge-danger' : 'status-badge-warning'}`}>
-                        {product.quantity === 0 ? 'Rupture' : `${product.quantity} unités`}
-                      </span>
-                    </div>
-                  ))}
+                      <X className="w-3 h-3 mr-1" />
+                      Effacer tout
+                    </Button>
+                  )}
                 </div>
+                {alertCount === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Aucune alerte
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {visibleNotifications.map((product) => (
+                      <div
+                        key={product.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-muted group"
+                      >
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-foreground">{product.name}</p>
+                          <p className="text-xs text-muted-foreground">{product.sku}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`status-badge ${product.quantity === 0 ? 'status-badge-danger' : 'status-badge-warning'}`}>
+                            {product.quantity === 0 ? 'Rupture' : `${product.quantity} unités`}
+                          </span>
+                          <button
+                            onClick={() => dismissNotification(product.id)}
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-background rounded transition-opacity"
+                            title="Masquer"
+                          >
+                            <X className="w-3 h-3 text-muted-foreground" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
