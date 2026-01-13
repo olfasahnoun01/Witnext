@@ -86,19 +86,25 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
       updatePresence(true);
     }, heartbeatInterval);
 
-    // Handle window close/unload
+    // Handle window close/unload - mark as offline
     const handleBeforeUnload = () => {
       // Use sendBeacon for reliable offline update
-      const payload = JSON.stringify({
-        user_id: user.id,
-        is_online: false,
-        last_seen: new Date().toISOString()
-      });
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
       
-      navigator.sendBeacon?.(
-        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_presence?user_id=eq.${user.id}`,
-        payload
-      );
+      if (supabaseUrl && supabaseKey) {
+        const payload = JSON.stringify({
+          is_online: false,
+          last_seen: new Date().toISOString()
+        });
+        
+        // Use sendBeacon with proper headers
+        const blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon?.(
+          `${supabaseUrl}/rest/v1/user_presence?user_id=eq.${user.id}`,
+          blob
+        );
+      }
     };
 
     // Handle visibility change
