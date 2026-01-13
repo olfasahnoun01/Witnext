@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Package, RefreshCw } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { CategoryCard } from './inventory/CategoryCard';
-import { CategoryView } from './inventory/CategoryView';
+import { ProductGroupView } from './inventory/ProductGroupView';
+import { getProductGroupCountsByCategory } from '@/services/productGroupService';
 
 // Fixed list of main categories
 const MAIN_CATEGORIES = [
@@ -30,59 +30,46 @@ export const Inventory = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [uncategorizedCount, setUncategorizedCount] = useState(0);
 
-  // Fetch category counts only (not full product data)
+  // Fetch category counts from product_groups table
   const fetchCategoryCounts = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Get all products with just category field for counting
-      const { data, error } = await supabase
-        .from('products')
-        .select('category');
-
-      if (error) throw error;
-
-      // Count by category
-      const counts: Record<string, number> = {};
-      let uncategorized = 0;
-
+      const counts = await getProductGroupCountsByCategory();
+      
+      // Initialize main categories
+      const countMap: Record<string, number> = {};
       MAIN_CATEGORIES.forEach(cat => {
-        counts[cat] = 0;
+        countMap[cat] = 0;
       });
-
-      data?.forEach(product => {
-        const productCategory = product.category?.trim();
-        
-        if (!productCategory) {
-          uncategorized++;
+      
+      let uncategorized = 0;
+      
+      Object.entries(counts).forEach(([category, count]) => {
+        if (!category || category === 'Non catégorisé') {
+          uncategorized += count;
           return;
         }
-
+        
         // Check if it matches any main category (case-insensitive)
         const matchedCategory = MAIN_CATEGORIES.find(
-          cat => cat.toLowerCase() === productCategory.toLowerCase()
+          cat => cat.toLowerCase() === category.toLowerCase()
         );
-
+        
         if (matchedCategory) {
-          counts[matchedCategory]++;
+          countMap[matchedCategory] += count;
         } else {
-          // Product has a category but doesn't match main categories
-          // Count it as its own category or add to uncategorized
-          if (counts[productCategory]) {
-            counts[productCategory]++;
-          } else {
-            counts[productCategory] = 1;
-          }
+          // Add as its own category
+          countMap[category] = (countMap[category] || 0) + count;
         }
       });
-
+      
       setUncategorizedCount(uncategorized);
-
-      // Convert to array format
-      const countArray = Object.entries(counts).map(([category, count]) => ({
+      
+      const countArray = Object.entries(countMap).map(([category, count]) => ({
         category,
         count,
       }));
-
+      
       setCategoryCounts(countArray);
     } catch (error) {
       console.error('Error fetching category counts:', error);
@@ -123,9 +110,9 @@ export const Inventory = () => {
     fetchCategoryCounts(); // Refresh counts when returning
   }, [fetchCategoryCounts]);
 
-  // Show category view if a category is selected
+  // Show product group view if a category is selected
   if (selectedCategory) {
-    return <CategoryView category={selectedCategory} onBack={handleBack} />;
+    return <ProductGroupView category={selectedCategory} onBack={handleBack} />;
   }
 
   return (
@@ -138,7 +125,7 @@ export const Inventory = () => {
             Inventaire par Catégorie
           </h2>
           <p className="text-muted-foreground mt-1">
-            {totalProducts} article{totalProducts !== 1 ? 's' : ''} au total
+            {totalProducts} produit{totalProducts !== 1 ? 's' : ''} au total
           </p>
         </div>
         <Button variant="outline" onClick={fetchCategoryCounts} disabled={isLoading}>
