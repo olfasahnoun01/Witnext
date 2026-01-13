@@ -67,7 +67,6 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     
     // Get auth token from request
     const authHeader = req.headers.get('Authorization')
@@ -78,30 +77,25 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Create client with anon key to verify the token
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    })
+    // Create admin client for user management
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Verify the JWT token using getClaims
+    // Verify the JWT token using getUser with the service role key
     const token = authHeader.replace('Bearer ', '')
-    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token)
+    const { data: { user: requestingUser }, error: userError } = await supabaseAdmin.auth.getUser(token)
 
-    if (claimsError || !claimsData?.claims) {
-      console.error('Token verification failed:', claimsError?.message)
+    if (userError || !requestingUser) {
+      console.error('Token verification failed:', userError?.message)
       return new Response(JSON.stringify({ error: 'Non autorisé' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    const requestingUserId = claimsData.claims.sub as string
-    console.log('Authenticated user:', requestingUserId)
+    const requestingUserId = requestingUser.id
+    console.log('Authenticated user:', requestingUserId, requestingUser.email)
 
-    // Create admin client for checking roles and user management
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
-
-    // Check if requesting user is admin using the admin client
+    // Check if requesting user is admin
     const { data: isAdmin, error: roleError } = await supabaseAdmin.rpc('has_role', {
       _user_id: requestingUserId,
       _role: 'admin'
