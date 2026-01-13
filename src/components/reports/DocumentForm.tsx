@@ -1,8 +1,9 @@
-import { memo, useCallback, useMemo } from 'react';
-import { Plus, Trash2, Download, Edit, Package } from 'lucide-react';
+import { memo, useCallback, useState } from 'react';
+import { Plus, Trash2, Download, Edit, Package, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Product, DocumentItem } from '@/types';
 import { DocumentType, documentTypes, generateOfficialPDF, SavedDocument } from '@/utils/pdfGenerator';
+import { CategoryProductSelector } from '@/components/shared/CategoryProductSelector';
 
 interface DocumentFormProps {
   // Document state
@@ -45,6 +46,40 @@ interface DocumentFormProps {
   onUpdate: () => void;
   onCancel: () => void;
 }
+
+// Helper component to display selected product
+const SelectedProductDisplay = ({ product, onClear }: { product?: Product; onClear: () => void }) => {
+  if (!product) return null;
+  
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted border border-border">
+      <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center overflow-hidden flex-shrink-0">
+        {product.image ? (
+          <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+        ) : (
+          <Package className="w-5 h-5 text-muted-foreground" />
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-foreground text-sm truncate">{product.name}</p>
+        <p className="text-xs text-muted-foreground">
+          {product.sku}
+          {product.size && ` • ${product.size}`}
+          {product.color && ` • ${product.color}`}
+        </p>
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={onClear}
+        className="flex-shrink-0 h-8 w-8 p-0"
+      >
+        <X className="w-4 h-4" />
+      </Button>
+    </div>
+  );
+};
 
 export const DocumentForm = memo(({
   docType, docNumber, docDate, docValidity, transportRef,
@@ -205,16 +240,23 @@ export const DocumentForm = memo(({
         <div>
           <h4 className="font-medium text-foreground mb-3">Ajouter Article</h4>
           <div className="space-y-3">
-            <select
-              value={selectedProductId}
-              onChange={(e) => setSelectedProductId(e.target.value ? parseInt(e.target.value) : '')}
-              className="form-input"
-            >
-              <option value="">Sélectionner un produit...</option>
-              {products.map(p => (
-                <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
-              ))}
-            </select>
+            {selectedProductId ? (
+              <SelectedProductDisplay
+                product={products.find(p => p.id === selectedProductId)}
+                onClear={() => setSelectedProductId('')}
+              />
+            ) : (
+              <CategoryProductSelector
+                selectedProductId={selectedProductId}
+                onSelect={(product) => {
+                  setSelectedProductId(product.id);
+                  // Pre-fill price if available
+                  if (showPrice && product.price) {
+                    setItemPrice(product.price);
+                  }
+                }}
+              />
+            )}
             <input
               type="text"
               value={itemDescription}

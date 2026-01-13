@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { CategoryProductSelector } from './transactions/CategoryProductSelector';
+import { CategoryProductSelector } from './shared/CategoryProductSelector';
 
 type TabType = 'in' | 'out';
 
