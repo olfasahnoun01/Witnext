@@ -98,6 +98,36 @@ export type Database = {
         }
         Relationships: []
       }
+      orders: {
+        Row: {
+          client_name: string
+          client_phone: string | null
+          created_at: string
+          id: number
+          items: Json
+          status: string
+          total_amount: number
+        }
+        Insert: {
+          client_name: string
+          client_phone?: string | null
+          created_at?: string
+          id?: number
+          items: Json
+          status?: string
+          total_amount?: number
+        }
+        Update: {
+          client_name?: string
+          client_phone?: string | null
+          created_at?: string
+          id?: number
+          items?: Json
+          status?: string
+          total_amount?: number
+        }
+        Relationships: []
+      }
       product_groups: {
         Row: {
           base_sku: string | null
