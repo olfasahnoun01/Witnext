@@ -4,6 +4,7 @@ import { Header } from '@/components/layout/Header';
 import { initDatabase } from '@/services/dbService';
 import { Loader2 } from 'lucide-react';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { TeamChat } from '@/components/TeamChat';
 
 // Lazy load heavy components
 const Dashboard = lazy(() => import('@/components/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -85,6 +86,9 @@ const Index = () => {
           {renderContent()}
         </main>
       </div>
+      
+      {/* Team Chat - floating button for admins/moderators */}
+      <TeamChat />
     </div>
   );
 };
