@@ -8,7 +8,8 @@ import {
   AlertCircle,
   Trash2,
   Edit,
-  CalendarIcon
+  CalendarIcon,
+  X
 } from 'lucide-react';
 import { getAllProducts, getAllTransactions, createTransaction } from '@/services/dbService';
 import { Product, Transaction } from '@/types';
@@ -19,6 +20,7 @@ import { toast } from 'sonner';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { CategoryProductSelector } from './transactions/CategoryProductSelector';
 
 type TabType = 'in' | 'out';
 
@@ -190,37 +192,50 @@ export const Transactions = () => {
 
             <div>
               <label className="form-label">Produit *</label>
-              <select
-                required
-                value={selectedProductId}
-                onChange={(e) => {
-                  setSelectedProductId(e.target.value ? parseInt(e.target.value) : '');
-                  setError('');
-                }}
-                className="form-input"
-              >
-                <option value="">Sélectionner un produit...</option>
-                {products.map(product => (
-                  <option key={product.id} value={product.id}>
-                    {product.name} ({product.sku}) - Stock: {product.quantity}
-                  </option>
-                ))}
-              </select>
-            </div>
+              {selectedProduct ? (
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-muted border border-border">
+                  <div className="w-12 h-12 rounded-lg bg-background flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {selectedProduct.image ? (
+                      <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <Package className="w-6 h-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground truncate">{selectedProduct.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedProduct.sku}
+                      {selectedProduct.size && ` • ${selectedProduct.size}`}
+                      {selectedProduct.color && ` • ${selectedProduct.color}`}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Stock: <span className="font-semibold">{selectedProduct.quantity}</span> unités
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedProductId('');
+                      setError('');
+                    }}
+                    className="flex-shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <CategoryProductSelector
+                  selectedProductId={selectedProductId}
+                  onSelect={(product) => {
+                    setSelectedProductId(product.id);
+                    setError('');
+                  }}
+                />
+              )}
 
-            {selectedProduct && (
-              <div className="flex items-center gap-3 p-4 rounded-lg bg-muted">
-                <div className="w-12 h-12 rounded-lg bg-background flex items-center justify-center">
-                  <Package className="w-6 h-6 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">{selectedProduct.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Stock actuel: <span className="font-semibold">{selectedProduct.quantity}</span> unités
-                  </p>
-                </div>
-              </div>
-            )}
+            </div>
 
             <div>
               <label className="form-label">Quantité *</label>
