@@ -15,6 +15,7 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { sanitizeSearchInput } from '@/lib/sanitize';
+import { useRealtimeData } from '@/hooks/useRealtimeData';
 
 interface ProductGroupViewProps {
   category: string;
@@ -45,6 +46,13 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
   useEffect(() => {
     fetchGroups();
   }, [fetchGroups]);
+
+  // Subscribe to realtime changes on products and product_groups
+  useRealtimeData({
+    tables: ['products', 'product_groups'],
+    onDataChange: fetchGroups,
+    showToast: true
+  });
 
   // Filter groups by search
   const filteredGroups = useMemo(() => {

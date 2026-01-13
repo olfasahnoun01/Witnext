@@ -3,9 +3,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { getLowStockProducts } from '@/services/dbService';
 import { Product } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
+import { usePresence } from '@/hooks/usePresence';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
+import { OnlineUsersIndicator } from '@/components/OnlineUsersIndicator';
 
 interface HeaderProps {
   title: string;
@@ -15,7 +17,8 @@ export const Header = ({ title }: HeaderProps) => {
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set());
   const [showNotifications, setShowNotifications] = useState(false);
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
+  const { onlineUsers } = usePresence();
 
   const loadLowStock = useCallback(async () => {
     const products = await getLowStockProducts();
@@ -63,6 +66,14 @@ export const Header = ({ title }: HeaderProps) => {
         </div>
 
         <div className="flex items-center gap-4">
+          {/* Online Users (Admin only) */}
+          {isAdmin && (
+            <OnlineUsersIndicator 
+              onlineUsers={onlineUsers} 
+              currentUserId={user?.id}
+            />
+          )}
+
           {/* Search */}
           <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-muted">
             <Search className="w-4 h-4 text-muted-foreground" />

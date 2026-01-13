@@ -261,6 +261,33 @@ export type Database = {
           },
         ]
       }
+      user_presence: {
+        Row: {
+          email: string | null
+          id: string
+          is_online: boolean
+          last_seen: string
+          role: string | null
+          user_id: string
+        }
+        Insert: {
+          email?: string | null
+          id?: string
+          is_online?: boolean
+          last_seen?: string
+          role?: string | null
+          user_id: string
+        }
+        Update: {
+          email?: string | null
+          id?: string
+          is_online?: boolean
+          last_seen?: string
+          role?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
