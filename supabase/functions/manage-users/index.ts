@@ -67,38 +67,49 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     
     // Get auth token from request
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
+    if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Non autorisé' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // Create client with user's token to check permissions
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
+    // Create client with anon key to verify the token
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     })
 
-    // Get the user making the request
-    const { data: { user: requestingUser }, error: userError } = await supabaseClient.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    )
+    // Verify the JWT token using getClaims
+    const token = authHeader.replace('Bearer ', '')
+    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token)
 
-    if (userError || !requestingUser) {
+    if (claimsError || !claimsData?.claims) {
+      console.error('Token verification failed:', claimsError?.message)
       return new Response(JSON.stringify({ error: 'Non autorisé' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // Check if requesting user is admin
-    const { data: isAdmin } = await supabaseClient.rpc('has_role', {
-      _user_id: requestingUser.id,
+    const requestingUserId = claimsData.claims.sub as string
+    console.log('Authenticated user:', requestingUserId)
+
+    // Create admin client for checking roles and user management
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Check if requesting user is admin using the admin client
+    const { data: isAdmin, error: roleError } = await supabaseAdmin.rpc('has_role', {
+      _user_id: requestingUserId,
       _role: 'admin'
     })
+
+    if (roleError) {
+      console.error('Role check error:', roleError.message)
+    }
 
     if (!isAdmin) {
       return new Response(JSON.stringify({ error: 'Accès réservé aux administrateurs' }), {
@@ -106,9 +117,6 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
-
-    // Create admin client for user management
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
     const { action, ...params } = await req.json()
 
@@ -303,7 +311,7 @@ Deno.serve(async (req) => {
         }
 
         // Prevent self-deletion
-        if (user_id === requestingUser.id) {
+        if (user_id === requestingUserId) {
           return new Response(JSON.stringify({ error: 'Vous ne pouvez pas supprimer votre propre compte' }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
