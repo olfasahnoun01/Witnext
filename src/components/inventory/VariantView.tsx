@@ -23,6 +23,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { useRealtimeData } from '@/hooks/useRealtimeData';
 
 interface VariantViewProps {
   group: ProductGroup;
@@ -80,6 +81,13 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   useEffect(() => {
     fetchVariants();
   }, [fetchVariants]);
+
+  // Subscribe to realtime changes on products table
+  useRealtimeData({
+    tables: ['products'],
+    onDataChange: fetchVariants,
+    showToast: true
+  });
 
   const totalStock = variants.reduce((sum, v) => sum + v.quantity, 0);
 

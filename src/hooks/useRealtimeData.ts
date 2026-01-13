@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { toast } from '@/hooks/use-toast';
 
-type TableName = 'products' | 'transactions';
+type TableName = 'products' | 'transactions' | 'product_groups' | 'fournisseurs' | 'documents';
 
 interface UseRealtimeOptions {
   tables: TableName[];
@@ -12,8 +12,11 @@ interface UseRealtimeOptions {
 }
 
 const TABLE_LABELS: Record<TableName, string> = {
-  products: 'Produits',
+  products: 'Variantes',
   transactions: 'Transactions',
+  product_groups: 'Produits',
+  fournisseurs: 'Fournisseurs',
+  documents: 'Documents',
 };
 
 const EVENT_LABELS: Record<string, string> = {
