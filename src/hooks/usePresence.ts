@@ -48,9 +48,9 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
     }
   }, [user, userRole]);
 
-  // Fetch online users (admin only)
+  // Fetch online users (admin and moderator)
   const fetchOnlineUsers = useCallback(async () => {
-    if (!user || !isAdmin) return;
+    if (!user || (!isAdmin && !isModerator)) return;
 
     try {
       // Get users who were online in the last 2 minutes
@@ -63,13 +63,16 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         .gte('last_seen', twoMinutesAgo)
         .order('last_seen', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching online users:', error);
+        return;
+      }
       
       setOnlineUsers(data || []);
     } catch (err) {
       console.error('Error fetching online users:', err);
     }
-  }, [user, isAdmin]);
+  }, [user, isAdmin, isModerator]);
 
   // Set up heartbeat
   useEffect(() => {
@@ -120,9 +123,9 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
     };
   }, [user, userRole, heartbeatInterval, updatePresence]);
 
-  // Subscribe to presence changes (admin only)
+  // Subscribe to presence changes (admin and moderator)
   useEffect(() => {
-    if (!user || !isAdmin) return;
+    if (!user || (!isAdmin && !isModerator)) return;
 
     // Initial fetch
     fetchOnlineUsers();
@@ -150,7 +153,7 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
     };
-  }, [user, userRole, fetchOnlineUsers]);
+  }, [user, isAdmin, isModerator, fetchOnlineUsers]);
 
   return {
     onlineUsers,
