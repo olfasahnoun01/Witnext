@@ -17,7 +17,7 @@ export const Header = ({ title }: HeaderProps) => {
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set());
   const [showNotifications, setShowNotifications] = useState(false);
-  const { user, signOut, isAdmin } = useAuth();
+  const { user, signOut, isAdmin, isModerator } = useAuth();
   const { onlineUsers } = usePresence();
 
   const loadLowStock = useCallback(async () => {
@@ -66,8 +66,8 @@ export const Header = ({ title }: HeaderProps) => {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Online Users (Admin only) */}
-          {isAdmin && (
+          {/* Online Users (Admin and Moderator) */}
+          {(isAdmin || isModerator) && (
             <OnlineUsersIndicator 
               onlineUsers={onlineUsers} 
               currentUserId={user?.id}
