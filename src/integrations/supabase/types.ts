@@ -220,6 +220,33 @@ export type Database = {
         }
         Relationships: []
       }
+      team_chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          user_email: string
+          user_id: string
+          user_role: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          user_email: string
+          user_id: string
+          user_role: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          user_email?: string
+          user_id?: string
+          user_role?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           created_at: string
