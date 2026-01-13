@@ -98,6 +98,42 @@ export type Database = {
         }
         Relationships: []
       }
+      product_groups: {
+        Row: {
+          base_sku: string | null
+          category: string
+          created_at: string
+          fournisseur: string | null
+          id: number
+          image: string | null
+          min_stock: number
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          base_sku?: string | null
+          category: string
+          created_at?: string
+          fournisseur?: string | null
+          id?: number
+          image?: string | null
+          min_stock?: number
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          base_sku?: string | null
+          category?: string
+          created_at?: string
+          fournisseur?: string | null
+          id?: number
+          image?: string | null
+          min_stock?: number
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           category: string
@@ -109,6 +145,7 @@ export type Database = {
           min_stock: number
           name: string
           price: number
+          product_group_id: number | null
           quantity: number
           size: string | null
           sku: string
@@ -124,6 +161,7 @@ export type Database = {
           min_stock?: number
           name: string
           price?: number
+          product_group_id?: number | null
           quantity?: number
           size?: string | null
           sku: string
@@ -139,12 +177,21 @@ export type Database = {
           min_stock?: number
           name?: string
           price?: number
+          product_group_id?: number | null
           quantity?: number
           size?: string | null
           sku?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "products_product_group_id_fkey"
+            columns: ["product_group_id"]
+            isOneToOne: false
+            referencedRelation: "product_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

@@ -10,6 +10,24 @@ export interface Product {
   min_stock: number;
   image: string | null;
   color: string | null;
+  product_group_id?: number | null;
+}
+
+export interface ProductGroup {
+  id: number;
+  name: string;
+  category: string;
+  base_sku: string | null;
+  fournisseur: string | null;
+  image: string | null;
+  min_stock: number;
+  created_at: string;
+  updated_at: string;
+  // Computed fields from variants
+  variant_count?: number;
+  total_stock?: number;
+  colors?: string[];
+  sizes?: string[];
 }
 
 export interface Transaction {
