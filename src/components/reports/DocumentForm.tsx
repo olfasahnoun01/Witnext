@@ -340,7 +340,7 @@ export const DocumentForm = memo(({
                   <p className="font-medium text-foreground">{item.designation}</p>
                   <p className="text-sm text-muted-foreground">
                     Réf: {item.ref} • Qté: {item.quantity}
-                    {item.price !== undefined && item.price > 0 && ` • ${item.price.toFixed(3)} TND`}
+                    {item.price !== undefined && (item.price > 0 ? ` • ${item.price.toFixed(3)} TND` : ' • -')}
                   </p>
                   {item.description && (
                     <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
