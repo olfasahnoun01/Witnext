@@ -298,13 +298,15 @@ export const generateOfficialPDF = async (params: OfficialPDFParams) => {
     const baseRow = [
       (index + 1).toString(),
       item.designation,
-      item.description,
+      item.description || '',
       item.quantity.toString()
     ];
     if (showPrice) {
       const price = item.price || 0;
       const total = price * item.quantity;
-      baseRow.push(`${price.toFixed(3)} TND`, `${total.toFixed(3)} TND`);
+      // Show price only if > 0, otherwise show empty or dash
+      baseRow.push(price > 0 ? `${price.toFixed(3)} TND` : '-');
+      baseRow.push(price > 0 ? `${total.toFixed(3)} TND` : '-');
     }
     return baseRow;
   });

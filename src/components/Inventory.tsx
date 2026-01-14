@@ -1,12 +1,21 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Package, RefreshCw } from 'lucide-react';
+import { Package, RefreshCw, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CategoryCard } from './inventory/CategoryCard';
 import { ProductGroupView } from './inventory/ProductGroupView';
 import { getProductGroupCountsByCategory } from '@/services/productGroupService';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
-// Fixed list of main categories
-const MAIN_CATEGORIES = [
+// Default main categories - user can add more
+const DEFAULT_CATEGORIES = [
   'Pantalons',
   'Blousons',
   'Bordequin',
@@ -29,6 +38,17 @@ export const Inventory = () => {
   const [categoryCounts, setCategoryCounts] = useState<CategoryCount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [uncategorizedCount, setUncategorizedCount] = useState(0);
+  const [customCategories, setCustomCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('grosafe_custom_categories');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  // Combine default and custom categories
+  const MAIN_CATEGORIES = useMemo(() => {
+    return [...DEFAULT_CATEGORIES, ...customCategories];
+  }, [customCategories]);
 
   // Fetch category counts from product_groups table
   const fetchCategoryCounts = useCallback(async () => {
@@ -76,7 +96,7 @@ export const Inventory = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [MAIN_CATEGORIES]);
 
   useEffect(() => {
     fetchCategoryCounts();
@@ -95,7 +115,26 @@ export const Inventory = () => {
       .sort((a, b) => a.category.localeCompare(b.category));
 
     return [...mainCats, ...otherCats];
-  }, [categoryCounts]);
+  }, [categoryCounts, MAIN_CATEGORIES]);
+
+  const handleAddCategory = useCallback(() => {
+    if (!newCategoryName.trim()) return;
+    
+    // Check if category already exists
+    const exists = MAIN_CATEGORIES.some(
+      cat => cat.toLowerCase() === newCategoryName.trim().toLowerCase()
+    );
+    
+    if (exists) {
+      return;
+    }
+    
+    const updatedCategories = [...customCategories, newCategoryName.trim()];
+    setCustomCategories(updatedCategories);
+    localStorage.setItem('grosafe_custom_categories', JSON.stringify(updatedCategories));
+    setNewCategoryName('');
+    setIsAddCategoryOpen(false);
+  }, [newCategoryName, customCategories, MAIN_CATEGORIES]);
 
   const totalProducts = useMemo(() => {
     return categoryCounts.reduce((sum, c) => sum + c.count, 0) + uncategorizedCount;
@@ -128,10 +167,16 @@ export const Inventory = () => {
             {totalProducts} produit{totalProducts !== 1 ? 's' : ''} au total
           </p>
         </div>
-        <Button variant="outline" onClick={fetchCategoryCounts} disabled={isLoading}>
-          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Actualiser
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchCategoryCounts} disabled={isLoading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Actualiser
+          </Button>
+          <Button onClick={() => setIsAddCategoryOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Ajouter Catégorie
+          </Button>
+        </div>
       </div>
 
       {/* Loading State */}
@@ -174,6 +219,39 @@ export const Inventory = () => {
           )}
         </>
       )}
+
+      {/* Add Category Dialog */}
+      <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajouter une nouvelle catégorie</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="category-name">Nom de la catégorie</Label>
+              <Input
+                id="category-name"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="Ex: Chaussures de sécurité"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleAddCategory();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddCategoryOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleAddCategory} disabled={!newCategoryName.trim()}>
+              Ajouter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
