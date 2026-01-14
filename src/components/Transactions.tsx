@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { 
@@ -24,7 +24,103 @@ import { CategoryProductSelector } from './shared/CategoryProductSelector';
 
 type TabType = 'in' | 'out';
 
-export const Transactions = () => {
+// Memoized Transaction History Item
+const TransactionHistoryItem = memo(({ 
+  tx, 
+  isAdmin,
+  isEditing,
+  editQuantity,
+  editNote,
+  onEditQuantityChange,
+  onEditNoteChange,
+  onSaveEdit,
+  onCancelEdit,
+  onStartEdit,
+  onDelete,
+}: {
+  tx: Transaction;
+  isAdmin: boolean;
+  isEditing: boolean;
+  editQuantity: number;
+  editNote: string;
+  onEditQuantityChange: (value: number) => void;
+  onEditNoteChange: (value: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  onStartEdit: (tx: Transaction) => void;
+  onDelete: (id: number) => void;
+}) => (
+  <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
+    <div className={`p-2 rounded-lg ${
+      tx.type === 'IN' ? 'bg-success/10' : 'bg-destructive/10'
+    }`}>
+      {tx.type === 'IN' ? (
+        <ArrowDownLeft className="w-4 h-4 text-success" />
+      ) : (
+        <ArrowUpRight className="w-4 h-4 text-destructive" />
+      )}
+    </div>
+    <div className="flex-1 min-w-0">
+      {isEditing ? (
+        <div className="space-y-2">
+          <input
+            type="number"
+            value={editQuantity}
+            onChange={(e) => onEditQuantityChange(parseInt(e.target.value) || 0)}
+            className="form-input text-sm py-1"
+            min="1"
+          />
+          <input
+            type="text"
+            value={editNote}
+            onChange={(e) => onEditNoteChange(e.target.value)}
+            className="form-input text-sm py-1"
+            placeholder="Note..."
+          />
+          <div className="flex gap-2">
+            <Button size="sm" onClick={onSaveEdit}>Enregistrer</Button>
+            <Button size="sm" variant="outline" onClick={onCancelEdit}>Annuler</Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="font-medium text-foreground">{tx.product_name}</p>
+          <p className="text-sm text-muted-foreground">
+            {tx.quantity} unités • {new Date(tx.date).toLocaleDateString('fr-TN', {
+              day: 'numeric',
+              month: 'short',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
+          </p>
+          {tx.note && (
+            <p className="text-xs text-muted-foreground mt-1 truncate">{tx.note}</p>
+          )}
+        </>
+      )}
+    </div>
+    {isAdmin && !isEditing && (
+      <div className="flex gap-1">
+        <button
+          onClick={() => onStartEdit(tx)}
+          className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+        >
+          <Edit className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => onDelete(tx.id)}
+          className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    )}
+  </div>
+));
+
+TransactionHistoryItem.displayName = 'TransactionHistoryItem';
+
+export const Transactions = memo(() => {
   const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('in');
   const [products, setProducts] = useState<Product[]>([]);
@@ -407,4 +503,6 @@ export const Transactions = () => {
       </div>
     </div>
   );
-};
+});
+
+Transactions.displayName = 'Transactions';

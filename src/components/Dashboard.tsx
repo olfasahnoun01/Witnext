@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { 
   TrendingUp, 
   Package, 
@@ -14,7 +14,91 @@ import { useRealtimeData } from '@/hooks/useRealtimeData';
 
 const CHART_COLORS = ['hsl(217, 91%, 50%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(0, 84%, 60%)', 'hsl(262, 83%, 58%)'];
 
-export const Dashboard = () => {
+// Memoized KPI Card component
+const KPICard = memo(({ 
+  title, 
+  value, 
+  icon: Icon, 
+  variant, 
+  change, 
+  positive, 
+  delay 
+}: {
+  title: string;
+  value: string;
+  icon: React.ElementType;
+  variant: 'primary' | 'success' | 'warning' | 'danger';
+  change: string;
+  positive: boolean;
+  delay: number;
+}) => (
+  <div
+    className={`kpi-card kpi-card-${variant} bg-card border border-border`}
+    style={{ animationDelay: `${delay}ms` }}
+  >
+    <div className="flex items-start justify-between">
+      <div>
+        <p className="text-sm text-muted-foreground font-medium">{title}</p>
+        <p className="text-2xl font-bold text-foreground mt-1">{value}</p>
+        <div className="flex items-center gap-1 mt-2">
+          {positive ? (
+            <ArrowUpRight className="w-4 h-4 text-success" />
+          ) : (
+            <ArrowDownRight className="w-4 h-4 text-destructive" />
+          )}
+          <span className={`text-xs font-medium ${positive ? 'text-success' : 'text-destructive'}`}>
+            {change}
+          </span>
+        </div>
+      </div>
+      <div className={`p-3 rounded-xl ${
+        variant === 'primary' ? 'bg-primary/10' :
+        variant === 'success' ? 'bg-success/10' :
+        variant === 'warning' ? 'bg-warning/10' : 'bg-destructive/10'
+      }`}>
+        <Icon className={`w-6 h-6 ${
+          variant === 'primary' ? 'text-primary' :
+          variant === 'success' ? 'text-success' :
+          variant === 'warning' ? 'text-warning' : 'text-destructive'
+        }`} />
+      </div>
+    </div>
+  </div>
+));
+
+KPICard.displayName = 'KPICard';
+
+// Memoized Transaction Item
+const TransactionItem = memo(({ tx }: { tx: Transaction }) => (
+  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+    <div className={`p-2 rounded-lg ${
+      tx.type === 'IN' ? 'bg-success/10' : 'bg-destructive/10'
+    }`}>
+      {tx.type === 'IN' ? (
+        <ArrowDownRight className="w-4 h-4 text-success" />
+      ) : (
+        <ArrowUpRight className="w-4 h-4 text-destructive" />
+      )}
+    </div>
+    <div className="flex-1 min-w-0">
+      <p className="text-sm font-medium text-foreground truncate">
+        {tx.product_name}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        {tx.type === 'IN' ? 'Entrée' : 'Sortie'}: {tx.quantity} unités
+      </p>
+      {tx.note && (
+        <p className="text-xs text-muted-foreground truncate mt-0.5">
+          {tx.note}
+        </p>
+      )}
+    </div>
+  </div>
+));
+
+TransactionItem.displayName = 'TransactionItem';
+
+export const Dashboard = memo(() => {
   const [stats, setStats] = useState<DashboardStats>({
     totalValue: 0,
     totalProducts: 0,
@@ -44,7 +128,8 @@ export const Dashboard = () => {
     onDataChange: loadData,
   });
 
-  const kpiCards = [
+  // Memoized KPI cards configuration
+  const kpiCards = useMemo(() => [
     {
       title: 'Valeur Totale',
       value: `${stats.totalValue.toFixed(3)} TND`,
@@ -77,46 +162,18 @@ export const Dashboard = () => {
       change: stats.outOfStockCount > 0 ? 'Urgent' : 'OK',
       positive: stats.outOfStockCount === 0
     }
-  ];
+  ], [stats]);
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpiCards.map((card, index) => (
-          <div
+          <KPICard
             key={card.title}
-            className={`kpi-card kpi-card-${card.variant} bg-card border border-border`}
-            style={{ animationDelay: `${index * 100}ms` }}
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground font-medium">{card.title}</p>
-                <p className="text-2xl font-bold text-foreground mt-1">{card.value}</p>
-                <div className="flex items-center gap-1 mt-2">
-                  {card.positive ? (
-                    <ArrowUpRight className="w-4 h-4 text-success" />
-                  ) : (
-                    <ArrowDownRight className="w-4 h-4 text-destructive" />
-                  )}
-                  <span className={`text-xs font-medium ${card.positive ? 'text-success' : 'text-destructive'}`}>
-                    {card.change}
-                  </span>
-                </div>
-              </div>
-              <div className={`p-3 rounded-xl ${
-                card.variant === 'primary' ? 'bg-primary/10' :
-                card.variant === 'success' ? 'bg-success/10' :
-                card.variant === 'warning' ? 'bg-warning/10' : 'bg-destructive/10'
-              }`}>
-                <card.icon className={`w-6 h-6 ${
-                  card.variant === 'primary' ? 'text-primary' :
-                  card.variant === 'success' ? 'text-success' :
-                  card.variant === 'warning' ? 'text-warning' : 'text-destructive'
-                }`} />
-              </div>
-            </div>
-          </div>
+            {...card}
+            delay={index * 100}
+          />
         ))}
       </div>
 
@@ -160,33 +217,7 @@ export const Dashboard = () => {
               </p>
             ) : (
               recentTransactions.map((tx) => (
-                <div
-                  key={tx.id}
-                  className="flex items-start gap-3 p-3 rounded-lg bg-muted/50"
-                >
-                  <div className={`p-2 rounded-lg ${
-                    tx.type === 'IN' ? 'bg-success/10' : 'bg-destructive/10'
-                  }`}>
-                    {tx.type === 'IN' ? (
-                      <ArrowDownRight className="w-4 h-4 text-success" />
-                    ) : (
-                      <ArrowUpRight className="w-4 h-4 text-destructive" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">
-                      {tx.product_name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {tx.type === 'IN' ? 'Entrée' : 'Sortie'}: {tx.quantity} unités
-                    </p>
-                    {tx.note && (
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">
-                        {tx.note}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                <TransactionItem key={tx.id} tx={tx} />
               ))
             )}
           </div>
@@ -194,4 +225,6 @@ export const Dashboard = () => {
       </div>
     </div>
   );
-};
+});
+
+Dashboard.displayName = 'Dashboard';

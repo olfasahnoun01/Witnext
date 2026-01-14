@@ -9,7 +9,16 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes - data stays fresh
+      gcTime: 1000 * 60 * 30, // 30 minutes - keep in cache (formerly cacheTime)
+      refetchOnWindowFocus: false, // Don't refetch when window regains focus
+      retry: 1, // Only retry once on failure
+    },
+  },
+});
 
 // Protected Route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
