@@ -111,13 +111,20 @@ export const Reports = () => {
 
   // Auto-save when editing (debounced) - using ref for stable reference
   useEffect(() => {
-    if (!editingDocument) return;
+    // Only auto-save if we have a valid editing document with an ID
+    if (!editingDocument || !editingDocument.id) return;
+    
+    // Don't auto-save if items are empty (indicates form is being reset)
+    if (docItems.length === 0) return;
     
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
     }
     
     autoSaveTimeoutRef.current = setTimeout(async () => {
+      // Double-check editingDocument is still valid before saving
+      if (!editingDocument || !editingDocument.id) return;
+      
       const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
       const totalAmount = showPrice 
         ? docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)
@@ -197,6 +204,9 @@ export const Reports = () => {
       autoSaveTimeoutRef.current = null;
     }
 
+    // Store the document ID before any state changes
+    const documentId = editingDocument.id;
+
     const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
     const totalAmount = showPrice 
       ? docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)
@@ -213,18 +223,29 @@ export const Reports = () => {
       third_party_tax_id: thirdPartyTaxId || null,
       items: JSON.parse(JSON.stringify(docItems)),
       total_amount: totalAmount
-    }).eq('id', editingDocument.id);
+    }).eq('id', documentId);
 
     if (error) {
       toast.error('Erreur lors de la mise à jour');
+      console.error('Update error:', error);
     } else {
       toast.success('Document mis à jour');
-      // Clear editing state first, then reset form
+      // Reset form BEFORE clearing editing state to prevent auto-save trigger
+      // Use a flag to skip auto-save during this transition
+      setDocItems([]);
+      setDocType('bon_livraison');
+      setDocNumber('');
+      setDocDate(new Date().toISOString().split('T')[0]);
+      setDocValidity('');
+      setTransportRef('');
+      setThirdPartyName('');
+      setThirdPartyAddress('');
+      setThirdPartyTaxId('');
+      // Clear editing state last
       setEditingDocument(null);
-      resetForm();
       loadDocuments();
     }
-  }, [editingDocument, docType, docNumber, docDate, docValidity, transportRef, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems, resetForm, loadDocuments]);
+  }, [editingDocument, docType, docNumber, docDate, docValidity, transportRef, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems, loadDocuments]);
 
   const deleteDocument = useCallback(async (id: number) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce document?')) return;
