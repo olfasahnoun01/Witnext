@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ArrowLeft, Plus, RefreshCw, Search } from 'lucide-react';
 import { ProductGroup } from '@/types';
-import { getProductGroupsByCategory } from '@/services/productGroupService';
+import { getProductGroupsByCategory, deleteProductGroup } from '@/services/productGroupService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ProductGroupCard } from './ProductGroupCard';
 import { VariantView } from './VariantView';
+import { ProductGroupModal } from './ProductGroupModal';
 import {
   Pagination,
   PaginationContent,
@@ -16,6 +17,7 @@ import {
 } from '@/components/ui/pagination';
 import { sanitizeSearchInput } from '@/lib/sanitize';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
+import { toast } from 'sonner';
 
 interface ProductGroupViewProps {
   category: string;
@@ -30,6 +32,8 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedGroup, setSelectedGroup] = useState<ProductGroup | null>(null);
+  const [isProductGroupModalOpen, setIsProductGroupModalOpen] = useState(false);
+  const [editingProductGroup, setEditingProductGroup] = useState<ProductGroup | null>(null);
 
   const fetchGroups = useCallback(async () => {
     setIsLoading(true);
@@ -147,6 +151,10 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
             <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Actualiser
           </Button>
+          <Button size="sm" onClick={() => setIsProductGroupModalOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Ajouter Produit
+          </Button>
         </div>
       </div>
 
@@ -168,9 +176,15 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
         </div>
       ) : paginatedGroups.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground mb-4">
             {searchQuery ? 'Aucun produit trouvé pour cette recherche.' : 'Aucun produit dans cette catégorie.'}
           </p>
+          {!searchQuery && (
+            <Button onClick={() => setIsProductGroupModalOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Ajouter le premier produit
+            </Button>
+          )}
         </div>
       ) : (
         <>
@@ -225,6 +239,18 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
           )}
         </>
       )}
+
+      {/* Product Group Modal */}
+      <ProductGroupModal
+        isOpen={isProductGroupModalOpen}
+        onClose={() => {
+          setIsProductGroupModalOpen(false);
+          setEditingProductGroup(null);
+        }}
+        onSuccess={fetchGroups}
+        defaultCategory={category}
+        editingGroup={editingProductGroup}
+      />
     </div>
   );
 };
