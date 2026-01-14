@@ -110,8 +110,8 @@ export const DocumentForm = memo(({
       quantity: itemQuantity,
     };
     
-    // Only add price if it's a document type that shows price AND user entered a price
-    if (showPrice && itemPrice > 0) {
+    // Only add price if it's a document type that shows price (0 is allowed as explicit value)
+    if (showPrice) {
       itemData.price = itemPrice;
     }
     
