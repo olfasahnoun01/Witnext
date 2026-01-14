@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback } from 'react';
 import { Plus, Trash2, Download, Edit, Package, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Product, DocumentItem } from '@/types';
@@ -102,13 +102,20 @@ export const DocumentForm = memo(({
     const product = products.find(p => p.id === selectedProductId);
     if (!product) return;
     
-    setDocItems(prev => [...prev, {
+    // Price is optional - only include if provided or if showPrice is true and product has price
+    const itemData: DocumentItem = {
       ref: product.sku,
       designation: product.name,
       description: itemDescription,
       quantity: itemQuantity,
-      ...(showPrice && { price: itemPrice || product.price })
-    }]);
+    };
+    
+    // Only add price if it's a document type that shows price AND user entered a price
+    if (showPrice && itemPrice > 0) {
+      itemData.price = itemPrice;
+    }
+    
+    setDocItems(prev => [...prev, itemData]);
     
     setSelectedProductId('');
     setItemDescription('');
@@ -281,7 +288,7 @@ export const DocumentForm = memo(({
                   value={itemPrice || ''}
                   onChange={(e) => setItemPrice(parseFloat(e.target.value) || 0)}
                   className="form-input w-32"
-                  placeholder="Prix TND"
+                  placeholder="Prix TND (optionnel)"
                 />
               )}
               <Button onClick={addDocItem} disabled={!selectedProductId}>
@@ -333,7 +340,7 @@ export const DocumentForm = memo(({
                   <p className="font-medium text-foreground">{item.designation}</p>
                   <p className="text-sm text-muted-foreground">
                     Réf: {item.ref} • Qté: {item.quantity}
-                    {item.price !== undefined && ` • ${item.price.toFixed(3)} TND`}
+                    {item.price !== undefined && item.price > 0 && ` • ${item.price.toFixed(3)} TND`}
                   </p>
                   {item.description && (
                     <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
