@@ -191,6 +191,12 @@ export const Reports = () => {
   const updateDocument = useCallback(async () => {
     if (!editingDocument) return;
 
+    // Clear auto-save timeout to prevent race conditions
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
+    }
+
     const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
     const totalAmount = showPrice 
       ? docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)
@@ -213,6 +219,7 @@ export const Reports = () => {
       toast.error('Erreur lors de la mise à jour');
     } else {
       toast.success('Document mis à jour');
+      // Clear editing state first, then reset form
       setEditingDocument(null);
       resetForm();
       loadDocuments();
