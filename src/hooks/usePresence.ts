@@ -23,11 +23,18 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
   // Determine user role string
   const userRole = isAdmin ? 'admin' : isModerator ? 'moderator' : 'user';
 
-  // Update presence in database
+  // Update presence in database - errors are silently logged, never thrown
   const updatePresence = useCallback(async (isOnline: boolean) => {
     if (!user) return;
 
     try {
+      // Verify session is still valid before attempting update
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        // Session expired, don't attempt update
+        return;
+      }
+
       const { error } = await supabase
         .from('user_presence')
         .upsert({
@@ -41,18 +48,28 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         });
 
       if (error) {
-        console.error('Error updating presence:', error);
+        // Silently log RLS errors - they should never affect app functionality
+        if (error.code === '42501') {
+          console.warn('Presence update skipped - RLS policy:', error.message);
+        } else {
+          console.warn('Presence update failed:', error.message);
+        }
       }
     } catch (err) {
-      console.error('Presence update failed:', err);
+      // Silently catch all errors - presence is non-critical functionality
+      console.warn('Presence update error (ignored):', err);
     }
   }, [user, userRole]);
 
-  // Fetch online users (admin and moderator)
+  // Fetch online users (admin and moderator) - errors are silently logged
   const fetchOnlineUsers = useCallback(async () => {
     if (!user || (!isAdmin && !isModerator)) return;
 
     try {
+      // Verify session is still valid
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
       // Get users who were online in the last 2 minutes
       const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
       
@@ -64,13 +81,13 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         .order('last_seen', { ascending: false });
 
       if (error) {
-        console.error('Error fetching online users:', error);
+        console.warn('Fetching online users failed (ignored):', error.message);
         return;
       }
       
       setOnlineUsers(data || []);
     } catch (err) {
-      console.error('Error fetching online users:', err);
+      console.warn('Error fetching online users (ignored):', err);
     }
   }, [user, isAdmin, isModerator]);
 
