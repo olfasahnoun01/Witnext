@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { X, Upload, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ProductGroup } from '@/types';
+import { compressImage, formatBytes, getBase64Size } from '@/lib/imageCompression';
 
 // Predefined categories
 const CATEGORIES = [
@@ -97,14 +98,32 @@ export const ProductGroupModal = ({
     }
   }, [isOpen, editingGroup, defaultCategory]);
 
-  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, image: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+      try {
+        // Compress image before storing
+        const compressedImage = await compressImage(file, {
+          maxWidth: 800,
+          maxHeight: 800,
+          quality: 0.7,
+        });
+        
+        const originalSize = file.size;
+        const compressedSize = getBase64Size(compressedImage);
+        
+        console.log(`Image compressed: ${formatBytes(originalSize)} → ${formatBytes(compressedSize)}`);
+        
+        setFormData(prev => ({ ...prev, image: compressedImage }));
+      } catch (error) {
+        console.error('Error compressing image:', error);
+        // Fallback to original image
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setFormData(prev => ({ ...prev, image: reader.result as string }));
+        };
+        reader.readAsDataURL(file);
+      }
     }
   }, []);
 

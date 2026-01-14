@@ -30,6 +30,7 @@ import { Plus, Pencil, Trash2, Search, Building2, Phone, MapPin, FileText } from
 import { toast } from 'sonner';
 import { SPECIALITES } from '@/constants/fournisseurs';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface Fournisseur {
   id: number;
@@ -190,20 +191,23 @@ export const Fournisseurs = memo(() => {
     }
   }, [loadFournisseurs]);
 
-  // Filter fournisseurs - memoized
+  // Debounce search query for performance
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Filter fournisseurs - memoized with debounced search
   const filteredFournisseurs = useMemo(() => {
     return fournisseurs.filter(f => {
-      const matchesSearch = searchQuery === '' || 
-        f.nom.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        f.matricule_fiscale?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        f.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        f.location?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = debouncedSearchQuery === '' || 
+        f.nom.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        f.matricule_fiscale?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        f.phone?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        f.location?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
       
       const matchesSpecialite = filterSpecialite === 'all' || f.specialite === filterSpecialite;
       
       return matchesSearch && matchesSpecialite;
     });
-  }, [fournisseurs, searchQuery, filterSpecialite]);
+  }, [fournisseurs, debouncedSearchQuery, filterSpecialite]);
 
   // Paginated results
   const paginatedFournisseurs = useMemo(() => {
@@ -216,7 +220,7 @@ export const Fournisseurs = memo(() => {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, filterSpecialite]);
+  }, [debouncedSearchQuery, filterSpecialite]);
 
   // Get unique specialites from current data - memoized
   const uniqueSpecialites = useMemo(() => {

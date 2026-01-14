@@ -1,8 +1,9 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState, useEffect } from 'react';
 import { Search, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface FiltersState {
   search: string;
@@ -33,9 +34,29 @@ export const InventoryFilters = memo(({
   availableSizes, 
   availableColors 
 }: InventoryFiltersProps) => {
+  // Local state for search input (immediate updates)
+  const [localSearch, setLocalSearch] = useState(filters.search);
+  
+  // Debounce search for performance
+  const debouncedSearch = useDebounce(localSearch, 300);
+  
+  // Sync debounced search with parent
+  useEffect(() => {
+    if (debouncedSearch !== filters.search) {
+      onFiltersChange({ ...filters, search: debouncedSearch });
+    }
+  }, [debouncedSearch, filters, onFiltersChange]);
+  
+  // Keep local search in sync when filters are cleared externally
+  useEffect(() => {
+    if (filters.search !== localSearch && filters.search === '') {
+      setLocalSearch('');
+    }
+  }, [filters.search]);
+
   const handleSearchChange = useCallback((value: string) => {
-    onFiltersChange({ ...filters, search: value });
-  }, [filters, onFiltersChange]);
+    setLocalSearch(value);
+  }, []);
 
   const handleSizeChange = useCallback((value: string) => {
     onFiltersChange({ ...filters, size: value === 'all' ? '' : value });
@@ -58,6 +79,7 @@ export const InventoryFilters = memo(({
   }, [filters, onFiltersChange]);
 
   const handleClearFilters = useCallback(() => {
+    setLocalSearch('');
     onFiltersChange({
       search: '',
       size: '',
@@ -80,7 +102,7 @@ export const InventoryFilters = memo(({
           <Input
             type="text"
             placeholder="Rechercher par nom, code article ou fournisseur..."
-            value={filters.search}
+            value={localSearch}
             onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-10"
           />
