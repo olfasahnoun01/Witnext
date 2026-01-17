@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload } from 'lucide-react';
 import { ProductGroup, Product, StockStatus } from '@/types';
 import { getVariantsByGroupId, createVariant } from '@/services/productGroupService';
 import { updateProduct, deleteProduct } from '@/services/dbService';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { compressImage, formatBytes, getBase64Size } from '@/lib/imageCompression';
 import {
   Table,
   TableBody,
@@ -48,6 +49,7 @@ interface VariantFormData {
   color: string;
   quantity: number;
   price: number;
+  image: string | null;
 }
 
 const emptyFormData: VariantFormData = {
@@ -55,7 +57,8 @@ const emptyFormData: VariantFormData = {
   size: '',
   color: '',
   quantity: 0,
-  price: 0
+  price: 0,
+  image: null
 };
 
 export const VariantView = ({ group, onBack }: VariantViewProps) => {
@@ -65,6 +68,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   const [editingVariant, setEditingVariant] = useState<Product | null>(null);
   const [formData, setFormData] = useState<VariantFormData>(emptyFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchVariants = useCallback(async () => {
     setIsLoading(true);
@@ -99,7 +103,8 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         size: variant.size || '',
         color: variant.color || '',
         quantity: variant.quantity,
-        price: variant.price
+        price: variant.price,
+        image: variant.image || null
       });
     } else {
       setEditingVariant(null);
@@ -110,6 +115,32 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     }
     setIsModalOpen(true);
   }, [group.base_sku, variants.length]);
+
+  const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const compressedImage = await compressImage(file, {
+          maxWidth: 800,
+          maxHeight: 800,
+          quality: 0.7,
+        });
+        
+        const originalSize = file.size;
+        const compressedSize = getBase64Size(compressedImage);
+        console.log(`Image compressed: ${formatBytes(originalSize)} → ${formatBytes(compressedSize)}`);
+        
+        setFormData(prev => ({ ...prev, image: compressedImage }));
+      } catch (error) {
+        console.error('Error compressing image:', error);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setFormData(prev => ({ ...prev, image: reader.result as string }));
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  }, []);
 
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
@@ -131,7 +162,8 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           size: formData.size || undefined,
           color: formData.color || undefined,
           quantity: formData.quantity,
-          price: formData.price
+          price: formData.price,
+          image: formData.image
         });
         toast.success('Variante mise à jour');
       } else {
@@ -314,6 +346,31 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           </DialogHeader>
           
           <div className="grid gap-4 py-4">
+            {/* Image Upload */}
+            <div className="flex items-center gap-4">
+              <div 
+                className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed border-border hover:border-primary transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {formData.image ? (
+                  <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <Upload className="w-8 h-8 text-muted-foreground" />
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">Image de l'article</p>
+                <p className="text-xs text-muted-foreground">Cliquez pour télécharger (optionnel)</p>
+              </div>
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="sku">Code Article *</Label>
               <Input
