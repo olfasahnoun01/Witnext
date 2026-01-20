@@ -7,9 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Mail, Lock, LogIn } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { useTheme } from 'next-themes';
-import grosafeLogo from '@/assets/grosafe-logo.png';
-import grosafeLogoDark from '@/assets/grosafe-logo-dark.png';
+import grosafeLogo from '@/assets/grosafe-logo-new.png';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -17,8 +15,6 @@ export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { resolvedTheme } = useTheme();
-  const currentLogo = resolvedTheme === 'dark' ? grosafeLogoDark : grosafeLogo;
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -101,7 +97,7 @@ export default function Auth() {
         <div className="flex flex-col items-center mb-8">
           <div className="rounded-2xl p-4 mb-4">
             <img 
-              src={currentLogo} 
+              src={grosafeLogo} 
               alt="Grosafe Équipement" 
               className="h-40 w-auto object-contain"
             />
