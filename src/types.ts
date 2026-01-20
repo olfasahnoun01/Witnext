@@ -7,6 +7,8 @@ export interface Product {
   size: string;
   quantity: number;
   price: number;
+  remise: number;
+  prix_ttc: number;
   min_stock: number;
   image: string | null;
   color: string | null;

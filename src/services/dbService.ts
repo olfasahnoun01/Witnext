@@ -33,6 +33,8 @@ export const getAllProducts = async (): Promise<Product[]> => {
     size: p.size || '',
     quantity: p.quantity,
     price: Number(p.price),
+    remise: Number(p.remise) || 0,
+    prix_ttc: Number(p.prix_ttc) || Number(p.price),
     min_stock: p.min_stock,
     image: p.image || null,
     color: (p as any).color || null
@@ -60,13 +62,15 @@ export const getProductById = async (id: number): Promise<Product | null> => {
     size: data.size || '',
     quantity: data.quantity,
     price: Number(data.price),
+    remise: Number(data.remise) || 0,
+    prix_ttc: Number(data.prix_ttc) || Number(data.price),
     min_stock: data.min_stock,
     image: data.image || null,
     color: (data as any).color || null
   };
 };
 
-export const createProduct = async (product: Omit<Product, 'id'>): Promise<{ success: boolean; id?: number; error?: string }> => {
+export const createProduct = async (product: Omit<Product, 'id' | 'prix_ttc'>): Promise<{ success: boolean; id?: number; error?: string }> => {
   try {
     const { data, error } = await supabase
       .from('products')
@@ -78,6 +82,7 @@ export const createProduct = async (product: Omit<Product, 'id'>): Promise<{ suc
         size: product.size || null,
         quantity: product.quantity,
         price: product.price,
+        remise: product.remise || 0,
         min_stock: product.min_stock,
         image: product.image || null,
         color: product.color || null
@@ -119,6 +124,7 @@ export const updateProduct = async (id: number, product: Partial<Product>): Prom
   if (product.size !== undefined) updateData.size = product.size || null;
   if (product.quantity !== undefined) updateData.quantity = product.quantity;
   if (product.price !== undefined) updateData.price = product.price;
+  if (product.remise !== undefined) updateData.remise = product.remise;
   if (product.min_stock !== undefined) updateData.min_stock = product.min_stock;
   if (product.image !== undefined) updateData.image = product.image || null;
   if (product.color !== undefined) updateData.color = product.color || null;
@@ -322,6 +328,8 @@ export const getLowStockProducts = async (): Promise<Product[]> => {
       size: p.size || '',
       quantity: p.quantity,
       price: Number(p.price),
+      remise: Number(p.remise) || 0,
+      prix_ttc: Number(p.prix_ttc) || Number(p.price),
       min_stock: p.min_stock,
       image: p.image || null,
       color: (p as any).color || null

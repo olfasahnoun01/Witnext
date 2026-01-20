@@ -149,6 +149,8 @@ export const getVariantsByGroupId = async (groupId: number): Promise<Product[]> 
       size: p.size || '',
       quantity: p.quantity,
       price: Number(p.price),
+      remise: Number(p.remise) || 0,
+      prix_ttc: Number(p.prix_ttc) || Number(p.price),
       min_stock: p.min_stock,
       image: p.image || null,
       color: p.color || null,
@@ -253,6 +255,7 @@ export const createVariant = async (groupId: number, variant: {
   color?: string;
   quantity: number;
   price: number;
+  remise?: number;
 }): Promise<{ success: boolean; id?: number; error?: string }> => {
   try {
     // Get the group to copy base data
@@ -272,6 +275,7 @@ export const createVariant = async (groupId: number, variant: {
         color: variant.color || null,
         quantity: variant.quantity,
         price: variant.price,
+        remise: variant.remise || 0,
         min_stock: group.min_stock,
         image: group.image,
         product_group_id: groupId

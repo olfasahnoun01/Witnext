@@ -49,6 +49,7 @@ interface VariantFormData {
   color: string;
   quantity: number;
   price: number;
+  remise: number;
   image: string | null;
 }
 
@@ -58,6 +59,7 @@ const emptyFormData: VariantFormData = {
   color: '',
   quantity: 0,
   price: 0,
+  remise: 0,
   image: null
 };
 
@@ -104,6 +106,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         color: variant.color || '',
         quantity: variant.quantity,
         price: variant.price,
+        remise: variant.remise || 0,
         image: variant.image || null
       });
     } else {
@@ -163,6 +166,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           color: formData.color || undefined,
           quantity: formData.quantity,
           price: formData.price,
+          remise: formData.remise,
           image: formData.image
         });
         toast.success('Variante mise à jour');
@@ -172,7 +176,8 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           size: formData.size,
           color: formData.color,
           quantity: formData.quantity,
-          price: formData.price
+          price: formData.price,
+          remise: formData.remise
         });
         
         if (!result.success) {
@@ -287,7 +292,9 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                 <TableHead>Taille</TableHead>
                 <TableHead>Couleur</TableHead>
                 <TableHead className="text-right">Quantité</TableHead>
-                <TableHead className="text-right">Prix Unit.</TableHead>
+                <TableHead className="text-right">Prix</TableHead>
+                <TableHead className="text-right">Remise %</TableHead>
+                <TableHead className="text-right">Prix TTC</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -297,18 +304,20 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                 const status = getStockStatus(variant);
                 const style = statusStyles[status];
                 
-                return (
-                  <TableRow key={variant.id}>
-                    <TableCell className="font-mono text-sm">{variant.sku}</TableCell>
-                    <TableCell>{variant.size || '-'}</TableCell>
-                    <TableCell>{variant.color || '-'}</TableCell>
-                    <TableCell className="text-right font-medium">{variant.quantity}</TableCell>
-                    <TableCell className="text-right">{variant.price.toFixed(3)} TND</TableCell>
-                    <TableCell>
-                      <Badge className={`${style.bg} ${style.text} border-0`}>
-                        {style.label}
-                      </Badge>
-                    </TableCell>
+                  return (
+                    <TableRow key={variant.id}>
+                      <TableCell className="font-mono text-sm">{variant.sku}</TableCell>
+                      <TableCell>{variant.size || '-'}</TableCell>
+                      <TableCell>{variant.color || '-'}</TableCell>
+                      <TableCell className="text-right font-medium">{variant.quantity}</TableCell>
+                      <TableCell className="text-right">{variant.price.toFixed(3)} TND</TableCell>
+                      <TableCell className="text-right">{variant.remise ? `${variant.remise}%` : '-'}</TableCell>
+                      <TableCell className="text-right font-medium text-primary">{variant.prix_ttc?.toFixed(3) || variant.price.toFixed(3)} TND</TableCell>
+                      <TableCell>
+                        <Badge className={`${style.bg} ${style.text} border-0`}>
+                          {style.label}
+                        </Badge>
+                      </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button
@@ -423,6 +432,28 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                   value={formData.price}
                   onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
                 />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="remise">Remise (%)</Label>
+                <Input
+                  id="remise"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={formData.remise}
+                  onChange={(e) => setFormData(prev => ({ ...prev, remise: parseFloat(e.target.value) || 0 }))}
+                  placeholder="0"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Prix TTC (calculé)</Label>
+                <div className="h-10 px-3 py-2 rounded-md border border-input bg-muted/50 text-sm font-medium text-primary flex items-center">
+                  {(formData.price * (1 - formData.remise / 100)).toFixed(3)} TND
+                </div>
               </div>
             </div>
           </div>
