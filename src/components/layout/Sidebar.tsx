@@ -13,9 +13,7 @@ import {
   Phone
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTheme } from 'next-themes';
-import grosafeLogo from '@/assets/grosafe-logo.png';
-import grosafeLogoDark from '@/assets/grosafe-logo-dark.png';
+import grosafeLogo from '@/assets/grosafe-logo-new.png';
 
 interface SidebarProps {
   activeTab: string;
@@ -36,9 +34,6 @@ const navItems = [
 ];
 
 export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarProps) => {
-  const { resolvedTheme } = useTheme();
-  const currentLogo = resolvedTheme === 'dark' ? grosafeLogoDark : grosafeLogo;
-
   return (
     <>
       {/* Mobile overlay */}
@@ -64,7 +59,7 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
             <div className="flex items-center gap-3">
               <div className="rounded-xl p-2">
                 <img 
-                  src={currentLogo} 
+                  src={grosafeLogo} 
                   alt="Grosafe Équipement" 
                   className="h-16 w-auto object-contain"
                 />
