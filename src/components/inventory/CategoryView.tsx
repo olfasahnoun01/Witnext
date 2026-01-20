@@ -41,6 +41,7 @@ const emptyFormData: ProductFormData = {
   size: '',
   quantity: 0,
   price: 0,
+  remise: 0,
   min_stock: 5,
   image: null,
   color: ''
@@ -246,6 +247,7 @@ export const CategoryView = ({ category, onBack }: CategoryViewProps) => {
         size: product.size || '',
         quantity: product.quantity,
         price: product.price,
+        remise: product.remise || 0,
         min_stock: product.min_stock,
         image: product.image || null,
         color: product.color || ''

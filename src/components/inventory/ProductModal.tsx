@@ -15,6 +15,7 @@ export interface ProductFormData {
   size: string;
   quantity: number;
   price: number;
+  remise: number;
   min_stock: number;
   image: string | null;
   color: string;
@@ -188,6 +189,27 @@ export const ProductModal = memo(({
                 className="form-input"
                 placeholder="0.000 (optionnel)"
               />
+            </div>
+
+            <div>
+              <label className="form-label">Remise (%)</label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                value={formData.remise}
+                onChange={(e) => onFormDataChange({ ...formData, remise: parseFloat(e.target.value) || 0 })}
+                className="form-input"
+                placeholder="0"
+              />
+            </div>
+
+            <div>
+              <label className="form-label">Prix TTC (calculé)</label>
+              <div className="h-10 px-3 rounded-lg bg-muted/50 border border-border text-primary font-medium flex items-center">
+                {(formData.price * (1 - formData.remise / 100)).toFixed(3)} TND
+              </div>
             </div>
 
             <div>

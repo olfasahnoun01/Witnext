@@ -178,8 +178,10 @@ export type Database = {
           min_stock: number
           name: string
           price: number
+          prix_ttc: number | null
           product_group_id: number | null
           quantity: number
+          remise: number | null
           size: string | null
           sku: string
           updated_at: string
@@ -194,8 +196,10 @@ export type Database = {
           min_stock?: number
           name: string
           price?: number
+          prix_ttc?: number | null
           product_group_id?: number | null
           quantity?: number
+          remise?: number | null
           size?: string | null
           sku: string
           updated_at?: string
@@ -210,8 +214,10 @@ export type Database = {
           min_stock?: number
           name?: string
           price?: number
+          prix_ttc?: number | null
           product_group_id?: number | null
           quantity?: number
+          remise?: number | null
           size?: string | null
           sku?: string
           updated_at?: string
