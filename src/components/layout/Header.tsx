@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
 import { OnlineUsersIndicator } from '@/components/OnlineUsersIndicator';
+import { supabase } from '@/integrations/supabase/client';
 
 interface HeaderProps {
   title: string;
@@ -17,8 +18,28 @@ export const Header = ({ title }: HeaderProps) => {
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set());
   const [showNotifications, setShowNotifications] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
   const { user, signOut, isAdmin, isModerator } = useAuth();
   const { onlineUsers } = usePresence();
+
+  // Fetch user's full name from profiles
+  useEffect(() => {
+    const fetchUserName = async () => {
+      if (!user?.id) return;
+      
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (data?.full_name) {
+        setUserName(data.full_name);
+      }
+    };
+    
+    fetchUserName();
+  }, [user?.id]);
 
   const loadLowStock = useCallback(async () => {
     const products = await getLowStockProducts();
@@ -156,7 +177,7 @@ export const Header = ({ title }: HeaderProps) => {
           {user && (
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted-foreground hidden md:block">
-                {user.email}
+                {userName || user.email?.split('@')[0]}
               </span>
               <Button
                 variant="ghost"
