@@ -103,7 +103,7 @@ export default function Auth() {
             <img 
               src={currentLogo} 
               alt="Grosafe Équipement" 
-              className="h-24 w-auto object-contain"
+              className="h-40 w-auto object-contain"
             />
           </div>
           <p className="text-muted-foreground text-sm mt-1">
