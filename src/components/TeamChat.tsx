@@ -196,21 +196,15 @@ export const TeamChat = () => {
 
   return (
     <>
-      {/* Chat Toggle Button */}
-      <button
-        onClick={() => {
-          setIsOpen(!isOpen);
-          setIsMinimized(false);
-        }}
-        className={`fixed bottom-6 right-6 z-50 p-4 rounded-full shadow-lg transition-all hover:scale-105 ${
-          isOpen 
-            ? 'bg-muted text-muted-foreground' 
-            : 'bg-primary text-primary-foreground'
-        }`}
-      >
-        {isOpen ? (
-          <X className="w-6 h-6" />
-        ) : (
+      {/* Chat Toggle Button - only show when chat is closed */}
+      {!isOpen && (
+        <button
+          onClick={() => {
+            setIsOpen(true);
+            setIsMinimized(false);
+          }}
+          className="fixed bottom-6 right-6 z-50 p-4 rounded-full shadow-lg transition-all hover:scale-105 bg-primary text-primary-foreground"
+        >
           <div className="relative">
             <MessageCircle className="w-6 h-6" />
             {unreadCount > 0 && (
@@ -219,8 +213,8 @@ export const TeamChat = () => {
               </span>
             )}
           </div>
-        )}
-      </button>
+        </button>
+      )}
 
       {/* Chat Window */}
       {isOpen && (
