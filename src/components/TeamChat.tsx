@@ -20,11 +20,13 @@ interface ChatMessage {
 const roleColors: Record<string, string> = {
   admin: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
   moderator: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  user: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
 };
 
 const roleLabels: Record<string, string> = {
   admin: 'Admin',
   moderator: 'Mod',
+  user: 'User',
 };
 
 export const TeamChat = () => {
@@ -80,8 +82,9 @@ export const TeamChat = () => {
     }
   }, []);
 
-  const canAccess = isAdmin || isModerator;
-  const userRole = isAdmin ? 'admin' : 'moderator';
+  // All authenticated users can access the chat
+  const canAccess = !!user;
+  const userRole = isAdmin ? 'admin' : isModerator ? 'moderator' : 'user';
 
   // Fetch messages
   const fetchMessages = useCallback(async () => {
