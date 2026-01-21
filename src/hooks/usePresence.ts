@@ -24,6 +24,7 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
   const userRole = isAdmin ? 'admin' : isModerator ? 'moderator' : 'user';
 
   // Update presence in database - errors are silently logged, never thrown
+  // Strategy: Try UPDATE first (works if record exists), then INSERT if no rows updated
   const updatePresence = useCallback(async (isOnline: boolean) => {
     if (!user) return;
 
@@ -35,40 +36,26 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         return;
       }
 
-      // First try to update existing record
-      const { data: existingRecord, error: selectError } = await supabase
+      // Try UPDATE first - this works because users can update their own presence
+      const { data: updateData, error: updateError } = await supabase
         .from('user_presence')
-        .select('id')
+        .update({
+          email: user.email,
+          role: userRole,
+          last_seen: new Date().toISOString(),
+          is_online: isOnline
+        })
         .eq('user_id', user.id)
-        .maybeSingle();
+        .select('id');
 
-      if (selectError && selectError.code !== 'PGRST116') {
-        console.warn('Presence check failed (ignored):', selectError.message);
+      // If update succeeded with a result, we're done
+      if (!updateError && updateData && updateData.length > 0) {
         return;
       }
 
-      if (existingRecord) {
-        // Update existing record
-        const { error } = await supabase
-          .from('user_presence')
-          .update({
-            email: user.email,
-            role: userRole,
-            last_seen: new Date().toISOString(),
-            is_online: isOnline
-          })
-          .eq('user_id', user.id);
-
-        if (error) {
-          if (error.code === '42501') {
-            console.warn('Presence update skipped - RLS policy:', error.message);
-          } else {
-            console.warn('Presence update failed:', error.message);
-          }
-        }
-      } else {
-        // Insert new record
-        const { error } = await supabase
+      // If update returned no rows (record doesn't exist), try INSERT
+      if (!updateError && (!updateData || updateData.length === 0)) {
+        const { error: insertError } = await supabase
           .from('user_presence')
           .insert({
             user_id: user.id,
@@ -78,16 +65,29 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
             is_online: isOnline
           });
 
-        if (error) {
-          // Handle conflict error silently (race condition)
-          if (error.code === '23505') {
-            console.warn('Presence insert conflict (ignored - will retry):', error.message);
-          } else if (error.code === '42501') {
-            console.warn('Presence insert skipped - RLS policy:', error.message);
-          } else {
-            console.warn('Presence insert failed:', error.message);
+        if (insertError) {
+          // Conflict means another request already inserted - that's fine
+          if (insertError.code === '23505') {
+            // Record was inserted by another request, try update again
+            await supabase
+              .from('user_presence')
+              .update({
+                email: user.email,
+                role: userRole,
+                last_seen: new Date().toISOString(),
+                is_online: isOnline
+              })
+              .eq('user_id', user.id);
+          } else if (insertError.code !== '42501') {
+            console.warn('Presence insert failed (ignored):', insertError.message);
           }
         }
+        return;
+      }
+
+      // Log update errors only if they're not RLS related
+      if (updateError && updateError.code !== '42501') {
+        console.warn('Presence update failed (ignored):', updateError.message);
       }
     } catch (err) {
       // Silently catch all errors - presence is non-critical functionality
