@@ -1,8 +1,21 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+// Restrict CORS to application domains for security
+const ALLOWED_ORIGINS = [
+  'https://lptoakdzyuhkfvslgpsw.lovable.app',
+  'https://grosafe-stock.lovable.app',
+  'https://id-preview--376e296f-5a69-4cea-8e37-706cad53f5c2.lovable.app'
+];
+
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  const allowedOrigin = origin && ALLOWED_ORIGINS.some(allowed => 
+    origin === allowed || origin.endsWith('.lovable.app')
+  ) ? origin : ALLOWED_ORIGINS[0];
+  
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  };
 }
 
 // Map database/auth errors to user-friendly messages
@@ -69,6 +82,9 @@ function decodeJwtPayload(token: string): any {
 }
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -345,7 +361,7 @@ Deno.serve(async (req) => {
     console.error('Manage users error:', error instanceof Error ? error.message : 'Unknown error');
     return new Response(JSON.stringify({ error: 'Une erreur est survenue. Veuillez réessayer.' }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' }
     })
   }
 })
