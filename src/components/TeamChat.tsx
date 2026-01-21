@@ -37,6 +37,40 @@ export const TeamChat = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastReadRef = useRef<string | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  // Play notification sound
+  const playNotificationSound = useCallback(() => {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContext();
+      }
+      const ctx = audioContextRef.current;
+      
+      // Create a pleasant notification sound
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      // Two-tone notification (like a chime)
+      oscillator.frequency.setValueAtTime(880, ctx.currentTime); // A5
+      oscillator.frequency.setValueAtTime(1108.73, ctx.currentTime + 0.1); // C#6
+      
+      oscillator.type = 'sine';
+      
+      // Envelope for smooth sound
+      gainNode.gain.setValueAtTime(0, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.02);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.3);
+    } catch (error) {
+      console.error('Error playing notification sound:', error);
+    }
+  }, []);
 
   // Initialize lastReadRef from localStorage
   useEffect(() => {
@@ -98,9 +132,10 @@ export const TeamChat = () => {
             const newMsg = payload.new as ChatMessage;
             setMessages(prev => [...prev, newMsg]);
             
-            // Show notification if chat is closed and message is from someone else
+            // Show notification and play sound if chat is closed and message is from someone else
             if (!isOpen && newMsg.user_id !== user?.id) {
               setUnreadCount(prev => prev + 1);
+              playNotificationSound();
               toast.info(`${newMsg.user_email}: ${newMsg.content.substring(0, 50)}...`, {
                 duration: 3000,
               });
@@ -115,7 +150,7 @@ export const TeamChat = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [canAccess, fetchMessages, isOpen, user?.id]);
+  }, [canAccess, fetchMessages, isOpen, user?.id, playNotificationSound]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
