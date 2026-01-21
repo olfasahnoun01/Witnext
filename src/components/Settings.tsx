@@ -211,7 +211,7 @@ export const Settings = () => {
         <h3 className="font-semibold text-foreground mb-4">À Propos</h3>
         <div className="space-y-2 text-sm text-muted-foreground">
           <p><strong className="text-foreground">Application:</strong> Grosafe Gestion</p>
-          <p><strong className="text-foreground">Version:</strong> 2.0.0</p>
+          <p><strong className="text-foreground">Version:</strong> 2.1.0</p>
           <p><strong className="text-foreground">Technologies:</strong> React, TypeScript, PostgreSQL, Tailwind CSS</p>
           <p><strong className="text-foreground">Mode:</strong> Application Web avec Base de Données Cloud</p>
         </div>
