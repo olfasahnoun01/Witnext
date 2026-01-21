@@ -22,7 +22,7 @@ const queryClient = new QueryClient({
 
 // Protected Route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, sessionExpired } = useAuth();
 
   if (isLoading) {
     return (
@@ -30,6 +30,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
+  }
+
+  // Redirect to auth with expired flag if session expired
+  if (sessionExpired) {
+    return <Navigate to="/auth?expired=true" replace />;
   }
 
   if (!user) {

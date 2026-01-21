@@ -1,24 +1,34 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Mail, Lock, LogIn } from 'lucide-react';
+import { Loader2, Mail, Lock, LogIn, AlertCircle, RefreshCw } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import grosafeLogo from '@/assets/grosafe-logo-new.png';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showSessionExpiredAlert, setShowSessionExpiredAlert] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
   useEffect(() => {
+    // Check if redirected due to session expiration
+    const params = new URLSearchParams(location.search);
+    if (params.get('expired') === 'true') {
+      setShowSessionExpiredAlert(true);
+    }
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
+        setShowSessionExpiredAlert(false);
         navigate('/', { replace: true });
       }
     });
@@ -30,7 +40,17 @@ export default function Auth() {
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, location.search]);
+
+  // Function to clear browser cache and reload
+  const handleClearCache = () => {
+    // Clear all auth-related storage
+    localStorage.removeItem('sb-lptoakdzyuhkfvslgpsw-auth-token');
+    sessionStorage.clear();
+    
+    // Remove the expired param and reload
+    window.location.href = '/auth';
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,6 +126,28 @@ export default function Auth() {
             Système de gestion d'inventaire
           </p>
         </div>
+
+        {/* Session Expired Alert */}
+        {showSessionExpiredAlert && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Session expirée</AlertTitle>
+            <AlertDescription className="mt-2">
+              <p className="mb-3">
+                Votre session a expiré ou est devenue invalide. Veuillez vous reconnecter.
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleClearCache}
+                className="gap-2"
+              >
+                <RefreshCw className="h-3 w-3" />
+                Réinitialiser et réessayer
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Auth Card */}
         <div className="bg-card rounded-2xl border border-border shadow-xl p-8">
