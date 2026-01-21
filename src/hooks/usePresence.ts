@@ -35,24 +35,58 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         return;
       }
 
-      const { error } = await supabase
+      // First try to update existing record
+      const { data: existingRecord, error: selectError } = await supabase
         .from('user_presence')
-        .upsert({
-          user_id: user.id,
-          email: user.email,
-          role: userRole,
-          last_seen: new Date().toISOString(),
-          is_online: isOnline
-        }, {
-          onConflict: 'user_id'
-        });
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      if (error) {
-        // Silently log RLS errors - they should never affect app functionality
-        if (error.code === '42501') {
-          console.warn('Presence update skipped - RLS policy:', error.message);
-        } else {
-          console.warn('Presence update failed:', error.message);
+      if (selectError && selectError.code !== 'PGRST116') {
+        console.warn('Presence check failed (ignored):', selectError.message);
+        return;
+      }
+
+      if (existingRecord) {
+        // Update existing record
+        const { error } = await supabase
+          .from('user_presence')
+          .update({
+            email: user.email,
+            role: userRole,
+            last_seen: new Date().toISOString(),
+            is_online: isOnline
+          })
+          .eq('user_id', user.id);
+
+        if (error) {
+          if (error.code === '42501') {
+            console.warn('Presence update skipped - RLS policy:', error.message);
+          } else {
+            console.warn('Presence update failed:', error.message);
+          }
+        }
+      } else {
+        // Insert new record
+        const { error } = await supabase
+          .from('user_presence')
+          .insert({
+            user_id: user.id,
+            email: user.email,
+            role: userRole,
+            last_seen: new Date().toISOString(),
+            is_online: isOnline
+          });
+
+        if (error) {
+          // Handle conflict error silently (race condition)
+          if (error.code === '23505') {
+            console.warn('Presence insert conflict (ignored - will retry):', error.message);
+          } else if (error.code === '42501') {
+            console.warn('Presence insert skipped - RLS policy:', error.message);
+          } else {
+            console.warn('Presence insert failed:', error.message);
+          }
         }
       }
     } catch (err) {
