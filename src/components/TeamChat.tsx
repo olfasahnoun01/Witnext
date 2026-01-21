@@ -203,12 +203,12 @@ export const TeamChat = () => {
             setIsOpen(true);
             setIsMinimized(false);
           }}
-          className="fixed bottom-6 right-6 z-50 p-4 rounded-full shadow-lg transition-all hover:scale-105 bg-primary text-primary-foreground"
+          className="fixed bottom-6 right-6 z-50 p-4 rounded-full shadow-lg bg-primary text-primary-foreground animate-scale-in hover:scale-110 transition-transform duration-200"
         >
           <div className="relative">
             <MessageCircle className="w-6 h-6" />
             {unreadCount > 0 && (
-              <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-medium">
+              <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-medium animate-pulse">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
@@ -219,7 +219,7 @@ export const TeamChat = () => {
       {/* Chat Window */}
       {isOpen && (
         <div 
-          className={`fixed bottom-24 right-6 z-50 bg-card border border-border rounded-xl shadow-2xl transition-all ${
+          className={`fixed bottom-24 right-6 z-50 bg-card border border-border rounded-xl shadow-2xl animate-scale-in origin-bottom-right transition-all duration-300 ease-out ${
             isMinimized ? 'w-80 h-14' : 'w-96 h-[500px]'
           }`}
         >
