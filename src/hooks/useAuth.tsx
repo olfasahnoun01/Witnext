@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 
 interface AuthContextType {
   user: User | null;
@@ -9,6 +10,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isModerator: boolean;
   signOut: () => Promise<void>;
+  sessionExpired: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,6 +44,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Handle session expiration with user-friendly message
+  const handleSessionExpired = async (reason: string = 'Session expirée') => {
+    console.log('Session expired:', reason);
+    setSessionExpired(true);
+    
+    // Clear local auth state
+    setUser(null);
+    setSession(null);
+    setIsAdmin(false);
+    setIsModerator(false);
+    
+    // Sign out to clear any stale tokens
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch {
+      // Ignore errors during cleanup
+    }
+    
+    // Clear any stale session markers
+    sessionStorage.removeItem('browser_session_active');
+    
+    // Show toast notification
+    toast({
+      title: '🔒 Session expirée',
+      description: 'Votre session a expiré. Veuillez vous reconnecter pour continuer.',
+      variant: 'destructive',
+      duration: 8000,
+    });
+  };
 
   useEffect(() => {
     // Check if this is a new browser session (browser was closed and reopened)
@@ -53,7 +86,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         sessionStorage.setItem('browser_session_active', 'true');
         
         // Check if there's an existing auth session from localStorage
-        const { data: { session: existingSession } } = await supabase.auth.getSession();
+        const { data: { session: existingSession }, error } = await supabase.auth.getSession();
+        
+        // Check for session errors (expired token, invalid refresh token, etc.)
+        if (error) {
+          console.error('Session initialization error:', error);
+          await handleSessionExpired(error.message);
+          setIsLoading(false);
+          return;
+        }
         
         if (existingSession) {
           // User closed browser without logging out - sign them out now
@@ -69,9 +110,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       
       // Normal session initialization
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      // Handle session retrieval errors
+      if (error) {
+        console.error('Failed to get session:', error);
+        await handleSessionExpired(error.message);
+        setIsLoading(false);
+        return;
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
+      setSessionExpired(false);
       setIsLoading(false);
 
       if (session?.user) {
@@ -81,12 +132,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state change:', event);
+      
+      // Handle specific auth events
+      if (event === 'TOKEN_REFRESHED') {
+        console.log('Token refreshed successfully');
+        setSessionExpired(false);
+      }
+      
+      // Handle session expiration events
+      if (event === 'SIGNED_OUT') {
+        // Check if this was an automatic sign out (session expired)
+        // vs a user-initiated sign out
+        if (sessionExpired) {
+          // Already handled
+          return;
+        }
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
       setIsLoading(false);
 
       // Check roles with setTimeout to avoid deadlock
       if (session?.user) {
+        setSessionExpired(false);
         setTimeout(() => {
           checkUserRoles(session.user.id);
         }, 0);
@@ -98,7 +168,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     initializeAuth();
 
-    return () => subscription.unsubscribe();
+    // Set up periodic session validation (every 5 minutes)
+    const sessionCheckInterval = setInterval(async () => {
+      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error('Session validation failed:', error);
+        // Check if it's a refresh token error
+        if (error.message?.includes('refresh_token') || 
+            error.message?.includes('Invalid Refresh Token') ||
+            error.message?.includes('session_not_found')) {
+          await handleSessionExpired('Token de rafraîchissement invalide');
+        }
+      } else if (!currentSession && user) {
+        // Session was lost unexpectedly
+        await handleSessionExpired('Session perdue');
+      }
+    }, 5 * 60 * 1000); // Check every 5 minutes
+
+    return () => {
+      subscription.unsubscribe();
+      clearInterval(sessionCheckInterval);
+    };
   }, []);
 
   const checkUserRoles = async (userId: string) => {
@@ -123,7 +214,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         setIsModerator(!modError && !!modData);
       }
-    } catch {
+    } catch (error) {
+      // Check if error is due to session expiration
+      if (error instanceof Error && 
+          (error.message?.includes('JWT') || 
+           error.message?.includes('token') ||
+           error.message?.includes('session'))) {
+        await handleSessionExpired('Erreur d\'authentification');
+      }
       setIsAdmin(false);
       setIsModerator(false);
     }
@@ -135,10 +233,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSession(null);
     setIsAdmin(false);
     setIsModerator(false);
+    setSessionExpired(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, isAdmin, isModerator, signOut }}>
+    <AuthContext.Provider value={{ user, session, isLoading, isAdmin, isModerator, signOut, sessionExpired }}>
       {children}
     </AuthContext.Provider>
   );
