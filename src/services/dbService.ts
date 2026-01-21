@@ -259,8 +259,8 @@ export const importDatabase = async (data: Uint8Array): Promise<void> => {
     const { products, transactions } = JSON.parse(jsonString);
     
     // Clear existing data
-    await supabase.from('transactions').delete().neq('id', 0);
-    await supabase.from('products').delete().neq('id', 0);
+    await supabase.from('transactions').delete().gte('id', 0);
+    await supabase.from('products').delete().gte('id', 0);
     
     // Insert products
     for (const product of products) {
