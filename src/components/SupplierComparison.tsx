@@ -28,13 +28,18 @@ interface ArticleGroup {
   suppliers: {
     fournisseur: string;
     price: number;
+    remise: number;
+    prixTTC: number | null;
     quantity: number;
     sku: string;
     id: number;
   }[];
   minPrice: number;
   maxPrice: number;
+  minPrixTTC: number;
+  maxPrixTTC: number;
   priceDiff: number;
+  prixTTCDiff: number;
 }
 
 export const SupplierComparison = () => {
@@ -73,13 +78,20 @@ export const SupplierComparison = () => {
           suppliers: [],
           minPrice: Infinity,
           maxPrice: -Infinity,
-          priceDiff: 0
+          minPrixTTC: Infinity,
+          maxPrixTTC: -Infinity,
+          priceDiff: 0,
+          prixTTCDiff: 0
         };
       }
+
+      const prixTTC = product.prix_ttc ?? null;
 
       groups[key].suppliers.push({
         fournisseur: product.fournisseur,
         price: product.price,
+        remise: product.remise ?? 0,
+        prixTTC: prixTTC,
         quantity: product.quantity,
         sku: product.sku,
         id: product.id
@@ -91,13 +103,22 @@ export const SupplierComparison = () => {
       if (product.price > groups[key].maxPrice) {
         groups[key].maxPrice = product.price;
       }
+      if (prixTTC !== null && prixTTC < groups[key].minPrixTTC) {
+        groups[key].minPrixTTC = prixTTC;
+      }
+      if (prixTTC !== null && prixTTC > groups[key].maxPrixTTC) {
+        groups[key].maxPrixTTC = prixTTC;
+      }
     });
 
     // Calculate price difference and filter only articles with multiple suppliers
     return Object.values(groups)
       .map(group => ({
         ...group,
-        priceDiff: group.maxPrice - group.minPrice
+        priceDiff: group.maxPrice - group.minPrice,
+        prixTTCDiff: group.maxPrixTTC !== -Infinity && group.minPrixTTC !== Infinity 
+          ? group.maxPrixTTC - group.minPrixTTC 
+          : 0
       }))
       .filter(group => group.suppliers.length > 1);
   }, [products]);
@@ -273,23 +294,46 @@ export const SupplierComparison = () => {
                     <TableRow>
                       <TableHead>Fournisseur</TableHead>
                       <TableHead>Code Article</TableHead>
-                      <TableHead className="text-right">Prix</TableHead>
+                      <TableHead className="text-right">Prix HT</TableHead>
+                      <TableHead className="text-right">Remise</TableHead>
+                      <TableHead className="text-right">Prix TTC</TableHead>
                       <TableHead className="text-right">Stock</TableHead>
                       <TableHead className="text-center">Comparaison</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {group.suppliers
-                      .sort((a, b) => a.price - b.price)
-                      .map((supplier, idx) => {
-                        const isLowest = supplier.price === group.minPrice;
-                        const isHighest = supplier.price === group.maxPrice;
+                      .sort((a, b) => (a.prixTTC ?? a.price) - (b.prixTTC ?? b.price))
+                      .map((supplier) => {
+                        const effectivePrice = supplier.prixTTC ?? supplier.price;
+                        const isLowest = supplier.prixTTC !== null 
+                          ? supplier.prixTTC === group.minPrixTTC 
+                          : supplier.price === group.minPrice;
+                        const isHighest = supplier.prixTTC !== null 
+                          ? supplier.prixTTC === group.maxPrixTTC 
+                          : supplier.price === group.maxPrice;
                         return (
                           <TableRow key={supplier.id}>
                             <TableCell className="font-medium">{supplier.fournisseur}</TableCell>
                             <TableCell className="text-muted-foreground">{supplier.sku}</TableCell>
-                            <TableCell className="text-right font-semibold">
+                            <TableCell className="text-right">
                               {supplier.price.toFixed(2)} TND
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {supplier.remise > 0 ? (
+                                <Badge variant="secondary" className="text-primary">
+                                  -{supplier.remise}%
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {supplier.prixTTC !== null ? (
+                                `${supplier.prixTTC.toFixed(2)} TND`
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               <Badge variant={supplier.quantity > 0 ? 'default' : 'destructive'}>
@@ -298,7 +342,7 @@ export const SupplierComparison = () => {
                             </TableCell>
                             <TableCell className="text-center">
                               {isLowest && (
-                                <Badge className="bg-green-600 hover:bg-green-700">
+                                <Badge variant="default" className="bg-primary text-primary-foreground">
                                   <TrendingDown className="w-3 h-3 mr-1" />
                                   Moins cher
                                 </Badge>
