@@ -38,6 +38,14 @@ export const TeamChat = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastReadRef = useRef<string | null>(null);
 
+  // Initialize lastReadRef from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem('team_chat_last_read');
+    if (stored) {
+      lastReadRef.current = stored;
+    }
+  }, []);
+
   const canAccess = isAdmin || isModerator;
   const userRole = isAdmin ? 'admin' : 'moderator';
 
@@ -57,10 +65,12 @@ export const TeamChat = () => {
 
       // Update unread count if chat is closed
       if (!isOpen && data && data.length > 0) {
-        const lastMsg = data[data.length - 1];
-        if (lastReadRef.current && lastMsg.created_at > lastReadRef.current) {
+        if (lastReadRef.current) {
           const unread = data.filter(m => m.created_at > lastReadRef.current!).length;
           setUnreadCount(unread);
+        } else {
+          // First time: mark all as unread
+          setUnreadCount(data.length);
         }
       }
     } catch (error) {
@@ -117,7 +127,9 @@ export const TeamChat = () => {
   // Mark as read when opening chat
   useEffect(() => {
     if (isOpen && messages.length > 0) {
-      lastReadRef.current = messages[messages.length - 1].created_at;
+      const lastMsgTime = messages[messages.length - 1].created_at;
+      lastReadRef.current = lastMsgTime;
+      localStorage.setItem('team_chat_last_read', lastMsgTime);
       setUnreadCount(0);
     }
   }, [isOpen, messages]);
