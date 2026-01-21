@@ -3,7 +3,6 @@ import {
   Download, 
   Upload, 
   Database,
-  AlertTriangle,
   CheckCircle2,
   Cloud
 } from 'lucide-react';
@@ -187,25 +186,6 @@ export const Settings = () => {
         </div>
       </div>
 
-      {/* Danger Zone */}
-      <div className="bg-card rounded-xl border border-destructive/30 p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-3 rounded-xl bg-destructive/10">
-            <AlertTriangle className="w-6 h-6 text-destructive" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-destructive">Zone Danger</h3>
-            <p className="text-sm text-muted-foreground">Actions irréversibles</p>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-destructive/5 border border-destructive/20">
-          <p className="text-sm text-muted-foreground mb-4">
-            Pour supprimer toutes les données, veuillez contacter l'administrateur système. 
-            La suppression des données nécessite une intervention directe sur la base de données.
-          </p>
-        </div>
-      </div>
 
       {/* App Info */}
       <div className="bg-card rounded-xl border border-border p-6">
