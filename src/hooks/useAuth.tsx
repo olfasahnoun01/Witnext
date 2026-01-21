@@ -80,12 +80,63 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Check if this is a new browser session (browser was closed and reopened)
     const isNewBrowserSession = !sessionStorage.getItem('browser_session_active');
     
-    const initializeAuth = async () => {
-      if (isNewBrowserSession) {
-        // Mark this browser session as active
+    // Force clear all auth data on new browser session BEFORE anything else
+    const forceLogoutOnNewSession = async () => {
+      // Clear the Supabase auth token from localStorage
+      const supabaseAuthKey = `sb-lptoakdzyuhkfvslgpsw-auth-token`;
+      const existingToken = localStorage.getItem(supabaseAuthKey);
+      
+      if (existingToken) {
+        console.log('🔒 Nouvelle session navigateur détectée - Déconnexion forcée');
+        
+        // Remove the token first to prevent any race conditions
+        localStorage.removeItem(supabaseAuthKey);
+        
+        // Also clear any other potential auth-related items
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes('supabase') || key.includes('auth'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        
+        // Try to sign out via API (may fail if token is already invalid)
+        try {
+          await supabase.auth.signOut({ scope: 'local' });
+        } catch (e) {
+          console.log('Signout during force logout (ignored):', e);
+        }
+        
+        // Clear state
+        setSession(null);
+        setUser(null);
+        setIsAdmin(false);
+        setIsModerator(false);
+        setIsLoading(false);
+        
+        // Mark session as active for this browser session
         sessionStorage.setItem('browser_session_active', 'true');
         
-        // Check if there's an existing auth session from localStorage
+        return true; // Indicates we forced a logout
+      }
+      
+      return false;
+    };
+    
+    const initializeAuth = async () => {
+      if (isNewBrowserSession) {
+        // Mark this browser session as active immediately
+        sessionStorage.setItem('browser_session_active', 'true');
+        
+        // Force logout if there was an existing session
+        const wasLoggedOut = await forceLogoutOnNewSession();
+        if (wasLoggedOut) {
+          return; // Already handled, stop here
+        }
+        
+        // Double-check with Supabase API
         const { data: { session: existingSession }, error } = await supabase.auth.getSession();
         
         // Check for session errors (expired token, invalid refresh token, etc.)
