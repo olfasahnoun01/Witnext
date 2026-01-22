@@ -4,14 +4,14 @@ import { SavedDocument, documentTypes, downloadDocumentPDF } from '@/utils/pdfGe
 
 interface DocumentHistoryProps {
   savedDocuments: SavedDocument[];
-  isAdmin: boolean;
+  canEdit: boolean;
   onEdit: (doc: SavedDocument) => void;
   onDelete: (id: number) => void;
 }
 
 const ITEMS_PER_PAGE = 10;
 
-export const DocumentHistory = memo(({ savedDocuments, isAdmin, onEdit, onDelete }: DocumentHistoryProps) => {
+export const DocumentHistory = memo(({ savedDocuments, canEdit, onEdit, onDelete }: DocumentHistoryProps) => {
   const [currentPage, setCurrentPage] = useState(1);
 
   const paginatedDocs = useMemo(() => {
@@ -90,7 +90,7 @@ export const DocumentHistory = memo(({ savedDocuments, isAdmin, onEdit, onDelete
                       >
                         <Download className="w-4 h-4" />
                       </button>
-                      {isAdmin && (
+                      {canEdit && (
                         <>
                           <button
                             onClick={() => onEdit(doc)}

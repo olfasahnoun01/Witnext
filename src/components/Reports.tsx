@@ -11,7 +11,8 @@ import { DocumentHistory } from '@/components/reports/DocumentHistory';
 import { DocumentForm } from '@/components/reports/DocumentForm';
 
 export const Reports = () => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isModerator } = useAuth();
+  const canEditDocuments = isAdmin || isModerator;
   const [products, setProducts] = useState<Product[]>([]);
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
   const [activeSection, setActiveSection] = useState<'reports' | 'documents' | 'history'>('reports');
@@ -361,7 +362,7 @@ export const Reports = () => {
       {activeSection === 'history' && (
         <DocumentHistory
           savedDocuments={savedDocuments}
-          isAdmin={isAdmin}
+          canEdit={canEditDocuments}
           onEdit={startEditDocument}
           onDelete={deleteDocument}
         />
