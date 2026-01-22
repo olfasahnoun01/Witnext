@@ -4,20 +4,35 @@ import {
   Send, 
   Sparkles, 
   Loader2,
-  User
+  User,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
 import { getAllProducts, getAllTransactions } from '@/services/dbService';
-import { generateStrategicAnalysis, chatWithInventory, ChatMessage } from '@/services/geminiService';
+import { generateStrategicAnalysis, chatWithInventory, executeToolCall, ChatMessage, ToolCall } from '@/services/geminiService';
 import { Product, Transaction } from '@/types';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+
+interface ExtendedChatMessage extends ChatMessage {
+  isAction?: boolean;
+  actionSuccess?: boolean;
+}
 
 export const AIAssistant = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const [messages, setMessages] = useState<ExtendedChatMessage[]>([
     {
       role: 'assistant',
-      content: "Bonjour! Je suis l'assistant IA de Grosafe. Je peux analyser votre inventaire et répondre à vos questions. Essayez:\n\n- \"Quels produits sont en rupture?\"\n- \"Quelle est la valeur totale du stock?\"\n- \"Quelles sont les catégories?\"\n\nOu cliquez sur \"Analyse Stratégique\" pour un rapport complet."
+      content: `Bonjour! Je suis l'assistant IA de Grosafe. Je peux **créer des produits, des fournisseurs** et **gérer votre stock**. Essayez:
+
+• "Crée un produit Engrais NPK dans la catégorie Engrais"
+• "Ajoute un fournisseur AgriPlus spécialisé en Phytosanitaire"
+• "Quels produits sont en rupture?"
+• "Quelle est la valeur totale du stock?"
+
+Ou cliquez sur **Analyse Stratégique** pour un rapport complet.`
     }
   ]);
   const [inputMessage, setInputMessage] = useState('');
@@ -26,15 +41,16 @@ export const AIAssistant = () => {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const loadData = async () => {
+    const [productsData, transactionsData] = await Promise.all([
+      getAllProducts(),
+      getAllTransactions()
+    ]);
+    setProducts(productsData);
+    setTransactions(transactionsData);
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      const [productsData, transactionsData] = await Promise.all([
-        getAllProducts(),
-        getAllTransactions()
-      ]);
-      setProducts(productsData);
-      setTransactions(transactionsData);
-    };
     loadData();
   }, []);
 
@@ -50,23 +66,82 @@ export const AIAssistant = () => {
       setShowAnalysis(true);
     } catch (error) {
       console.error('Error generating analysis:', error);
+      toast.error('Erreur lors de la génération de l\'analyse');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const processToolCalls = async (toolCalls: ToolCall[]): Promise<string[]> => {
+    const results: string[] = [];
+    
+    for (const toolCall of toolCalls) {
+      const result = await executeToolCall(toolCall);
+      results.push(result.message);
+      
+      if (result.success) {
+        toast.success(result.message.replace(/[✅❌🔍📦📊⚠️🚨]/g, '').trim());
+      } else {
+        toast.error(result.message.replace(/[✅❌🔍📦📊⚠️🚨]/g, '').trim());
+      }
+    }
+    
+    // Reload data after actions
+    await loadData();
+    
+    return results;
+  };
+
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
 
-    const userMessage: ChatMessage = { role: 'user', content: inputMessage };
+    const userMessage: ExtendedChatMessage = { role: 'user', content: inputMessage };
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsLoading(true);
 
     try {
       const response = await chatWithInventory(inputMessage, products, messages);
-      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+      
+      // Check if there are tool calls to execute
+      if (response.tool_calls && response.tool_calls.length > 0) {
+        // Add a message indicating we're processing actions
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: '🔄 Exécution des actions en cours...',
+          isAction: true
+        }]);
+
+        // Execute the tool calls
+        const results = await processToolCalls(response.tool_calls);
+        
+        // Replace the processing message with results
+        setMessages(prev => {
+          const newMessages = prev.slice(0, -1); // Remove processing message
+          return [
+            ...newMessages,
+            { 
+              role: 'assistant', 
+              content: results.join('\n\n'),
+              isAction: true,
+              actionSuccess: results.every(r => r.startsWith('✅'))
+            }
+          ];
+        });
+
+        // Add AI's text response if any
+        if (response.response && response.response.trim()) {
+          setMessages(prev => [...prev, { 
+            role: 'assistant', 
+            content: response.response 
+          }]);
+        }
+      } else {
+        // Regular text response
+        setMessages(prev => [...prev, { role: 'assistant', content: response.response }]);
+      }
     } catch (error) {
+      console.error('Chat error:', error);
       setMessages(prev => [...prev, { 
         role: 'assistant', 
         content: "Désolé, une erreur s'est produite. Veuillez réessayer." 
@@ -81,6 +156,43 @@ export const AIAssistant = () => {
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  const renderMessage = (msg: ExtendedChatMessage, index: number) => {
+    const isUser = msg.role === 'user';
+    const isAction = msg.isAction;
+
+    return (
+      <div
+        key={index}
+        className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''}`}
+      >
+        <div className={`p-2 rounded-xl h-fit ${
+          isUser ? 'bg-primary/10' : isAction ? 'bg-success/10' : 'bg-muted'
+        }`}>
+          {isUser ? (
+            <User className="w-4 h-4 text-primary" />
+          ) : isAction ? (
+            msg.actionSuccess ? (
+              <CheckCircle2 className="w-4 h-4 text-success" />
+            ) : (
+              <XCircle className="w-4 h-4 text-destructive" />
+            )
+          ) : (
+            <Bot className="w-4 h-4 text-muted-foreground" />
+          )}
+        </div>
+        <div className={`max-w-[80%] p-3 rounded-xl ${
+          isUser 
+            ? 'bg-primary text-primary-foreground' 
+            : isAction
+              ? 'bg-success/10 text-foreground border border-success/20'
+              : 'bg-muted text-foreground'
+        }`}>
+          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -161,36 +273,14 @@ export const AIAssistant = () => {
               <Bot className="w-5 h-5 text-success" />
             </div>
             <div>
-              <h3 className="font-semibold text-foreground">Chat Inventaire</h3>
-              <p className="text-xs text-muted-foreground">Posez vos questions sur le stock</p>
+              <h3 className="font-semibold text-foreground">Assistant Intelligent</h3>
+              <p className="text-xs text-muted-foreground">Créez, gérez et analysez votre inventaire</p>
             </div>
           </div>
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.map((msg, index) => (
-              <div
-                key={index}
-                className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-              >
-                <div className={`p-2 rounded-xl h-fit ${
-                  msg.role === 'user' ? 'bg-primary/10' : 'bg-muted'
-                }`}>
-                  {msg.role === 'user' ? (
-                    <User className="w-4 h-4 text-primary" />
-                  ) : (
-                    <Bot className="w-4 h-4 text-muted-foreground" />
-                  )}
-                </div>
-                <div className={`max-w-[80%] p-3 rounded-xl ${
-                  msg.role === 'user' 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'bg-muted text-foreground'
-                }`}>
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                </div>
-              </div>
-            ))}
+            {messages.map((msg, index) => renderMessage(msg, index))}
             {isLoading && (
               <div className="flex gap-3">
                 <div className="p-2 rounded-xl bg-muted">
@@ -212,7 +302,7 @@ export const AIAssistant = () => {
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Posez votre question sur l'inventaire..."
+                placeholder="Ex: Crée un produit, ajoute un fournisseur..."
                 className="form-input flex-1"
                 disabled={isLoading}
               />
