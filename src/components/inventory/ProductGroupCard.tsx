@@ -1,12 +1,15 @@
 import { memo } from 'react';
-import { Package, Palette, Ruler } from 'lucide-react';
+import { Package, Palette, Ruler, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ProductGroup, StockStatus } from '@/types';
 
 interface ProductGroupCardProps {
   group: ProductGroup;
   onClick: () => void;
+  onDelete?: (group: ProductGroup) => void;
+  canDelete?: boolean;
 }
 
 const getStockStatus = (group: ProductGroup): StockStatus => {
@@ -21,15 +24,31 @@ const statusStyles: Record<StockStatus, { bg: string; text: string; label: strin
   out_of_stock: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', label: 'Rupture' }
 };
 
-export const ProductGroupCard = memo(({ group, onClick }: ProductGroupCardProps) => {
+export const ProductGroupCard = memo(({ group, onClick, onDelete, canDelete }: ProductGroupCardProps) => {
   const status = getStockStatus(group);
   const style = statusStyles[status];
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete?.(group);
+  };
   
   return (
     <Card 
-      className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02] border-border/50"
+      className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02] border-border/50 relative group"
       onClick={onClick}
     >
+      {canDelete && onDelete && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDeleteClick}
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10 z-10"
+          title="Supprimer l'article"
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      )}
       <CardContent className="p-4">
         <div className="flex gap-4">
           {/* Image */}
