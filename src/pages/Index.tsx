@@ -15,11 +15,13 @@ const AIAssistant = lazy(() => import('@/components/AIAssistant').then(m => ({ d
 const Settings = lazy(() => import('@/components/Settings').then(m => ({ default: m.Settings })));
 const SupplierComparison = lazy(() => import('@/components/SupplierComparison').then(m => ({ default: m.SupplierComparison })));
 const Fournisseurs = lazy(() => import('@/components/Fournisseurs').then(m => ({ default: m.Fournisseurs })));
+const Clients = lazy(() => import('@/components/Clients').then(m => ({ default: m.Clients })));
 
 const tabTitles: Record<string, string> = {
   dashboard: 'Tableau de Bord',
   inventory: 'Inventaire',
   fournisseurs: 'Gestion des Fournisseurs',
+  clients: 'Gestion des Clients',
   comparison: 'Comparaison Prix Fournisseurs',
   transactions: 'Transactions',
   reports: 'Rapports & Documents',
@@ -61,6 +63,7 @@ const Index = () => {
         {activeTab === 'dashboard' && <Dashboard />}
         {activeTab === 'inventory' && <Inventory />}
         {activeTab === 'fournisseurs' && <Fournisseurs />}
+        {activeTab === 'clients' && <Clients />}
         {activeTab === 'comparison' && <SupplierComparison />}
         {activeTab === 'transactions' && <Transactions />}
         {activeTab === 'reports' && <Reports />}

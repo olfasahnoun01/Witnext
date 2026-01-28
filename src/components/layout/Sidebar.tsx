@@ -10,7 +10,8 @@ import {
   GitCompare,
   ChevronRight,
   Building2,
-  Phone
+  Phone,
+  Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import grosafeLogo from '@/assets/grosafe-logo-new.png';
@@ -26,6 +27,7 @@ const navItems = [
   { id: 'dashboard', label: 'Tableau de Bord', icon: LayoutDashboard },
   { id: 'inventory', label: 'Inventaire', icon: Package },
   { id: 'fournisseurs', label: 'Fournisseurs', icon: Building2 },
+  { id: 'clients', label: 'Clients', icon: Users },
   { id: 'comparison', label: 'Comparaison Prix', icon: GitCompare },
   { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
   { id: 'reports', label: 'Rapports & Documents', icon: FileText },
