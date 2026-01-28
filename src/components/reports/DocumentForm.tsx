@@ -1,9 +1,31 @@
-import { memo, useCallback } from 'react';
-import { Plus, Trash2, Download, Edit, Package, X } from 'lucide-react';
+import { memo, useCallback, useState, useEffect } from 'react';
+import { Plus, Trash2, Download, Edit, Package, X, Building2, Users, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Product, DocumentItem } from '@/types';
 import { DocumentType, documentTypes, generateOfficialPDF, SavedDocument } from '@/utils/pdfGenerator';
 import { CategoryProductSelector } from '@/components/shared/CategoryProductSelector';
+import { supabase } from '@/integrations/supabase/client';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+interface Fournisseur {
+  id: number;
+  nom: string;
+  matricule_fiscale: string | null;
+  location: string | null;
+}
+
+interface Client {
+  id: number;
+  nom: string;
+  matricule_fiscale: string | null;
+  location: string | null;
+}
 
 interface DocumentFormProps {
   // Document state
@@ -96,6 +118,52 @@ export const DocumentForm = memo(({
   const thirdPartyLabel = isEntree ? 'Fournisseur' : 'Client';
   const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
 
+  // State for fournisseurs and clients
+  const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [selectedThirdPartyId, setSelectedThirdPartyId] = useState<string>('');
+
+  // Load fournisseurs and clients
+  useEffect(() => {
+    const loadThirdParties = async () => {
+      const [fournisseursRes, clientsRes] = await Promise.all([
+        supabase.from('fournisseurs').select('id, nom, matricule_fiscale, location').order('nom'),
+        supabase.from('clients').select('id, nom, matricule_fiscale, location').order('nom')
+      ]);
+      
+      if (fournisseursRes.data) setFournisseurs(fournisseursRes.data);
+      if (clientsRes.data) setClients(clientsRes.data);
+    };
+    loadThirdParties();
+  }, []);
+
+  // Handle third party selection
+  const handleThirdPartySelect = useCallback((id: string) => {
+    setSelectedThirdPartyId(id);
+    
+    if (id === 'manual') {
+      // Reset to manual entry
+      setThirdPartyName('');
+      setThirdPartyAddress('');
+      setThirdPartyTaxId('');
+      return;
+    }
+
+    const list = isEntree ? fournisseurs : clients;
+    const selected = list.find(item => item.id.toString() === id);
+    
+    if (selected) {
+      setThirdPartyName(selected.nom);
+      setThirdPartyAddress(selected.location || '');
+      setThirdPartyTaxId(selected.matricule_fiscale || '');
+    }
+  }, [isEntree, fournisseurs, clients, setThirdPartyName, setThirdPartyAddress, setThirdPartyTaxId]);
+
+  // Reset selection when doc type changes
+  useEffect(() => {
+    setSelectedThirdPartyId('');
+  }, [docType]);
+
   const addDocItem = useCallback(() => {
     if (!selectedProductId) return;
     
@@ -133,6 +201,9 @@ export const DocumentForm = memo(({
       thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems
     });
   }, [docType, docNumber, docDate, docValidity, transportRef, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems]);
+
+  const thirdPartyList = isEntree ? fournisseurs : clients;
+  const ThirdPartyIcon = isEntree ? Building2 : Users;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -215,10 +286,36 @@ export const DocumentForm = memo(({
 
         {/* Third Party Info */}
         <div className={`p-4 rounded-xl ${isEntree ? 'bg-success/5 border border-success/20' : 'bg-destructive/5 border border-destructive/20'}`}>
-          <h4 className={`font-medium mb-3 ${isEntree ? 'text-success' : 'text-destructive'}`}>
+          <h4 className={`font-medium mb-3 flex items-center gap-2 ${isEntree ? 'text-success' : 'text-destructive'}`}>
+            <ThirdPartyIcon className="w-4 h-4" />
             {thirdPartyLabel}
           </h4>
           <div className="space-y-3">
+            {/* Dropdown to select from saved fournisseurs/clients */}
+            <Select value={selectedThirdPartyId} onValueChange={handleThirdPartySelect}>
+              <SelectTrigger className="w-full bg-background">
+                <SelectValue placeholder={`Sélectionner un ${thirdPartyLabel.toLowerCase()} existant...`} />
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                <SelectItem value="manual">
+                  <span className="flex items-center gap-2">
+                    <Edit className="w-4 h-4" />
+                    Saisie manuelle
+                  </span>
+                </SelectItem>
+                {thirdPartyList.map((item) => (
+                  <SelectItem key={item.id} value={item.id.toString()}>
+                    <span className="flex flex-col">
+                      <span className="font-medium">{item.nom}</span>
+                      {item.matricule_fiscale && (
+                        <span className="text-xs text-muted-foreground">{item.matricule_fiscale}</span>
+                      )}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
             <input
               type="text"
               value={thirdPartyName}

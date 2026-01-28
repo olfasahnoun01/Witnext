@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      clients: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: number
+          location: string | null
+          matricule_fiscale: string | null
+          nom: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: number
+          location?: string | null
+          matricule_fiscale?: string | null
+          nom: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: number
+          location?: string | null
+          matricule_fiscale?: string | null
+          nom?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           created_at: string
