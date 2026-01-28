@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { CategoryCard } from './inventory/CategoryCard';
 import { ProductGroupView } from './inventory/ProductGroupView';
 import { getProductGroupCountsByCategory } from '@/services/productGroupService';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -34,6 +36,7 @@ interface CategoryCount {
 }
 
 export const Inventory = () => {
+  const { isModerator } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [categoryCounts, setCategoryCounts] = useState<CategoryCount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -136,6 +139,30 @@ export const Inventory = () => {
     setIsAddCategoryOpen(false);
   }, [newCategoryName, customCategories, MAIN_CATEGORIES]);
 
+  const handleDeleteCategory = useCallback((categoryName: string) => {
+    // Only allow deletion of custom categories
+    if (!customCategories.includes(categoryName)) {
+      toast.error('Cette catégorie ne peut pas être supprimée');
+      return;
+    }
+    
+    // Find the count for this category
+    const categoryData = categoryCounts.find(c => c.category === categoryName);
+    const productCount = categoryData?.count || 0;
+    
+    let confirmMessage = `Supprimer la catégorie "${categoryName}" ?`;
+    if (productCount > 0) {
+      confirmMessage = `La catégorie "${categoryName}" contient ${productCount} article${productCount > 1 ? 's' : ''}. Les articles ne seront pas supprimés mais resteront dans "Non catégorisé". Continuer ?`;
+    }
+    
+    if (!window.confirm(confirmMessage)) return;
+    
+    const updatedCategories = customCategories.filter(cat => cat !== categoryName);
+    setCustomCategories(updatedCategories);
+    localStorage.setItem('grosafe_custom_categories', JSON.stringify(updatedCategories));
+    toast.success(`Catégorie "${categoryName}" supprimée`);
+  }, [customCategories, categoryCounts]);
+
   const totalProducts = useMemo(() => {
     return categoryCounts.reduce((sum, c) => sum + c.count, 0) + uncategorizedCount;
   }, [categoryCounts, uncategorizedCount]);
@@ -194,6 +221,8 @@ export const Inventory = () => {
                 name={category}
                 count={count}
                 onClick={() => handleCategoryClick(category)}
+                onDelete={customCategories.includes(category) ? handleDeleteCategory : undefined}
+                canDelete={isModerator && customCategories.includes(category)}
               />
             ))}
             

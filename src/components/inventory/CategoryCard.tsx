@@ -9,14 +9,18 @@ import {
   ShieldCheck,
   Snowflake,
   ChefHat,
-  Layers
+  Layers,
+  Trash2
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 interface CategoryCardProps {
   name: string;
   count: number;
   onClick: () => void;
+  onDelete?: (name: string) => void;
+  canDelete?: boolean;
 }
 
 const getCategoryIcon = (category: string) => {
@@ -50,15 +54,31 @@ const getCategoryColor = (category: string): string => {
   return 'from-stone-500 to-stone-600';
 };
 
-export const CategoryCard = memo(({ name, count, onClick }: CategoryCardProps) => {
+export const CategoryCard = memo(({ name, count, onClick, onDelete, canDelete }: CategoryCardProps) => {
   const Icon = getCategoryIcon(name);
   const colorClass = getCategoryColor(name);
 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete?.(name);
+  };
+
   return (
     <Card 
-      className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] group overflow-hidden"
+      className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] group overflow-hidden relative"
       onClick={onClick}
     >
+      {canDelete && onDelete && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDeleteClick}
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 hover:bg-white/40 text-white z-10"
+          title="Supprimer la catégorie"
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      )}
       <CardContent className="p-0">
         <div className={`bg-gradient-to-br ${colorClass} p-6 text-white`}>
           <div className="flex items-center justify-between mb-4">

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ArrowLeft, Plus, RefreshCw, Search } from 'lucide-react';
 import { ProductGroup } from '@/types';
 import { getProductGroupsByCategory, deleteProductGroup } from '@/services/productGroupService';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ProductGroupCard } from './ProductGroupCard';
@@ -17,6 +18,7 @@ import {
 } from '@/components/ui/pagination';
 import { sanitizeSearchInput } from '@/lib/sanitize';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
 interface ProductGroupViewProps {
@@ -27,6 +29,7 @@ interface ProductGroupViewProps {
 const ITEMS_PER_PAGE = 12;
 
 export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) => {
+  const { isModerator } = useAuth();
   const [groups, setGroups] = useState<ProductGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -91,6 +94,35 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
   const handleBackFromVariants = useCallback(() => {
     setSelectedGroup(null);
     fetchGroups(); // Refresh in case stock changed
+  }, [fetchGroups]);
+
+  const handleDeleteGroup = useCallback(async (group: ProductGroup) => {
+    const variantCount = group.variant_count || 0;
+    const confirmMessage = variantCount > 0
+      ? `Supprimer l'article "${group.name}" et ses ${variantCount} variante${variantCount > 1 ? 's' : ''} ?`
+      : `Supprimer l'article "${group.name}" ?`;
+    
+    if (!window.confirm(confirmMessage)) return;
+    
+    try {
+      // First delete all variants associated with this group
+      if (variantCount > 0) {
+        const { error: variantsError } = await supabase
+          .from('products')
+          .delete()
+          .eq('product_group_id', group.id);
+        
+        if (variantsError) throw variantsError;
+      }
+      
+      // Then delete the product group
+      await deleteProductGroup(group.id);
+      toast.success(`Article "${group.name}" supprimé avec succès`);
+      fetchGroups();
+    } catch (error: any) {
+      console.error('Error deleting product group:', error);
+      toast.error(error.message || 'Erreur lors de la suppression');
+    }
   }, [fetchGroups]);
 
   // Page numbers for pagination
@@ -195,6 +227,8 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
                 key={group.id}
                 group={group}
                 onClick={() => handleGroupClick(group)}
+                onDelete={handleDeleteGroup}
+                canDelete={isModerator}
               />
             ))}
           </div>
