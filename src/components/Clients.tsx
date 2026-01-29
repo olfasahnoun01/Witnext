@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Search, Users, Phone, MapPin, Mail } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Users, Phone, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -37,7 +37,6 @@ interface Client {
   matricule_fiscale: string | null;
   location: string | null;
   phone: string | null;
-  email: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -55,7 +54,6 @@ export const Clients = memo(() => {
   const [nom, setNom] = useState('');
   const [matriculeFiscale, setMatriculeFiscale] = useState('');
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
   const [selectedGovernorate, setSelectedGovernorate] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   
@@ -86,7 +84,6 @@ export const Clients = memo(() => {
     setNom('');
     setMatriculeFiscale('');
     setPhone('');
-    setEmail('');
     setSelectedGovernorate('');
     setSelectedCity('');
     setEditingClient(null);
@@ -115,7 +112,6 @@ export const Clients = memo(() => {
       nom: nom.trim(),
       matricule_fiscale: matriculeFiscale.trim() || null,
       phone: phone.trim() || null,
-      email: email.trim() || null,
       location: locationValue
     };
 
@@ -149,14 +145,13 @@ export const Clients = memo(() => {
         loadClients();
       }
     }
-  }, [nom, selectedCity, selectedGovernorate, matriculeFiscale, phone, email, editingClient, resetForm, loadClients]);
+  }, [nom, selectedCity, selectedGovernorate, matriculeFiscale, phone, editingClient, resetForm, loadClients]);
 
   const handleEdit = useCallback((client: Client) => {
     setEditingClient(client);
     setNom(client.nom);
     setMatriculeFiscale(client.matricule_fiscale || '');
     setPhone(client.phone || '');
-    setEmail(client.email || '');
     
     // Parse location back to governorate and city
     if (client.location) {
@@ -199,7 +194,6 @@ export const Clients = memo(() => {
         c.nom.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         c.matricule_fiscale?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         c.phone?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-        c.email?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         c.location?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
       
       return matchesSearch;
@@ -236,23 +230,23 @@ export const Clients = memo(() => {
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-blue-500/10">
-              <Mail className="w-6 h-6 text-blue-500" />
+            <div className="p-3 rounded-xl bg-green-500/10">
+              <MapPin className="w-6 h-6 text-green-500" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Avec Email</p>
-              <p className="text-2xl font-bold">{clients.filter(c => c.email).length}</p>
+              <p className="text-sm text-muted-foreground">Avec Localisation</p>
+              <p className="text-2xl font-bold">{clients.filter(c => c.location).length}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-green-500/10">
-              <MapPin className="w-6 h-6 text-green-500" />
+            <div className="p-3 rounded-xl bg-blue-500/10">
+              <Phone className="w-6 h-6 text-blue-500" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Résultats filtrés</p>
-              <p className="text-2xl font-bold">{filteredClients.length}</p>
+              <p className="text-sm text-muted-foreground">Avec Téléphone</p>
+              <p className="text-2xl font-bold">{clients.filter(c => c.phone).length}</p>
             </div>
           </CardContent>
         </Card>
@@ -309,16 +303,6 @@ export const Clients = memo(() => {
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="Ex: +216 XX XXX XXX"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Adresse Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="client@example.com"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -385,7 +369,7 @@ export const Clients = memo(() => {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Rechercher par nom, matricule, téléphone, email, localisation..."
+                placeholder="Rechercher par nom, matricule, téléphone, localisation..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -413,7 +397,6 @@ export const Clients = memo(() => {
                       <TableHead>Nom Client</TableHead>
                       <TableHead>Matricule Fiscale</TableHead>
                       <TableHead>Téléphone</TableHead>
-                      <TableHead>Email</TableHead>
                       <TableHead>Localisation</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -430,14 +413,6 @@ export const Clients = memo(() => {
                             <span className="flex items-center gap-1">
                               <Phone className="w-3 h-3" />
                               {client.phone}
-                            </span>
-                          ) : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {client.email ? (
-                            <span className="flex items-center gap-1">
-                              <Mail className="w-3 h-3" />
-                              {client.email}
                             </span>
                           ) : '-'}
                         </TableCell>
