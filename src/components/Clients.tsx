@@ -56,6 +56,7 @@ export const Clients = memo(() => {
   const [phone, setPhone] = useState('');
   const [selectedGovernorate, setSelectedGovernorate] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
+  const [exactLocation, setExactLocation] = useState('');
   
   // Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -86,6 +87,7 @@ export const Clients = memo(() => {
     setPhone('');
     setSelectedGovernorate('');
     setSelectedCity('');
+    setExactLocation('');
     setEditingClient(null);
   }, []);
 
@@ -104,9 +106,12 @@ export const Clients = memo(() => {
       return;
     }
 
-    const locationValue = selectedCity && selectedGovernorate 
-      ? `${selectedCity}, ${selectedGovernorate}` 
-      : null;
+    // Build location string: "Exact Address, City, Governorate" or parts thereof
+    let locationParts: string[] = [];
+    if (exactLocation.trim()) locationParts.push(exactLocation.trim());
+    if (selectedCity) locationParts.push(selectedCity);
+    if (selectedGovernorate) locationParts.push(selectedGovernorate);
+    const locationValue = locationParts.length > 0 ? locationParts.join(', ') : null;
 
     const clientData = {
       nom: nom.trim(),
@@ -145,7 +150,7 @@ export const Clients = memo(() => {
         loadClients();
       }
     }
-  }, [nom, selectedCity, selectedGovernorate, matriculeFiscale, phone, editingClient, resetForm, loadClients]);
+  }, [nom, selectedCity, selectedGovernorate, exactLocation, matriculeFiscale, phone, editingClient, resetForm, loadClients]);
 
   const handleEdit = useCallback((client: Client) => {
     setEditingClient(client);
@@ -153,14 +158,27 @@ export const Clients = memo(() => {
     setMatriculeFiscale(client.matricule_fiscale || '');
     setPhone(client.phone || '');
     
-    // Parse location back to governorate and city
+    // Parse location back to exact address, city, and governorate
     if (client.location) {
       const parts = client.location.split(', ');
-      if (parts.length === 2) {
+      if (parts.length >= 3) {
+        // Has exact location + city + governorate
+        setExactLocation(parts.slice(0, -2).join(', '));
+        setSelectedCity(parts[parts.length - 2]);
+        setSelectedGovernorate(parts[parts.length - 1]);
+      } else if (parts.length === 2) {
+        // Just city + governorate
+        setExactLocation('');
         setSelectedCity(parts[0]);
         setSelectedGovernorate(parts[1]);
+      } else {
+        // Just one part, treat as exact location
+        setExactLocation(parts[0]);
+        setSelectedGovernorate('');
+        setSelectedCity('');
       }
     } else {
+      setExactLocation('');
       setSelectedGovernorate('');
       setSelectedCity('');
     }
@@ -346,6 +364,15 @@ export const Clients = memo(() => {
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="exactLocation">Adresse Exacte</Label>
+                    <Input
+                      id="exactLocation"
+                      value={exactLocation}
+                      onChange={(e) => setExactLocation(e.target.value)}
+                      placeholder="Ex: Rue Ibn Khaldoun, N°15, Zone Industrielle..."
+                    />
                   </div>
                   <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="outline" onClick={() => {
