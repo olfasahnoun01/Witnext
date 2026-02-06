@@ -91,6 +91,11 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
     setSelectedGroup(group);
   }, []);
 
+  const handleEditGroup = useCallback((group: ProductGroup) => {
+    setEditingProductGroup(group);
+    setIsProductGroupModalOpen(true);
+  }, []);
+
   const handleBackFromVariants = useCallback(() => {
     setSelectedGroup(null);
     fetchGroups(); // Refresh in case stock changed
@@ -227,7 +232,9 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
                 key={group.id}
                 group={group}
                 onClick={() => handleGroupClick(group)}
+                onEdit={handleEditGroup}
                 onDelete={handleDeleteGroup}
+                canEdit={isModerator}
                 canDelete={isModerator}
               />
             ))}
