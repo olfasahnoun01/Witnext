@@ -193,18 +193,16 @@ export const SupplierComparison = () => {
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionner un produit" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="min-w-[300px]">
                   {products.map(product => (
-                    <SelectItem key={product.id} value={product.id.toString()} className="pr-2">
-                      <span className="flex items-center w-full min-w-[200px]">
-                        <span className="truncate flex-1">{product.name}</span>
-                        <Badge 
-                          variant={product.fournisseurCount > 0 ? "default" : "secondary"} 
-                          className="shrink-0"
-                        >
-                          {product.fournisseurCount}Fr
-                        </Badge>
-                      </span>
+                    <SelectItem key={product.id} value={product.id.toString()} className="relative pr-14">
+                      <span className="truncate">{product.name}</span>
+                      <Badge 
+                        variant={product.fournisseurCount > 0 ? "default" : "secondary"} 
+                        className="absolute right-2 top-1/2 -translate-y-1/2"
+                      >
+                        {product.fournisseurCount}Fr
+                      </Badge>
                     </SelectItem>
                   ))}
                 </SelectContent>
