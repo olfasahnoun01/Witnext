@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { 
@@ -6,192 +6,45 @@ import {
   ArrowUpRight, 
   Package,
   AlertCircle,
-  Trash2,
-  Edit,
   CalendarIcon,
   X
 } from 'lucide-react';
-import { getAllProducts, getAllTransactions, createTransaction } from '@/services/dbService';
-import { Product, Transaction } from '@/types';
+import { getAllProducts, createTransaction } from '@/services/dbService';
+import { Product } from '@/types';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { CategoryProductSelector } from './shared/CategoryProductSelector';
+import { TransactionHistory } from './transactions/TransactionHistory';
 
 type TabType = 'in' | 'out';
-
-// Memoized Transaction History Item
-const TransactionHistoryItem = memo(({ 
-  tx, 
-  isAdmin,
-  isEditing,
-  editQuantity,
-  editNote,
-  onEditQuantityChange,
-  onEditNoteChange,
-  onSaveEdit,
-  onCancelEdit,
-  onStartEdit,
-  onDelete,
-}: {
-  tx: Transaction;
-  isAdmin: boolean;
-  isEditing: boolean;
-  editQuantity: number;
-  editNote: string;
-  onEditQuantityChange: (value: number) => void;
-  onEditNoteChange: (value: string) => void;
-  onSaveEdit: () => void;
-  onCancelEdit: () => void;
-  onStartEdit: (tx: Transaction) => void;
-  onDelete: (id: number) => void;
-}) => (
-  <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
-    <div className={`p-2 rounded-lg ${
-      tx.type === 'IN' ? 'bg-success/10' : 'bg-destructive/10'
-    }`}>
-      {tx.type === 'IN' ? (
-        <ArrowDownLeft className="w-4 h-4 text-success" />
-      ) : (
-        <ArrowUpRight className="w-4 h-4 text-destructive" />
-      )}
-    </div>
-    <div className="flex-1 min-w-0">
-      {isEditing ? (
-        <div className="space-y-2">
-          <input
-            type="number"
-            value={editQuantity}
-            onChange={(e) => onEditQuantityChange(parseInt(e.target.value) || 0)}
-            className="form-input text-sm py-1"
-            min="1"
-          />
-          <input
-            type="text"
-            value={editNote}
-            onChange={(e) => onEditNoteChange(e.target.value)}
-            className="form-input text-sm py-1"
-            placeholder="Note..."
-          />
-          <div className="flex gap-2">
-            <Button size="sm" onClick={onSaveEdit}>Enregistrer</Button>
-            <Button size="sm" variant="outline" onClick={onCancelEdit}>Annuler</Button>
-          </div>
-        </div>
-      ) : (
-        <>
-          <p className="font-medium text-foreground">{tx.product_name}</p>
-          <p className="text-sm text-muted-foreground">
-            {tx.quantity} unités • {new Date(tx.date).toLocaleDateString('fr-TN', {
-              day: 'numeric',
-              month: 'short',
-              hour: '2-digit',
-              minute: '2-digit'
-            })}
-          </p>
-          {tx.note && (
-            <p className="text-xs text-muted-foreground mt-1 truncate">{tx.note}</p>
-          )}
-        </>
-      )}
-    </div>
-    {isAdmin && !isEditing && (
-      <div className="flex gap-1">
-        <button
-          onClick={() => onStartEdit(tx)}
-          className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-        >
-          <Edit className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => onDelete(tx.id)}
-          className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
-      </div>
-    )}
-  </div>
-));
-
-TransactionHistoryItem.displayName = 'TransactionHistoryItem';
 
 export const Transactions = memo(() => {
   const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('in');
   const [products, setProducts] = useState<Product[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<number | ''>('');
   const [quantity, setQuantity] = useState<number>(1);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [editQuantity, setEditQuantity] = useState<number>(0);
-  const [editNote, setEditNote] = useState('');
   const [transactionDate, setTransactionDate] = useState<Date>(new Date());
-
-  const handleDeleteTransaction = async (transactionId: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cette transaction ?')) return;
-    
-    const { error } = await supabase
-      .from('transactions')
-      .delete()
-      .eq('id', transactionId);
-    
-    if (error) {
-      toast.error('Erreur lors de la suppression');
-      return;
-    }
-    
-    toast.success('Transaction supprimée');
-    await loadData();
-  };
-
-  const handleEditTransaction = (tx: Transaction) => {
-    setEditingTransaction(tx);
-    setEditQuantity(tx.quantity);
-    setEditNote(tx.note || '');
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingTransaction) return;
-    
-    const { error } = await supabase
-      .from('transactions')
-      .update({ quantity: editQuantity, note: editNote })
-      .eq('id', editingTransaction.id);
-    
-    if (error) {
-      toast.error('Erreur lors de la modification');
-      return;
-    }
-    
-    toast.success('Transaction modifiée');
-    setEditingTransaction(null);
-    await loadData();
-  };
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 5000);
+    loadProducts();
+    const interval = setInterval(loadProducts, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  const loadData = async () => {
-    const [productsData, transactionsData] = await Promise.all([
-      getAllProducts(),
-      getAllTransactions()
-    ]);
+  const loadProducts = async () => {
+    const productsData = await getAllProducts();
     setProducts(productsData);
-    setTransactions(transactionsData);
   };
 
-  const selectedProduct = products.find(p => p.id === selectedProductId);
+  const selectedProduct = products.find(p => p.id === selectedProductId) || null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,20 +81,21 @@ export const Transactions = memo(() => {
         return;
       }
 
-      // Reset form
+      // Reset form and refresh history
       setSelectedProductId('');
       setQuantity(1);
       setNote('');
       setTransactionDate(new Date());
-      await loadData();
+      setHistoryRefreshKey(k => k + 1);
+      loadProducts();
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const recentTransactions = transactions
-    .filter(t => activeTab === 'in' ? t.type === 'IN' : t.type === 'OUT')
-    .slice(0, 10);
+  const handleTransactionChange = () => {
+    loadProducts();
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -415,91 +269,13 @@ export const Transactions = memo(() => {
         </div>
 
         {/* History */}
-        <div className="bg-card rounded-xl border border-border p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">
-            Historique - {activeTab === 'in' ? 'Entrées' : 'Sorties'}
-          </h3>
-
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {recentTransactions.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Aucun mouvement enregistré
-              </p>
-            ) : (
-              recentTransactions.map((tx) => (
-                <div
-                  key={tx.id}
-                  className="flex items-start gap-3 p-4 rounded-lg bg-muted/50"
-                >
-                  <div className={`p-2 rounded-lg ${
-                    tx.type === 'IN' ? 'bg-success/10' : 'bg-destructive/10'
-                  }`}>
-                    {tx.type === 'IN' ? (
-                      <ArrowDownLeft className="w-4 h-4 text-success" />
-                    ) : (
-                      <ArrowUpRight className="w-4 h-4 text-destructive" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    {editingTransaction?.id === tx.id ? (
-                      <div className="space-y-2">
-                        <input
-                          type="number"
-                          value={editQuantity}
-                          onChange={(e) => setEditQuantity(parseInt(e.target.value) || 0)}
-                          className="form-input text-sm py-1"
-                          min="1"
-                        />
-                        <input
-                          type="text"
-                          value={editNote}
-                          onChange={(e) => setEditNote(e.target.value)}
-                          className="form-input text-sm py-1"
-                          placeholder="Note..."
-                        />
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={handleSaveEdit}>Enregistrer</Button>
-                          <Button size="sm" variant="outline" onClick={() => setEditingTransaction(null)}>Annuler</Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <p className="font-medium text-foreground">{tx.product_name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {tx.quantity} unités • {new Date(tx.date).toLocaleDateString('fr-TN', {
-                            day: 'numeric',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                        {tx.note && (
-                          <p className="text-xs text-muted-foreground mt-1 truncate">{tx.note}</p>
-                        )}
-                      </>
-                    )}
-                  </div>
-                  {isAdmin && !editingTransaction && (
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => handleEditTransaction(tx)}
-                        className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTransaction(tx.id)}
-                        className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        <TransactionHistory
+          key={`${activeTab}-${historyRefreshKey}`}
+          activeTab={activeTab}
+          selectedProduct={selectedProduct}
+          isAdmin={isAdmin}
+          onTransactionChange={handleTransactionChange}
+        />
       </div>
     </div>
   );
