@@ -76,7 +76,7 @@ export const TransactionHistory = ({
     } else {
       setTransactions([]);
     }
-  }, [selectedProduct?.id, groupVariantIds, activeTab, loadTransactions]);
+  }, [selectedProduct?.id, groupVariantIds, activeTab]);
 
   // Pagination
   const totalPages = Math.ceil(transactions.length / ITEMS_PER_PAGE);

@@ -15,13 +15,6 @@ export interface Product {
   product_group_id?: number | null;
 }
 
-export interface ProductGroupFournisseur {
-  id?: number;
-  product_group_id?: number;
-  fournisseur_name: string;
-  prix_ttc: number;
-}
-
 export interface ProductGroup {
   id: number;
   name: string;
@@ -37,8 +30,6 @@ export interface ProductGroup {
   total_stock?: number;
   colors?: string[];
   sizes?: string[];
-  // Multi-suppliers
-  fournisseurs?: ProductGroupFournisseur[];
 }
 
 export interface Transaction {

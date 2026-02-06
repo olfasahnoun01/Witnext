@@ -2,13 +2,6 @@ import { memo, useRef, useCallback } from 'react';
 import { X, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Product } from '@/types';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 
 const CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
@@ -141,21 +134,20 @@ export const ProductModal = memo(({
 
             <div>
               <label className="form-label">Catégorie *</label>
-              <Select
+              <input
+                type="text"
+                required
+                list="categories"
                 value={formData.category || defaultCategory || ''}
-                onValueChange={(value) => onFormDataChange({ ...formData, category: value })}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Sélectionner une catégorie" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map(cat => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(e) => onFormDataChange({ ...formData, category: e.target.value })}
+                className="form-input"
+                placeholder="Sélectionner ou saisir"
+              />
+              <datalist id="categories">
+                {CATEGORIES.map(cat => (
+                  <option key={cat} value={cat} />
+                ))}
+              </datalist>
             </div>
 
             <div>

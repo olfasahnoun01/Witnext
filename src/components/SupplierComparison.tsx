@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Package, Phone, Calculator } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { Search, ArrowUpDown, TrendingDown, TrendingUp, Package } from 'lucide-react';
+import { getAllProducts } from '@/services/dbService';
+import { Product } from '@/types';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,308 +20,349 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 
-interface ProductGroup {
-  id: number;
+interface ArticleGroup {
   name: string;
   category: string;
-  fournisseurCount: number;
-}
-
-interface FournisseurPrice {
-  id: number;
-  fournisseur_name: string;
-  prix_ttc: number;
-  phone: string | null;
+  size: string;
+  suppliers: {
+    fournisseur: string;
+    price: number;
+    remise: number;
+    prixTTC: number | null;
+    quantity: number;
+    sku: string;
+    id: number;
+  }[];
+  minPrice: number;
+  maxPrice: number;
+  minPrixTTC: number;
+  maxPrixTTC: number;
+  priceDiff: number;
+  prixTTCDiff: number;
 }
 
 export const SupplierComparison = () => {
-  const [categories, setCategories] = useState<string[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [products, setProducts] = useState<ProductGroup[]>([]);
-  const [selectedProductId, setSelectedProductId] = useState<string>('');
-  const [fournisseurPrices, setFournisseurPrices] = useState<FournisseurPrice[]>([]);
-  const [quantity, setQuantity] = useState<number>(1);
-  const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<'name' | 'priceDiff' | 'suppliers'>('name');
 
-  // Load categories
   useEffect(() => {
-    const loadCategories = async () => {
-      const { data } = await supabase
-        .from('product_groups')
-        .select('category')
-        .order('category');
-      
-      if (data) {
-        const uniqueCategories = [...new Set(data.map(p => p.category))];
-        setCategories(uniqueCategories);
-      }
-    };
-    loadCategories();
+    loadProducts();
   }, []);
 
-  // Load products when category changes
-  useEffect(() => {
-    if (!selectedCategory) {
-      setProducts([]);
-      setSelectedProductId('');
-      return;
+  const loadProducts = async () => {
+    const allProducts = await getAllProducts();
+    setProducts(allProducts);
+  };
+
+  const categories = useMemo(() => {
+    const uniqueCategories = [...new Set(products.map(p => p.category))];
+    return uniqueCategories.filter(Boolean).sort();
+  }, [products]);
+
+  // Group products by name + category + size (same article from different suppliers)
+  const articleGroups = useMemo(() => {
+    const groups: Record<string, ArticleGroup> = {};
+
+    products.forEach(product => {
+      // Key based on article name, category and size
+      const key = `${product.name.toLowerCase().trim()}_${product.category}_${product.size}`;
+      
+      if (!groups[key]) {
+        groups[key] = {
+          name: product.name,
+          category: product.category,
+          size: product.size,
+          suppliers: [],
+          minPrice: Infinity,
+          maxPrice: -Infinity,
+          minPrixTTC: Infinity,
+          maxPrixTTC: -Infinity,
+          priceDiff: 0,
+          prixTTCDiff: 0
+        };
+      }
+
+      const prixTTC = product.prix_ttc ?? null;
+
+      groups[key].suppliers.push({
+        fournisseur: product.fournisseur,
+        price: product.price,
+        remise: product.remise ?? 0,
+        prixTTC: prixTTC,
+        quantity: product.quantity,
+        sku: product.sku,
+        id: product.id
+      });
+
+      if (product.price < groups[key].minPrice) {
+        groups[key].minPrice = product.price;
+      }
+      if (product.price > groups[key].maxPrice) {
+        groups[key].maxPrice = product.price;
+      }
+      if (prixTTC !== null && prixTTC < groups[key].minPrixTTC) {
+        groups[key].minPrixTTC = prixTTC;
+      }
+      if (prixTTC !== null && prixTTC > groups[key].maxPrixTTC) {
+        groups[key].maxPrixTTC = prixTTC;
+      }
+    });
+
+    // Calculate price difference and filter only articles with multiple suppliers
+    return Object.values(groups)
+      .map(group => ({
+        ...group,
+        priceDiff: group.maxPrice - group.minPrice,
+        prixTTCDiff: group.maxPrixTTC !== -Infinity && group.minPrixTTC !== Infinity 
+          ? group.maxPrixTTC - group.minPrixTTC 
+          : 0
+      }))
+      .filter(group => group.suppliers.length > 1);
+  }, [products]);
+
+  // Filter and sort
+  const filteredGroups = useMemo(() => {
+    let filtered = articleGroups;
+
+    // Search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(group =>
+        group.name.toLowerCase().includes(term) ||
+        group.suppliers.some(s => s.fournisseur.toLowerCase().includes(term))
+      );
     }
 
-    const loadProducts = async () => {
-      const { data } = await supabase
-        .from('product_groups')
-        .select('id, name, category')
-        .eq('category', selectedCategory)
-        .order('name');
-      
-      if (data) {
-        // Get fournisseur counts for each product
-        const productIds = data.map(p => p.id);
-        const { data: fournisseurData } = await supabase
-          .from('product_group_fournisseurs')
-          .select('product_group_id')
-          .in('product_group_id', productIds);
-
-        const countMap = new Map<number, number>();
-        fournisseurData?.forEach(f => {
-          countMap.set(f.product_group_id, (countMap.get(f.product_group_id) || 0) + 1);
-        });
-
-        const productsWithCount: ProductGroup[] = data.map(p => ({
-          ...p,
-          fournisseurCount: countMap.get(p.id) || 0
-        }));
-        
-        setProducts(productsWithCount);
-      }
-    };
-    loadProducts();
-    setSelectedProductId('');
-    setFournisseurPrices([]);
-  }, [selectedCategory]);
-
-  // Load fournisseur prices when product changes
-  useEffect(() => {
-    if (!selectedProductId) {
-      setFournisseurPrices([]);
-      return;
+    // Category filter
+    if (categoryFilter !== 'all') {
+      filtered = filtered.filter(group => group.category === categoryFilter);
     }
 
-    const loadFournisseurPrices = async () => {
-      setLoading(true);
-      
-      // Get fournisseur prices for this product
-      const { data: priceData } = await supabase
-        .from('product_group_fournisseurs')
-        .select('id, fournisseur_name, prix_ttc')
-        .eq('product_group_id', parseInt(selectedProductId));
+    // Sort
+    switch (sortBy) {
+      case 'priceDiff':
+        filtered = [...filtered].sort((a, b) => b.priceDiff - a.priceDiff);
+        break;
+      case 'suppliers':
+        filtered = [...filtered].sort((a, b) => b.suppliers.length - a.suppliers.length);
+        break;
+      case 'name':
+      default:
+        filtered = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+    }
 
-      if (priceData && priceData.length > 0) {
-        // Get phone numbers from fournisseurs table
-        const fournisseurNames = priceData.map(p => p.fournisseur_name);
-        const { data: fournisseursData } = await supabase
-          .from('fournisseurs')
-          .select('nom, phone')
-          .in('nom', fournisseurNames);
+    return filtered;
+  }, [articleGroups, searchTerm, categoryFilter, sortBy]);
 
-        const phoneMap = new Map(fournisseursData?.map(f => [f.nom, f.phone]) || []);
-
-        const combined: FournisseurPrice[] = priceData.map(p => ({
-          id: p.id,
-          fournisseur_name: p.fournisseur_name,
-          prix_ttc: p.prix_ttc,
-          phone: phoneMap.get(p.fournisseur_name) || null
-        }));
-
-        // Sort by price
-        combined.sort((a, b) => a.prix_ttc - b.prix_ttc);
-        setFournisseurPrices(combined);
-      } else {
-        setFournisseurPrices([]);
-      }
-      
-      setLoading(false);
-    };
-    loadFournisseurPrices();
-  }, [selectedProductId]);
-
-  const selectedProduct = useMemo(() => {
-    return products.find(p => p.id.toString() === selectedProductId);
-  }, [products, selectedProductId]);
-
-  const minPrice = useMemo(() => {
-    if (fournisseurPrices.length === 0) return 0;
-    return Math.min(...fournisseurPrices.map(f => f.prix_ttc));
-  }, [fournisseurPrices]);
+  const totalArticles = articleGroups.length;
+  const avgPriceDiff = articleGroups.length > 0
+    ? articleGroups.reduce((sum, g) => sum + g.priceDiff, 0) / articleGroups.length
+    : 0;
+  const maxPriceDiff = articleGroups.length > 0
+    ? Math.max(...articleGroups.map(g => g.priceDiff))
+    : 0;
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Selection Card */}
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Articles Multi-Fournisseurs</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalArticles}</div>
+            <p className="text-xs text-muted-foreground">
+              articles disponibles chez plusieurs fournisseurs
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Écart Moyen</CardTitle>
+            <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{avgPriceDiff.toFixed(2)} TND</div>
+            <p className="text-xs text-muted-foreground">
+              différence moyenne entre fournisseurs
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Écart Maximum</CardTitle>
+            <TrendingUp className="h-4 w-4 text-destructive" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">{maxPriceDiff.toFixed(2)} TND</div>
+            <p className="text-xs text-muted-foreground">
+              plus grande différence de prix
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calculator className="h-5 w-5" />
-            Comparaison des Prix Fournisseurs
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            {/* Category Selection */}
-            <div className="space-y-2">
-              <Label>Catégorie</Label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner une catégorie" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map(cat => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Product Selection */}
-            <div className="space-y-2">
-              <Label>Produit</Label>
-              <Select 
-                value={selectedProductId} 
-                onValueChange={setSelectedProductId}
-                disabled={!selectedCategory}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un produit" />
-                </SelectTrigger>
-                <SelectContent className="min-w-[300px]">
-                  {products.map(product => (
-                    <SelectItem key={product.id} value={product.id.toString()} className="relative pr-14">
-                      <span className="truncate">{product.name}</span>
-                      <Badge 
-                        variant={product.fournisseurCount > 0 ? "default" : "secondary"} 
-                        className="absolute right-2 top-1/2 -translate-y-1/2"
-                      >
-                        {product.fournisseurCount}Fr
-                      </Badge>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Quantity Input */}
-            <div className="space-y-2">
-              <Label>Quantité</Label>
+        <CardContent className="pt-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                type="number"
-                min="1"
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                disabled={!selectedProductId}
+                placeholder="Rechercher par article ou fournisseur..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
               />
             </div>
+
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-full md:w-48">
+                <SelectValue placeholder="Catégorie" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes les catégories</SelectItem>
+                {categories.map(cat => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+              <SelectTrigger className="w-full md:w-48">
+                <SelectValue placeholder="Trier par" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Nom</SelectItem>
+                <SelectItem value="priceDiff">Écart de prix</SelectItem>
+                <SelectItem value="suppliers">Nombre de fournisseurs</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
 
-      {/* Results */}
-      {selectedProductId && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                {selectedProduct?.name}
-              </CardTitle>
-              <Badge variant="outline">{fournisseurPrices.length} fournisseur(s)</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="py-8 text-center text-muted-foreground">
-                Chargement...
-              </div>
-            ) : fournisseurPrices.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground">
-                <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Aucun fournisseur associé à ce produit</p>
-                <p className="text-sm mt-2">Ajoutez des fournisseurs dans la fiche produit</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Fournisseur</TableHead>
-                    <TableHead>Téléphone</TableHead>
-                    <TableHead className="text-right">Prix TTC Unitaire</TableHead>
-                    <TableHead className="text-right">Quantité</TableHead>
-                    <TableHead className="text-right">Total TTC</TableHead>
-                    <TableHead className="text-center">Statut</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {fournisseurPrices.map((fournisseur) => {
-                    const total = fournisseur.prix_ttc * quantity;
-                    const isLowest = fournisseur.prix_ttc === minPrice;
-                    
-                    return (
-                      <TableRow key={fournisseur.id} className={isLowest ? 'bg-primary/5' : ''}>
-                        <TableCell className="font-medium">
-                          {fournisseur.fournisseur_name}
-                        </TableCell>
-                        <TableCell>
-                          {fournisseur.phone ? (
-                            <a 
-                              href={`tel:${fournisseur.phone}`}
-                              className="flex items-center gap-2 text-primary hover:underline"
-                            >
-                              <Phone className="h-4 w-4" />
-                              {fournisseur.phone}
-                            </a>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {fournisseur.prix_ttc.toFixed(3)} TND
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {quantity}
-                        </TableCell>
-                        <TableCell className="text-right font-bold">
-                          {total.toFixed(3)} TND
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {isLowest && (
-                            <Badge className="bg-primary text-primary-foreground">
-                              Meilleur prix
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Empty State */}
-      {!selectedProductId && (
+      {/* Comparison Table */}
+      {filteredGroups.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <Calculator className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium text-foreground mb-2">
-              Comparez les prix des fournisseurs
+              Aucun article multi-fournisseurs trouvé
             </h3>
             <p className="text-sm text-muted-foreground">
-              Sélectionnez une catégorie puis un produit pour voir les prix de chaque fournisseur
+              {products.length === 0 
+                ? "Commencez par ajouter des produits à votre inventaire."
+                : "Pour comparer les prix, ajoutez le même article avec différents fournisseurs dans l'inventaire."}
             </p>
           </CardContent>
         </Card>
+      ) : (
+        <div className="space-y-4">
+          {filteredGroups.map((group, index) => (
+            <Card key={index} className="overflow-hidden">
+              <CardHeader className="bg-muted/30 pb-4">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-lg">{group.name}</CardTitle>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline">{group.category}</Badge>
+                      <Badge variant="secondary">Taille: {group.size}</Badge>
+                      <Badge variant="default">{group.suppliers.length} fournisseurs</Badge>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Écart de prix</p>
+                      <p className={`text-lg font-bold ${group.priceDiff > 10 ? 'text-destructive' : 'text-primary'}`}>
+                        {group.priceDiff.toFixed(2)} TND
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fournisseur</TableHead>
+                      <TableHead>Code Article</TableHead>
+                      <TableHead className="text-right">Prix HT</TableHead>
+                      <TableHead className="text-right">Remise</TableHead>
+                      <TableHead className="text-right">Prix TTC</TableHead>
+                      <TableHead className="text-right">Stock</TableHead>
+                      <TableHead className="text-center">Comparaison</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {group.suppliers
+                      .sort((a, b) => (a.prixTTC ?? a.price) - (b.prixTTC ?? b.price))
+                      .map((supplier) => {
+                        const effectivePrice = supplier.prixTTC ?? supplier.price;
+                        const isLowest = supplier.prixTTC !== null 
+                          ? supplier.prixTTC === group.minPrixTTC 
+                          : supplier.price === group.minPrice;
+                        const isHighest = supplier.prixTTC !== null 
+                          ? supplier.prixTTC === group.maxPrixTTC 
+                          : supplier.price === group.maxPrice;
+                        return (
+                          <TableRow key={supplier.id}>
+                            <TableCell className="font-medium">{supplier.fournisseur}</TableCell>
+                            <TableCell className="text-muted-foreground">{supplier.sku}</TableCell>
+                            <TableCell className="text-right">
+                              {supplier.price.toFixed(2)} TND
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {supplier.remise > 0 ? (
+                                <Badge variant="secondary" className="text-primary">
+                                  -{supplier.remise}%
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {supplier.prixTTC !== null ? (
+                                `${supplier.prixTTC.toFixed(2)} TND`
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant={supplier.quantity > 0 ? 'default' : 'destructive'}>
+                                {supplier.quantity}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {isLowest && (
+                                <Badge variant="default" className="bg-primary text-primary-foreground">
+                                  <TrendingDown className="w-3 h-3 mr-1" />
+                                  Moins cher
+                                </Badge>
+                              )}
+                              {isHighest && group.suppliers.length > 1 && !isLowest && (
+                                <Badge variant="destructive">
+                                  <TrendingUp className="w-3 h-3 mr-1" />
+                                  Plus cher
+                                </Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );
