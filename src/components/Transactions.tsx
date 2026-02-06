@@ -9,7 +9,9 @@ import {
   Trash2,
   Edit,
   CalendarIcon,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { getAllProducts, getAllTransactions, createTransaction } from '@/services/dbService';
 import { Product, Transaction } from '@/types';
@@ -134,6 +136,9 @@ export const Transactions = memo(() => {
   const [editQuantity, setEditQuantity] = useState<number>(0);
   const [editNote, setEditNote] = useState('');
   const [transactionDate, setTransactionDate] = useState<Date>(new Date());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageInputValue, setPageInputValue] = useState('1');
+  const ITEMS_PER_PAGE = 5;
 
   const handleDeleteTransaction = async (transactionId: number) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette transaction ?')) return;
@@ -239,9 +244,47 @@ export const Transactions = memo(() => {
     }
   };
 
-  const recentTransactions = transactions
-    .filter(t => activeTab === 'in' ? t.type === 'IN' : t.type === 'OUT')
-    .slice(0, 10);
+  const filteredTransactions = useMemo(() => 
+    transactions.filter(t => activeTab === 'in' ? t.type === 'IN' : t.type === 'OUT'),
+    [transactions, activeTab]
+  );
+
+  const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE);
+  
+  // Reset to page 1 when tab changes
+  useEffect(() => {
+    setCurrentPage(1);
+    setPageInputValue('1');
+  }, [activeTab]);
+
+  const paginatedTransactions = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredTransactions.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredTransactions, currentPage]);
+
+  const handlePageInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPageInputValue(e.target.value);
+  };
+
+  const handlePageInputSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const page = parseInt(pageInputValue);
+      if (!isNaN(page) && page >= 1 && page <= totalPages) {
+        setCurrentPage(page);
+      } else {
+        setPageInputValue(currentPage.toString());
+      }
+    }
+  };
+
+  const handlePageInputBlur = () => {
+    const page = parseInt(pageInputValue);
+    if (!isNaN(page) && page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    } else {
+      setPageInputValue(currentPage.toString());
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -420,13 +463,13 @@ export const Transactions = memo(() => {
             Historique - {activeTab === 'in' ? 'Entrées' : 'Sorties'}
           </h3>
 
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {recentTransactions.length === 0 ? (
+          <div className="space-y-3">
+            {paginatedTransactions.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
                 Aucun mouvement enregistré
               </p>
             ) : (
-              recentTransactions.map((tx) => (
+              paginatedTransactions.map((tx) => (
                 <div
                   key={tx.id}
                   className="flex items-start gap-3 p-4 rounded-lg bg-muted/50"
@@ -499,6 +542,56 @@ export const Transactions = memo(() => {
               ))
             )}
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t border-border">
+              <button
+                onClick={() => {
+                  const newPage = Math.max(1, currentPage - 1);
+                  setCurrentPage(newPage);
+                  setPageInputValue(newPage.toString());
+                }}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Page précédente"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Page</span>
+                <input
+                  type="text"
+                  value={pageInputValue}
+                  onChange={handlePageInputChange}
+                  onKeyDown={handlePageInputSubmit}
+                  onBlur={handlePageInputBlur}
+                  className="w-12 text-center py-1 px-2 rounded border border-border bg-background text-foreground text-sm"
+                />
+                <span className="text-muted-foreground">sur {totalPages}</span>
+              </div>
+              
+              <button
+                onClick={() => {
+                  const newPage = Math.min(totalPages, currentPage + 1);
+                  setCurrentPage(newPage);
+                  setPageInputValue(newPage.toString());
+                }}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Page suivante"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {filteredTransactions.length > 0 && (
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              {filteredTransactions.length} transaction{filteredTransactions.length > 1 ? 's' : ''} au total
+            </p>
+          )}
         </div>
       </div>
     </div>
