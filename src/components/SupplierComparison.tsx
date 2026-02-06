@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Package, Phone, Calculator, Check, Pencil, X, Plus } from 'lucide-react';
+import { Package, Phone, Calculator, Check, Pencil, X, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -280,6 +280,28 @@ export const SupplierComparison = () => {
     }
   }, [newFournisseurName, newFournisseurPrice, selectedProductId, fournisseurPrices]);
 
+  const handleDeleteFournisseur = useCallback(async (fournisseurId: number, fournisseurName: string) => {
+    if (!confirm(`Supprimer ${fournisseurName} de ce produit ?`)) return;
+
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('product_group_fournisseurs')
+        .delete()
+        .eq('id', fournisseurId);
+
+      if (error) throw error;
+
+      setFournisseurPrices(prev => prev.filter(f => f.id !== fournisseurId));
+      toast.success('Fournisseur supprimé');
+    } catch (error: any) {
+      console.error('Error deleting fournisseur:', error);
+      toast.error(error.message || 'Erreur lors de la suppression');
+    } finally {
+      setIsSaving(false);
+    }
+  }, []);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Selection Card */}
@@ -535,14 +557,25 @@ export const SupplierComparison = () => {
                               </Button>
                             </div>
                           ) : (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
-                              onClick={() => handleEditPrice(fournisseur)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                onClick={() => handleEditPrice(fournisseur)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => handleDeleteFournisseur(fournisseur.id, fournisseur.fournisseur_name)}
+                                disabled={isSaving}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           )}
                         </TableCell>
                       </TableRow>
