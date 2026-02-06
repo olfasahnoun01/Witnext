@@ -96,6 +96,18 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
     showToast: true
   });
 
+  // Calculate product count per fournisseur in current category
+  const fournisseurCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    groups.forEach(group => {
+      if (group.fournisseur) {
+        const key = group.fournisseur.toLowerCase();
+        counts[key] = (counts[key] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [groups]);
+
   // Filter groups by search and fournisseur
   const filteredGroups = useMemo(() => {
     let result = groups;
@@ -273,24 +285,32 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
               <CommandList>
                 <CommandEmpty>Aucun fournisseur trouvé.</CommandEmpty>
                 <CommandGroup>
-                  {fournisseurs.map((fournisseur) => (
-                    <CommandItem
-                      key={fournisseur}
-                      value={fournisseur}
-                      onSelect={(value) => {
-                        setSelectedFournisseur(value === selectedFournisseur ? '' : value);
-                        setFournisseurOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          selectedFournisseur === fournisseur ? "opacity-100" : "opacity-0"
+                  {fournisseurs.map((fournisseur) => {
+                    const count = fournisseurCounts[fournisseur.toLowerCase()] || 0;
+                    return (
+                      <CommandItem
+                        key={fournisseur}
+                        value={fournisseur}
+                        onSelect={(value) => {
+                          setSelectedFournisseur(value === selectedFournisseur ? '' : value);
+                          setFournisseurOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            selectedFournisseur === fournisseur ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        <span className="flex-1">{fournisseur}</span>
+                        {count > 0 && (
+                          <span className="ml-2 text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                            {count}
+                          </span>
                         )}
-                      />
-                      {fournisseur}
-                    </CommandItem>
-                  ))}
+                      </CommandItem>
+                    );
+                  })}
                 </CommandGroup>
               </CommandList>
             </Command>
