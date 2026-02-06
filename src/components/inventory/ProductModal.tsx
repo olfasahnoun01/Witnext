@@ -1,9 +1,12 @@
-import { memo, useRef, useCallback } from 'react';
+import { memo, useRef, useCallback, useState, useEffect } from 'react';
 import { X, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Product } from '@/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { supabase } from '@/integrations/supabase/client';
 
-const CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
+const DEFAULT_CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
 const COLORS = ['Noir', 'Blanc', 'Bleu', 'Rouge', 'Vert', 'Jaune', 'Orange', 'Gris', 'Marron', 'Beige'];
 
@@ -43,6 +46,24 @@ export const ProductModal = memo(({
   defaultCategory
 }: ProductModalProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [allCategories, setAllCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+
+  // Fetch all unique categories from database
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data } = await supabase
+        .from('products')
+        .select('category')
+        .order('category');
+      
+      if (data) {
+        const uniqueCategories = [...new Set(data.map(p => p.category).filter(Boolean))];
+        const merged = [...new Set([...DEFAULT_CATEGORIES, ...uniqueCategories])].sort();
+        setAllCategories(merged);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -134,20 +155,23 @@ export const ProductModal = memo(({
 
             <div>
               <label className="form-label">Catégorie *</label>
-              <input
-                type="text"
-                required
-                list="categories"
+              <Select
                 value={formData.category || defaultCategory || ''}
-                onChange={(e) => onFormDataChange({ ...formData, category: e.target.value })}
-                className="form-input"
-                placeholder="Sélectionner ou saisir"
-              />
-              <datalist id="categories">
-                {CATEGORIES.map(cat => (
-                  <option key={cat} value={cat} />
-                ))}
-              </datalist>
+                onValueChange={(value) => onFormDataChange({ ...formData, category: value })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Sélectionner une catégorie" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  <ScrollArea className="h-full max-h-56">
+                    {allCategories.map(cat => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </ScrollArea>
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
