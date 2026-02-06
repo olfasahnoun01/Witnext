@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Package, Phone, Calculator } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Package, Phone, Calculator, Check, Pencil, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 import {
   Table,
   TableBody,
@@ -43,6 +45,9 @@ export const SupplierComparison = () => {
   const [fournisseurPrices, setFournisseurPrices] = useState<FournisseurPrice[]>([]);
   const [quantity, setQuantity] = useState<number>(1);
   const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingPrice, setEditingPrice] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Load categories
   useEffect(() => {
@@ -155,6 +160,49 @@ export const SupplierComparison = () => {
     return Math.min(...fournisseurPrices.map(f => f.prix_ttc));
   }, [fournisseurPrices]);
 
+  const handleEditPrice = useCallback((fournisseur: FournisseurPrice) => {
+    setEditingId(fournisseur.id);
+    setEditingPrice(fournisseur.prix_ttc.toString());
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingId(null);
+    setEditingPrice('');
+  }, []);
+
+  const handleSavePrice = useCallback(async (fournisseurId: number) => {
+    const newPrice = parseFloat(editingPrice);
+    if (isNaN(newPrice) || newPrice < 0) {
+      toast.error('Prix invalide');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('product_group_fournisseurs')
+        .update({ prix_ttc: newPrice, updated_at: new Date().toISOString() })
+        .eq('id', fournisseurId);
+
+      if (error) throw error;
+
+      // Update local state
+      setFournisseurPrices(prev => 
+        prev.map(f => f.id === fournisseurId ? { ...f, prix_ttc: newPrice } : f)
+          .sort((a, b) => a.prix_ttc - b.prix_ttc)
+      );
+
+      toast.success('Prix mis à jour');
+      setEditingId(null);
+      setEditingPrice('');
+    } catch (error: any) {
+      console.error('Error updating price:', error);
+      toast.error(error.message || 'Erreur lors de la mise à jour');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [editingPrice]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Selection Card */}
@@ -256,18 +304,24 @@ export const SupplierComparison = () => {
                     <TableHead className="text-right">Prix TTC Unitaire</TableHead>
                     <TableHead className="text-right">Quantité</TableHead>
                     <TableHead className="text-right">Total TTC</TableHead>
-                    <TableHead className="text-center">Statut</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {fournisseurPrices.map((fournisseur) => {
                     const total = fournisseur.prix_ttc * quantity;
                     const isLowest = fournisseur.prix_ttc === minPrice;
+                    const isEditing = editingId === fournisseur.id;
                     
                     return (
                       <TableRow key={fournisseur.id} className={isLowest ? 'bg-primary/5' : ''}>
                         <TableCell className="font-medium">
                           {fournisseur.fournisseur_name}
+                          {isLowest && (
+                            <Badge className="ml-2 bg-primary text-primary-foreground">
+                              Meilleur prix
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
                           {fournisseur.phone ? (
@@ -283,19 +337,64 @@ export const SupplierComparison = () => {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          {fournisseur.prix_ttc.toFixed(3)} TND
+                          {isEditing ? (
+                            <Input
+                              type="number"
+                              step="0.001"
+                              min="0"
+                              value={editingPrice}
+                              onChange={(e) => setEditingPrice(e.target.value)}
+                              className="w-28 text-right ml-auto"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSavePrice(fournisseur.id);
+                                if (e.key === 'Escape') handleCancelEdit();
+                              }}
+                            />
+                          ) : (
+                            <span>{fournisseur.prix_ttc.toFixed(3)} TND</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           {quantity}
                         </TableCell>
                         <TableCell className="text-right font-bold">
-                          {total.toFixed(3)} TND
+                          {isEditing 
+                            ? ((parseFloat(editingPrice) || 0) * quantity).toFixed(3)
+                            : total.toFixed(3)
+                          } TND
                         </TableCell>
                         <TableCell className="text-center">
-                          {isLowest && (
-                            <Badge className="bg-primary text-primary-foreground">
-                              Meilleur prix
-                            </Badge>
+                          {isEditing ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100"
+                                onClick={() => handleSavePrice(fournisseur.id)}
+                                disabled={isSaving}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-100"
+                                onClick={handleCancelEdit}
+                                disabled={isSaving}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              onClick={() => handleEditPrice(fournisseur)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
                           )}
                         </TableCell>
                       </TableRow>
