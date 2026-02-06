@@ -25,6 +25,7 @@ interface ProductGroup {
   id: number;
   name: string;
   category: string;
+  fournisseurCount: number;
 }
 
 interface FournisseurPrice {
@@ -75,7 +76,24 @@ export const SupplierComparison = () => {
         .order('name');
       
       if (data) {
-        setProducts(data);
+        // Get fournisseur counts for each product
+        const productIds = data.map(p => p.id);
+        const { data: fournisseurData } = await supabase
+          .from('product_group_fournisseurs')
+          .select('product_group_id')
+          .in('product_group_id', productIds);
+
+        const countMap = new Map<number, number>();
+        fournisseurData?.forEach(f => {
+          countMap.set(f.product_group_id, (countMap.get(f.product_group_id) || 0) + 1);
+        });
+
+        const productsWithCount: ProductGroup[] = data.map(p => ({
+          ...p,
+          fournisseurCount: countMap.get(p.id) || 0
+        }));
+        
+        setProducts(productsWithCount);
       }
     };
     loadProducts();
@@ -178,7 +196,12 @@ export const SupplierComparison = () => {
                 <SelectContent>
                   {products.map(product => (
                     <SelectItem key={product.id} value={product.id.toString()}>
-                      {product.name}
+                      <div className="flex items-center justify-between w-full gap-4">
+                        <span>{product.name}</span>
+                        <Badge variant={product.fournisseurCount > 0 ? "default" : "secondary"} className="ml-auto">
+                          {product.fournisseurCount} fournisseur{product.fournisseurCount !== 1 ? 's' : ''}
+                        </Badge>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
