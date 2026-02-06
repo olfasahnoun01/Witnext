@@ -195,12 +195,12 @@ export const SupplierComparison = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {products.map(product => (
-                    <SelectItem key={product.id} value={product.id.toString()}>
-                      <span className="flex items-center justify-between w-full">
-                        <span className="truncate">{product.name}</span>
+                    <SelectItem key={product.id} value={product.id.toString()} className="pr-2">
+                      <span className="flex items-center w-full min-w-[200px]">
+                        <span className="truncate flex-1">{product.name}</span>
                         <Badge 
                           variant={product.fournisseurCount > 0 ? "default" : "secondary"} 
-                          className="ml-2 shrink-0"
+                          className="shrink-0"
                         >
                           {product.fournisseurCount}Fr
                         </Badge>
