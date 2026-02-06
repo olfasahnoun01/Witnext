@@ -4,6 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -280,21 +287,24 @@ export const ProductGroupModal = ({
             />
           </div>
 
-          {/* Category with datalist */}
+          {/* Category Select */}
           <div className="grid gap-2">
             <Label htmlFor="category">Catégorie *</Label>
-            <Input
-              id="category"
-              list="category-list"
+            <Select
               value={formData.category}
-              onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-              placeholder="Sélectionner ou saisir une nouvelle catégorie"
-            />
-            <datalist id="category-list">
-              {CATEGORIES.map(cat => (
-                <option key={cat} value={cat} />
-              ))}
-            </datalist>
+              onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Sélectionner une catégorie" />
+              </SelectTrigger>
+              <SelectContent className="bg-background border border-border z-50">
+                {CATEGORIES.map(cat => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Base SKU */}
