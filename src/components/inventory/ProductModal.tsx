@@ -1,9 +1,11 @@
 import { memo, useRef, useCallback, useState, useEffect } from 'react';
-import { X, Upload } from 'lucide-react';
+import { X, Upload, Check, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Product } from '@/types';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 const DEFAULT_CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
@@ -46,9 +48,12 @@ export const ProductModal = memo(({
 }: ProductModalProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [allCategories, setAllCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [categoryOpen, setCategoryOpen] = useState(false);
 
-  // Fetch all unique categories from database
+  // Fetch all unique categories from database when modal opens
   useEffect(() => {
+    if (!isOpen) return;
+    
     const fetchCategories = async () => {
       const { data } = await supabase
         .from('products')
@@ -62,7 +67,7 @@ export const ProductModal = memo(({
       }
     };
     fetchCategories();
-  }, []);
+  }, [isOpen]);
 
   const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -154,21 +159,47 @@ export const ProductModal = memo(({
 
             <div>
               <label className="form-label">Catégorie *</label>
-              <Select
-                value={formData.category || defaultCategory || ''}
-                onValueChange={(value) => onFormDataChange({ ...formData, category: value })}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Sélectionner une catégorie" />
-                </SelectTrigger>
-                <SelectContent className="z-[100]">
-                  {allCategories.map(cat => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={categoryOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {formData.category || defaultCategory || "Sélectionner une catégorie"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0 z-[100]" align="start">
+                  <Command>
+                    <CommandInput placeholder="Rechercher catégorie..." />
+                    <CommandList className="max-h-[300px]">
+                      <CommandEmpty>Aucune catégorie trouvée.</CommandEmpty>
+                      <CommandGroup>
+                        {allCategories.map((cat) => (
+                          <CommandItem
+                            key={cat}
+                            value={cat}
+                            onSelect={() => {
+                              onFormDataChange({ ...formData, category: cat });
+                              setCategoryOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                formData.category === cat ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {cat}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div>
