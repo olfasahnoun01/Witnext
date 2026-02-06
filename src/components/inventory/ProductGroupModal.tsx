@@ -23,8 +23,8 @@ import { ProductGroup, ProductGroupFournisseur } from '@/types';
 import { compressImage, formatBytes, getBase64Size } from '@/lib/imageCompression';
 import { MultiFournisseurInput } from './MultiFournisseurInput';
 
-// Predefined categories
-const CATEGORIES = [
+// Default categories as fallback
+const DEFAULT_CATEGORIES = [
   'Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 
   'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Tablier'
 ];
@@ -64,7 +64,29 @@ export const ProductGroupModal = ({
 }: ProductGroupModalProps) => {
   const [formData, setFormData] = useState<ProductGroupFormData>(emptyFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load all categories from database
+  useEffect(() => {
+    const loadCategories = async () => {
+      const { data, error } = await supabase
+        .from('product_groups')
+        .select('category')
+        .order('category');
+      
+      if (!error && data) {
+        const uniqueCategories = [...new Set(data.map(p => p.category))].filter(Boolean);
+        // Merge with defaults to ensure all are available
+        const allCategories = [...new Set([...DEFAULT_CATEGORIES, ...uniqueCategories])].sort();
+        setCategories(allCategories);
+      }
+    };
+    
+    if (isOpen) {
+      loadCategories();
+    }
+  }, [isOpen]);
 
   // Load existing fournisseurs when editing
   useEffect(() => {
@@ -297,8 +319,8 @@ export const ProductGroupModal = ({
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Sélectionner une catégorie" />
               </SelectTrigger>
-              <SelectContent className="bg-background border border-border z-50">
-                {CATEGORIES.map(cat => (
+              <SelectContent className="bg-background border border-border z-50 max-h-[300px]">
+                {categories.map(cat => (
                   <SelectItem key={cat} value={cat}>
                     {cat}
                   </SelectItem>
