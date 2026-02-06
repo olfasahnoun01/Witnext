@@ -12,8 +12,9 @@ import {
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { ProductGroup } from '@/types';
+import { ProductGroup, ProductGroupFournisseur } from '@/types';
 import { compressImage, formatBytes, getBase64Size } from '@/lib/imageCompression';
+import { MultiFournisseurInput } from './MultiFournisseurInput';
 
 // Predefined categories
 const CATEGORIES = [
@@ -25,9 +26,9 @@ interface ProductGroupFormData {
   name: string;
   category: string;
   base_sku: string;
-  fournisseur: string;
   min_stock: number;
   image: string | null;
+  fournisseurs: ProductGroupFournisseur[];
 }
 
 interface ProductGroupModalProps {
@@ -42,9 +43,9 @@ const emptyFormData: ProductGroupFormData = {
   name: '',
   category: '',
   base_sku: '',
-  fournisseur: '',
   min_stock: 5,
   image: null,
+  fournisseurs: [],
 };
 
 export const ProductGroupModal = ({
@@ -55,39 +56,54 @@ export const ProductGroupModal = ({
   editingGroup,
 }: ProductGroupModalProps) => {
   const [formData, setFormData] = useState<ProductGroupFormData>(emptyFormData);
-  const [fournisseurs, setFournisseurs] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch fournisseurs from database
+  // Load existing fournisseurs when editing
   useEffect(() => {
-    const fetchFournisseurs = async () => {
-      const { data, error } = await supabase
-        .from('fournisseurs')
-        .select('nom')
-        .order('nom');
-      
-      if (!error && data) {
-        setFournisseurs(data.map(f => f.nom));
+    const loadGroupFournisseurs = async () => {
+      if (editingGroup?.id) {
+        const { data, error } = await supabase
+          .from('product_group_fournisseurs')
+          .select('*')
+          .eq('product_group_id', editingGroup.id);
+        
+        if (!error && data) {
+          setFormData(prev => ({
+            ...prev,
+            fournisseurs: data.map(f => ({
+              id: f.id,
+              product_group_id: f.product_group_id,
+              fournisseur_name: f.fournisseur_name,
+              prix_ttc: f.prix_ttc,
+            })),
+          }));
+        }
       }
     };
     
-    if (isOpen) {
-      fetchFournisseurs();
+    if (isOpen && editingGroup) {
+      loadGroupFournisseurs();
     }
-  }, [isOpen]);
+  }, [isOpen, editingGroup?.id]);
 
   // Initialize form when modal opens
   useEffect(() => {
     if (isOpen) {
       if (editingGroup) {
+        // Migrate old single fournisseur to new multi-fournisseur if needed
+        const initialFournisseurs: ProductGroupFournisseur[] = [];
+        if (editingGroup.fournisseur && editingGroup.fournisseur.trim()) {
+          initialFournisseurs.push({ fournisseur_name: editingGroup.fournisseur, prix_ttc: 0 });
+        }
+        
         setFormData({
           name: editingGroup.name,
           category: editingGroup.category,
           base_sku: editingGroup.base_sku || '',
-          fournisseur: editingGroup.fournisseur || '',
           min_stock: editingGroup.min_stock,
           image: editingGroup.image,
+          fournisseurs: initialFournisseurs,
         });
       } else {
         setFormData({
@@ -139,6 +155,13 @@ export const ProductGroupModal = ({
 
     setIsSubmitting(true);
     try {
+      let groupId: number;
+      
+      // Get the primary fournisseur name for backward compatibility
+      const primaryFournisseur = formData.fournisseurs.length > 0 
+        ? formData.fournisseurs[0].fournisseur_name 
+        : null;
+
       if (editingGroup) {
         // Update existing group
         const { error } = await supabase
@@ -147,7 +170,7 @@ export const ProductGroupModal = ({
             name: formData.name.trim(),
             category: formData.category.trim(),
             base_sku: formData.base_sku.trim() || null,
-            fournisseur: formData.fournisseur.trim() || null,
+            fournisseur: primaryFournisseur,
             min_stock: formData.min_stock,
             image: formData.image,
             updated_at: new Date().toISOString(),
@@ -155,24 +178,52 @@ export const ProductGroupModal = ({
           .eq('id', editingGroup.id);
 
         if (error) throw error;
-        toast.success('Produit mis à jour');
+        groupId = editingGroup.id;
+        
+        // Delete old fournisseurs and insert new ones
+        await supabase
+          .from('product_group_fournisseurs')
+          .delete()
+          .eq('product_group_id', groupId);
       } else {
         // Create new group
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('product_groups')
           .insert({
             name: formData.name.trim(),
             category: formData.category.trim(),
             base_sku: formData.base_sku.trim() || null,
-            fournisseur: formData.fournisseur.trim() || null,
+            fournisseur: primaryFournisseur,
             min_stock: formData.min_stock,
             image: formData.image,
-          });
+          })
+          .select('id')
+          .single();
 
         if (error) throw error;
-        toast.success('Produit créé avec succès');
+        groupId = data.id;
+      }
+      
+      // Insert fournisseurs
+      if (formData.fournisseurs.length > 0) {
+        const fournisseursToInsert = formData.fournisseurs
+          .filter(f => f.fournisseur_name.trim())
+          .map(f => ({
+            product_group_id: groupId,
+            fournisseur_name: f.fournisseur_name.trim(),
+            prix_ttc: f.prix_ttc || 0,
+          }));
+        
+        if (fournisseursToInsert.length > 0) {
+          const { error: fournisseurError } = await supabase
+            .from('product_group_fournisseurs')
+            .insert(fournisseursToInsert);
+          
+          if (fournisseurError) throw fournisseurError;
+        }
       }
 
+      toast.success(editingGroup ? 'Produit mis à jour' : 'Produit créé avec succès');
       onSuccess();
       onClose();
     } catch (error: any) {
@@ -257,25 +308,11 @@ export const ProductGroupModal = ({
             />
           </div>
 
-          {/* Fournisseur with datalist */}
-          <div className="grid gap-2">
-            <Label htmlFor="fournisseur">Fournisseur</Label>
-            <Input
-              id="fournisseur"
-              list="fournisseur-list"
-              value={formData.fournisseur}
-              onChange={(e) => setFormData(prev => ({ ...prev, fournisseur: e.target.value }))}
-              placeholder="Sélectionner ou saisir un nouveau fournisseur"
-            />
-            <datalist id="fournisseur-list">
-              {fournisseurs.map(f => (
-                <option key={f} value={f} />
-              ))}
-            </datalist>
-            <p className="text-xs text-muted-foreground">
-              Vous pouvez sélectionner un fournisseur existant ou en saisir un nouveau
-            </p>
-          </div>
+          {/* Multi-Fournisseurs with Prix TTC */}
+          <MultiFournisseurInput
+            value={formData.fournisseurs}
+            onChange={(fournisseurs) => setFormData(prev => ({ ...prev, fournisseurs }))}
+          />
 
           {/* Min Stock */}
           <div className="grid gap-2">

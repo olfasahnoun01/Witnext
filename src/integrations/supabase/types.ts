@@ -161,6 +161,41 @@ export type Database = {
         }
         Relationships: []
       }
+      product_group_fournisseurs: {
+        Row: {
+          created_at: string
+          fournisseur_name: string
+          id: number
+          prix_ttc: number
+          product_group_id: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          fournisseur_name: string
+          id?: number
+          prix_ttc?: number
+          product_group_id: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          fournisseur_name?: string
+          id?: number
+          prix_ttc?: number
+          product_group_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_group_fournisseurs_product_group_id_fkey"
+            columns: ["product_group_id"]
+            isOneToOne: false
+            referencedRelation: "product_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_groups: {
         Row: {
           base_sku: string | null
