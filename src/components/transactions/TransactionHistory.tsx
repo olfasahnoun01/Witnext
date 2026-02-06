@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Edit, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Transaction, Product } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,7 +24,6 @@ export const TransactionHistory = ({
 }: TransactionHistoryProps) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasLoaded, setHasLoaded] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageInputValue, setPageInputValue] = useState('1');
   
@@ -36,7 +35,6 @@ export const TransactionHistory = ({
   const loadTransactions = useCallback(async () => {
     if (!selectedProduct) {
       setTransactions([]);
-      setHasLoaded(false);
       return;
     }
 
@@ -52,7 +50,6 @@ export const TransactionHistory = ({
       if (error) throw error;
       
       setTransactions(data as Transaction[] || []);
-      setHasLoaded(true);
       setCurrentPage(1);
       setPageInputValue('1');
     } catch (error) {
@@ -62,6 +59,15 @@ export const TransactionHistory = ({
       setIsLoading(false);
     }
   }, [selectedProduct, activeTab]);
+
+  // Auto-load when product is selected or tab changes
+  useEffect(() => {
+    if (selectedProduct) {
+      loadTransactions();
+    } else {
+      setTransactions([]);
+    }
+  }, [selectedProduct?.id, activeTab]);
 
   // Pagination
   const totalPages = Math.ceil(transactions.length / ITEMS_PER_PAGE);
@@ -137,17 +143,6 @@ export const TransactionHistory = ({
     onTransactionChange();
   };
 
-  // Reset when product changes
-  const productId = selectedProduct?.id;
-  const previousProductId = usePrevious(productId);
-  
-  if (productId !== previousProductId) {
-    if (hasLoaded) {
-      setHasLoaded(false);
-      setTransactions([]);
-    }
-  }
-
   return (
     <div className="bg-card rounded-xl border border-border p-6">
       <h3 className="text-lg font-semibold text-foreground mb-4">
@@ -158,20 +153,6 @@ export const TransactionHistory = ({
         <p className="text-sm text-muted-foreground text-center py-8">
           Sélectionnez un produit pour voir son historique
         </p>
-      ) : !hasLoaded ? (
-        <div className="text-center py-8 space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Produit: <span className="font-medium text-foreground">{selectedProduct.name}</span>
-          </p>
-          <Button 
-            onClick={loadTransactions} 
-            disabled={isLoading}
-            variant="outline"
-          >
-            <Search className="w-4 h-4 mr-2" />
-            {isLoading ? 'Chargement...' : 'Charger l\'historique'}
-          </Button>
-        </div>
       ) : isLoading ? (
         <div className="space-y-3">
           {[...Array(3)].map((_, i) => (
@@ -330,15 +311,3 @@ export const TransactionHistory = ({
   );
 };
 
-// Custom hook to track previous value
-function usePrevious<T>(value: T): T | undefined {
-  const [prev, setPrev] = useState<T | undefined>(undefined);
-  const [current, setCurrent] = useState<T>(value);
-  
-  if (value !== current) {
-    setPrev(current);
-    setCurrent(value);
-  }
-  
-  return prev;
-}
