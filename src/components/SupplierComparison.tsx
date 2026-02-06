@@ -196,12 +196,15 @@ export const SupplierComparison = () => {
                 <SelectContent>
                   {products.map(product => (
                     <SelectItem key={product.id} value={product.id.toString()}>
-                      <div className="flex items-center justify-between w-full gap-4">
-                        <span>{product.name}</span>
-                        <Badge variant={product.fournisseurCount > 0 ? "default" : "secondary"} className="ml-auto">
-                          {product.fournisseurCount} fournisseur{product.fournisseurCount !== 1 ? 's' : ''}
+                      <span className="flex items-center justify-between w-full">
+                        <span className="truncate">{product.name}</span>
+                        <Badge 
+                          variant={product.fournisseurCount > 0 ? "default" : "secondary"} 
+                          className="ml-2 shrink-0"
+                        >
+                          {product.fournisseurCount}Fr
                         </Badge>
-                      </div>
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
