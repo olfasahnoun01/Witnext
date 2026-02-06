@@ -236,14 +236,14 @@ export const ProductGroupModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>
             {editingGroup ? 'Modifier le produit' : 'Créer un nouveau produit'}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-4 py-4 overflow-y-auto flex-1 pr-2">
           {/* Image Upload */}
           <div className="flex items-center gap-4">
             <div 
