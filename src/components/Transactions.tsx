@@ -135,12 +135,6 @@ export const Transactions = memo(() => {
           </h3>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="flex items-center gap-2 p-4 rounded-lg bg-destructive/10 text-destructive">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <span className="text-sm">{error}</span>
-              </div>
-            )}
 
             <div>
               <label className="form-label">Produit *</label>
