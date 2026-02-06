@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Package, Palette, Ruler, Trash2 } from 'lucide-react';
+import { Package, Palette, Ruler, Trash2, Pencil } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,9 @@ import { ProductGroup, StockStatus } from '@/types';
 interface ProductGroupCardProps {
   group: ProductGroup;
   onClick: () => void;
+  onEdit?: (group: ProductGroup) => void;
   onDelete?: (group: ProductGroup) => void;
+  canEdit?: boolean;
   canDelete?: boolean;
 }
 
@@ -24,9 +26,14 @@ const statusStyles: Record<StockStatus, { bg: string; text: string; label: strin
   out_of_stock: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', label: 'Rupture' }
 };
 
-export const ProductGroupCard = memo(({ group, onClick, onDelete, canDelete }: ProductGroupCardProps) => {
+export const ProductGroupCard = memo(({ group, onClick, onEdit, onDelete, canEdit, canDelete }: ProductGroupCardProps) => {
   const status = getStockStatus(group);
   const style = statusStyles[status];
+
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEdit?.(group);
+  };
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -38,16 +45,31 @@ export const ProductGroupCard = memo(({ group, onClick, onDelete, canDelete }: P
       className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02] border-border/50 relative group"
       onClick={onClick}
     >
-      {canDelete && onDelete && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleDeleteClick}
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10 z-10"
-          title="Supprimer l'article"
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
+      {(canEdit || canDelete) && (
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex gap-1">
+          {canEdit && onEdit && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleEditClick}
+              className="text-muted-foreground hover:text-foreground hover:bg-accent"
+              title="Modifier l'article"
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
+          )}
+          {canDelete && onDelete && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDeleteClick}
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              title="Supprimer l'article"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
       )}
       <CardContent className="p-4">
         <div className="flex gap-4">
