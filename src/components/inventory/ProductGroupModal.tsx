@@ -16,8 +16,8 @@ import { ProductGroup, ProductGroupFournisseur } from '@/types';
 import { compressImage, formatBytes, getBase64Size } from '@/lib/imageCompression';
 import { MultiFournisseurInput } from './MultiFournisseurInput';
 
-// Predefined categories (fallback)
-const DEFAULT_CATEGORIES = [
+// Predefined categories
+const CATEGORIES = [
   'Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 
   'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Tablier'
 ];
@@ -57,30 +57,7 @@ export const ProductGroupModal = ({
 }: ProductGroupModalProps) => {
   const [formData, setFormData] = useState<ProductGroupFormData>(emptyFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [allCategories, setAllCategories] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Load all existing categories from database
-  useEffect(() => {
-    const loadCategories = async () => {
-      const { data } = await supabase
-        .from('product_groups')
-        .select('category');
-      
-      if (data) {
-        const dbCategories = [...new Set(data.map(p => p.category))];
-        // Merge with default categories and remove duplicates
-        const merged = [...new Set([...DEFAULT_CATEGORIES, ...dbCategories])].sort();
-        setAllCategories(merged);
-      } else {
-        setAllCategories(DEFAULT_CATEGORIES);
-      }
-    };
-    
-    if (isOpen) {
-      loadCategories();
-    }
-  }, [isOpen]);
 
   // Load existing fournisseurs when editing
   useEffect(() => {
@@ -314,7 +291,7 @@ export const ProductGroupModal = ({
               placeholder="Sélectionner ou saisir une nouvelle catégorie"
             />
             <datalist id="category-list">
-              {allCategories.map(cat => (
+              {CATEGORIES.map(cat => (
                 <option key={cat} value={cat} />
               ))}
             </datalist>
