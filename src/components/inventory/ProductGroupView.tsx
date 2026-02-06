@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { ArrowLeft, Plus, RefreshCw, Search } from 'lucide-react';
+import { ArrowLeft, Plus, RefreshCw, Search, X, Check, ChevronsUpDown } from 'lucide-react';
 import { ProductGroup } from '@/types';
 import { getProductGroupsByCategory, deleteProductGroup } from '@/services/productGroupService';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +16,20 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 import { sanitizeSearchInput } from '@/lib/sanitize';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
 import { useAuth } from '@/hooks/useAuth';
@@ -37,6 +51,11 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
   const [selectedGroup, setSelectedGroup] = useState<ProductGroup | null>(null);
   const [isProductGroupModalOpen, setIsProductGroupModalOpen] = useState(false);
   const [editingProductGroup, setEditingProductGroup] = useState<ProductGroup | null>(null);
+  
+  // Supplier filter state
+  const [fournisseurs, setFournisseurs] = useState<string[]>([]);
+  const [selectedFournisseur, setSelectedFournisseur] = useState<string>('');
+  const [fournisseurOpen, setFournisseurOpen] = useState(false);
 
   const fetchGroups = useCallback(async () => {
     setIsLoading(true);
@@ -50,9 +69,25 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
     }
   }, [category]);
 
+  // Fetch fournisseurs from database
+  const fetchFournisseurs = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('fournisseurs')
+        .select('nom')
+        .order('nom');
+      
+      if (error) throw error;
+      setFournisseurs(data?.map(f => f.nom) || []);
+    } catch (error) {
+      console.error('Error fetching fournisseurs:', error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchGroups();
-  }, [fetchGroups]);
+    fetchFournisseurs();
+  }, [fetchGroups, fetchFournisseurs]);
 
   // Subscribe to realtime changes on products and product_groups
   useRealtimeData({
@@ -61,19 +96,31 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
     showToast: true
   });
 
-  // Filter groups by search
+  // Filter groups by search and fournisseur
   const filteredGroups = useMemo(() => {
-    if (!searchQuery) return groups;
+    let result = groups;
     
-    const sanitized = sanitizeSearchInput(searchQuery)?.toLowerCase();
-    if (!sanitized) return groups;
+    // Filter by fournisseur first
+    if (selectedFournisseur) {
+      result = result.filter(g => 
+        g.fournisseur?.toLowerCase() === selectedFournisseur.toLowerCase()
+      );
+    }
     
-    return groups.filter(g => 
-      g.name.toLowerCase().includes(sanitized) ||
-      g.base_sku?.toLowerCase().includes(sanitized) ||
-      g.fournisseur?.toLowerCase().includes(sanitized)
-    );
-  }, [groups, searchQuery]);
+    // Then filter by search
+    if (searchQuery) {
+      const sanitized = sanitizeSearchInput(searchQuery)?.toLowerCase();
+      if (sanitized) {
+        result = result.filter(g => 
+          g.name.toLowerCase().includes(sanitized) ||
+          g.base_sku?.toLowerCase().includes(sanitized) ||
+          g.fournisseur?.toLowerCase().includes(sanitized)
+        );
+      }
+    }
+    
+    return result;
+  }, [groups, searchQuery, selectedFournisseur]);
 
   // Paginate
   const totalPages = Math.ceil(filteredGroups.length / ITEMS_PER_PAGE);
@@ -82,10 +129,10 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
     return filteredGroups.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredGroups, currentPage]);
 
-  // Reset page when search changes
+  // Reset page when search or filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, selectedFournisseur]);
 
   const handleGroupClick = useCallback((group: ProductGroup) => {
     setSelectedGroup(group);
@@ -195,15 +242,73 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Rechercher un produit..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
+      {/* Search and Filter */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="relative flex-1 min-w-[200px] max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Rechercher un produit..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        
+        {/* Fournisseur Filter */}
+        <Popover open={fournisseurOpen} onOpenChange={setFournisseurOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={fournisseurOpen}
+              className="w-[220px] justify-between"
+            >
+              {selectedFournisseur || "Filtrer par fournisseur"}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[220px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Rechercher fournisseur..." />
+              <CommandList>
+                <CommandEmpty>Aucun fournisseur trouvé.</CommandEmpty>
+                <CommandGroup>
+                  {fournisseurs.map((fournisseur) => (
+                    <CommandItem
+                      key={fournisseur}
+                      value={fournisseur}
+                      onSelect={(value) => {
+                        setSelectedFournisseur(value === selectedFournisseur ? '' : value);
+                        setFournisseurOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          selectedFournisseur === fournisseur ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {fournisseur}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+        
+        {/* Clear filter button */}
+        {selectedFournisseur && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedFournisseur('')}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <X className="w-4 h-4 mr-1" />
+            Effacer filtre
+          </Button>
+        )}
       </div>
 
       {/* Loading */}
