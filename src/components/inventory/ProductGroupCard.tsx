@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Package, Palette, Ruler, Trash2, Pencil } from 'lucide-react';
+import { Package, Palette, Ruler, Trash2, Pencil, AlertTriangle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,13 @@ const getStockStatus = (group: ProductGroup): StockStatus => {
   return 'in_stock';
 };
 
+const hasNoSupplier = (group: ProductGroup): boolean => {
+  // Check both old single supplier and new multi-suppliers
+  const hasOldSupplier = group.fournisseur && group.fournisseur.trim() !== '';
+  const hasNewSuppliers = group.fournisseurs && group.fournisseurs.length > 0;
+  return !hasOldSupplier && !hasNewSuppliers;
+};
+
 const statusStyles: Record<StockStatus, { bg: string; text: string; label: string }> = {
   in_stock: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-400', label: 'En stock' },
   low_stock: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400', label: 'Stock faible' },
@@ -29,6 +36,7 @@ const statusStyles: Record<StockStatus, { bg: string; text: string; label: strin
 export const ProductGroupCard = memo(({ group, onClick, onEdit, onDelete, canEdit, canDelete }: ProductGroupCardProps) => {
   const status = getStockStatus(group);
   const style = statusStyles[status];
+  const noSupplier = hasNoSupplier(group);
 
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -103,6 +111,13 @@ export const ProductGroupCard = memo(({ group, onClick, onEdit, onDelete, canEdi
             
             {/* Variant info */}
             <div className="flex flex-wrap gap-2 mt-2">
+              {noSupplier && (
+                <span className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 px-2 py-1 rounded">
+                  <AlertTriangle className="w-3 h-3" />
+                  Sans fournisseur
+                </span>
+              )}
+              
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
                 <Package className="w-3 h-3" />
                 {group.variant_count || 0} variante{(group.variant_count || 0) !== 1 ? 's' : ''}
