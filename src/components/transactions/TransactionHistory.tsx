@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 interface TransactionHistoryProps {
   activeTab: 'in' | 'out';
   selectedProduct: Product | null;
+  groupVariantIds: number[];
   isAdmin: boolean;
   onTransactionChange: () => void;
 }
@@ -19,6 +20,7 @@ const ITEMS_PER_PAGE = 5;
 export const TransactionHistory = ({
   activeTab,
   selectedProduct,
+  groupVariantIds,
   isAdmin,
   onTransactionChange
 }: TransactionHistoryProps) => {
@@ -33,7 +35,14 @@ export const TransactionHistory = ({
   const [editNote, setEditNote] = useState('');
 
   const loadTransactions = useCallback(async () => {
-    if (!selectedProduct) {
+    // Determine which product IDs to fetch
+    const productIdsToFetch = selectedProduct 
+      ? [selectedProduct.id] 
+      : groupVariantIds.length > 0 
+        ? groupVariantIds 
+        : [];
+
+    if (productIdsToFetch.length === 0) {
       setTransactions([]);
       return;
     }
@@ -43,7 +52,7 @@ export const TransactionHistory = ({
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
-        .eq('product_id', selectedProduct.id)
+        .in('product_id', productIdsToFetch)
         .eq('type', activeTab === 'in' ? 'IN' : 'OUT')
         .order('date', { ascending: false });
 
@@ -58,16 +67,16 @@ export const TransactionHistory = ({
     } finally {
       setIsLoading(false);
     }
-  }, [selectedProduct, activeTab]);
+  }, [selectedProduct, groupVariantIds, activeTab]);
 
-  // Auto-load when product is selected or tab changes
+  // Auto-load when product is selected, group variants change, or tab changes
   useEffect(() => {
-    if (selectedProduct) {
+    if (selectedProduct || groupVariantIds.length > 0) {
       loadTransactions();
     } else {
       setTransactions([]);
     }
-  }, [selectedProduct?.id, activeTab]);
+  }, [selectedProduct?.id, groupVariantIds, activeTab]);
 
   // Pagination
   const totalPages = Math.ceil(transactions.length / ITEMS_PER_PAGE);
@@ -149,7 +158,7 @@ export const TransactionHistory = ({
         Historique - {activeTab === 'in' ? 'Entrées' : 'Sorties'}
       </h3>
 
-      {!selectedProduct ? (
+      {!selectedProduct && groupVariantIds.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-8">
           Sélectionnez un produit pour voir son historique
         </p>

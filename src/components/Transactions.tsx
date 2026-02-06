@@ -26,6 +26,7 @@ export const Transactions = memo(() => {
   const [activeTab, setActiveTab] = useState<TabType>('in');
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<number | ''>('');
+  const [groupVariantIds, setGroupVariantIds] = useState<number[]>([]);
   const [quantity, setQuantity] = useState<number>(1);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
@@ -83,6 +84,7 @@ export const Transactions = memo(() => {
 
       // Reset form and refresh history
       setSelectedProductId('');
+      setGroupVariantIds([]);
       setQuantity(1);
       setNote('');
       setTransactionDate(new Date());
@@ -168,6 +170,7 @@ export const Transactions = memo(() => {
                     size="sm"
                     onClick={() => {
                       setSelectedProductId('');
+                      setGroupVariantIds([]);
                       setError('');
                     }}
                     className="flex-shrink-0"
@@ -178,6 +181,10 @@ export const Transactions = memo(() => {
               ) : (
                 <CategoryProductSelector
                   selectedProductId={selectedProductId}
+                  onGroupSelect={(group, variants) => {
+                    // When a group is selected, store all variant IDs for history
+                    setGroupVariantIds(variants.map(v => v.id));
+                  }}
                   onSelect={(product) => {
                     setSelectedProductId(product.id);
                     setError('');
@@ -273,6 +280,7 @@ export const Transactions = memo(() => {
           key={`${activeTab}-${historyRefreshKey}`}
           activeTab={activeTab}
           selectedProduct={selectedProduct}
+          groupVariantIds={groupVariantIds}
           isAdmin={isAdmin}
           onTransactionChange={handleTransactionChange}
         />
