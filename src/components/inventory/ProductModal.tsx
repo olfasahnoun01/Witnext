@@ -161,7 +161,7 @@ export const ProductModal = memo(({
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Sélectionner une catégorie" />
                 </SelectTrigger>
-                <SelectContent className="max-h-60 overflow-y-auto z-[100]">
+                <SelectContent className="z-[100]">
                   {allCategories.map(cat => (
                     <SelectItem key={cat} value={cat}>
                       {cat}
