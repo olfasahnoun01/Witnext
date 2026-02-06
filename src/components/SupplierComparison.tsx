@@ -239,11 +239,40 @@ export const SupplierComparison = () => {
 
     setIsSaving(true);
     try {
+      const fournisseurNameTrimmed = newFournisseurName.trim();
+      
+      // Check if fournisseur exists in the fournisseurs table
+      const { data: existingFournisseur } = await supabase
+        .from('fournisseurs')
+        .select('id, phone')
+        .eq('nom', fournisseurNameTrimmed)
+        .maybeSingle();
+
+      // If fournisseur doesn't exist, create it
+      if (!existingFournisseur) {
+        const { error: createError } = await supabase
+          .from('fournisseurs')
+          .insert({
+            nom: fournisseurNameTrimmed,
+            specialite: 'Non spécifiée',
+          });
+
+        if (createError) {
+          console.warn('Could not create fournisseur in main table:', createError);
+          // Continue anyway - the product_group_fournisseurs entry will still work
+        } else {
+          // Update local list of fournisseurs for autocomplete
+          setExistingFournisseurs(prev => [...prev, fournisseurNameTrimmed].sort());
+          toast.info(`Nouveau fournisseur "${fournisseurNameTrimmed}" créé`);
+        }
+      }
+
+      // Add to product_group_fournisseurs
       const { data, error } = await supabase
         .from('product_group_fournisseurs')
         .insert({
           product_group_id: parseInt(selectedProductId),
-          fournisseur_name: newFournisseurName.trim(),
+          fournisseur_name: fournisseurNameTrimmed,
           prix_ttc: price,
         })
         .select('id, fournisseur_name, prix_ttc')
@@ -251,24 +280,18 @@ export const SupplierComparison = () => {
 
       if (error) throw error;
 
-      const { data: fournisseurData } = await supabase
-        .from('fournisseurs')
-        .select('phone')
-        .eq('nom', newFournisseurName.trim())
-        .maybeSingle();
-
       const newEntry: FournisseurPrice = {
         id: data.id,
         fournisseur_name: data.fournisseur_name,
         prix_ttc: data.prix_ttc,
-        phone: fournisseurData?.phone || null,
+        phone: existingFournisseur?.phone || null,
       };
 
       setFournisseurPrices(prev => 
         [...prev, newEntry].sort((a, b) => a.prix_ttc - b.prix_ttc)
       );
 
-      toast.success('Fournisseur ajouté');
+      toast.success('Fournisseur ajouté au produit');
       setIsAddingNew(false);
       setNewFournisseurName('');
       setNewFournisseurPrice('');
