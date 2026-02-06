@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { ProductGroup, Product } from '@/types';
+import { ProductGroup, Product, ProductGroupFournisseur } from '@/types';
 
 // Fetch product groups by category with variant aggregations
 export const getProductGroupsByCategory = async (category: string): Promise<ProductGroup[]> => {
@@ -23,12 +23,18 @@ export const getProductGroupsByCategory = async (category: string): Promise<Prod
     // Get variant aggregations for each group
     const groupIds = groups.map(g => g.id);
     
-    const { data: variants, error: variantsError } = await supabase
-      .from('products')
-      .select('product_group_id, quantity, color, size')
-      .in('product_group_id', groupIds);
+    const [variantsResult, fournisseursResult] = await Promise.all([
+      supabase
+        .from('products')
+        .select('product_group_id, quantity, color, size')
+        .in('product_group_id', groupIds),
+      supabase
+        .from('product_group_fournisseurs')
+        .select('*')
+        .in('product_group_id', groupIds)
+    ]);
     
-    if (variantsError) throw variantsError;
+    if (variantsResult.error) throw variantsResult.error;
     
     // Aggregate variant data
     const aggregations: Record<number, {
@@ -38,7 +44,7 @@ export const getProductGroupsByCategory = async (category: string): Promise<Prod
       sizes: Set<string>;
     }> = {};
     
-    variants?.forEach(v => {
+    variantsResult.data?.forEach(v => {
       if (!v.product_group_id) return;
       
       if (!aggregations[v.product_group_id]) {
@@ -57,6 +63,20 @@ export const getProductGroupsByCategory = async (category: string): Promise<Prod
       if (v.size) agg.sizes.add(v.size);
     });
     
+    // Group fournisseurs by product_group_id
+    const fournisseursByGroup: Record<number, ProductGroupFournisseur[]> = {};
+    fournisseursResult.data?.forEach(f => {
+      if (!fournisseursByGroup[f.product_group_id]) {
+        fournisseursByGroup[f.product_group_id] = [];
+      }
+      fournisseursByGroup[f.product_group_id].push({
+        id: f.id,
+        product_group_id: f.product_group_id,
+        fournisseur_name: f.fournisseur_name,
+        prix_ttc: Number(f.prix_ttc)
+      });
+    });
+    
     // Merge aggregations with groups
     return groups.map(g => ({
       id: g.id,
@@ -71,7 +91,8 @@ export const getProductGroupsByCategory = async (category: string): Promise<Prod
       variant_count: aggregations[g.id]?.variant_count || 0,
       total_stock: aggregations[g.id]?.total_stock || 0,
       colors: aggregations[g.id] ? Array.from(aggregations[g.id].colors) : [],
-      sizes: aggregations[g.id] ? Array.from(aggregations[g.id].sizes) : []
+      sizes: aggregations[g.id] ? Array.from(aggregations[g.id].sizes) : [],
+      fournisseurs: fournisseursByGroup[g.id] || []
     }));
   } catch (error) {
     console.error('Error fetching product groups:', error);
