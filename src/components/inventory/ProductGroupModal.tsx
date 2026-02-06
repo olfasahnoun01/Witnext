@@ -88,58 +88,56 @@ export const ProductGroupModal = ({
     }
   }, [isOpen]);
 
-  // Load existing fournisseurs when editing
+  // Initialize form when modal opens - including loading fournisseurs from DB
   useEffect(() => {
-    const loadGroupFournisseurs = async () => {
-      if (editingGroup?.id) {
-        const { data, error } = await supabase
-          .from('product_group_fournisseurs')
-          .select('*')
-          .eq('product_group_id', editingGroup.id);
-        
-        if (!error && data) {
-          setFormData(prev => ({
-            ...prev,
-            fournisseurs: data.map(f => ({
-              id: f.id,
-              product_group_id: f.product_group_id,
-              fournisseur_name: f.fournisseur_name,
-              prix_ttc: f.prix_ttc,
-            })),
-          }));
-        }
-      }
-    };
-    
-    if (isOpen && editingGroup) {
-      loadGroupFournisseurs();
-    }
-  }, [isOpen, editingGroup?.id]);
-
-  // Initialize form when modal opens
-  useEffect(() => {
-    if (isOpen) {
+    const initializeForm = async () => {
       if (editingGroup) {
-        // Migrate old single fournisseur to new multi-fournisseur if needed
-        const initialFournisseurs: ProductGroupFournisseur[] = [];
-        if (editingGroup.fournisseur && editingGroup.fournisseur.trim()) {
-          initialFournisseurs.push({ fournisseur_name: editingGroup.fournisseur, prix_ttc: 0 });
-        }
-        
+        // First, set basic form data
         setFormData({
           name: editingGroup.name,
           category: editingGroup.category,
           base_sku: editingGroup.base_sku || '',
           min_stock: editingGroup.min_stock,
           image: editingGroup.image,
-          fournisseurs: initialFournisseurs,
+          fournisseurs: [], // Will be loaded from DB
         });
+        
+        // Then load fournisseurs from database
+        if (editingGroup.id) {
+          const { data, error } = await supabase
+            .from('product_group_fournisseurs')
+            .select('*')
+            .eq('product_group_id', editingGroup.id);
+          
+          if (!error && data && data.length > 0) {
+            // Use fournisseurs from the junction table
+            setFormData(prev => ({
+              ...prev,
+              fournisseurs: data.map(f => ({
+                id: f.id,
+                product_group_id: f.product_group_id,
+                fournisseur_name: f.fournisseur_name,
+                prix_ttc: f.prix_ttc,
+              })),
+            }));
+          } else if (editingGroup.fournisseur && editingGroup.fournisseur.trim()) {
+            // Fallback: use legacy fournisseur field if no entries in junction table
+            setFormData(prev => ({
+              ...prev,
+              fournisseurs: [{ fournisseur_name: editingGroup.fournisseur!, prix_ttc: 0 }],
+            }));
+          }
+        }
       } else {
         setFormData({
           ...emptyFormData,
           category: defaultCategory || '',
         });
       }
+    };
+    
+    if (isOpen) {
+      initializeForm();
     }
   }, [isOpen, editingGroup, defaultCategory]);
 
