@@ -21,12 +21,13 @@ const MAIN_CATEGORIES = [
 
 interface CategoryProductSelectorProps {
   onSelect: (product: Product) => void;
+  onGroupSelect?: (group: ProductGroup, variants: Product[]) => void;
   selectedProductId: number | '';
 }
 
 type ViewState = 'categories' | 'products' | 'variants';
 
-export const CategoryProductSelector = ({ onSelect, selectedProductId }: CategoryProductSelectorProps) => {
+export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProductId }: CategoryProductSelectorProps) => {
   const [viewState, setViewState] = useState<ViewState>('categories');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<ProductGroup | null>(null);
@@ -92,6 +93,8 @@ export const CategoryProductSelector = ({ onSelect, selectedProductId }: Categor
     try {
       const variantsData = await getVariantsByGroupId(group.id);
       setVariants(variantsData);
+      // Notify parent that a group was selected with its variants
+      onGroupSelect?.(group, variantsData);
     } catch (error) {
       console.error('Error loading variants:', error);
     } finally {
