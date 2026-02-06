@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Package, Phone, Calculator, Check, Pencil, X } from 'lucide-react';
+import { Package, Phone, Calculator, Check, Pencil, X, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -48,21 +48,36 @@ export const SupplierComparison = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingPrice, setEditingPrice] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [newFournisseurName, setNewFournisseurName] = useState('');
+  const [newFournisseurPrice, setNewFournisseurPrice] = useState('');
+  const [existingFournisseurs, setExistingFournisseurs] = useState<string[]>([]);
 
-  // Load categories
+  // Load categories and existing fournisseurs
   useEffect(() => {
-    const loadCategories = async () => {
-      const { data } = await supabase
+    const loadInitialData = async () => {
+      // Load categories
+      const { data: catData } = await supabase
         .from('product_groups')
         .select('category')
         .order('category');
       
-      if (data) {
-        const uniqueCategories = [...new Set(data.map(p => p.category))];
+      if (catData) {
+        const uniqueCategories = [...new Set(catData.map(p => p.category))];
         setCategories(uniqueCategories);
       }
+
+      // Load all fournisseur names for autocomplete
+      const { data: fournData } = await supabase
+        .from('fournisseurs')
+        .select('nom')
+        .order('nom');
+      
+      if (fournData) {
+        setExistingFournisseurs(fournData.map(f => f.nom));
+      }
     };
-    loadCategories();
+    loadInitialData();
   }, []);
 
   // Load products when category changes
@@ -203,6 +218,68 @@ export const SupplierComparison = () => {
     }
   }, [editingPrice]);
 
+  const handleAddFournisseur = useCallback(async () => {
+    if (!newFournisseurName.trim()) {
+      toast.error('Nom du fournisseur requis');
+      return;
+    }
+    const price = parseFloat(newFournisseurPrice) || 0;
+    if (price < 0) {
+      toast.error('Prix invalide');
+      return;
+    }
+
+    const alreadyExists = fournisseurPrices.some(
+      f => f.fournisseur_name.toLowerCase() === newFournisseurName.trim().toLowerCase()
+    );
+    if (alreadyExists) {
+      toast.error('Ce fournisseur est déjà associé à ce produit');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const { data, error } = await supabase
+        .from('product_group_fournisseurs')
+        .insert({
+          product_group_id: parseInt(selectedProductId),
+          fournisseur_name: newFournisseurName.trim(),
+          prix_ttc: price,
+        })
+        .select('id, fournisseur_name, prix_ttc')
+        .single();
+
+      if (error) throw error;
+
+      const { data: fournisseurData } = await supabase
+        .from('fournisseurs')
+        .select('phone')
+        .eq('nom', newFournisseurName.trim())
+        .maybeSingle();
+
+      const newEntry: FournisseurPrice = {
+        id: data.id,
+        fournisseur_name: data.fournisseur_name,
+        prix_ttc: data.prix_ttc,
+        phone: fournisseurData?.phone || null,
+      };
+
+      setFournisseurPrices(prev => 
+        [...prev, newEntry].sort((a, b) => a.prix_ttc - b.prix_ttc)
+      );
+
+      toast.success('Fournisseur ajouté');
+      setIsAddingNew(false);
+      setNewFournisseurName('');
+      setNewFournisseurPrice('');
+    } catch (error: any) {
+      console.error('Error adding fournisseur:', error);
+      toast.error(error.message || "Erreur lors de l'ajout");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [newFournisseurName, newFournisseurPrice, selectedProductId, fournisseurPrices]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Selection Card */}
@@ -281,21 +358,92 @@ export const SupplierComparison = () => {
                 <Package className="h-5 w-5" />
                 {selectedProduct?.name}
               </CardTitle>
-              <Badge variant="outline">{fournisseurPrices.length} fournisseur(s)</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">{fournisseurPrices.length} fournisseur(s)</Badge>
+                <Button
+                  size="sm"
+                  onClick={() => setIsAddingNew(true)}
+                  disabled={isAddingNew}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Ajouter
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
+            {/* Add New Fournisseur Form */}
+            {isAddingNew && (
+              <div className="mb-4 p-4 border border-border rounded-lg bg-muted/30">
+                <div className="flex items-end gap-3">
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs">Nom du fournisseur</Label>
+                    <Input
+                      list="fournisseur-list"
+                      value={newFournisseurName}
+                      onChange={(e) => setNewFournisseurName(e.target.value)}
+                      placeholder="Sélectionner ou saisir un nom"
+                      autoFocus
+                    />
+                    <datalist id="fournisseur-list">
+                      {existingFournisseurs.map(f => (
+                        <option key={f} value={f} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div className="w-32 space-y-1">
+                    <Label className="text-xs">Prix TTC</Label>
+                    <Input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      value={newFournisseurPrice}
+                      onChange={(e) => setNewFournisseurPrice(e.target.value)}
+                      placeholder="0.000"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddFournisseur();
+                        if (e.key === 'Escape') {
+                          setIsAddingNew(false);
+                          setNewFournisseurName('');
+                          setNewFournisseurPrice('');
+                        }
+                      }}
+                    />
+                  </div>
+                  <Button
+                    size="icon"
+                    onClick={handleAddFournisseur}
+                    disabled={isSaving || !newFournisseurName.trim()}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={() => {
+                      setIsAddingNew(false);
+                      setNewFournisseurName('');
+                      setNewFournisseurPrice('');
+                    }}
+                    disabled={isSaving}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {loading ? (
               <div className="py-8 text-center text-muted-foreground">
                 Chargement...
               </div>
-            ) : fournisseurPrices.length === 0 ? (
+            ) : fournisseurPrices.length === 0 && !isAddingNew ? (
               <div className="py-8 text-center text-muted-foreground">
                 <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>Aucun fournisseur associé à ce produit</p>
-                <p className="text-sm mt-2">Ajoutez des fournisseurs dans la fiche produit</p>
+                <p className="text-sm mt-2">Cliquez sur "Ajouter" pour associer un fournisseur</p>
               </div>
-            ) : (
+            ) : fournisseurPrices.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -402,7 +550,7 @@ export const SupplierComparison = () => {
                   })}
                 </TableBody>
               </Table>
-            )}
+            ) : null}
           </CardContent>
         </Card>
       )}
