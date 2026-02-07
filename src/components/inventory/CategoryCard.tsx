@@ -10,7 +10,7 @@ import {
   Snowflake,
   ChefHat,
   Layers,
-  Trash2
+  Pencil
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,8 +19,9 @@ interface CategoryCardProps {
   name: string;
   count: number;
   onClick: () => void;
-  onDelete?: (name: string) => void;
-  canDelete?: boolean;
+  onEdit?: (name: string) => void;
+  canEdit?: boolean;
+  customColor?: string;
 }
 
 const getCategoryIcon = (category: string) => {
@@ -38,7 +39,7 @@ const getCategoryIcon = (category: string) => {
   return Package;
 };
 
-const getCategoryColor = (category: string): string => {
+export const getCategoryColor = (category: string): string => {
   const lowerCategory = category.toLowerCase();
   if (lowerCategory.includes('pantalon')) return 'from-blue-500 to-blue-600';
   if (lowerCategory.includes('blouson')) return 'from-indigo-500 to-indigo-600';
@@ -54,13 +55,13 @@ const getCategoryColor = (category: string): string => {
   return 'from-stone-500 to-stone-600';
 };
 
-export const CategoryCard = memo(({ name, count, onClick, onDelete, canDelete }: CategoryCardProps) => {
+export const CategoryCard = memo(({ name, count, onClick, onEdit, canEdit, customColor }: CategoryCardProps) => {
   const Icon = getCategoryIcon(name);
-  const colorClass = getCategoryColor(name);
+  const colorClass = customColor || getCategoryColor(name);
 
-  const handleDeleteClick = (e: React.MouseEvent) => {
+  const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onDelete?.(name);
+    onEdit?.(name);
   };
 
   return (
@@ -68,15 +69,15 @@ export const CategoryCard = memo(({ name, count, onClick, onDelete, canDelete }:
       className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] group overflow-hidden relative"
       onClick={onClick}
     >
-      {canDelete && onDelete && (
+      {canEdit && onEdit && (
         <Button
           variant="ghost"
           size="sm"
-          onClick={handleDeleteClick}
+          onClick={handleEditClick}
           className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 hover:bg-white/40 text-white z-10"
-          title="Supprimer la catégorie"
+          title="Modifier la catégorie"
         >
-          <Trash2 className="w-4 h-4" />
+          <Pencil className="w-4 h-4" />
         </Button>
       )}
       <CardContent className="p-0">
