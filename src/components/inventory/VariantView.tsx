@@ -254,7 +254,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
       </div>
 
       {/* Product info summary */}
-      <div className="bg-muted/50 rounded-lg p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="bg-muted/50 rounded-lg p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
         <div>
           <p className="text-sm text-muted-foreground">Code Article Base</p>
           <p className="font-medium">{group.base_sku || 'N/A'}</p>
@@ -264,14 +264,28 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           <p className="font-medium">{group.category}</p>
         </div>
         <div>
-          <p className="text-sm text-muted-foreground">Fournisseur</p>
-          <p className="font-medium">{group.fournisseur || 'Non défini'}</p>
-        </div>
-        <div>
           <p className="text-sm text-muted-foreground">Seuil d'alerte</p>
           <p className="font-medium">{group.min_stock} unités</p>
         </div>
       </div>
+
+      {/* Fournisseurs horizontal scrollable */}
+      {group.fournisseurs && group.fournisseurs.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">Fournisseurs</p>
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+            {group.fournisseurs.map((f, index) => (
+              <div 
+                key={f.id || index}
+                className="flex-shrink-0 bg-muted/50 rounded-lg px-4 py-2 border border-border"
+              >
+                <p className="font-medium text-foreground whitespace-nowrap">{f.fournisseur_name}</p>
+                <p className="text-sm text-primary whitespace-nowrap">{f.prix_ttc.toFixed(3)} TND</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Variants table */}
       {isLoading ? (
