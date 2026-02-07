@@ -69,16 +69,29 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
     }
   }, [category]);
 
-  // Fetch fournisseurs from database
+  // Fetch fournisseurs - use product_group_fournisseurs which is accessible to all roles
   const fetchFournisseurs = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      // First try to get from fournisseurs table (admin/moderator)
+      const { data: fournisseursData, error: fournisseursError } = await supabase
         .from('fournisseurs')
         .select('nom')
         .order('nom');
       
-      if (error) throw error;
-      setFournisseurs(data?.map(f => f.nom) || []);
+      if (!fournisseursError && fournisseursData?.length) {
+        setFournisseurs(fournisseursData.map(f => f.nom));
+        return;
+      }
+      
+      // Fallback: get unique fournisseur names from product_group_fournisseurs (accessible to all)
+      const { data: pgfData, error: pgfError } = await supabase
+        .from('product_group_fournisseurs')
+        .select('fournisseur_name');
+      
+      if (pgfError) throw pgfError;
+      
+      const uniqueNames = [...new Set(pgfData?.map(f => f.fournisseur_name) || [])].sort();
+      setFournisseurs(uniqueNames);
     } catch (error) {
       console.error('Error fetching fournisseurs:', error);
     }
