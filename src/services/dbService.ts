@@ -241,14 +241,50 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
   return { totalValue, totalProducts, lowStockCount, outOfStockCount, categoryValues };
 };
 
-// Export/Import Database - now exports data as JSON
+// Export/Import Database - exports ALL business data as JSON
 export const exportDatabase = async (): Promise<Uint8Array | null> => {
-  const products = await getAllProducts();
-  const transactions = await getAllTransactions();
-  
-  const data = JSON.stringify({ products, transactions }, null, 2);
-  const encoder = new TextEncoder();
-  return encoder.encode(data);
+  try {
+    // Fetch all business data tables
+    const [
+      { data: products },
+      { data: transactions },
+      { data: clients },
+      { data: fournisseurs },
+      { data: documents },
+      { data: orders },
+      { data: product_groups },
+      { data: product_group_fournisseurs }
+    ] = await Promise.all([
+      supabase.from('products').select('*').order('id'),
+      supabase.from('transactions').select('*').order('id'),
+      supabase.from('clients').select('*').order('id'),
+      supabase.from('fournisseurs').select('*').order('id'),
+      supabase.from('documents').select('*').order('id'),
+      supabase.from('orders').select('*').order('id'),
+      supabase.from('product_groups').select('*').order('id'),
+      supabase.from('product_group_fournisseurs').select('*').order('id')
+    ]);
+
+    const exportData = {
+      version: 2,
+      exportDate: new Date().toISOString(),
+      products: products || [],
+      transactions: transactions || [],
+      clients: clients || [],
+      fournisseurs: fournisseurs || [],
+      documents: documents || [],
+      orders: orders || [],
+      product_groups: product_groups || [],
+      product_group_fournisseurs: product_group_fournisseurs || []
+    };
+
+    const data = JSON.stringify(exportData, null, 2);
+    const encoder = new TextEncoder();
+    return encoder.encode(data);
+  } catch (error) {
+    console.error('Erreur lors de l\'export:', error);
+    return null;
+  }
 };
 
 export const importDatabase = async (data: Uint8Array): Promise<void> => {
@@ -256,19 +292,73 @@ export const importDatabase = async (data: Uint8Array): Promise<void> => {
   const jsonString = decoder.decode(data);
   
   try {
-    const { products, transactions } = JSON.parse(jsonString);
+    const importData = JSON.parse(jsonString);
     
-    // Clear existing data
+    // Handle both old format (v1) and new format (v2)
+    const {
+      products = [],
+      transactions = [],
+      clients = [],
+      fournisseurs = [],
+      documents = [],
+      orders = [],
+      product_groups = [],
+      product_group_fournisseurs = []
+    } = importData;
+
+    // Delete in correct order (respecting foreign key constraints)
+    // 1. First delete tables with foreign keys
     await supabase.from('transactions').delete().gte('id', 0);
+    await supabase.from('product_group_fournisseurs').delete().gte('id', 0);
     await supabase.from('products').delete().gte('id', 0);
+    await supabase.from('product_groups').delete().gte('id', 0);
     
-    // Insert products
+    // 2. Then delete independent tables
+    await supabase.from('documents').delete().gte('id', 0);
+    await supabase.from('orders').delete().gte('id', 0);
+    await supabase.from('clients').delete().gte('id', 0);
+    await supabase.from('fournisseurs').delete().gte('id', 0);
+
+    // Insert in correct order (respecting foreign key constraints)
+    // 1. Independent tables first
+    for (const item of clients) {
+      const { id, ...itemData } = item;
+      await supabase.from('clients').insert(itemData);
+    }
+
+    for (const item of fournisseurs) {
+      const { id, ...itemData } = item;
+      await supabase.from('fournisseurs').insert(itemData);
+    }
+
+    for (const item of documents) {
+      const { id, ...itemData } = item;
+      await supabase.from('documents').insert(itemData);
+    }
+
+    for (const item of orders) {
+      const { id, ...itemData } = item;
+      await supabase.from('orders').insert(itemData);
+    }
+
+    // 2. Product groups before products
+    for (const item of product_groups) {
+      const { id, ...itemData } = item;
+      await supabase.from('product_groups').insert(itemData);
+    }
+
+    // 3. Products (may reference product_groups)
     for (const product of products) {
       const { id, ...productData } = product;
       await supabase.from('products').insert(productData);
     }
-    
-    // Insert transactions
+
+    // 4. Tables with foreign keys last
+    for (const item of product_group_fournisseurs) {
+      const { id, ...itemData } = item;
+      await supabase.from('product_group_fournisseurs').insert(itemData);
+    }
+
     for (const tx of transactions) {
       const { id, ...txData } = tx;
       await supabase.from('transactions').insert(txData);
