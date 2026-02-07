@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
+import { useAuth } from '@/hooks/useAuth';
 
 interface VariantViewProps {
   group: ProductGroup;
@@ -64,6 +65,7 @@ const emptyFormData: VariantFormData = {
 };
 
 export const VariantView = ({ group, onBack }: VariantViewProps) => {
+  const { isModerator } = useAuth();
   const [variants, setVariants] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -242,10 +244,12 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
             <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Actualiser
           </Button>
-          <Button onClick={() => handleOpenModal()}>
-            <Plus className="w-4 h-4 mr-2" />
-            Ajouter Variante
-          </Button>
+          {isModerator && (
+            <Button onClick={() => handleOpenModal()}>
+              <Plus className="w-4 h-4 mr-2" />
+              Ajouter Variante
+            </Button>
+          )}
         </div>
       </div>
 
@@ -278,10 +282,12 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         <div className="text-center py-12">
           <Package className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
           <p className="text-muted-foreground">Aucune variante pour ce produit.</p>
-          <Button className="mt-4" onClick={() => handleOpenModal()}>
-            <Plus className="w-4 h-4 mr-2" />
-            Ajouter la première variante
-          </Button>
+          {isModerator && (
+            <Button className="mt-4" onClick={() => handleOpenModal()}>
+              <Plus className="w-4 h-4 mr-2" />
+              Ajouter la première variante
+            </Button>
+          )}
         </div>
       ) : (
         <div className="border rounded-lg overflow-hidden">
@@ -296,7 +302,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                 <TableHead className="text-right">Remise %</TableHead>
                 <TableHead className="text-right">Prix TTC</TableHead>
                 <TableHead>Statut</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                {isModerator && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -318,25 +324,27 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                           {style.label}
                         </Badge>
                       </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenModal(variant)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(variant)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {isModerator && (
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenModal(variant)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(variant)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}
