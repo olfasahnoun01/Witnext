@@ -10,7 +10,8 @@ import {
   Snowflake,
   ChefHat,
   Layers,
-  Pencil
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,7 +21,9 @@ interface CategoryCardProps {
   count: number;
   onClick: () => void;
   onEdit?: (name: string) => void;
+  onDelete?: (name: string) => void;
   canEdit?: boolean;
+  canDelete?: boolean;
   customColor?: string;
 }
 
@@ -55,7 +58,7 @@ export const getCategoryColor = (category: string): string => {
   return 'from-stone-500 to-stone-600';
 };
 
-export const CategoryCard = memo(({ name, count, onClick, onEdit, canEdit, customColor }: CategoryCardProps) => {
+export const CategoryCard = memo(({ name, count, onClick, onEdit, onDelete, canEdit, canDelete, customColor }: CategoryCardProps) => {
   const Icon = getCategoryIcon(name);
   const colorClass = customColor || getCategoryColor(name);
 
@@ -64,22 +67,40 @@ export const CategoryCard = memo(({ name, count, onClick, onEdit, canEdit, custo
     onEdit?.(name);
   };
 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete?.(name);
+  };
+
   return (
     <Card 
       className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] group overflow-hidden relative"
       onClick={onClick}
     >
-      {canEdit && onEdit && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleEditClick}
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 hover:bg-white/40 text-white z-10"
-          title="Modifier la catégorie"
-        >
-          <Pencil className="w-4 h-4" />
-        </Button>
-      )}
+      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+        {canDelete && onDelete && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDeleteClick}
+            className="bg-white/20 hover:bg-red-500/80 text-white"
+            title="Supprimer la catégorie"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        )}
+        {canEdit && onEdit && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleEditClick}
+            className="bg-white/20 hover:bg-white/40 text-white"
+            title="Modifier la catégorie"
+          >
+            <Pencil className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
       <CardContent className="p-0">
         <div className={`bg-gradient-to-br ${colorClass} p-6 text-white`}>
           <div className="flex items-center justify-between mb-4">

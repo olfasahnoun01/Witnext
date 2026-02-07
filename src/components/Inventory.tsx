@@ -255,6 +255,27 @@ export const Inventory = () => {
     toast.success(`Catégorie "${editingCategory}" supprimée`);
   }, [editingCategory, editingCategoryCount, customCategories, customCategoryNames]);
 
+  // Direct delete handler from card button
+  const handleDirectDeleteCategory = useCallback((categoryName: string) => {
+    const categoryData = categoryCounts.find(c => c.category === categoryName);
+    const count = categoryData?.count || 0;
+    
+    // Only allow deletion of custom categories with no products
+    if (!customCategoryNames.includes(categoryName)) {
+      toast.error('Les catégories par défaut ne peuvent pas être supprimées');
+      return;
+    }
+    
+    if (count > 0) {
+      toast.error('Impossible de supprimer une catégorie contenant des articles');
+      return;
+    }
+    
+    // Open edit modal with delete confirmation
+    setEditingCategory(categoryName);
+    setEditingCategoryCount(count);
+  }, [categoryCounts, customCategoryNames]);
+
   // Get color for a category (custom or default)
   const getCategoryDisplayColor = useCallback((categoryName: string): string | undefined => {
     // Check custom category color
@@ -318,17 +339,23 @@ export const Inventory = () => {
         <>
           {/* Category Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {sortedCategories.map(({ category, count }) => (
-              <CategoryCard
-                key={category}
-                name={category}
-                count={count}
-                onClick={() => handleCategoryClick(category)}
-                onEdit={isModerator ? handleEditCategory : undefined}
-                canEdit={isModerator}
-                customColor={getCategoryDisplayColor(category)}
-              />
-            ))}
+            {sortedCategories.map(({ category, count }) => {
+              const isCustom = customCategoryNames.includes(category);
+              const canDeleteThis = isModerator && isCustom && count === 0;
+              return (
+                <CategoryCard
+                  key={category}
+                  name={category}
+                  count={count}
+                  onClick={() => handleCategoryClick(category)}
+                  onEdit={isModerator ? handleEditCategory : undefined}
+                  onDelete={canDeleteThis ? handleDirectDeleteCategory : undefined}
+                  canEdit={isModerator}
+                  canDelete={canDeleteThis}
+                  customColor={getCategoryDisplayColor(category)}
+                />
+              );
+            })}
             
             {/* Uncategorized Card */}
             {uncategorizedCount > 0 && (
