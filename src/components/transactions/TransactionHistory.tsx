@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { ArrowDownLeft, ArrowUpRight, Edit, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Edit, Trash2, Search, ChevronLeft, ChevronRight, List, Package } from 'lucide-react';
 import { Transaction, Product } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ export const TransactionHistory = ({
   const [isLoading, setIsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageInputValue, setPageInputValue] = useState('1');
+  const [historyMode, setHistoryMode] = useState<'general' | 'particular'>('particular');
   
   // Editing state
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -35,26 +36,32 @@ export const TransactionHistory = ({
   const [editNote, setEditNote] = useState('');
 
   const loadTransactions = useCallback(async () => {
-    // Determine which product IDs to fetch
-    const productIdsToFetch = selectedProduct 
-      ? [selectedProduct.id] 
-      : groupVariantIds.length > 0 
-        ? groupVariantIds 
-        : [];
-
-    if (productIdsToFetch.length === 0) {
-      setTransactions([]);
-      return;
-    }
-
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('transactions')
         .select('*')
-        .in('product_id', productIdsToFetch)
         .eq('type', activeTab === 'in' ? 'IN' : 'OUT')
         .order('date', { ascending: false });
+
+      // If in particular mode, filter by selected product/group
+      if (historyMode === 'particular') {
+        const productIdsToFetch = selectedProduct 
+          ? [selectedProduct.id] 
+          : groupVariantIds.length > 0 
+            ? groupVariantIds 
+            : [];
+
+        if (productIdsToFetch.length === 0) {
+          setTransactions([]);
+          setIsLoading(false);
+          return;
+        }
+
+        query = query.in('product_id', productIdsToFetch);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       
@@ -67,16 +74,18 @@ export const TransactionHistory = ({
     } finally {
       setIsLoading(false);
     }
-  }, [selectedProduct, groupVariantIds, activeTab]);
+  }, [selectedProduct, groupVariantIds, activeTab, historyMode]);
 
-  // Auto-load when product is selected, group variants change, or tab changes
+  // Auto-load when dependencies change
   useEffect(() => {
-    if (selectedProduct || groupVariantIds.length > 0) {
+    if (historyMode === 'general') {
+      loadTransactions();
+    } else if (selectedProduct || groupVariantIds.length > 0) {
       loadTransactions();
     } else {
       setTransactions([]);
     }
-  }, [selectedProduct?.id, groupVariantIds, activeTab, loadTransactions]);
+  }, [selectedProduct?.id, groupVariantIds, activeTab, historyMode, loadTransactions]);
 
   // Pagination
   const totalPages = Math.ceil(transactions.length / ITEMS_PER_PAGE);
@@ -152,13 +161,37 @@ export const TransactionHistory = ({
     onTransactionChange();
   };
 
+  const showEmptyProductMessage = historyMode === 'particular' && !selectedProduct && groupVariantIds.length === 0;
+
   return (
     <div className="bg-card rounded-xl border border-border p-6">
-      <h3 className="text-lg font-semibold text-foreground mb-4">
+      <h3 className="text-lg font-semibold text-foreground mb-3">
         Historique - {activeTab === 'in' ? 'Entrées' : 'Sorties'}
       </h3>
 
-      {!selectedProduct && groupVariantIds.length === 0 ? (
+      {/* Toggle buttons for history mode */}
+      <div className="flex gap-2 mb-4">
+        <Button
+          variant={historyMode === 'general' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setHistoryMode('general')}
+          className="flex-1"
+        >
+          <List className="w-4 h-4 mr-2" />
+          Historique Général
+        </Button>
+        <Button
+          variant={historyMode === 'particular' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setHistoryMode('particular')}
+          className="flex-1"
+        >
+          <Package className="w-4 h-4 mr-2" />
+          Historique Particulier
+        </Button>
+      </div>
+
+      {showEmptyProductMessage ? (
         <p className="text-sm text-muted-foreground text-center py-8">
           Sélectionnez un produit pour voir son historique
         </p>
@@ -179,7 +212,10 @@ export const TransactionHistory = ({
           <div className="space-y-3 max-h-80 overflow-y-auto">
             {paginatedTransactions.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
-                Aucun mouvement enregistré pour ce produit
+                {historyMode === 'general' 
+                  ? 'Aucun mouvement enregistré'
+                  : 'Aucun mouvement enregistré pour ce produit'
+                }
               </p>
             ) : (
               paginatedTransactions.map((tx) => (
