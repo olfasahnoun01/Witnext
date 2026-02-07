@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Package, RefreshCw, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { CategoryCard } from './inventory/CategoryCard';
+import { CategoryCard, getCategoryColor } from './inventory/CategoryCard';
+import { CategoryEditModal } from './inventory/CategoryEditModal';
 import { ProductGroupView } from './inventory/ProductGroupView';
 import { getProductGroupCountsByCategory } from '@/services/productGroupService';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import {
@@ -35,22 +37,55 @@ interface CategoryCount {
   count: number;
 }
 
+interface CustomCategoryData {
+  name: string;
+  color?: string;
+}
+
 export const Inventory = () => {
   const { isModerator } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [categoryCounts, setCategoryCounts] = useState<CategoryCount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [uncategorizedCount, setUncategorizedCount] = useState(0);
-  const [customCategories, setCustomCategories] = useState<string[]>(() => {
-    const saved = localStorage.getItem('grosafe_custom_categories');
-    return saved ? JSON.parse(saved) : [];
+  const [customCategories, setCustomCategories] = useState<CustomCategoryData[]>(() => {
+    const saved = localStorage.getItem('grosafe_custom_categories_v2');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // Migrate from old format
+        const oldSaved = localStorage.getItem('grosafe_custom_categories');
+        if (oldSaved) {
+          const oldCategories = JSON.parse(oldSaved) as string[];
+          return oldCategories.map(name => ({ name }));
+        }
+      }
+    }
+    return [];
   });
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  
+  // Edit modal state
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editingCategoryCount, setEditingCategoryCount] = useState(0);
+
+  // Get custom category names for easy lookup
+  const customCategoryNames = useMemo(() => 
+    customCategories.map(c => c.name), 
+    [customCategories]
+  );
 
   // Combine default and custom categories
   const MAIN_CATEGORIES = useMemo(() => {
-    return [...DEFAULT_CATEGORIES, ...customCategories];
+    return [...DEFAULT_CATEGORIES, ...customCategoryNames];
+  }, [customCategoryNames]);
+
+  // Get custom color for a category
+  const getCustomCategoryColor = useCallback((categoryName: string): string | undefined => {
+    const custom = customCategories.find(c => c.name === categoryName);
+    return custom?.color;
   }, [customCategories]);
 
   // Fetch category counts from product_groups table
@@ -129,39 +164,107 @@ export const Inventory = () => {
     );
     
     if (exists) {
+      toast.error('Cette catégorie existe déjà');
       return;
     }
     
-    const updatedCategories = [...customCategories, newCategoryName.trim()];
+    const updatedCategories = [...customCategories, { name: newCategoryName.trim() }];
     setCustomCategories(updatedCategories);
-    localStorage.setItem('grosafe_custom_categories', JSON.stringify(updatedCategories));
+    localStorage.setItem('grosafe_custom_categories_v2', JSON.stringify(updatedCategories));
     setNewCategoryName('');
     setIsAddCategoryOpen(false);
+    toast.success(`Catégorie "${newCategoryName.trim()}" ajoutée`);
   }, [newCategoryName, customCategories, MAIN_CATEGORIES]);
 
-  const handleDeleteCategory = useCallback((categoryName: string) => {
-    // Only allow deletion of custom categories
-    if (!customCategories.includes(categoryName)) {
-      toast.error('Cette catégorie ne peut pas être supprimée');
+  const handleEditCategory = useCallback((categoryName: string) => {
+    const categoryData = categoryCounts.find(c => c.category === categoryName);
+    setEditingCategory(categoryName);
+    setEditingCategoryCount(categoryData?.count || 0);
+  }, [categoryCounts]);
+
+  const handleSaveCategory = useCallback(async (newName: string, newColor: string) => {
+    if (!editingCategory) return;
+    
+    const isCustom = customCategoryNames.includes(editingCategory);
+    const oldName = editingCategory;
+    
+    // Update custom category data
+    if (isCustom) {
+      const updatedCategories = customCategories.map(c => 
+        c.name === oldName ? { name: newName, color: newColor } : c
+      );
+      setCustomCategories(updatedCategories);
+      localStorage.setItem('grosafe_custom_categories_v2', JSON.stringify(updatedCategories));
+    } else {
+      // For default categories, we can only change the color (stored separately)
+      // We'll store color overrides for default categories
+      const colorOverrides = JSON.parse(localStorage.getItem('grosafe_category_colors') || '{}');
+      colorOverrides[editingCategory] = newColor;
+      localStorage.setItem('grosafe_category_colors', JSON.stringify(colorOverrides));
+    }
+    
+    // If name changed and there are products, update them in the database
+    if (newName !== oldName && editingCategoryCount > 0) {
+      try {
+        // Update product_groups
+        const { error: groupsError } = await supabase
+          .from('product_groups')
+          .update({ category: newName })
+          .ilike('category', oldName);
+        
+        if (groupsError) throw groupsError;
+        
+        // Update products
+        const { error: productsError } = await supabase
+          .from('products')
+          .update({ category: newName })
+          .ilike('category', oldName);
+        
+        if (productsError) throw productsError;
+        
+        toast.success(`Catégorie renommée de "${oldName}" à "${newName}"`);
+      } catch (error) {
+        console.error('Error updating category:', error);
+        toast.error('Erreur lors de la mise à jour de la catégorie');
+        return;
+      }
+    } else {
+      toast.success('Catégorie mise à jour');
+    }
+    
+    fetchCategoryCounts();
+  }, [editingCategory, editingCategoryCount, customCategories, customCategoryNames, fetchCategoryCounts]);
+
+  const handleDeleteCategory = useCallback(async () => {
+    if (!editingCategory) return;
+    
+    // Only allow deletion of custom categories with no products
+    if (!customCategoryNames.includes(editingCategory)) {
+      toast.error('Les catégories par défaut ne peuvent pas être supprimées');
       return;
     }
     
-    // Find the count for this category
-    const categoryData = categoryCounts.find(c => c.category === categoryName);
-    const productCount = categoryData?.count || 0;
-    
-    let confirmMessage = `Supprimer la catégorie "${categoryName}" ?`;
-    if (productCount > 0) {
-      confirmMessage = `La catégorie "${categoryName}" contient ${productCount} article${productCount > 1 ? 's' : ''}. Les articles ne seront pas supprimés mais resteront dans "Non catégorisé". Continuer ?`;
+    if (editingCategoryCount > 0) {
+      toast.error('Impossible de supprimer une catégorie contenant des articles');
+      return;
     }
     
-    if (!window.confirm(confirmMessage)) return;
-    
-    const updatedCategories = customCategories.filter(cat => cat !== categoryName);
+    const updatedCategories = customCategories.filter(c => c.name !== editingCategory);
     setCustomCategories(updatedCategories);
-    localStorage.setItem('grosafe_custom_categories', JSON.stringify(updatedCategories));
-    toast.success(`Catégorie "${categoryName}" supprimée`);
-  }, [customCategories, categoryCounts]);
+    localStorage.setItem('grosafe_custom_categories_v2', JSON.stringify(updatedCategories));
+    toast.success(`Catégorie "${editingCategory}" supprimée`);
+  }, [editingCategory, editingCategoryCount, customCategories, customCategoryNames]);
+
+  // Get color for a category (custom or default)
+  const getCategoryDisplayColor = useCallback((categoryName: string): string | undefined => {
+    // Check custom category color
+    const customColor = getCustomCategoryColor(categoryName);
+    if (customColor) return customColor;
+    
+    // Check color overrides for default categories
+    const colorOverrides = JSON.parse(localStorage.getItem('grosafe_category_colors') || '{}');
+    return colorOverrides[categoryName];
+  }, [getCustomCategoryColor]);
 
   const totalProducts = useMemo(() => {
     return categoryCounts.reduce((sum, c) => sum + c.count, 0) + uncategorizedCount;
@@ -221,8 +324,9 @@ export const Inventory = () => {
                 name={category}
                 count={count}
                 onClick={() => handleCategoryClick(category)}
-                onDelete={customCategories.includes(category) ? handleDeleteCategory : undefined}
-                canDelete={isModerator && customCategories.includes(category)}
+                onEdit={isModerator ? handleEditCategory : undefined}
+                canEdit={isModerator}
+                customColor={getCategoryDisplayColor(category)}
               />
             ))}
             
@@ -281,6 +385,20 @@ export const Inventory = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Category Modal */}
+      {editingCategory && (
+        <CategoryEditModal
+          isOpen={!!editingCategory}
+          onClose={() => setEditingCategory(null)}
+          categoryName={editingCategory}
+          categoryCount={editingCategoryCount}
+          currentColor={getCategoryDisplayColor(editingCategory) || getCategoryColor(editingCategory)}
+          onSave={handleSaveCategory}
+          onDelete={handleDeleteCategory}
+          isCustomCategory={customCategoryNames.includes(editingCategory)}
+        />
+      )}
     </div>
   );
 };
