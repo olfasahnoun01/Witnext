@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronRight, ChevronLeft, Package, Layers, Search } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Package, Layers, Search, Filter } from 'lucide-react';
 import { Product, ProductGroup } from '@/types';
 import { getProductGroupsByCategory, getVariantsByGroupId } from '@/services/productGroupService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const MAIN_CATEGORIES = [
   'Pantalons',
@@ -36,6 +37,7 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
+  const [selectedFournisseur, setSelectedFournisseur] = useState<string>('all');
 
   // Load category counts on mount
   useEffect(() => {
@@ -117,18 +119,36 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
       setViewState('categories');
       setSelectedCategory(null);
       setProductGroups([]);
+      setSelectedFournisseur('all');
     }
   };
 
-  // Filter items based on search
+  // Extract unique fournisseurs from current product groups
+  const availableFournisseurs = useMemo(() => {
+    const fournisseurSet = new Set<string>();
+    productGroups.forEach(g => {
+      if (g.fournisseur) fournisseurSet.add(g.fournisseur);
+      g.fournisseurs?.forEach(f => fournisseurSet.add(f.fournisseur_name));
+    });
+    return Array.from(fournisseurSet).sort((a, b) => a.localeCompare(b, 'fr'));
+  }, [productGroups]);
+
+  // Filter items based on search and fournisseur
   const filteredGroups = useMemo(() => {
-    if (!searchQuery) return productGroups;
+    let filtered = productGroups;
+    if (selectedFournisseur && selectedFournisseur !== 'all') {
+      filtered = filtered.filter(g => 
+        g.fournisseur === selectedFournisseur ||
+        g.fournisseurs?.some(f => f.fournisseur_name === selectedFournisseur)
+      );
+    }
+    if (!searchQuery) return filtered;
     const query = searchQuery.toLowerCase();
-    return productGroups.filter(g => 
+    return filtered.filter(g => 
       g.name.toLowerCase().includes(query) ||
       g.base_sku?.toLowerCase().includes(query)
     );
-  }, [productGroups, searchQuery]);
+  }, [productGroups, searchQuery, selectedFournisseur]);
 
   const filteredVariants = useMemo(() => {
     if (!searchQuery) return variants;
@@ -195,7 +215,7 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
 
       {/* Search (only for products and variants) */}
       {viewState !== 'categories' && (
-        <div className="p-2 border-b border-border">
+        <div className="p-2 border-b border-border space-y-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -205,6 +225,22 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
               className="pl-8 h-8 text-sm"
             />
           </div>
+          {viewState === 'products' && availableFournisseurs.length > 0 && (
+            <Select value={selectedFournisseur} onValueChange={setSelectedFournisseur}>
+              <SelectTrigger className="h-8 text-sm">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                  <SelectValue placeholder="Filtrer par fournisseur" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les fournisseurs</SelectItem>
+                {availableFournisseurs.map(f => (
+                  <SelectItem key={f} value={f}>{f}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       )}
 
