@@ -227,24 +227,25 @@ export const Reports = () => {
       return;
     }
 
-    // For bon_sortie: deduct stock by creating OUT transactions
-    if (docType === 'bon_sortie') {
+    // Automatic stock update based on document type
+    if (docType === 'bon_sortie' || docType === 'bon_entree') {
+      const txType = docType === 'bon_sortie' ? 'OUT' : 'IN';
+      const label = docType === 'bon_sortie' ? 'Bon de sortie' : "Bon d'entrée";
       for (const item of docItems) {
         if (item.product_id) {
           const result = await createTransaction({
             product_id: item.product_id,
             product_name: item.designation,
-            type: 'OUT',
+            type: txType,
             quantity: item.quantity,
             date: new Date(docDate).toISOString(),
-            note: `Bon de sortie ${docNumber}`
+            note: `${label} ${docNumber}`
           });
           if (!result.success) {
-            toast.error(`Erreur déduction stock pour "${item.designation}": ${result.error}`);
+            toast.error(`Erreur stock pour "${item.designation}": ${result.error}`);
           }
         }
       }
-      // Reload products to reflect new quantities
       const productsData = await getAllProducts();
       setProducts(productsData);
       toast.success('Document sauvegardé et stock mis à jour');
@@ -330,14 +331,15 @@ export const Reports = () => {
       return;
     }
 
-    // If it was a bon_sortie, restore stock by creating IN transactions
-    if (docToDelete && docToDelete.type === 'bon_sortie') {
+    // Automatic stock restoration on delete
+    if (docToDelete && (docToDelete.type === 'bon_sortie' || docToDelete.type === 'bon_entree')) {
+      const reverseType = docToDelete.type === 'bon_sortie' ? 'IN' : 'OUT';
       for (const item of docToDelete.items) {
         if (item.product_id) {
           await createTransaction({
             product_id: item.product_id,
             product_name: item.designation,
-            type: 'IN',
+            type: reverseType,
             quantity: item.quantity,
             date: new Date().toISOString().split('T')[0],
             note: `Restauration stock - Suppression ${docToDelete.doc_number}`
