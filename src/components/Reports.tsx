@@ -320,15 +320,37 @@ export const Reports = () => {
   const deleteDocument = useCallback(async (id: number) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce document?')) return;
 
+    // Find the document to check if it's a bon_sortie (need to restore stock)
+    const docToDelete = savedDocuments.find(d => d.id === id);
+
     const { error } = await supabase.from('documents').delete().eq('id', id);
     
     if (error) {
       toast.error('Erreur lors de la suppression');
+      return;
+    }
+
+    // If it was a bon_sortie, restore stock by creating IN transactions
+    if (docToDelete && docToDelete.type === 'bon_sortie') {
+      for (const item of docToDelete.items) {
+        if (item.product_id) {
+          await createTransaction({
+            product_id: item.product_id,
+            product_name: item.designation,
+            type: 'IN',
+            quantity: item.quantity,
+            date: new Date().toISOString().split('T')[0],
+            note: `Restauration stock - Suppression ${docToDelete.doc_number}`
+          });
+        }
+      }
+      toast.success('Document supprimé et stock restauré');
     } else {
       toast.success('Document supprimé');
-      loadDocuments();
     }
-  }, [loadDocuments]);
+
+    loadDocuments();
+  }, [loadDocuments, savedDocuments]);
 
   const startEditDocument = useCallback((doc: SavedDocument) => {
     setEditingDocument(doc);
