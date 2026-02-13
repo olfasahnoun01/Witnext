@@ -1,4 +1,5 @@
 import { memo, useCallback, useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { Plus, Trash2, Download, Edit, Package, X, Building2, Users, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Product, DocumentItem } from '@/types';
@@ -180,9 +181,9 @@ export const DocumentForm = memo(({
       if (alreadyAdded + itemQuantity > product.quantity) {
         const remaining = product.quantity - alreadyAdded;
         if (remaining <= 0) {
-          alert(`Stock épuisé pour "${product.name}". Tout le stock disponible est déjà ajouté.`);
+          toast.error(`Stock épuisé pour "${product.name}". Tout le stock disponible est déjà ajouté.`);
         } else {
-          alert(`Stock insuffisant pour "${product.name}". Disponible: ${remaining} unité(s) (stock: ${product.quantity}, déjà ajouté: ${alreadyAdded}).`);
+          toast.error(`Stock insuffisant pour "${product.name}". Disponible: ${remaining} unité(s) (stock: ${product.quantity}, déjà ajouté: ${alreadyAdded}).`);
         }
         return;
       }
