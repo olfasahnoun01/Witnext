@@ -1,17 +1,23 @@
 import { memo, useMemo, useState } from 'react';
 import { History, Download, Edit, Trash2 } from 'lucide-react';
 import { SavedDocument, documentTypes, downloadDocumentPDF } from '@/utils/pdfGenerator';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from '@/components/ui/alert-dialog';
 
 interface DocumentHistoryProps {
   savedDocuments: SavedDocument[];
   canEdit: boolean;
   onEdit: (doc: SavedDocument) => void;
-  onDelete: (id: number) => void;
+  onDelete: (doc: SavedDocument) => void;
+  deleteConfirmDoc: SavedDocument | null;
+  setDeleteConfirmDoc: (doc: SavedDocument | null) => void;
 }
 
 const ITEMS_PER_PAGE = 10;
 
-export const DocumentHistory = memo(({ savedDocuments, canEdit, onEdit, onDelete }: DocumentHistoryProps) => {
+export const DocumentHistory = memo(({ savedDocuments, canEdit, onEdit, onDelete, deleteConfirmDoc, setDeleteConfirmDoc }: DocumentHistoryProps) => {
   const [currentPage, setCurrentPage] = useState(1);
 
   const paginatedDocs = useMemo(() => {
@@ -100,7 +106,7 @@ export const DocumentHistory = memo(({ savedDocuments, canEdit, onEdit, onDelete
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => onDelete(doc.id)}
+                            onClick={() => setDeleteConfirmDoc(doc)}
                             className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                             title="Supprimer"
                           >

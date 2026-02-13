@@ -9,6 +9,10 @@ import { DocumentType, SavedDocument, generateOfficialPDF } from '@/utils/pdfGen
 import { StandardReports } from '@/components/reports/StandardReports';
 import { DocumentHistory } from '@/components/reports/DocumentHistory';
 import { DocumentForm } from '@/components/reports/DocumentForm';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from '@/components/ui/alert-dialog';
 
 export const Reports = () => {
   const { isAdmin, isModerator } = useAuth();
@@ -317,16 +321,64 @@ export const Reports = () => {
     }
   }, [editingDocument, docType, docNumber, docDate, docValidity, transportRef, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems, loadDocuments]);
 
-  const deleteDocument = useCallback(async (id: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce document?')) return;
+  const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<SavedDocument | null>(null);
 
-    const { error } = await supabase.from('documents').delete().eq('id', id);
-    
-    if (error) {
+  const deleteDocument = useCallback(async (doc: SavedDocument) => {
+    try {
+      // For bon_sortie: restore stock before deleting
+      if (doc.type === 'bon_sortie' && doc.items.length > 0) {
+        for (const item of doc.items) {
+          if (item.product_id) {
+            const result = await createTransaction({
+              product_id: item.product_id,
+              product_name: item.designation,
+              type: 'IN',
+              quantity: item.quantity,
+              date: new Date().toISOString(),
+              note: `Restauration - Suppression ${doc.doc_number}`
+            });
+            if (!result.success) {
+              toast.error(`Erreur restauration stock pour "${item.designation}": ${result.error}`);
+            }
+          }
+        }
+      }
+
+      // For bon_entree: deduct stock before deleting
+      if (doc.type === 'bon_entree' && doc.items.length > 0) {
+        for (const item of doc.items) {
+          if (item.product_id) {
+            const result = await createTransaction({
+              product_id: item.product_id,
+              product_name: item.designation,
+              type: 'OUT',
+              quantity: item.quantity,
+              date: new Date().toISOString(),
+              note: `Annulation - Suppression ${doc.doc_number}`
+            });
+            if (!result.success) {
+              toast.error(`Erreur déduction stock pour "${item.designation}": ${result.error}`);
+            }
+          }
+        }
+      }
+
+      const { error } = await supabase.from('documents').delete().eq('id', doc.id);
+      
+      if (error) {
+        toast.error('Erreur lors de la suppression');
+      } else {
+        const stockMsg = doc.type === 'bon_sortie' ? ' et stock restauré' : doc.type === 'bon_entree' ? ' et stock ajusté' : '';
+        toast.success(`Document supprimé${stockMsg}`);
+        const productsData = await getAllProducts();
+        setProducts(productsData);
+        loadDocuments();
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
       toast.error('Erreur lors de la suppression');
-    } else {
-      toast.success('Document supprimé');
-      loadDocuments();
+    } finally {
+      setDeleteConfirmDoc(null);
     }
   }, [loadDocuments]);
 
@@ -435,8 +487,41 @@ export const Reports = () => {
           canEdit={canEditDocuments}
           onEdit={startEditDocument}
           onDelete={deleteDocument}
+          deleteConfirmDoc={deleteConfirmDoc}
+          setDeleteConfirmDoc={setDeleteConfirmDoc}
         />
       )}
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteConfirmDoc} onOpenChange={(open) => !open && setDeleteConfirmDoc(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer le document <strong>{deleteConfirmDoc?.doc_number}</strong> ?
+              {deleteConfirmDoc?.type === 'bon_sortie' && (
+                <span className="block mt-2 text-warning font-medium">
+                  ⚠️ Les quantités des articles seront automatiquement restaurées dans le stock.
+                </span>
+              )}
+              {deleteConfirmDoc?.type === 'bon_entree' && (
+                <span className="block mt-2 text-warning font-medium">
+                  ⚠️ Les quantités des articles seront automatiquement déduites du stock.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteConfirmDoc && deleteDocument(deleteConfirmDoc)}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
