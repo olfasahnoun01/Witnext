@@ -57,6 +57,7 @@ export interface DocumentItem {
   description: string;
   quantity: number;
   price?: number;
+  product_id?: number;
 }
 
 export interface DocumentData {
