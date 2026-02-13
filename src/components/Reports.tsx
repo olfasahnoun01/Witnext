@@ -164,7 +164,21 @@ export const Reports = () => {
     setDocItems([]);
   }, []);
 
+  const [isSaving, setIsSaving] = useState(false);
+
   const saveDocument = useCallback(async () => {
+    // Prevent double-save
+    if (isSaving) return;
+
+    // Validate: must have at least one item
+    if (docItems.length === 0) {
+      toast.error('Veuillez ajouter au moins un article avant de sauvegarder');
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
     const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
     const totalAmount = showPrice 
       ? docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)
@@ -238,12 +252,18 @@ export const Reports = () => {
       toast.success('Document sauvegardé avec succès');
     }
 
-    // Reset form after successful save
+    // Reset form and reload after successful save
+    const savedType = docType;
     resetForm();
-    // Re-generate next doc number after reset
-    generateNextDocNumber(docType === 'bon_livraison' ? 'bon_livraison' : docType);
-    loadDocuments();
-  }, [docType, docNumber, docDate, docValidity, transportRef, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems, loadDocuments, resetForm, generateNextDocNumber]);
+    await loadDocuments();
+    generateNextDocNumber(savedType);
+    } catch (err) {
+      console.error('Save error:', err);
+      toast.error('Erreur lors de la sauvegarde');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [isSaving, docType, docNumber, docDate, docValidity, transportRef, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems, loadDocuments, resetForm, generateNextDocNumber]);
 
   const updateDocument = useCallback(async () => {
     if (!editingDocument) return;
@@ -402,6 +422,7 @@ export const Reports = () => {
           setItemDescription={setItemDescription}
           setItemQuantity={setItemQuantity}
           setItemPrice={setItemPrice}
+          isSaving={isSaving}
           onSave={saveDocument}
           onUpdate={updateDocument}
           onCancel={cancelEdit}

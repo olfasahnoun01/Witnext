@@ -65,6 +65,7 @@ interface DocumentFormProps {
   setItemQuantity: (value: number) => void;
   setItemPrice: (value: number) => void;
   
+  isSaving?: boolean;
   onSave: () => void;
   onUpdate: () => void;
   onCancel: () => void;
@@ -112,7 +113,7 @@ export const DocumentForm = memo(({
   setDocType, setDocNumber, setDocDate, setDocValidity, setTransportRef,
   setThirdPartyName, setThirdPartyAddress, setThirdPartyTaxId, setDocItems,
   setSelectedProductId, setItemDescription, setItemQuantity, setItemPrice,
-  onSave, onUpdate, onCancel
+  onSave, onUpdate, onCancel, isSaving = false
 }: DocumentFormProps) => {
   
   const isEntree = docType === 'bon_entree';
@@ -427,9 +428,9 @@ export const DocumentForm = memo(({
               Mettre à jour
             </Button>
           ) : (
-            <Button onClick={onSave} variant="secondary" className="flex-1">
+            <Button onClick={onSave} variant="secondary" className="flex-1" disabled={isSaving}>
               <Plus className="w-4 h-4 mr-2" />
-              Sauvegarder
+              {isSaving ? 'Sauvegarde en cours...' : 'Sauvegarder'}
             </Button>
           )}
         </div>
