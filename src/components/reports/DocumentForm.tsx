@@ -169,6 +169,24 @@ export const DocumentForm = memo(({
     
     const product = products.find(p => p.id === selectedProductId);
     if (!product) return;
+
+    // For bon_sortie: check stock availability
+    if (docType === 'bon_sortie') {
+      // Calculate already-added quantity for this product
+      const alreadyAdded = docItems
+        .filter(item => item.product_id === product.id)
+        .reduce((sum, item) => sum + item.quantity, 0);
+      
+      if (alreadyAdded + itemQuantity > product.quantity) {
+        const remaining = product.quantity - alreadyAdded;
+        if (remaining <= 0) {
+          alert(`Stock épuisé pour "${product.name}". Tout le stock disponible est déjà ajouté.`);
+        } else {
+          alert(`Stock insuffisant pour "${product.name}". Disponible: ${remaining} unité(s) (stock: ${product.quantity}, déjà ajouté: ${alreadyAdded}).`);
+        }
+        return;
+      }
+    }
     
     // Price is optional - only include if provided or if showPrice is true and product has price
     const itemData: DocumentItem = {
@@ -176,6 +194,7 @@ export const DocumentForm = memo(({
       designation: product.name,
       description: itemDescription,
       quantity: itemQuantity,
+      product_id: product.id,
     };
     
     // Only add price if it's a document type that shows price (0 is allowed as explicit value)
@@ -189,7 +208,7 @@ export const DocumentForm = memo(({
     setItemDescription('');
     setItemQuantity(1);
     setItemPrice(0);
-  }, [selectedProductId, products, itemDescription, itemQuantity, itemPrice, showPrice, setDocItems, setSelectedProductId, setItemDescription, setItemQuantity, setItemPrice]);
+  }, [selectedProductId, products, itemDescription, itemQuantity, itemPrice, showPrice, docType, docItems, setDocItems, setSelectedProductId, setItemDescription, setItemQuantity, setItemPrice]);
 
   const removeDocItem = useCallback((index: number) => {
     setDocItems(prev => prev.filter((_, i) => i !== index));

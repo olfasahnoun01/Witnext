@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { FileText, Package, History } from 'lucide-react';
-import { getAllProducts, getLowStockProducts } from '@/services/dbService';
+import { getAllProducts, getLowStockProducts, createTransaction, getProductById } from '@/services/dbService';
 import { Product, DocumentItem } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -170,6 +170,26 @@ export const Reports = () => {
       ? docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)
       : 0;
 
+    // For bon_sortie: validate stock availability before saving
+    if (docType === 'bon_sortie') {
+      for (const item of docItems) {
+        const productId = item.product_id;
+        if (!productId) {
+          toast.error(`Produit "${item.designation}" non lié à un article en stock`);
+          return;
+        }
+        const product = await getProductById(productId);
+        if (!product) {
+          toast.error(`Produit "${item.designation}" introuvable en stock`);
+          return;
+        }
+        if (item.quantity > product.quantity) {
+          toast.error(`Stock insuffisant pour "${item.designation}": ${product.quantity} disponible(s), ${item.quantity} demandé(s)`);
+          return;
+        }
+      }
+    }
+
     // Get current user for document ownership
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -190,10 +210,35 @@ export const Reports = () => {
     if (error) {
       toast.error('Erreur lors de la sauvegarde du document');
       console.error(error);
+      return;
+    }
+
+    // For bon_sortie: deduct stock by creating OUT transactions
+    if (docType === 'bon_sortie') {
+      for (const item of docItems) {
+        if (item.product_id) {
+          const result = await createTransaction({
+            product_id: item.product_id,
+            product_name: item.designation,
+            type: 'OUT',
+            quantity: item.quantity,
+            date: new Date(docDate).toISOString(),
+            note: `Bon de sortie ${docNumber}`
+          });
+          if (!result.success) {
+            toast.error(`Erreur déduction stock pour "${item.designation}": ${result.error}`);
+          }
+        }
+      }
+      // Reload products to reflect new quantities
+      const productsData = await getAllProducts();
+      setProducts(productsData);
+      toast.success('Document sauvegardé et stock mis à jour');
     } else {
       toast.success('Document sauvegardé avec succès');
-      loadDocuments();
     }
+
+    loadDocuments();
   }, [docType, docNumber, docDate, docValidity, transportRef, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems, loadDocuments]);
 
   const updateDocument = useCallback(async () => {
