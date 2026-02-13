@@ -227,25 +227,24 @@ export const Reports = () => {
       return;
     }
 
-    // Automatic stock update based on document type
-    if (docType === 'bon_sortie' || docType === 'bon_entree') {
-      const txType = docType === 'bon_sortie' ? 'OUT' : 'IN';
-      const label = docType === 'bon_sortie' ? 'Bon de sortie' : "Bon d'entrée";
+    // For bon_sortie: deduct stock by creating OUT transactions
+    if (docType === 'bon_sortie') {
       for (const item of docItems) {
         if (item.product_id) {
           const result = await createTransaction({
             product_id: item.product_id,
             product_name: item.designation,
-            type: txType,
+            type: 'OUT',
             quantity: item.quantity,
             date: new Date(docDate).toISOString(),
-            note: `${label} ${docNumber}`
+            note: `Bon de sortie ${docNumber}`
           });
           if (!result.success) {
-            toast.error(`Erreur stock pour "${item.designation}": ${result.error}`);
+            toast.error(`Erreur déduction stock pour "${item.designation}": ${result.error}`);
           }
         }
       }
+      // Reload products to reflect new quantities
       const productsData = await getAllProducts();
       setProducts(productsData);
       toast.success('Document sauvegardé et stock mis à jour');
@@ -321,38 +320,15 @@ export const Reports = () => {
   const deleteDocument = useCallback(async (id: number) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce document?')) return;
 
-    // Find the document to check if it's a bon_sortie (need to restore stock)
-    const docToDelete = savedDocuments.find(d => d.id === id);
-
     const { error } = await supabase.from('documents').delete().eq('id', id);
     
     if (error) {
       toast.error('Erreur lors de la suppression');
-      return;
-    }
-
-    // Automatic stock restoration on delete
-    if (docToDelete && (docToDelete.type === 'bon_sortie' || docToDelete.type === 'bon_entree')) {
-      const reverseType = docToDelete.type === 'bon_sortie' ? 'IN' : 'OUT';
-      for (const item of docToDelete.items) {
-        if (item.product_id) {
-          await createTransaction({
-            product_id: item.product_id,
-            product_name: item.designation,
-            type: reverseType,
-            quantity: item.quantity,
-            date: new Date().toISOString().split('T')[0],
-            note: `Restauration stock - Suppression ${docToDelete.doc_number}`
-          });
-        }
-      }
-      toast.success('Document supprimé et stock restauré');
     } else {
       toast.success('Document supprimé');
+      loadDocuments();
     }
-
-    loadDocuments();
-  }, [loadDocuments, savedDocuments]);
+  }, [loadDocuments]);
 
   const startEditDocument = useCallback((doc: SavedDocument) => {
     setEditingDocument(doc);
