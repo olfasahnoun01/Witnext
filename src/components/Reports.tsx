@@ -238,8 +238,12 @@ export const Reports = () => {
       toast.success('Document sauvegardé avec succès');
     }
 
+    // Reset form after successful save
+    resetForm();
+    // Re-generate next doc number after reset
+    generateNextDocNumber(docType === 'bon_livraison' ? 'bon_livraison' : docType);
     loadDocuments();
-  }, [docType, docNumber, docDate, docValidity, transportRef, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems, loadDocuments]);
+  }, [docType, docNumber, docDate, docValidity, transportRef, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems, loadDocuments, resetForm, generateNextDocNumber]);
 
   const updateDocument = useCallback(async () => {
     if (!editingDocument) return;
