@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload, FileText, Eye, Download } from 'lucide-react';
+import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload, FileText, Eye, Download, X } from 'lucide-react';
 import { ProductGroup, Product, StockStatus } from '@/types';
 import { getVariantsByGroupId, createVariant } from '@/services/productGroupService';
 import { updateProduct, deleteProduct } from '@/services/dbService';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { compressImage, formatBytes, getBase64Size } from '@/lib/imageCompression';
@@ -52,6 +53,7 @@ interface VariantFormData {
   price: number;
   remise: number;
   image: string | null;
+  fiche_technique_url: string | null;
 }
 
 const emptyFormData: VariantFormData = {
@@ -61,7 +63,8 @@ const emptyFormData: VariantFormData = {
   quantity: 0,
   price: 0,
   remise: 0,
-  image: null
+  image: null,
+  fiche_technique_url: null
 };
 
 export const VariantView = ({ group, onBack }: VariantViewProps) => {
@@ -74,6 +77,8 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewFicheUrl, setPreviewFicheUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const ficheInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingFiche, setIsUploadingFiche] = useState(false);
 
   const fetchVariants = useCallback(async () => {
     setIsLoading(true);
@@ -103,6 +108,9 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   const handleOpenModal = useCallback((variant?: Product) => {
     if (variant) {
       setEditingVariant(variant);
+      const matchedFournisseur = group.fournisseurs?.find(
+        f => f.fournisseur_name === variant.fournisseur
+      );
       setFormData({
         sku: variant.sku,
         size: variant.size || '',
@@ -110,7 +118,8 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         quantity: variant.quantity,
         price: variant.price,
         remise: variant.remise || 0,
-        image: variant.image || null
+        image: variant.image || null,
+        fiche_technique_url: matchedFournisseur?.fiche_technique_url || null
       });
     } else {
       setEditingVariant(null);
@@ -148,6 +157,44 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     }
   }, []);
 
+  const handleFicheUpload = useCallback(async (file: File) => {
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Format non supporté. Utilisez PDF, JPG, PNG ou WebP.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Fichier trop volumineux (max 10 Mo)');
+      return;
+    }
+    setIsUploadingFiche(true);
+    try {
+      const ext = file.name.split('.').pop() || 'pdf';
+      const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+      const filePath = `fiches/${fileName}`;
+      const { error: uploadError } = await supabase.storage.from('fiches-techniques').upload(filePath, file);
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
+      setFormData(prev => ({ ...prev, fiche_technique_url: urlData.publicUrl }));
+
+      // If editing, update the matching fournisseur entry in DB
+      if (editingVariant) {
+        const matchedF = group.fournisseurs?.find(f => f.fournisseur_name === editingVariant.fournisseur);
+        if (matchedF?.id) {
+          await supabase.from('product_group_fournisseurs')
+            .update({ fiche_technique_url: urlData.publicUrl })
+            .eq('id', matchedF.id);
+        }
+      }
+      toast.success('Fiche technique téléchargée');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erreur lors du téléchargement');
+    } finally {
+      setIsUploadingFiche(false);
+    }
+  }, [editingVariant, group.fournisseurs]);
+
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
     setEditingVariant(null);
@@ -172,6 +219,13 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           remise: formData.remise,
           image: formData.image
         });
+        // Update fiche technique on matching fournisseur
+        const matchedF = group.fournisseurs?.find(f => f.fournisseur_name === editingVariant.fournisseur);
+        if (matchedF?.id) {
+          await supabase.from('product_group_fournisseurs')
+            .update({ fiche_technique_url: formData.fiche_technique_url || null })
+            .eq('id', matchedF.id);
+        }
         toast.success('Variante mise à jour');
       } else {
         const result = await createVariant(group.id, {
@@ -186,6 +240,12 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         if (!result.success) {
           toast.error(result.error || 'Erreur lors de la création');
           return;
+        }
+        // If fiche was uploaded during creation, save it to the group's primary fournisseur
+        if (formData.fiche_technique_url && group.fournisseurs?.[0]?.id) {
+          await supabase.from('product_group_fournisseurs')
+            .update({ fiche_technique_url: formData.fiche_technique_url })
+            .eq('id', group.fournisseurs[0].id);
         }
         toast.success('Variante créée');
       }
@@ -530,6 +590,82 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                   {(formData.price * (1 - formData.remise / 100)).toFixed(3)} TND
                 </div>
               </div>
+            </div>
+
+            {/* Fiche technique upload */}
+            <div className="space-y-2">
+              <Label>Fiche Technique</Label>
+              <input
+                ref={ficheInputRef}
+                type="file"
+                accept=".pdf,image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFicheUpload(file);
+                  e.target.value = '';
+                }}
+              />
+              {formData.fiche_technique_url ? (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border">
+                  <FileText className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span className="text-sm text-foreground truncate flex-1">Fiche technique</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => setPreviewFicheUrl(formData.fiche_technique_url!)}
+                    title="Prévisualiser"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                  <a
+                    href={formData.fiche_technique_url}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-muted transition-colors"
+                    title="Télécharger"
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2 text-xs gap-1"
+                    onClick={() => ficheInputRef.current?.click()}
+                    title="Remplacer"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    Modifier
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                    onClick={() => setFormData(prev => ({ ...prev, fiche_technique_url: null }))}
+                    title="Supprimer"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  disabled={isUploadingFiche}
+                  onClick={() => ficheInputRef.current?.click()}
+                >
+                  <Upload className="w-4 h-4" />
+                  {isUploadingFiche ? 'Envoi en cours...' : 'Ajouter une fiche technique'}
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground">PDF, JPG, PNG ou WebP (max 10 Mo)</p>
             </div>
           </div>
           
