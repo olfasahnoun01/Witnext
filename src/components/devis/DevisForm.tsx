@@ -407,7 +407,8 @@ export const DevisForm = memo(({
     }
   }, [newArticle, newArticleFournisseurs, resetNewArticleForm]);
 
-  const totalAmount = devisItems.reduce((s, i) => s + i.prix_ttc * i.quantity, 0);
+  const rawTotal = devisItems.reduce((s, i) => s + i.prix_ttc * i.quantity, 0);
+  const totalAmount = isTtc ? rawTotal : rawTotal / 1.19;
   const thirdPartyList = isEntrant ? fournisseurs : clients;
   const ThirdPartyIcon = isEntrant ? Building2 : Users;
   const thirdPartyLabel = isEntrant ? 'Fournisseur (expéditeur)' : 'Client (destinataire)';
