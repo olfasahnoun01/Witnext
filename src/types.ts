@@ -113,6 +113,7 @@ export interface Devis {
   total_amount: number;
   notes: string | null;
   status: 'brouillon' | 'envoyé' | 'accepté' | 'refusé';
+  is_ttc: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;

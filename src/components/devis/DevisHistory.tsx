@@ -38,6 +38,7 @@ const toDevisPDFData = (d: Devis): DevisPDFData => ({
   items: d.items,
   total_amount: d.total_amount,
   notes: d.notes,
+  is_ttc: d.is_ttc,
 });
 
 export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: DevisHistoryProps) => {
@@ -114,6 +115,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Tiers</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Mode</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Statut</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">PDF</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
@@ -142,6 +144,13 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
                     </td>
                     <td className="py-3 px-4 text-sm font-medium text-foreground">
                       {d.total_amount > 0 ? `${d.total_amount.toFixed(3)} TND` : '-'}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        d.is_ttc ? 'bg-primary/10 text-primary' : 'bg-warning/10 text-warning'
+                      }`}>
+                        {d.is_ttc ? 'TTC' : 'HT'}
+                      </span>
                     </td>
                     <td className="py-3 px-4">
                       <span className={`px-2 py-1 rounded text-xs font-medium capitalize ${statusColors[d.status] || ''}`}>
