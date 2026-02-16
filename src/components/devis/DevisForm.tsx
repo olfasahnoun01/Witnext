@@ -109,7 +109,7 @@ export const DevisForm = memo(({
   const [itemDesignation, setItemDesignation] = useState('');
   const [itemFournisseur, setItemFournisseur] = useState('');
   const [itemPrixTtc, setItemPrixTtc] = useState<number>(0);
-  const [itemQuantity, setItemQuantity] = useState<number>(1);
+  const [itemQuantity, setItemQuantity] = useState<number>(0);
   const [itemDescription, setItemDescription] = useState('');
 
   // New article dialog (full product creation popup)
@@ -167,7 +167,7 @@ export const DevisForm = memo(({
     setItemDesignation(product.name);
     setItemFournisseur(product.fournisseur || '');
     setItemPrixTtc(product.prix_ttc || product.price * (1 - (product.remise || 0) / 100));
-    setItemQuantity(1);
+    setItemQuantity(0);
     setItemDescription(`${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`);
     setProductSearch('');
     setSearchResults([]);
@@ -250,7 +250,7 @@ export const DevisForm = memo(({
     setItemDesignation('');
     setItemFournisseur('');
     setItemPrixTtc(0);
-    setItemQuantity(1);
+    setItemQuantity(0);
     setItemDescription('');
     setSelectedProduct(null);
   }, [itemDesignation, itemFournisseur, itemPrixTtc, itemQuantity, itemDescription, setDevisItems]);
@@ -354,7 +354,7 @@ export const DevisForm = memo(({
         setItemDesignation(data.name);
         setItemFournisseur(primaryFournisseur?.fournisseur_name || '');
         setItemPrixTtc(prixTtc);
-        setItemQuantity(1);
+        setItemQuantity(0);
         setItemDescription(`${data.sku}${data.size ? ` - Taille: ${data.size}` : ''}${data.color ? ` - ${data.color}` : ''}`);
         setShowNewArticle(false);
         resetNewArticleForm();
@@ -550,16 +550,10 @@ export const DevisForm = memo(({
                     </div>
                   )}
 
-                  {/* Quantity & Price (editable even after selection) */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Quantité</label>
-                      <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Prix TTC (TND)</label>
-                      <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
-                    </div>
+                  {/* Price (editable even after selection) */}
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Prix TTC (TND)</label>
+                    <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
                   </div>
                 </>
               ) : (
@@ -570,15 +564,9 @@ export const DevisForm = memo(({
                     <input type="text" value={itemFournisseur} onChange={e => setItemFournisseur(e.target.value)} className="form-input" placeholder="Fournisseur" />
                     <input type="text" value={itemDescription} onChange={e => setItemDescription(e.target.value)} className="form-input" placeholder="Description (opt.)" />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Quantité</label>
-                      <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Prix TTC (TND)</label>
-                      <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
-                    </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Prix TTC (TND)</label>
+                    <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
                   </div>
                 </>
               )}
