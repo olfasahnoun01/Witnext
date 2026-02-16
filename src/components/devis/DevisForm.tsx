@@ -320,6 +320,7 @@ export const DevisForm = memo(({
             product_group_id: pgData.id,
             fournisseur_name: f.fournisseur_name.trim(),
             prix_ttc: f.prix_ttc,
+            fiche_technique_url: f.fiche_technique_url || null,
           }))
         );
       }

@@ -75,7 +75,8 @@ export const getProductGroupsByCategory = async (category: string): Promise<Prod
         fournisseur_name: f.fournisseur_name,
         prix: Number(f.prix_ttc),
         remise: 0,
-        prix_ttc: Number(f.prix_ttc)
+        prix_ttc: Number(f.prix_ttc),
+        fiche_technique_url: f.fiche_technique_url || null
       });
     });
     

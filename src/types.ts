@@ -22,6 +22,7 @@ export interface ProductGroupFournisseur {
   prix: number;
   remise: number;
   prix_ttc: number;
+  fiche_technique_url?: string | null;
 }
 
 export interface ProductGroup {

@@ -218,6 +218,7 @@ export type Database = {
       product_group_fournisseurs: {
         Row: {
           created_at: string
+          fiche_technique_url: string | null
           fournisseur_name: string
           id: number
           prix_ttc: number
@@ -226,6 +227,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          fiche_technique_url?: string | null
           fournisseur_name: string
           id?: number
           prix_ttc?: number
@@ -234,6 +236,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          fiche_technique_url?: string | null
           fournisseur_name?: string
           id?: number
           prix_ttc?: number

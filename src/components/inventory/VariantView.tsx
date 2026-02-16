@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload } from 'lucide-react';
+import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload, FileText, Eye, Download } from 'lucide-react';
 import { ProductGroup, Product, StockStatus } from '@/types';
 import { getVariantsByGroupId, createVariant } from '@/services/productGroupService';
 import { updateProduct, deleteProduct } from '@/services/dbService';
@@ -72,6 +72,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   const [editingVariant, setEditingVariant] = useState<Product | null>(null);
   const [formData, setFormData] = useState<VariantFormData>(emptyFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [previewFicheUrl, setPreviewFicheUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchVariants = useCallback(async () => {
@@ -281,6 +282,28 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
               >
                 <p className="font-medium text-foreground whitespace-nowrap">{f.fournisseur_name}</p>
                 <p className="text-sm text-primary whitespace-nowrap">{f.prix_ttc.toFixed(3)} TND</p>
+                {f.fiche_technique_url && (
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs gap-1"
+                      onClick={() => setPreviewFicheUrl(f.fiche_technique_url!)}
+                    >
+                      <Eye className="w-3 h-3" />
+                      Voir
+                    </Button>
+                    <a
+                      href={f.fiche_technique_url}
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-xs hover:bg-muted transition-colors"
+                    >
+                      <Download className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -488,6 +511,45 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
               {isSubmitting ? 'Enregistrement...' : (editingVariant ? 'Mettre à jour' : 'Créer')}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Fiche technique preview dialog */}
+      <Dialog open={!!previewFicheUrl} onOpenChange={() => setPreviewFicheUrl(null)}>
+        <DialogContent className="max-w-3xl max-h-[85vh]">
+          <DialogHeader>
+            <DialogTitle>Fiche Technique</DialogTitle>
+          </DialogHeader>
+          {previewFicheUrl && (
+            <div className="flex-1 overflow-auto">
+              {previewFicheUrl.toLowerCase().endsWith('.pdf') ? (
+                <iframe
+                  src={previewFicheUrl}
+                  className="w-full h-[70vh] rounded-md border"
+                  title="Fiche technique PDF"
+                />
+              ) : (
+                <img
+                  src={previewFicheUrl}
+                  alt="Fiche technique"
+                  className="w-full h-auto rounded-md"
+                />
+              )}
+              <div className="flex justify-end mt-3">
+                <a
+                  href={previewFicheUrl}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Download className="w-4 h-4" />
+                    Télécharger
+                  </Button>
+                </a>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
