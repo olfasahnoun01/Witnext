@@ -281,6 +281,23 @@ export const DevisForm = memo(({
     if (!newArticle.sku.trim()) { toast.error('Code article requis'); return; }
     setIsCreatingArticle(true);
     try {
+      // Auto-create any new fournisseurs that don't exist in the database
+      const { data: existingFourns } = await supabase.from('fournisseurs').select('nom');
+      const existingNames = new Set((existingFourns || []).map(f => f.nom.toLowerCase()));
+      
+      const newFournisseurNames = newArticleFournisseurs
+        .map(f => f.fournisseur_name.trim())
+        .filter(name => name && !existingNames.has(name.toLowerCase()));
+      
+      if (newFournisseurNames.length > 0) {
+        await supabase.from('fournisseurs').insert(
+          newFournisseurNames.map(nom => ({
+            nom,
+            specialite: newArticle.category || 'Non catégorisé',
+          }))
+        );
+      }
+
       const primaryFournisseur = newArticleFournisseurs.length > 0 ? newArticleFournisseurs[0] : null;
       const prixTtc = primaryFournisseur ? primaryFournisseur.prix_ttc : 0;
       
