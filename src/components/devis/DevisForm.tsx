@@ -111,6 +111,7 @@ export const DevisForm = memo(({
   const [itemDesignation, setItemDesignation] = useState('');
   const [itemFournisseur, setItemFournisseur] = useState('');
   const [itemPrixTtc, setItemPrixTtc] = useState<number>(0);
+  const [itemRemise, setItemRemise] = useState<number>(0);
   const [itemQuantity, setItemQuantity] = useState<number>(1);
   const [itemDescription, setItemDescription] = useState('');
 
@@ -171,6 +172,7 @@ export const DevisForm = memo(({
     const priceTtc = product.prix_ttc || product.price * (1 - (product.remise || 0) / 100);
     // In HT mode, convert TTC price to HT by removing 19% TVA
     setItemPrixTtc(isTtc ? priceTtc : priceTtc / 1.19);
+    setItemRemise(product.remise || 0);
     setItemQuantity(1);
     setItemDescription(`${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`);
     setProductSearch('');
@@ -248,12 +250,14 @@ export const DevisForm = memo(({
       designation: itemDesignation.trim(),
       fournisseur: itemFournisseur.trim(),
       prix_ttc: itemPrixTtc,
+      remise: itemRemise,
       quantity: itemQuantity,
       description: itemDescription.trim() || undefined,
     }]);
     setItemDesignation('');
     setItemFournisseur('');
     setItemPrixTtc(0);
+    setItemRemise(0);
     setItemQuantity(1);
     setItemDescription('');
     setSelectedProduct(null);
@@ -381,6 +385,7 @@ export const DevisForm = memo(({
             designation: d.name,
             fournisseur: d.fournisseur || '',
             prix_ttc: d.prix_ttc ?? (d.price * (1 - (d.remise || 0) / 100)),
+            remise: d.remise || 0,
             quantity: 1,
             description: `${d.sku}${d.size ? ` - Taille: ${d.size}` : ''}${d.color ? ` - ${d.color}` : ''}`.trim() || undefined,
           }));
@@ -396,6 +401,7 @@ export const DevisForm = memo(({
           setItemDesignation(first.name);
           setItemFournisseur(first.fournisseur || '');
           setItemPrixTtc(first.prix_ttc ?? (first.price * (1 - (first.remise || 0) / 100)));
+          setItemRemise(first.remise || 0);
           setItemQuantity(1);
           setItemDescription(description);
         }
@@ -619,15 +625,19 @@ export const DevisForm = memo(({
                     </div>
                   )}
 
-                  {/* Quantity & Price (editable even after selection) */}
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* Quantity, Price & Remise */}
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Quantité</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Prix {isTtc ? 'TTC' : 'HT'} (TND)</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">Prix {isTtc ? 'TTC' : 'HT'}</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
+                      <input type="number" min="0" max="100" step="0.1" value={itemRemise || ''} onChange={e => setItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
                   </div>
                 </>
@@ -639,14 +649,18 @@ export const DevisForm = memo(({
                     <input type="text" value={itemFournisseur} onChange={e => setItemFournisseur(e.target.value)} className="form-input" placeholder="Fournisseur" />
                     <input type="text" value={itemDescription} onChange={e => setItemDescription(e.target.value)} className="form-input" placeholder="Description (opt.)" />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Quantité</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Prix {isTtc ? 'TTC' : 'HT'} (TND)</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">Prix {isTtc ? 'TTC' : 'HT'}</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
+                      <input type="number" min="0" max="100" step="0.1" value={itemRemise || ''} onChange={e => setItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
                   </div>
                 </>
@@ -704,6 +718,7 @@ export const DevisForm = memo(({
                     <p className="text-sm text-muted-foreground">
                       {item.fournisseur && `${item.fournisseur} • `}
                       Qté: {item.quantity} • {item.prix_ttc.toFixed(3)} TND
+                      {item.remise > 0 && ` (-${item.remise}%)`}
                       {item.quantity > 1 && ` = ${(item.prix_ttc * item.quantity).toFixed(3)} TND`}
                     </p>
                     {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}

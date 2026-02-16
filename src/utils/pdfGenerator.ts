@@ -440,7 +440,7 @@ export interface DevisPDFData {
   third_party_address: string | null;
   third_party_tax_id: string | null;
   third_party_phone: string | null;
-  items: { designation: string; fournisseur: string; prix_ttc: number; quantity: number; description?: string }[];
+  items: { designation: string; fournisseur: string; prix_ttc: number; quantity: number; remise: number; description?: string }[];
   total_amount: number;
   notes: string | null;
   is_ttc: boolean;
@@ -525,7 +525,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
         item.designation,
         item.quantity.toString(),
         `${prixHT.toFixed(2)} DT`,
-        '0%',
+        item.remise > 0 ? `${item.remise}%` : '—',
         '19%',
         `${totalTTC.toFixed(2)} DT`
       ];
@@ -538,7 +538,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
         item.designation,
         item.quantity.toString(),
         `${prixHT.toFixed(2)} DT`,
-        '0%',
+        item.remise > 0 ? `${item.remise}%` : '—',
         '—',
         `${totalHT.toFixed(2)} DT`
       ];
