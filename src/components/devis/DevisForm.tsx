@@ -349,12 +349,32 @@ export const DevisForm = memo(({
         toast.error(`Erreur création article: ${error.message}`);
       } else if (data) {
         toast.success('Article créé avec succès');
-        // Auto-fill the item fields
-        setItemDesignation(data.name);
-        setItemFournisseur(primaryFournisseur?.fournisseur_name || '');
-        setItemPrixTtc(prixTtc);
-        setItemQuantity(1);
-        setItemDescription(`${data.sku}${data.size ? ` - Taille: ${data.size}` : ''}${data.color ? ` - ${data.color}` : ''}`);
+        const description = `${data.sku}${data.size ? ` - Taille: ${data.size}` : ''}${data.color ? ` - ${data.color}` : ''}`;
+        
+        if (newArticleFournisseurs.length > 1) {
+          // Add one line per fournisseur directly to the devis
+          const newItems = newArticleFournisseurs.map(f => ({
+            designation: data.name,
+            fournisseur: f.fournisseur_name,
+            prix_ttc: f.prix_ttc,
+            quantity: 1,
+            description: description.trim() || undefined,
+          }));
+          setDevisItems(prev => [...prev, ...newItems]);
+          setItemDesignation('');
+          setItemFournisseur('');
+          setItemPrixTtc(0);
+          setItemQuantity(1);
+          setItemDescription('');
+          setSelectedProduct(null);
+        } else {
+          // Single fournisseur: fill the form fields as before
+          setItemDesignation(data.name);
+          setItemFournisseur(primaryFournisseur?.fournisseur_name || '');
+          setItemPrixTtc(prixTtc);
+          setItemQuantity(1);
+          setItemDescription(description);
+        }
         setShowNewArticle(false);
         resetNewArticleForm();
       }
