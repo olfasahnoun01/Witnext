@@ -105,12 +105,20 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
 
   const totalStock = variants.reduce((sum, v) => sum + v.quantity, 0);
 
-  const handleOpenModal = useCallback((variant?: Product) => {
+  const handleOpenModal = useCallback(async (variant?: Product) => {
     if (variant) {
       setEditingVariant(variant);
-      const matchedFournisseur = group.fournisseurs?.find(
-        f => f.fournisseur_name === variant.fournisseur
-      );
+      // Fetch fresh fournisseur data to get the latest fiche_technique_url
+      let ficheUrl: string | null = null;
+      if (variant.fournisseur) {
+        const { data: freshFournisseurs } = await supabase
+          .from('product_group_fournisseurs')
+          .select('*')
+          .eq('product_group_id', group.id)
+          .eq('fournisseur_name', variant.fournisseur)
+          .maybeSingle();
+        ficheUrl = freshFournisseurs?.fiche_technique_url || null;
+      }
       setFormData({
         sku: variant.sku,
         size: variant.size || '',
@@ -119,7 +127,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         price: variant.price,
         remise: variant.remise || 0,
         image: variant.image || null,
-        fiche_technique_url: matchedFournisseur?.fiche_technique_url || null
+        fiche_technique_url: ficheUrl
       });
     } else {
       setEditingVariant(null);
@@ -129,7 +137,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
       });
     }
     setIsModalOpen(true);
-  }, [group.base_sku, variants.length]);
+  }, [group.id, group.base_sku, variants.length]);
 
   const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
