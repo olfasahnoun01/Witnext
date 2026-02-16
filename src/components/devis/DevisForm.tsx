@@ -666,6 +666,9 @@ export const DevisForm = memo(({
 
           {/* Actions */}
           <div className="flex gap-2">
+            <Button variant="outline" onClick={onCancel} className="gap-2">
+              <X className="w-4 h-4" /> Vider
+            </Button>
             {editingDevis ? (
               <Button onClick={onUpdate} className="flex-1">
                 <Edit className="w-4 h-4 mr-2" /> Mettre à jour
