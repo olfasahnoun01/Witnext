@@ -1,5 +1,6 @@
 import { memo, useMemo, useState, useCallback } from 'react';
-import { History, Edit, Trash2, Eye, Download, Loader2 } from 'lucide-react';
+import { History, Edit, Trash2, Eye, Download, Loader2, Search, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
 import {
@@ -47,13 +48,25 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState('');
   const [isGenerating, setIsGenerating] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredDevis = useMemo(() => {
+    if (!searchTerm.trim()) return savedDevis;
+    const term = searchTerm.toLowerCase().trim();
+    return savedDevis.filter(d =>
+      d.items.some(item =>
+        item.designation.toLowerCase().includes(term) ||
+        item.fournisseur?.toLowerCase().includes(term)
+      )
+    );
+  }, [savedDevis, searchTerm]);
 
   const paginatedDevis = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return savedDevis.slice(start, start + ITEMS_PER_PAGE);
-  }, [savedDevis, currentPage]);
+    return filteredDevis.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredDevis, currentPage]);
 
-  const totalPages = Math.ceil(savedDevis.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(filteredDevis.length / ITEMS_PER_PAGE);
 
   const handlePreview = useCallback(async (d: Devis) => {
     setIsGenerating(d.id);
@@ -100,9 +113,25 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
   return (
     <>
       <div className="bg-card rounded-xl border border-border p-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
           <h3 className="text-lg font-semibold text-foreground">Historique des Devis</h3>
-          <span className="text-sm text-muted-foreground">{savedDevis.length} devis</span>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher un article..."
+                value={searchTerm}
+                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                className="pl-9 pr-8 h-9 w-56"
+              />
+              {searchTerm && (
+                <button onClick={() => { setSearchTerm(''); setCurrentPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <span className="text-sm text-muted-foreground whitespace-nowrap">{filteredDevis.length} devis</span>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
