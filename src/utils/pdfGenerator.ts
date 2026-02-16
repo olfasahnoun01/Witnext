@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Product, DocumentItem } from '@/types';
-import grosafeLogo from '@/assets/grosafe-logo.webp';
+import grosafeLogo from '@/assets/grosafe-logo.png';
 
 export interface SavedDocument {
   id: number;
@@ -226,7 +226,7 @@ export const generateOfficialPDF = async (params: OfficialPDFParams) => {
   const logoBase64 = await getLogoBase64();
   
   // Add logo
-  doc.addImage(logoBase64, 'PNG', 14, 10, 44, 12);
+  doc.addImage(logoBase64, 'PNG', 14, 8, 40, 20);
   
   // Company name next to logo
   doc.setFontSize(18);
@@ -433,7 +433,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   const logoBase64 = await getLogoBase64();
 
   // Header: logo + company info
-  doc.addImage(logoBase64, 'PNG', 14, 10, 44, 12);
+  doc.addImage(logoBase64, 'PNG', 14, 8, 40, 20);
 
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
