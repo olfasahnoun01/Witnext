@@ -324,41 +324,60 @@ export const DevisForm = memo(({
         );
       }
 
-      // Build unique SKU with size/color suffix
-      let finalSku = newArticle.sku.trim();
-      if (newArticle.size.trim()) finalSku += `-${newArticle.size.trim()}`;
-      if (newArticle.color.trim()) finalSku += `-${newArticle.color.trim()}`;
+      // Create one product variant per fournisseur
+      const baseSku = newArticle.sku.trim();
+      let finalBaseSku = baseSku;
+      if (newArticle.size.trim()) finalBaseSku += `-${newArticle.size.trim()}`;
+      if (newArticle.color.trim()) finalBaseSku += `-${newArticle.color.trim()}`;
 
-      const { data, error } = await supabase.from('products').insert({
-        name: newArticle.name.trim(),
-        sku: finalSku,
-        category: newArticle.category || 'Non catégorisé',
-        fournisseur: primaryFournisseur?.fournisseur_name || null,
-        product_group_id: pgData?.id || null,
-        size: newArticle.size.trim() || null,
-        quantity: 0,
-        price: primaryFournisseur?.prix || 0,
-        remise: primaryFournisseur?.remise || 0,
-        min_stock: newArticle.min_stock,
-        image: newArticle.image,
-        color: newArticle.color.trim() || null,
-      }).select().single();
+      const productsToInsert = newArticleFournisseurs.length > 0
+        ? newArticleFournisseurs.map(f => ({
+            name: newArticle.name.trim(),
+            sku: finalBaseSku,
+            category: newArticle.category || 'Non catégorisé',
+            fournisseur: f.fournisseur_name || null,
+            product_group_id: pgData?.id || null,
+            size: newArticle.size.trim() || null,
+            quantity: 0,
+            price: f.prix || 0,
+            remise: f.remise || 0,
+            min_stock: newArticle.min_stock,
+            image: newArticle.image,
+            color: newArticle.color.trim() || null,
+          }))
+        : [{
+            name: newArticle.name.trim(),
+            sku: finalBaseSku,
+            category: newArticle.category || 'Non catégorisé',
+            fournisseur: null,
+            product_group_id: pgData?.id || null,
+            size: newArticle.size.trim() || null,
+            quantity: 0,
+            price: 0,
+            remise: 0,
+            min_stock: newArticle.min_stock,
+            image: newArticle.image,
+            color: newArticle.color.trim() || null,
+          }];
+
+      const { data, error } = await supabase.from('products').insert(productsToInsert).select();
 
       if (error) {
         console.error('Product insert error:', error);
         toast.error(`Erreur création article: ${error.message}`);
-      } else if (data) {
+      } else if (data && data.length > 0) {
         toast.success('Article créé avec succès');
-        const description = `${data.sku}${data.size ? ` - Taille: ${data.size}` : ''}${data.color ? ` - ${data.color}` : ''}`;
+        const first = data[0];
+        const description = `${first.sku}${first.size ? ` - Taille: ${first.size}` : ''}${first.color ? ` - ${first.color}` : ''}`;
         
-        if (newArticleFournisseurs.length > 1) {
-          // Add one line per fournisseur directly to the devis
-          const newItems = newArticleFournisseurs.map(f => ({
-            designation: data.name,
-            fournisseur: f.fournisseur_name,
-            prix_ttc: f.prix_ttc,
+        if (data.length > 1) {
+          // Multiple products created (one per fournisseur) — add all as devis lines
+          const newItems = data.map(d => ({
+            designation: d.name,
+            fournisseur: d.fournisseur || '',
+            prix_ttc: d.prix_ttc ?? (d.price * (1 - (d.remise || 0) / 100)),
             quantity: 1,
-            description: description.trim() || undefined,
+            description: `${d.sku}${d.size ? ` - Taille: ${d.size}` : ''}${d.color ? ` - ${d.color}` : ''}`.trim() || undefined,
           }));
           setDevisItems(prev => [...prev, ...newItems]);
           setItemDesignation('');
@@ -368,10 +387,10 @@ export const DevisForm = memo(({
           setItemDescription('');
           setSelectedProduct(null);
         } else {
-          // Single fournisseur: fill the form fields as before
-          setItemDesignation(data.name);
-          setItemFournisseur(primaryFournisseur?.fournisseur_name || '');
-          setItemPrixTtc(prixTtc);
+          // Single product: fill the form fields as before
+          setItemDesignation(first.name);
+          setItemFournisseur(first.fournisseur || '');
+          setItemPrixTtc(first.prix_ttc ?? (first.price * (1 - (first.remise || 0) / 100)));
           setItemQuantity(1);
           setItemDescription(description);
         }
