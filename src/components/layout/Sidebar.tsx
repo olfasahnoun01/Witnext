@@ -3,7 +3,7 @@ import {
   Package, 
   ArrowLeftRight, 
   FileText, 
-  Bot, 
+   
   Settings,
   Menu,
   X,
@@ -31,7 +31,7 @@ const navItems = [
   { id: 'comparison', label: 'Comparaison Prix', icon: GitCompare },
   { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
   { id: 'reports', label: 'Rapports & Documents', icon: FileText },
-  { id: 'ai', label: 'Assistant IA', icon: Bot },
+  { id: 'devis', label: 'Gestion Devis', icon: FileText },
   { id: 'settings', label: 'Paramètres', icon: Settings },
 ];
 

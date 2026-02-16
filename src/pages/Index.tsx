@@ -10,7 +10,7 @@ import { Dashboard } from '@/components/Dashboard';
 const Inventory = lazy(() => import('@/components/Inventory').then(m => ({ default: m.Inventory })));
 const Transactions = lazy(() => import('@/components/Transactions').then(m => ({ default: m.Transactions })));
 const Reports = lazy(() => import('@/components/Reports').then(m => ({ default: m.Reports })));
-const AIAssistant = lazy(() => import('@/components/AIAssistant').then(m => ({ default: m.AIAssistant })));
+
 const Settings = lazy(() => import('@/components/Settings').then(m => ({ default: m.Settings })));
 const SupplierComparison = lazy(() => import('@/components/SupplierComparison').then(m => ({ default: m.SupplierComparison })));
 const Fournisseurs = lazy(() => import('@/components/Fournisseurs').then(m => ({ default: m.Fournisseurs })));
@@ -25,7 +25,7 @@ const tabTitles: Record<string, string> = {
   comparison: 'Comparaison Prix Fournisseurs',
   transactions: 'Transactions',
   reports: 'Rapports & Documents',
-  ai: 'Assistant IA',
+  devis: 'Gestion Devis',
   settings: 'Paramètres'
 };
 
@@ -81,7 +81,7 @@ const Index = () => {
         {activeTab === 'comparison' && <SupplierComparison />}
         {activeTab === 'transactions' && <Transactions />}
         {activeTab === 'reports' && <Reports />}
-        {activeTab === 'ai' && <AIAssistant />}
+        {activeTab === 'devis' && <div className="text-muted-foreground text-center py-12">Gestion Devis — à venir</div>}
         {activeTab === 'settings' && <Settings />}
       </Suspense>
     );
