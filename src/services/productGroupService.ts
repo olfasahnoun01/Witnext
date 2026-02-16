@@ -73,6 +73,8 @@ export const getProductGroupsByCategory = async (category: string): Promise<Prod
         id: f.id,
         product_group_id: f.product_group_id,
         fournisseur_name: f.fournisseur_name,
+        prix: Number(f.prix_ttc),
+        remise: 0,
         prix_ttc: Number(f.prix_ttc)
       });
     });
