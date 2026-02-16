@@ -14,9 +14,12 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { Upload } from 'lucide-react';
+import { Upload, ChevronsUpDown, Check } from 'lucide-react';
 import { useRef } from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 const DEFAULT_CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
@@ -721,7 +724,30 @@ export const DevisForm = memo(({
               </div>
               <div className="space-y-2">
                 <Label>Fournisseur</Label>
-                <Input value={newArticle.fournisseur} onChange={e => setNewArticle(p => ({ ...p, fournisseur: e.target.value }))} placeholder="Optionnel" />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                      {newArticle.fournisseur || "Sélectionner un fournisseur"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[300px] p-0 z-[9999]" align="start">
+                    <Command>
+                      <CommandInput placeholder="Rechercher un fournisseur..." />
+                      <CommandList>
+                        <CommandEmpty>Aucun fournisseur trouvé</CommandEmpty>
+                        <CommandGroup>
+                          {fournisseurs.map(f => (
+                            <CommandItem key={f.id} value={f.nom} onSelect={() => setNewArticle(p => ({ ...p, fournisseur: f.nom }))}>
+                              <Check className={cn("mr-2 h-4 w-4", newArticle.fournisseur === f.nom ? "opacity-100" : "opacity-0")} />
+                              {f.nom}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-2">
                 <Label>Prix (TND)</Label>
