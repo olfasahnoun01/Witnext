@@ -188,26 +188,6 @@ export const Reports = () => {
       ? docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)
       : 0;
 
-    // For bon_sortie: validate stock availability before saving
-    if (docType === 'bon_sortie') {
-      for (const item of docItems) {
-        const productId = item.product_id;
-        if (!productId) {
-          toast.error(`Produit "${item.designation}" non lié à un article en stock`);
-          return;
-        }
-        const product = await getProductById(productId);
-        if (!product) {
-          toast.error(`Produit "${item.designation}" introuvable en stock`);
-          return;
-        }
-        if (item.quantity > product.quantity) {
-          toast.error(`Stock insuffisant pour "${item.designation}": ${product.quantity} disponible(s), ${item.quantity} demandé(s)`);
-          return;
-        }
-      }
-    }
-
     // Get current user for document ownership
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -231,30 +211,7 @@ export const Reports = () => {
       return;
     }
 
-    // For bon_sortie: deduct stock by creating OUT transactions
-    if (docType === 'bon_sortie') {
-      for (const item of docItems) {
-        if (item.product_id) {
-          const result = await createTransaction({
-            product_id: item.product_id,
-            product_name: item.designation,
-            type: 'OUT',
-            quantity: item.quantity,
-            date: new Date(docDate).toISOString(),
-            note: `Bon de sortie ${docNumber}`
-          });
-          if (!result.success) {
-            toast.error(`Erreur déduction stock pour "${item.designation}": ${result.error}`);
-          }
-        }
-      }
-      // Reload products to reflect new quantities
-      const productsData = await getAllProducts();
-      setProducts(productsData);
-      toast.success('Document sauvegardé et stock mis à jour');
-    } else {
-      toast.success('Document sauvegardé avec succès');
-    }
+    toast.success('Document sauvegardé avec succès');
 
     // Reset form and reload after successful save
     const savedType = docType;
@@ -325,25 +282,6 @@ export const Reports = () => {
 
   const deleteDocument = useCallback(async (doc: SavedDocument) => {
     try {
-      // For bon_sortie: restore stock before deleting
-      if (doc.type === 'bon_sortie' && doc.items.length > 0) {
-        for (const item of doc.items) {
-          if (item.product_id) {
-            const result = await createTransaction({
-              product_id: item.product_id,
-              product_name: item.designation,
-              type: 'IN',
-              quantity: item.quantity,
-              date: new Date().toISOString(),
-              note: `Restauration - Suppression ${doc.doc_number}`
-            });
-            if (!result.success) {
-              toast.error(`Erreur restauration stock pour "${item.designation}": ${result.error}`);
-            }
-          }
-        }
-      }
-
       // For bon_entree: deduct stock before deleting
       if (doc.type === 'bon_entree' && doc.items.length > 0) {
         for (const item of doc.items) {
@@ -368,7 +306,7 @@ export const Reports = () => {
       if (error) {
         toast.error('Erreur lors de la suppression');
       } else {
-        const stockMsg = doc.type === 'bon_sortie' ? ' et stock restauré' : doc.type === 'bon_entree' ? ' et stock ajusté' : '';
+        const stockMsg = doc.type === 'bon_entree' ? ' et stock ajusté' : '';
         toast.success(`Document supprimé${stockMsg}`);
         const productsData = await getAllProducts();
         setProducts(productsData);
@@ -499,11 +437,6 @@ export const Reports = () => {
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
             <AlertDialogDescription>
               Êtes-vous sûr de vouloir supprimer le document <strong>{deleteConfirmDoc?.doc_number}</strong> ?
-              {deleteConfirmDoc?.type === 'bon_sortie' && (
-                <span className="block mt-2 text-warning font-medium">
-                  ⚠️ Les quantités des articles seront automatiquement restaurées dans le stock.
-                </span>
-              )}
               {deleteConfirmDoc?.type === 'bon_entree' && (
                 <span className="block mt-2 text-warning font-medium">
                   ⚠️ Les quantités des articles seront automatiquement déduites du stock.

@@ -172,23 +172,7 @@ export const DocumentForm = memo(({
     const product = products.find(p => p.id === selectedProductId);
     if (!product) return;
 
-    // For bon_sortie: check stock availability
-    if (docType === 'bon_sortie') {
-      // Calculate already-added quantity for this product
-      const alreadyAdded = docItems
-        .filter(item => item.product_id === product.id)
-        .reduce((sum, item) => sum + item.quantity, 0);
-      
-      if (alreadyAdded + itemQuantity > product.quantity) {
-        const remaining = product.quantity - alreadyAdded;
-        if (remaining <= 0) {
-          toast.error(`Stock épuisé pour "${product.name}". Tout le stock disponible est déjà ajouté.`);
-        } else {
-          toast.error(`Stock insuffisant pour "${product.name}". Disponible: ${remaining} unité(s) (stock: ${product.quantity}, déjà ajouté: ${alreadyAdded}).`);
-        }
-        return;
-      }
-    }
+    
     
     // Price is optional - only include if provided or if showPrice is true and product has price
     const itemData: DocumentItem = {
