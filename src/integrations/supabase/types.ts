@@ -51,6 +51,7 @@ export type Database = {
           devis_date: string
           devis_number: string
           id: number
+          is_ttc: boolean
           items: Json
           notes: string | null
           status: string
@@ -68,6 +69,7 @@ export type Database = {
           devis_date?: string
           devis_number: string
           id?: number
+          is_ttc?: boolean
           items?: Json
           notes?: string | null
           status?: string
@@ -85,6 +87,7 @@ export type Database = {
           devis_date?: string
           devis_number?: string
           id?: number
+          is_ttc?: boolean
           items?: Json
           notes?: string | null
           status?: string

@@ -1,0 +1,1 @@
+ALTER TABLE public.devis ADD COLUMN is_ttc boolean NOT NULL DEFAULT true;

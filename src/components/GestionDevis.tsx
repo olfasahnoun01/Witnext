@@ -25,6 +25,7 @@ export const GestionDevis = () => {
   const [notes, setNotes] = useState('');
   const [devisItems, setDevisItems] = useState<DevisItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isTtc, setIsTtc] = useState(true);
 
   const loadDevis = useCallback(async () => {
     const { data, error } = await supabase
@@ -48,6 +49,7 @@ export const GestionDevis = () => {
           status: d.status as 'brouillon' | 'envoyé' | 'accepté' | 'refusé',
           items: parsedItems,
           total_amount: Number(d.total_amount) || 0,
+          is_ttc: (d as any).is_ttc ?? true,
         };
       }));
     }
@@ -81,6 +83,7 @@ export const GestionDevis = () => {
     setNotes('');
     setDevisItems([]);
     setEditingDevis(null);
+    setIsTtc(true);
   }, []);
 
   const saveDevis = useCallback(async () => {
@@ -106,6 +109,7 @@ export const GestionDevis = () => {
         total_amount: totalAmount,
         notes: notes || null,
         created_by: user?.id,
+        is_ttc: isTtc,
       } as any);
 
       if (error) {
@@ -123,7 +127,7 @@ export const GestionDevis = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, loadDevis, resetForm, generateNextNumber]);
+  }, [isSaving, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, loadDevis, resetForm, generateNextNumber]);
 
   const updateDevis = useCallback(async () => {
     if (!editingDevis) return;
@@ -140,6 +144,7 @@ export const GestionDevis = () => {
       items: JSON.parse(JSON.stringify(devisItems)),
       total_amount: totalAmount,
       notes: notes || null,
+      is_ttc: isTtc,
     } as any).eq('id', editingDevis.id);
 
     if (error) {
@@ -149,7 +154,7 @@ export const GestionDevis = () => {
       resetForm();
       loadDevis();
     }
-  }, [editingDevis, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, loadDevis, resetForm]);
+  }, [editingDevis, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, loadDevis, resetForm]);
 
   const deleteDevis = useCallback(async (devis: Devis) => {
     const { error } = await supabase.from('devis').delete().eq('id', devis.id);
@@ -172,6 +177,7 @@ export const GestionDevis = () => {
     setThirdPartyPhone(d.third_party_phone || '');
     setNotes(d.notes || '');
     setDevisItems(d.items);
+    setIsTtc(d.is_ttc);
     setActiveSection('form');
   }, []);
 
@@ -216,6 +222,7 @@ export const GestionDevis = () => {
           devisItems={devisItems}
           editingDevis={editingDevis}
           isSaving={isSaving}
+          isTtc={isTtc}
           setDevisType={setDevisType}
           setDevisNumber={setDevisNumber}
           setDevisDate={setDevisDate}
@@ -225,6 +232,7 @@ export const GestionDevis = () => {
           setThirdPartyPhone={setThirdPartyPhone}
           setNotes={setNotes}
           setDevisItems={setDevisItems}
+          setIsTtc={setIsTtc}
           onSave={saveDevis}
           onUpdate={updateDevis}
           onCancel={resetForm}

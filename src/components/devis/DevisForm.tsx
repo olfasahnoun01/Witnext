@@ -55,6 +55,7 @@ interface DevisFormProps {
   devisItems: DevisItem[];
   editingDevis: Devis | null;
   isSaving: boolean;
+  isTtc: boolean;
   setDevisType: (t: 'entrant' | 'sortant') => void;
   setDevisNumber: (v: string) => void;
   setDevisDate: (v: string) => void;
@@ -64,6 +65,7 @@ interface DevisFormProps {
   setThirdPartyPhone: (v: string) => void;
   setNotes: (v: string) => void;
   setDevisItems: React.Dispatch<React.SetStateAction<DevisItem[]>>;
+  setIsTtc: (v: boolean) => void;
   onSave: () => void;
   onUpdate: () => void;
   onCancel: () => void;
@@ -72,10 +74,10 @@ interface DevisFormProps {
 export const DevisForm = memo(({
   devisType, devisNumber, devisDate,
   thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone,
-  notes, devisItems, editingDevis, isSaving,
+  notes, devisItems, editingDevis, isSaving, isTtc,
   setDevisType, setDevisNumber, setDevisDate,
   setThirdPartyName, setThirdPartyAddress, setThirdPartyTaxId, setThirdPartyPhone,
-  setNotes, setDevisItems,
+  setNotes, setDevisItems, setIsTtc,
   onSave, onUpdate, onCancel,
 }: DevisFormProps) => {
   const isEntrant = devisType === 'entrant';
@@ -454,6 +456,31 @@ export const DevisForm = memo(({
             </p>
           </div>
 
+          {/* TTC / HT Switch */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border">
+            <div>
+              <p className="text-sm font-medium text-foreground">Mode de tarification</p>
+              <p className="text-xs text-muted-foreground">
+                {isTtc ? 'Les prix incluent la TVA (19%)' : 'Les prix sont Hors Taxes'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-medium ${!isTtc ? 'text-primary' : 'text-muted-foreground'}`}>HT</span>
+              <button
+                type="button"
+                onClick={() => setIsTtc(!isTtc)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  isTtc ? 'bg-primary' : 'bg-muted-foreground/30'
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  isTtc ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+              <span className={`text-xs font-medium ${isTtc ? 'text-primary' : 'text-muted-foreground'}`}>TTC</span>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="form-label">N° Devis</label>
@@ -596,7 +623,7 @@ export const DevisForm = memo(({
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Prix TTC (TND)</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">Prix {isTtc ? 'TTC' : 'HT'} (TND)</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
                   </div>
@@ -615,7 +642,7 @@ export const DevisForm = memo(({
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Prix TTC (TND)</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">Prix {isTtc ? 'TTC' : 'HT'} (TND)</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
                   </div>
@@ -654,7 +681,7 @@ export const DevisForm = memo(({
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-foreground">Articles du Devis</h3>
             <span className="text-sm font-medium text-primary">
-              Total: {totalAmount.toFixed(3)} TND
+              Total {isTtc ? 'TTC' : 'HT'}: {totalAmount.toFixed(3)} TND
             </span>
           </div>
 

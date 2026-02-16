@@ -424,6 +424,7 @@ export interface DevisPDFData {
   items: { designation: string; fournisseur: string; prix_ttc: number; quantity: number; description?: string }[];
   total_amount: number;
   notes: string | null;
+  is_ttc: boolean;
 }
 
 const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
@@ -494,23 +495,42 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
   // Items table
   const TVA_RATE = 0.19;
+  const isTTC = devis.is_ttc;
+
   const tableData = devis.items.map((item, idx) => {
-    const prixHT = item.prix_ttc / (1 + TVA_RATE);
-    const totalTTC = item.prix_ttc * item.quantity;
-    return [
-      (idx + 1).toString(),
-      item.designation,
-      item.quantity.toString(),
-      `${prixHT.toFixed(2)} DT`,
-      '0%',
-      '19%',
-      `${totalTTC.toFixed(2)} DT`
-    ];
+    if (isTTC) {
+      const prixHT = item.prix_ttc / (1 + TVA_RATE);
+      const totalTTC = item.prix_ttc * item.quantity;
+      return [
+        (idx + 1).toString(),
+        item.designation,
+        item.quantity.toString(),
+        `${prixHT.toFixed(2)} DT`,
+        '0%',
+        '19%',
+        `${totalTTC.toFixed(2)} DT`
+      ];
+    } else {
+      // HT mode: prix_ttc field actually stores the HT price
+      const prixHT = item.prix_ttc;
+      const totalHT = prixHT * item.quantity;
+      return [
+        (idx + 1).toString(),
+        item.designation,
+        item.quantity.toString(),
+        `${prixHT.toFixed(2)} DT`,
+        '0%',
+        '—',
+        `${totalHT.toFixed(2)} DT`
+      ];
+    }
   });
+
+  const headLabel = isTTC ? 'Prix TTC' : 'Total HT';
 
   autoTable(doc, {
     startY: 96,
-    head: [['Code', 'Désignation', 'Qté', 'P.U. HT', 'Remise', 'TVA', 'Prix TTC']],
+    head: [['Code', 'Désignation', 'Qté', 'P.U. HT', 'Remise', isTTC ? 'TVA' : '—', headLabel]],
     body: tableData.length > 0 ? tableData : [['', '', '', '', '', '', '']],
     theme: 'grid',
     headStyles: {
@@ -534,30 +554,42 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
   // Totals
   const tableEndY = (doc as any).lastAutoTable?.finalY || 120;
-  const totalTTC = devis.total_amount;
-  const totalHT = totalTTC / (1 + TVA_RATE);
-  const tva = totalTTC - totalHT;
 
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 58, 95);
-  doc.text('Total HT', pageWidth - 65, tableEndY + 10);
-  doc.setTextColor(0, 0, 0);
-  doc.text(`${totalHT.toFixed(2)} DT`, pageWidth - 14, tableEndY + 10, { align: 'right' });
+  if (isTTC) {
+    const totalTTC = devis.total_amount;
+    const totalHT = totalTTC / (1 + TVA_RATE);
+    const tva = totalTTC - totalHT;
 
-  doc.setTextColor(30, 58, 95);
-  doc.text('TVA (19%)', pageWidth - 65, tableEndY + 18);
-  doc.setTextColor(0, 0, 0);
-  doc.text(`${tva.toFixed(2)} DT`, pageWidth - 14, tableEndY + 18, { align: 'right' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text('Total HT', pageWidth - 65, tableEndY + 10);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`${totalHT.toFixed(2)} DT`, pageWidth - 14, tableEndY + 10, { align: 'right' });
 
-  // Total TTC highlighted
-  doc.setFillColor(30, 58, 95);
-  doc.roundedRect(pageWidth - 90, tableEndY + 22, 76, 12, 2, 2, 'F');
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(255, 255, 255);
-  doc.text('Total TTC', pageWidth - 86, tableEndY + 30);
-  doc.text(`${totalTTC.toFixed(2)} DT`, pageWidth - 18, tableEndY + 30, { align: 'right' });
+    doc.setTextColor(30, 58, 95);
+    doc.text('TVA (19%)', pageWidth - 65, tableEndY + 18);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`${tva.toFixed(2)} DT`, pageWidth - 14, tableEndY + 18, { align: 'right' });
+
+    // Total TTC highlighted
+    doc.setFillColor(30, 58, 95);
+    doc.roundedRect(pageWidth - 90, tableEndY + 22, 76, 12, 2, 2, 'F');
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('Total TTC', pageWidth - 86, tableEndY + 30);
+    doc.text(`${totalTTC.toFixed(2)} DT`, pageWidth - 18, tableEndY + 30, { align: 'right' });
+  } else {
+    // HT mode - just show Total HT
+    doc.setFillColor(30, 58, 95);
+    doc.roundedRect(pageWidth - 90, tableEndY + 8, 76, 12, 2, 2, 'F');
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('Total HT', pageWidth - 86, tableEndY + 16);
+    doc.text(`${devis.total_amount.toFixed(2)} DT`, pageWidth - 18, tableEndY + 16, { align: 'right' });
+  }
 
   // Footer
   const footerY = pageHeight - 25;
