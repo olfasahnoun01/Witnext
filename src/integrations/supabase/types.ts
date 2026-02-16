@@ -44,6 +44,60 @@ export type Database = {
         }
         Relationships: []
       }
+      devis: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          devis_date: string
+          devis_number: string
+          id: number
+          items: Json
+          notes: string | null
+          status: string
+          third_party_address: string | null
+          third_party_name: string | null
+          third_party_phone: string | null
+          third_party_tax_id: string | null
+          total_amount: number | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          devis_date?: string
+          devis_number: string
+          id?: number
+          items?: Json
+          notes?: string | null
+          status?: string
+          third_party_address?: string | null
+          third_party_name?: string | null
+          third_party_phone?: string | null
+          third_party_tax_id?: string | null
+          total_amount?: number | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          devis_date?: string
+          devis_number?: string
+          id?: number
+          items?: Json
+          notes?: string | null
+          status?: string
+          third_party_address?: string | null
+          third_party_name?: string | null
+          third_party_phone?: string | null
+          third_party_tax_id?: string | null
+          total_amount?: number | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           created_at: string

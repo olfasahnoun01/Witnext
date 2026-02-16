@@ -16,6 +16,7 @@ const SupplierComparison = lazy(() => import('@/components/SupplierComparison').
 const Fournisseurs = lazy(() => import('@/components/Fournisseurs').then(m => ({ default: m.Fournisseurs })));
 const Clients = lazy(() => import('@/components/Clients').then(m => ({ default: m.Clients })));
 const TeamChat = lazy(() => import('@/components/TeamChat').then(m => ({ default: m.TeamChat })));
+const GestionDevis = lazy(() => import('@/components/GestionDevis').then(m => ({ default: m.GestionDevis })));
 
 const tabTitles: Record<string, string> = {
   dashboard: 'Tableau de Bord',
@@ -81,7 +82,7 @@ const Index = () => {
         {activeTab === 'comparison' && <SupplierComparison />}
         {activeTab === 'transactions' && <Transactions />}
         {activeTab === 'reports' && <Reports />}
-        {activeTab === 'devis' && <div className="text-muted-foreground text-center py-12">Gestion Devis — à venir</div>}
+        {activeTab === 'devis' && <GestionDevis />}
         {activeTab === 'settings' && <Settings />}
       </Suspense>
     );
