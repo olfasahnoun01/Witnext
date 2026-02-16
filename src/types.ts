@@ -23,6 +23,7 @@ export interface ProductGroupFournisseur {
   remise: number;
   prix_ttc: number;
   fiche_technique_url?: string | null;
+  phone?: string | null;
 }
 
 export interface ProductGroup {
