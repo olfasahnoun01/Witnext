@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, useCallback } from 'react';
-import { History, Edit, Trash2, Eye, Download, Loader2, Search, X } from 'lucide-react';
+import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
@@ -49,6 +49,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
   const [previewTitle, setPreviewTitle] = useState('');
   const [isGenerating, setIsGenerating] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [itemsDevis, setItemsDevis] = useState<Devis | null>(null);
 
   const filteredDevis = useMemo(() => {
     if (!searchTerm.trim()) return savedDevis;
@@ -168,8 +169,19 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
                       {new Date(d.devis_date).toLocaleDateString('fr-FR')}
                     </td>
                     <td className="py-3 px-4 text-sm text-foreground">{d.third_party_name || '-'}</td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground">
-                      {d.items.length} articles ({totalQty} unités)
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setItemsDevis(d)}
+                          className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                          title="Voir les articles"
+                        >
+                          <List className="w-4 h-4" />
+                        </button>
+                        <span className="text-sm text-muted-foreground">
+                          {d.items.length} articles ({totalQty} unités)
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-sm font-medium text-foreground">
                       {d.total_amount > 0 ? `${d.total_amount.toFixed(3)} TND` : '-'}
@@ -241,6 +253,50 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
           </div>
         )}
       </div>
+
+      {/* Items Detail Dialog */}
+      <Dialog open={!!itemsDevis} onOpenChange={() => setItemsDevis(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Articles du devis {itemsDevis?.devis_number}</DialogTitle>
+          </DialogHeader>
+          {itemsDevis && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">#</th>
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Désignation</th>
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Fournisseur</th>
+                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Prix</th>
+                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Qté</th>
+                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Sous-total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {itemsDevis.items.map((item, idx) => (
+                    <tr key={idx} className="border-b border-border/50">
+                      <td className="py-2 px-3 text-muted-foreground">{idx + 1}</td>
+                      <td className="py-2 px-3 text-foreground font-medium">{item.designation}</td>
+                      <td className="py-2 px-3 text-muted-foreground">{item.fournisseur || '-'}</td>
+                      <td className="py-2 px-3 text-right text-foreground">{item.prix_ttc.toFixed(3)} TND</td>
+                      <td className="py-2 px-3 text-right text-foreground">{item.quantity}</td>
+                      <td className="py-2 px-3 text-right font-medium text-foreground">{(item.prix_ttc * item.quantity).toFixed(3)} TND</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-border">
+                    <td colSpan={4} />
+                    <td className="py-2 px-3 text-right font-semibold text-foreground">Total</td>
+                    <td className="py-2 px-3 text-right font-semibold text-primary">{itemsDevis.total_amount.toFixed(3)} TND</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* PDF Preview Dialog */}
       <Dialog open={!!previewUrl} onOpenChange={() => closePreview()}>
