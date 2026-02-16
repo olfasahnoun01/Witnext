@@ -96,6 +96,7 @@ export interface DevisItem {
   designation: string;
   fournisseur: string;
   prix_ttc: number;
+  remise: number;
   quantity: number;
   description?: string;
 }
