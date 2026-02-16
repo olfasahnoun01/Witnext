@@ -113,10 +113,9 @@ export const GestionDevis = () => {
         console.error(error);
       } else {
         toast.success('Devis sauvegardé');
-        const savedType = devisType;
-        resetForm();
         await loadDevis();
-        generateNextNumber(savedType);
+        // Keep form populated - only update the devis number for the next one
+        generateNextNumber(devisType);
       }
     } catch (err) {
       console.error(err);
