@@ -1,9 +1,9 @@
 import { memo, useCallback, useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus } from 'lucide-react';
+import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Devis, DevisItem } from '@/types';
+import { Devis, DevisItem, Product } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { SPECIALITES } from '@/constants/fournisseurs';
@@ -14,6 +14,13 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
+import { Upload } from 'lucide-react';
+import { useRef } from 'react';
+import { useDebounce } from '@/hooks/useDebounce';
+
+const CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
+const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
+const COLORS = ['Noir', 'Blanc', 'Bleu', 'Rouge', 'Vert', 'Jaune', 'Orange', 'Gris', 'Marron', 'Beige'];
 
 interface Fournisseur {
   id: number;
@@ -82,12 +89,30 @@ export const DevisForm = memo(({
   const [newFournisseurGovernorate, setNewFournisseurGovernorate] = useState('');
   const [newFournisseurCity, setNewFournisseurCity] = useState('');
 
-  // Item form
+  // Article mode: 'search' | 'manual'
+  const [articleMode, setArticleMode] = useState<'search' | 'manual'>('search');
+
+  // Search existing products
+  const [productSearch, setProductSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const debouncedSearch = useDebounce(productSearch, 300);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  // Item form (manual or from selected product)
   const [itemDesignation, setItemDesignation] = useState('');
   const [itemFournisseur, setItemFournisseur] = useState('');
   const [itemPrixTtc, setItemPrixTtc] = useState<number>(0);
   const [itemQuantity, setItemQuantity] = useState<number>(1);
   const [itemDescription, setItemDescription] = useState('');
+
+  // New article dialog (full product creation popup)
+  const [showNewArticle, setShowNewArticle] = useState(false);
+  const [newArticle, setNewArticle] = useState({
+    name: '', sku: '', category: '', fournisseur: '', size: '', quantity: 0, price: 0, remise: 0, min_stock: 5, image: null as string | null, color: '',
+  });
+  const [isCreatingArticle, setIsCreatingArticle] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -99,6 +124,40 @@ export const DevisForm = memo(({
       if (cRes.data) setClients(cRes.data);
     };
     load();
+  }, []);
+
+  // Search products
+  useEffect(() => {
+    if (!debouncedSearch.trim()) { setSearchResults([]); return; }
+    const search = async () => {
+      setIsSearching(true);
+      const { data } = await supabase
+        .from('products')
+        .select('*')
+        .or(`name.ilike.%${debouncedSearch}%,sku.ilike.%${debouncedSearch}%`)
+        .limit(10);
+      setSearchResults((data || []).map(p => ({
+        ...p,
+        fournisseur: p.fournisseur || '',
+        size: p.size || '',
+        remise: p.remise || 0,
+        prix_ttc: p.prix_ttc || p.price * (1 - (p.remise || 0) / 100),
+        color: p.color || null,
+      })));
+      setIsSearching(false);
+    };
+    search();
+  }, [debouncedSearch]);
+
+  const selectExistingProduct = useCallback((product: Product) => {
+    setSelectedProduct(product);
+    setItemDesignation(product.name);
+    setItemFournisseur(product.fournisseur || '');
+    setItemPrixTtc(product.prix_ttc || product.price * (1 - (product.remise || 0) / 100));
+    setItemQuantity(1);
+    setItemDescription(`${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`);
+    setProductSearch('');
+    setSearchResults([]);
   }, []);
 
   useEffect(() => { setSelectedThirdPartyId(''); }, [devisType]);
@@ -180,11 +239,67 @@ export const DevisForm = memo(({
     setItemPrixTtc(0);
     setItemQuantity(1);
     setItemDescription('');
+    setSelectedProduct(null);
   }, [itemDesignation, itemFournisseur, itemPrixTtc, itemQuantity, itemDescription, setDevisItems]);
 
   const removeItem = useCallback((idx: number) => {
     setDevisItems(prev => prev.filter((_, i) => i !== idx));
   }, [setDevisItems]);
+
+  // New article creation
+  const resetNewArticleForm = useCallback(() => {
+    setNewArticle({ name: '', sku: '', category: '', fournisseur: '', size: '', quantity: 0, price: 0, remise: 0, min_stock: 5, image: null, color: '' });
+  }, []);
+
+  const handleArticleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewArticle(prev => ({ ...prev, image: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  }, []);
+
+  const createNewArticle = useCallback(async () => {
+    if (!newArticle.name.trim()) { toast.error('Nom requis'); return; }
+    if (!newArticle.sku.trim()) { toast.error('Code article requis'); return; }
+    setIsCreatingArticle(true);
+    try {
+      const prixTtc = newArticle.price * (1 - newArticle.remise / 100);
+      const { data, error } = await supabase.from('products').insert({
+        name: newArticle.name.trim(),
+        sku: newArticle.sku.trim(),
+        category: newArticle.category || 'Non catégorisé',
+        fournisseur: newArticle.fournisseur.trim() || null,
+        size: newArticle.size.trim() || null,
+        quantity: newArticle.quantity,
+        price: newArticle.price,
+        remise: newArticle.remise,
+        prix_ttc: prixTtc,
+        min_stock: newArticle.min_stock,
+        image: newArticle.image,
+        color: newArticle.color.trim() || null,
+      }).select().single();
+
+      if (error) {
+        toast.error('Erreur création article');
+      } else if (data) {
+        toast.success('Article créé avec succès');
+        // Auto-fill the item fields
+        setItemDesignation(data.name);
+        setItemFournisseur(data.fournisseur || '');
+        setItemPrixTtc(prixTtc);
+        setItemQuantity(1);
+        setItemDescription(`${data.sku}${data.size ? ` - Taille: ${data.size}` : ''}${data.color ? ` - ${data.color}` : ''}`);
+        setShowNewArticle(false);
+        resetNewArticleForm();
+      }
+    } finally {
+      setIsCreatingArticle(false);
+    }
+  }, [newArticle, resetNewArticleForm]);
 
   const totalAmount = devisItems.reduce((s, i) => s + i.prix_ttc * i.quantity, 0);
   const thirdPartyList = isEntrant ? fournisseurs : clients;
@@ -287,25 +402,127 @@ export const DevisForm = memo(({
             </div>
           </div>
 
-          {/* Add Item - free-form */}
+          {/* Add Item */}
           <div>
-            <h4 className="font-medium text-foreground mb-3">Ajouter un Article</h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium text-foreground">Ajouter un Article</h4>
+              <Button variant="outline" size="sm" onClick={() => setShowNewArticle(true)} className="text-xs">
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Créer Article
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground mb-3">
               ⚠️ Les devis n'affectent pas le stock
             </p>
+
+            {/* Mode toggle */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <button
+                onClick={() => { setArticleMode('search'); setSelectedProduct(null); setItemDesignation(''); setItemFournisseur(''); setItemPrixTtc(0); setItemDescription(''); }}
+                className={`p-2 rounded-lg border text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                  articleMode === 'search' ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-muted-foreground'
+                }`}
+              >
+                <Search className="w-3.5 h-3.5" /> Sélectionner existant
+              </button>
+              <button
+                onClick={() => { setArticleMode('manual'); setSelectedProduct(null); setItemDesignation(''); setItemFournisseur(''); setItemPrixTtc(0); setItemDescription(''); }}
+                className={`p-2 rounded-lg border text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                  articleMode === 'manual' ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-muted-foreground'
+                }`}
+              >
+                <Edit className="w-3.5 h-3.5" /> Saisie libre
+              </button>
+            </div>
+
             <div className="space-y-3">
-              <input type="text" value={itemDesignation} onChange={e => setItemDesignation(e.target.value)} className="form-input" placeholder="Nom de l'article *" />
-              <div className="grid grid-cols-2 gap-3">
-                <input type="text" value={itemFournisseur} onChange={e => setItemFournisseur(e.target.value)} className="form-input" placeholder="Fournisseur" />
-                <input type="text" value={itemDescription} onChange={e => setItemDescription(e.target.value)} className="form-input" placeholder="Description (opt.)" />
-              </div>
-              <div className="flex gap-3 flex-wrap">
-                <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input w-24" placeholder="Qté" />
-                <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input w-36" placeholder="Prix TTC (TND)" />
-                <Button onClick={addItem} disabled={!itemDesignation.trim()}>
-                  <Plus className="w-4 h-4 mr-2" /> Ajouter
-                </Button>
-              </div>
+              {articleMode === 'search' ? (
+                <>
+                  {/* Search existing products */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={productSearch}
+                      onChange={e => setProductSearch(e.target.value)}
+                      className="form-input pl-9"
+                      placeholder="Rechercher par nom ou code article..."
+                    />
+                  </div>
+                  {/* Search results dropdown */}
+                  {searchResults.length > 0 && (
+                    <div className="border border-border rounded-lg max-h-48 overflow-y-auto bg-popover">
+                      {searchResults.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => selectExistingProduct(p)}
+                          className="w-full text-left px-3 py-2.5 hover:bg-muted/50 transition-colors border-b border-border last:border-b-0"
+                        >
+                          <div className="flex items-center gap-3">
+                            {p.image ? (
+                              <img src={p.image} alt="" className="w-8 h-8 rounded object-cover" />
+                            ) : (
+                              <div className="w-8 h-8 rounded bg-muted flex items-center justify-center">
+                                <Package className="w-4 h-4 text-muted-foreground" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">{p.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {p.sku} • {p.category}{p.size ? ` • ${p.size}` : ''}{p.color ? ` • ${p.color}` : ''} • {p.prix_ttc?.toFixed(3) || p.price.toFixed(3)} TND
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {isSearching && <p className="text-xs text-muted-foreground">Recherche...</p>}
+
+                  {/* Selected product info or fill fields */}
+                  {selectedProduct && (
+                    <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                      <p className="text-sm font-medium text-foreground">{selectedProduct.name}</p>
+                      <p className="text-xs text-muted-foreground">{selectedProduct.sku} — {selectedProduct.prix_ttc?.toFixed(3)} TND</p>
+                    </div>
+                  )}
+
+                  {/* Quantity & Price (editable even after selection) */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Quantité</label>
+                      <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Prix TTC (TND)</label>
+                      <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Manual entry */}
+                  <input type="text" value={itemDesignation} onChange={e => setItemDesignation(e.target.value)} className="form-input" placeholder="Nom de l'article *" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <input type="text" value={itemFournisseur} onChange={e => setItemFournisseur(e.target.value)} className="form-input" placeholder="Fournisseur" />
+                    <input type="text" value={itemDescription} onChange={e => setItemDescription(e.target.value)} className="form-input" placeholder="Description (opt.)" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Quantité</label>
+                      <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Prix TTC (TND)</label>
+                      <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <Button onClick={addItem} disabled={!itemDesignation.trim()} className="w-full">
+                <Plus className="w-4 h-4 mr-2" /> Ajouter au devis
+              </Button>
             </div>
           </div>
 
@@ -433,6 +650,102 @@ export const DevisForm = memo(({
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowNewFournisseur(false); resetNewFournisseurForm(); }}>Annuler</Button>
             <Button onClick={createFournisseur}>Ajouter</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Article Dialog */}
+      <Dialog open={showNewArticle} onOpenChange={(open) => {
+        setShowNewArticle(open);
+        if (!open) resetNewArticleForm();
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Créer un Nouvel Article</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Image Upload */}
+            <div className="flex items-center gap-4">
+              <div
+                className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed border-border hover:border-primary transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {newArticle.image ? (
+                  <img src={newArticle.image} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <Upload className="w-6 h-6 text-muted-foreground" />
+                )}
+              </div>
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleArticleImageUpload} />
+              <div>
+                <p className="text-sm font-medium text-foreground">Image du produit</p>
+                <p className="text-xs text-muted-foreground">Cliquez pour télécharger</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Nom du produit *</Label>
+                <Input value={newArticle.name} onChange={e => setNewArticle(p => ({ ...p, name: e.target.value }))} placeholder="Ex: Pantalon de Travail Pro" />
+              </div>
+              <div className="space-y-2">
+                <Label>Code Article *</Label>
+                <Input value={newArticle.sku} onChange={e => setNewArticle(p => ({ ...p, sku: e.target.value }))} placeholder="Ex: PAN-001" />
+              </div>
+              <div className="space-y-2">
+                <Label>Catégorie *</Label>
+                <Input list="devis-categories" value={newArticle.category} onChange={e => setNewArticle(p => ({ ...p, category: e.target.value }))} placeholder="Sélectionner ou saisir" />
+                <datalist id="devis-categories">
+                  {CATEGORIES.map(cat => <option key={cat} value={cat} />)}
+                </datalist>
+              </div>
+              <div className="space-y-2">
+                <Label>Taille</Label>
+                <Input list="devis-sizes" value={newArticle.size} onChange={e => setNewArticle(p => ({ ...p, size: e.target.value }))} placeholder="Optionnel" />
+                <datalist id="devis-sizes">
+                  {SIZES.map(s => <option key={s} value={s} />)}
+                </datalist>
+              </div>
+              <div className="space-y-2">
+                <Label>Fournisseur</Label>
+                <Input value={newArticle.fournisseur} onChange={e => setNewArticle(p => ({ ...p, fournisseur: e.target.value }))} placeholder="Optionnel" />
+              </div>
+              <div className="space-y-2">
+                <Label>Prix (TND)</Label>
+                <Input type="number" step="0.001" min="0" value={newArticle.price || ''} onChange={e => setNewArticle(p => ({ ...p, price: parseFloat(e.target.value) || 0 }))} placeholder="0.000" />
+              </div>
+              <div className="space-y-2">
+                <Label>Remise (%)</Label>
+                <Input type="number" step="0.1" min="0" max="100" value={newArticle.remise || ''} onChange={e => setNewArticle(p => ({ ...p, remise: parseFloat(e.target.value) || 0 }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Prix TTC (calculé)</Label>
+                <div className="h-10 px-3 rounded-lg bg-muted/50 border border-border text-primary font-medium flex items-center text-sm">
+                  {(newArticle.price * (1 - newArticle.remise / 100)).toFixed(3)} TND
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Couleur</Label>
+                <Input list="devis-colors" value={newArticle.color} onChange={e => setNewArticle(p => ({ ...p, color: e.target.value }))} placeholder="Optionnel" />
+                <datalist id="devis-colors">
+                  {COLORS.map(c => <option key={c} value={c} />)}
+                </datalist>
+              </div>
+              <div className="space-y-2">
+                <Label>Quantité *</Label>
+                <Input type="number" min="0" value={newArticle.quantity} onChange={e => setNewArticle(p => ({ ...p, quantity: parseInt(e.target.value) || 0 }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Stock Minimum *</Label>
+                <Input type="number" min="0" value={newArticle.min_stock} onChange={e => setNewArticle(p => ({ ...p, min_stock: parseInt(e.target.value) || 0 }))} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowNewArticle(false); resetNewArticleForm(); }}>Annuler</Button>
+            <Button onClick={createNewArticle} disabled={isCreatingArticle}>
+              {isCreatingArticle ? 'Création...' : 'Créer et Sélectionner'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
