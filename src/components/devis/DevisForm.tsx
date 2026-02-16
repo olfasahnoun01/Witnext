@@ -1,4 +1,5 @@
 import { memo, useCallback, useState, useEffect, useMemo } from 'react';
+import { ProductGroupFournisseur } from '@/types';
 import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Devis, DevisItem, Product } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { MultiFournisseurInput } from '@/components/inventory/MultiFournisseurInput';
 import { SPECIALITES } from '@/constants/fournisseurs';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
 import {
@@ -113,8 +115,9 @@ export const DevisForm = memo(({
   // New article dialog (full product creation popup)
   const [showNewArticle, setShowNewArticle] = useState(false);
   const [newArticle, setNewArticle] = useState({
-    name: '', sku: '', category: '', fournisseur: '', size: '', quantity: 0, price: 0, remise: 0, min_stock: 5, image: null as string | null, color: '',
+    name: '', sku: '', category: '', size: '', quantity: 0, price: 0, remise: 0, min_stock: 5, image: null as string | null, color: '',
   });
+  const [newArticleFournisseurs, setNewArticleFournisseurs] = useState<ProductGroupFournisseur[]>([]);
   const [isCreatingArticle, setIsCreatingArticle] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -258,7 +261,8 @@ export const DevisForm = memo(({
 
   // New article creation
   const resetNewArticleForm = useCallback(() => {
-    setNewArticle({ name: '', sku: '', category: '', fournisseur: '', size: '', quantity: 0, price: 0, remise: 0, min_stock: 5, image: null, color: '' });
+    setNewArticle({ name: '', sku: '', category: '', size: '', quantity: 0, price: 0, remise: 0, min_stock: 5, image: null, color: '' });
+    setNewArticleFournisseurs([]);
   }, []);
 
   const handleArticleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -278,11 +282,37 @@ export const DevisForm = memo(({
     setIsCreatingArticle(true);
     try {
       const prixTtc = newArticle.price * (1 - newArticle.remise / 100);
+      const primaryFournisseur = newArticleFournisseurs.length > 0 ? newArticleFournisseurs[0].fournisseur_name : null;
+      
+      // Create product group first
+      const { data: pgData, error: pgError } = await supabase.from('product_groups').insert({
+        name: newArticle.name.trim(),
+        base_sku: newArticle.sku.trim(),
+        category: newArticle.category || 'Non catégorisé',
+        fournisseur: primaryFournisseur,
+        min_stock: newArticle.min_stock,
+        image: newArticle.image,
+      }).select().single();
+
+      if (pgError) { toast.error('Erreur création groupe'); return; }
+
+      // Save multi-fournisseurs
+      if (newArticleFournisseurs.length > 0 && pgData) {
+        await supabase.from('product_group_fournisseurs').insert(
+          newArticleFournisseurs.filter(f => f.fournisseur_name.trim()).map(f => ({
+            product_group_id: pgData.id,
+            fournisseur_name: f.fournisseur_name.trim(),
+            prix_ttc: f.prix_ttc,
+          }))
+        );
+      }
+
       const { data, error } = await supabase.from('products').insert({
         name: newArticle.name.trim(),
         sku: newArticle.sku.trim(),
         category: newArticle.category || 'Non catégorisé',
-        fournisseur: newArticle.fournisseur.trim() || null,
+        fournisseur: primaryFournisseur,
+        product_group_id: pgData?.id || null,
         size: newArticle.size.trim() || null,
         quantity: newArticle.quantity,
         price: newArticle.price,
@@ -299,7 +329,7 @@ export const DevisForm = memo(({
         toast.success('Article créé avec succès');
         // Auto-fill the item fields
         setItemDesignation(data.name);
-        setItemFournisseur(data.fournisseur || '');
+        setItemFournisseur(primaryFournisseur || '');
         setItemPrixTtc(prixTtc);
         setItemQuantity(1);
         setItemDescription(`${data.sku}${data.size ? ` - Taille: ${data.size}` : ''}${data.color ? ` - ${data.color}` : ''}`);
@@ -722,32 +752,8 @@ export const DevisForm = memo(({
                   {SIZES.map(s => <option key={s} value={s} />)}
                 </datalist>
               </div>
-              <div className="space-y-2">
-                <Label>Fournisseur</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
-                      {newArticle.fournisseur || "Sélectionner un fournisseur"}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[300px] p-0 z-[9999]" align="start">
-                    <Command>
-                      <CommandInput placeholder="Rechercher un fournisseur..." />
-                      <CommandList>
-                        <CommandEmpty>Aucun fournisseur trouvé</CommandEmpty>
-                        <CommandGroup>
-                          {fournisseurs.map(f => (
-                            <CommandItem key={f.id} value={f.nom} onSelect={() => setNewArticle(p => ({ ...p, fournisseur: f.nom }))}>
-                              <Check className={cn("mr-2 h-4 w-4", newArticle.fournisseur === f.nom ? "opacity-100" : "opacity-0")} />
-                              {f.nom}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+              <div className="col-span-2 space-y-2">
+                <MultiFournisseurInput value={newArticleFournisseurs} onChange={setNewArticleFournisseurs} />
               </div>
               <div className="space-y-2">
                 <Label>Prix (TND)</Label>
