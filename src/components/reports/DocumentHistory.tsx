@@ -1,11 +1,10 @@
 import { memo, useMemo, useState } from 'react';
-import { History, Download, Edit, Trash2, Eye } from 'lucide-react';
+import { History, Download, Edit, Trash2 } from 'lucide-react';
 import { SavedDocument, documentTypes, downloadDocumentPDF } from '@/utils/pdfGenerator';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface DocumentHistoryProps {
   savedDocuments: SavedDocument[];
@@ -20,7 +19,6 @@ const ITEMS_PER_PAGE = 10;
 
 export const DocumentHistory = memo(({ savedDocuments, canEdit, onEdit, onDelete, deleteConfirmDoc, setDeleteConfirmDoc }: DocumentHistoryProps) => {
   const [currentPage, setCurrentPage] = useState(1);
-  const [viewDoc, setViewDoc] = useState<SavedDocument | null>(null);
 
   const paginatedDocs = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -31,7 +29,7 @@ export const DocumentHistory = memo(({ savedDocuments, canEdit, onEdit, onDelete
 
   if (savedDocuments.length === 0) {
     return (
-      <div className="bg-card rounded-xl border border-border p-6 w-[95%] mx-auto">
+      <div className="bg-card rounded-xl border border-border p-6">
         <h3 className="text-lg font-semibold text-foreground mb-6">Historique des Documents</h3>
         <div className="text-center py-12">
           <History className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
@@ -44,7 +42,7 @@ export const DocumentHistory = memo(({ savedDocuments, canEdit, onEdit, onDelete
   }
 
   return (
-    <div className="bg-card rounded-xl border border-border p-6 w-[95%] mx-auto">
+    <div className="bg-card rounded-xl border border-border p-6">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-foreground">Historique des Documents</h3>
         <span className="text-sm text-muted-foreground">{savedDocuments.length} documents</span>
@@ -83,19 +81,8 @@ export const DocumentHistory = memo(({ savedDocuments, canEdit, onEdit, onDelete
                     {new Date(doc.doc_date).toLocaleDateString('fr-FR')}
                   </td>
                   <td className="py-3 px-4 text-sm text-foreground">{doc.third_party_name || '-'}</td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => setViewDoc(doc)}
-                        className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
-                        title="Voir les articles"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <span className="text-sm text-muted-foreground">
-                        {doc.items.length} articles ({totalQuantity} unités)
-                      </span>
-                    </div>
+                  <td className="py-3 px-4 text-sm text-muted-foreground">
+                    {doc.items.length} articles ({totalQuantity} unités)
                   </td>
                   <td className="py-3 px-4 text-sm font-medium text-foreground">
                     {doc.total_amount > 0 ? `${doc.total_amount.toFixed(3)} TND` : '-'}
@@ -158,49 +145,6 @@ export const DocumentHistory = memo(({ savedDocuments, canEdit, onEdit, onDelete
           </button>
         </div>
       )}
-      {/* Items Detail Dialog */}
-      <Dialog open={!!viewDoc} onOpenChange={() => setViewDoc(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
-          <DialogHeader>
-            <DialogTitle>Articles du document {viewDoc?.doc_number}</DialogTitle>
-          </DialogHeader>
-          {viewDoc && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">#</th>
-                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Réf</th>
-                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Désignation</th>
-                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Prix</th>
-                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Qté</th>
-                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Sous-total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {viewDoc.items.map((item: any, idx: number) => (
-                    <tr key={idx} className="border-b border-border/50">
-                      <td className="py-2 px-3 text-muted-foreground">{idx + 1}</td>
-                      <td className="py-2 px-3 text-foreground">{item.ref || '-'}</td>
-                      <td className="py-2 px-3 text-foreground font-medium">{item.designation}</td>
-                      <td className="py-2 px-3 text-right text-foreground">{item.price ? `${item.price.toFixed(3)} TND` : '-'}</td>
-                      <td className="py-2 px-3 text-right text-foreground">{item.quantity}</td>
-                      <td className="py-2 px-3 text-right font-medium text-foreground">{item.price ? `${(item.price * item.quantity).toFixed(3)} TND` : '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-border">
-                    <td colSpan={4} />
-                    <td className="py-2 px-3 text-right font-semibold text-foreground">Total</td>
-                    <td className="py-2 px-3 text-right font-semibold text-primary">{viewDoc.total_amount > 0 ? `${viewDoc.total_amount.toFixed(3)} TND` : '-'}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 });
