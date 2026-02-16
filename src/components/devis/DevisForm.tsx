@@ -341,7 +341,8 @@ export const DevisForm = memo(({
       }).select().single();
 
       if (error) {
-        toast.error('Erreur création article');
+        console.error('Product insert error:', error);
+        toast.error(`Erreur création article: ${error.message}`);
       } else if (data) {
         toast.success('Article créé avec succès');
         // Auto-fill the item fields
