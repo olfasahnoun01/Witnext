@@ -1,11 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { ChevronRight, ChevronLeft, Package, Layers, Search, Filter } from 'lucide-react';
 import { Product, ProductGroup } from '@/types';
-import { getProductGroupsByCategory, getVariantsByGroupId } from '@/services/productGroupService';
+import { getProductGroupsByCategory, getVariantsByGroupId, getProductGroupCountsByCategory } from '@/services/productGroupService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const MAIN_CATEGORIES = [
   'Pantalons',
@@ -28,6 +29,23 @@ interface CategoryProductSelectorProps {
 
 type ViewState = 'categories' | 'products' | 'variants';
 
+// In-memory cache to avoid re-fetching on back navigation
+const groupsCache = new Map<string, { data: ProductGroup[]; ts: number }>();
+const variantsCache = new Map<number, { data: Product[]; ts: number }>();
+const CACHE_TTL = 60_000; // 1 minute
+
+function getCachedGroups(category: string) {
+  const entry = groupsCache.get(category);
+  if (entry && Date.now() - entry.ts < CACHE_TTL) return entry.data;
+  return null;
+}
+
+function getCachedVariants(groupId: number) {
+  const entry = variantsCache.get(groupId);
+  if (entry && Date.now() - entry.ts < CACHE_TTL) return entry.data;
+  return null;
+}
+
 export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProductId }: CategoryProductSelectorProps) => {
   const [viewState, setViewState] = useState<ViewState>('categories');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -38,31 +56,21 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [selectedFournisseur, setSelectedFournisseur] = useState<string>('all');
+  const countsLoaded = useRef(false);
 
-  // Load category counts on mount
+  // Load category counts on mount (once)
   useEffect(() => {
-    loadCategoryCounts();
+    if (countsLoaded.current) return;
+    countsLoaded.current = true;
+    getProductGroupCountsByCategory().then(setCategoryCounts).catch(console.error);
   }, []);
-
-  const loadCategoryCounts = async () => {
-    try {
-      const { getProductGroupCountsByCategory } = await import('@/services/productGroupService');
-      const counts = await getProductGroupCountsByCategory();
-      setCategoryCounts(counts);
-    } catch (error) {
-      console.error('Error loading category counts:', error);
-    }
-  };
 
   // Get sorted categories with counts
   const sortedCategories = useMemo(() => {
     const allCategories = Object.keys(categoryCounts);
-    
-    // Sort: main categories first in order, then others alphabetically
     return allCategories.sort((a, b) => {
       const aIndex = MAIN_CATEGORIES.indexOf(a);
       const bIndex = MAIN_CATEGORIES.indexOf(b);
-      
       if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
       if (aIndex !== -1) return -1;
       if (bIndex !== -1) return 1;
@@ -70,60 +78,75 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
     });
   }, [categoryCounts]);
 
-  // Load product groups when category is selected
-  const handleCategorySelect = async (category: string) => {
+  // Load product groups when category is selected - with cache
+  const handleCategorySelect = useCallback(async (category: string) => {
     setSelectedCategory(category);
-    setIsLoading(true);
     setViewState('products');
+    setSearchQuery('');
     
+    const cached = getCachedGroups(category);
+    if (cached) {
+      setProductGroups(cached);
+      return;
+    }
+
+    setIsLoading(true);
     try {
       const groups = await getProductGroupsByCategory(category);
       setProductGroups(groups);
+      groupsCache.set(category, { data: groups, ts: Date.now() });
     } catch (error) {
       console.error('Error loading product groups:', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  // Load variants when product group is selected
-  const handleGroupSelect = async (group: ProductGroup) => {
+  // Load variants when product group is selected - with cache
+  const handleGroupSelect = useCallback(async (group: ProductGroup) => {
     setSelectedGroup(group);
-    setIsLoading(true);
     setViewState('variants');
-    
+    setSearchQuery('');
+
+    const cached = getCachedVariants(group.id);
+    if (cached) {
+      setVariants(cached);
+      onGroupSelect?.(group, cached);
+      return;
+    }
+
+    setIsLoading(true);
     try {
       const variantsData = await getVariantsByGroupId(group.id);
       setVariants(variantsData);
-      // Notify parent that a group was selected with its variants
+      variantsCache.set(group.id, { data: variantsData, ts: Date.now() });
       onGroupSelect?.(group, variantsData);
     } catch (error) {
       console.error('Error loading variants:', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [onGroupSelect]);
 
-  // Handle variant selection
-  const handleVariantSelect = (product: Product) => {
+  const handleVariantSelect = useCallback((product: Product) => {
     onSelect(product);
-  };
+  }, [onSelect]);
 
-  // Handle back navigation
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (viewState === 'variants') {
       setViewState('products');
       setSelectedGroup(null);
       setVariants([]);
+      setSearchQuery('');
     } else if (viewState === 'products') {
       setViewState('categories');
       setSelectedCategory(null);
       setProductGroups([]);
       setSelectedFournisseur('all');
+      setSearchQuery('');
     }
-  };
+  }, [viewState]);
 
-  // Extract unique fournisseurs from current product groups
   const availableFournisseurs = useMemo(() => {
     const fournisseurSet = new Set<string>();
     productGroups.forEach(g => {
@@ -133,7 +156,6 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
     return Array.from(fournisseurSet).sort((a, b) => a.localeCompare(b, 'fr'));
   }, [productGroups]);
 
-  // Filter items based on search and fournisseur
   const filteredGroups = useMemo(() => {
     let filtered = productGroups;
     if (selectedFournisseur && selectedFournisseur !== 'all') {
@@ -166,24 +188,14 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
       {/* Header with breadcrumb */}
       <div className="flex items-center gap-2 p-3 bg-muted/50 border-b border-border">
         {viewState !== 'categories' && (
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={handleBack}
-            className="h-8 px-2"
-          >
+          <Button variant="ghost" size="sm" onClick={handleBack} className="h-8 px-2">
             <ChevronLeft className="w-4 h-4" />
           </Button>
         )}
         <div className="flex items-center gap-1 text-sm">
           <span 
             className={`cursor-pointer hover:text-primary ${viewState === 'categories' ? 'font-medium text-foreground' : 'text-muted-foreground'}`}
-            onClick={() => {
-              setViewState('categories');
-              setSelectedCategory(null);
-              setSelectedGroup(null);
-              setSearchQuery('');
-            }}
+            onClick={() => { setViewState('categories'); setSelectedCategory(null); setSelectedGroup(null); setSearchQuery(''); }}
           >
             Catégories
           </span>
@@ -192,11 +204,7 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
               <ChevronRight className="w-3 h-3 text-muted-foreground" />
               <span 
                 className={`cursor-pointer hover:text-primary ${viewState === 'products' ? 'font-medium text-foreground' : 'text-muted-foreground'}`}
-                onClick={() => {
-                  setViewState('products');
-                  setSelectedGroup(null);
-                  setSearchQuery('');
-                }}
+                onClick={() => { setViewState('products'); setSelectedGroup(null); setSearchQuery(''); }}
               >
                 {selectedCategory}
               </span>
@@ -205,25 +213,18 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
           {selectedGroup && (
             <>
               <ChevronRight className="w-3 h-3 text-muted-foreground" />
-              <span className="font-medium text-foreground truncate max-w-32">
-                {selectedGroup.name}
-              </span>
+              <span className="font-medium text-foreground truncate max-w-32">{selectedGroup.name}</span>
             </>
           )}
         </div>
       </div>
 
-      {/* Search (only for products and variants) */}
+      {/* Search */}
       {viewState !== 'categories' && (
         <div className="p-2 border-b border-border space-y-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 h-8 text-sm"
-            />
+            <Input placeholder="Rechercher..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-8 text-sm" />
           </div>
           {viewState === 'products' && availableFournisseurs.length > 0 && (
             <Select value={selectedFournisseur} onValueChange={setSelectedFournisseur}>
@@ -247,11 +248,18 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
       {/* Content */}
       <ScrollArea className="h-64">
         {isLoading ? (
-          <div className="flex items-center justify-center h-full py-8">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+          <div className="p-3 space-y-3">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <Skeleton className="w-10 h-10 rounded-lg" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : viewState === 'categories' ? (
-          // Categories view
           <div className="grid grid-cols-2 gap-2 p-2">
             {sortedCategories.map(category => (
               <button
@@ -271,7 +279,6 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
             ))}
           </div>
         ) : viewState === 'products' ? (
-          // Product groups view
           <div className="divide-y divide-border">
             {filteredGroups.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
@@ -286,7 +293,7 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
                 >
                   <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
                     {group.image ? (
-                      <img src={group.image} alt={group.name} className="w-full h-full object-cover" />
+                      <img src={group.image} alt={group.name} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
                       <Package className="w-5 h-5 text-muted-foreground" />
                     )}
@@ -304,7 +311,6 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
             )}
           </div>
         ) : (
-          // Variants view
           <div className="divide-y divide-border">
             {filteredVariants.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
@@ -321,7 +327,7 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
                 >
                   <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
                     {variant.image ? (
-                      <img src={variant.image} alt={variant.name} className="w-full h-full object-cover" />
+                      <img src={variant.image} alt={variant.name} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
                       <Package className="w-5 h-5 text-muted-foreground" />
                     )}
@@ -336,11 +342,7 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className={`text-sm font-medium ${
-                      variant.quantity === 0 
-                        ? 'text-destructive' 
-                        : variant.quantity <= variant.min_stock 
-                          ? 'text-warning' 
-                          : 'text-success'
+                      variant.quantity === 0 ? 'text-destructive' : variant.quantity <= variant.min_stock ? 'text-warning' : 'text-success'
                     }`}>
                       {variant.quantity}
                     </p>
