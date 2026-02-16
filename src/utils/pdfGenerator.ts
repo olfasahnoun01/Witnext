@@ -213,7 +213,7 @@ interface OfficialPDFParams {
   docItems: DocumentItem[];
 }
 
-export const generateOfficialPDF = async (params: OfficialPDFParams) => {
+export const generateOfficialPDF = async (params: OfficialPDFParams, options?: { returnBlob?: boolean }): Promise<jsPDF | void> => {
   const {
     docType, docNumber, docDate, docValidity, transportRef,
     thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems
@@ -393,6 +393,9 @@ export const generateOfficialPDF = async (params: OfficialPDFParams) => {
   doc.text('Tel : +216 22219219 ; +216 27277777', pageWidth / 2, footerY + 10, { align: 'center' });
   doc.text('Code TVA : 1752965/M/A/M', pageWidth - 14, footerY + 10, { align: 'right' });
   
+  if (options?.returnBlob) {
+    return doc;
+  }
   const fileName = `${docType}_${docNumber || 'nouveau'}_${docDate}.pdf`;
   doc.save(fileName);
 };
@@ -409,6 +412,22 @@ export const downloadDocumentPDF = async (savedDoc: SavedDocument) => {
     thirdPartyTaxId: savedDoc.third_party_tax_id || '',
     docItems: savedDoc.items
   });
+};
+
+export const getDocumentPDFBlobUrl = async (savedDoc: SavedDocument): Promise<string> => {
+  const doc = await generateOfficialPDF({
+    docType: savedDoc.type,
+    docNumber: savedDoc.doc_number,
+    docDate: savedDoc.doc_date,
+    docValidity: savedDoc.validity || '',
+    transportRef: savedDoc.transport_ref || '',
+    thirdPartyName: savedDoc.third_party_name || '',
+    thirdPartyAddress: savedDoc.third_party_address || '',
+    thirdPartyTaxId: savedDoc.third_party_tax_id || '',
+    docItems: savedDoc.items
+  }, { returnBlob: true }) as jsPDF;
+  const blob = doc.output('blob');
+  return URL.createObjectURL(blob);
 };
 
 // ─── Devis (Offre de Prix) PDF ───────────────────────────────────
