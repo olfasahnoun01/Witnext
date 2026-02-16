@@ -1,9 +1,13 @@
-import { memo, useCallback, useState, useEffect } from 'react';
+import { memo, useCallback, useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Devis, DevisItem } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { SPECIALITES } from '@/constants/fournisseurs';
+import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -72,8 +76,11 @@ export const DevisForm = memo(({
   // New fournisseur dialog
   const [showNewFournisseur, setShowNewFournisseur] = useState(false);
   const [newFournisseurName, setNewFournisseurName] = useState('');
+  const [newFournisseurMatricule, setNewFournisseurMatricule] = useState('');
   const [newFournisseurPhone, setNewFournisseurPhone] = useState('');
   const [newFournisseurSpecialite, setNewFournisseurSpecialite] = useState('');
+  const [newFournisseurGovernorate, setNewFournisseurGovernorate] = useState('');
+  const [newFournisseurCity, setNewFournisseurCity] = useState('');
 
   // Item form
   const [itemDesignation, setItemDesignation] = useState('');
@@ -112,30 +119,52 @@ export const DevisForm = memo(({
     }
   }, [isEntrant, fournisseurs, clients, setThirdPartyName, setThirdPartyAddress, setThirdPartyTaxId, setThirdPartyPhone]);
 
+  const newFournisseurCities = useMemo(() => {
+    return newFournisseurGovernorate
+      ? TUNISIA_LOCATIONS.find(r => r.governorate === newFournisseurGovernorate)?.cities || []
+      : [];
+  }, [newFournisseurGovernorate]);
+
+  const resetNewFournisseurForm = useCallback(() => {
+    setNewFournisseurName('');
+    setNewFournisseurMatricule('');
+    setNewFournisseurPhone('');
+    setNewFournisseurSpecialite('');
+    setNewFournisseurGovernorate('');
+    setNewFournisseurCity('');
+  }, []);
+
   const createFournisseur = useCallback(async () => {
     if (!newFournisseurName.trim()) { toast.error('Nom requis'); return; }
+    if (!newFournisseurSpecialite) { toast.error('Spécialité requise'); return; }
+
+    const locationValue = newFournisseurCity && newFournisseurGovernorate
+      ? `${newFournisseurCity}, ${newFournisseurGovernorate}`
+      : null;
+
     const { data, error } = await supabase.from('fournisseurs').insert({
       nom: newFournisseurName.trim(),
-      specialite: newFournisseurSpecialite.trim() || 'Général',
+      matricule_fiscale: newFournisseurMatricule.trim() || null,
+      specialite: newFournisseurSpecialite,
       phone: newFournisseurPhone.trim() || null,
+      location: locationValue,
     }).select().single();
     if (error) {
       toast.error('Erreur création fournisseur');
     } else if (data) {
       toast.success('Fournisseur créé');
       setFournisseurs(prev => [...prev, data as Fournisseur].sort((a, b) => a.nom.localeCompare(b.nom)));
-      // Auto-select the new fournisseur as third party if entrant
       if (isEntrant) {
         setThirdPartyName(data.nom);
         setThirdPartyPhone((data as any).phone || '');
+        setThirdPartyAddress((data as any).location || '');
+        setThirdPartyTaxId((data as any).matricule_fiscale || '');
         setSelectedThirdPartyId(data.id.toString());
       }
       setShowNewFournisseur(false);
-      setNewFournisseurName('');
-      setNewFournisseurPhone('');
-      setNewFournisseurSpecialite('');
+      resetNewFournisseurForm();
     }
-  }, [newFournisseurName, newFournisseurPhone, newFournisseurSpecialite, isEntrant, setThirdPartyName, setThirdPartyPhone]);
+  }, [newFournisseurName, newFournisseurMatricule, newFournisseurPhone, newFournisseurSpecialite, newFournisseurGovernorate, newFournisseurCity, isEntrant, setThirdPartyName, setThirdPartyPhone, setThirdPartyAddress, setThirdPartyTaxId, resetNewFournisseurForm]);
 
   const addItem = useCallback(() => {
     if (!itemDesignation.trim()) { toast.error('Nom d\'article requis'); return; }
@@ -338,19 +367,72 @@ export const DevisForm = memo(({
       </div>
 
       {/* New Fournisseur Dialog */}
-      <Dialog open={showNewFournisseur} onOpenChange={setShowNewFournisseur}>
-        <DialogContent>
+      <Dialog open={showNewFournisseur} onOpenChange={(open) => {
+        setShowNewFournisseur(open);
+        if (!open) resetNewFournisseurForm();
+      }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Nouveau Fournisseur</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <input type="text" value={newFournisseurName} onChange={e => setNewFournisseurName(e.target.value)} className="form-input" placeholder="Nom du fournisseur *" />
-            <input type="text" value={newFournisseurSpecialite} onChange={e => setNewFournisseurSpecialite(e.target.value)} className="form-input" placeholder="Spécialité (ex: Électricité)" />
-            <input type="text" value={newFournisseurPhone} onChange={e => setNewFournisseurPhone(e.target.value)} className="form-input" placeholder="Téléphone" />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nom (Société) *</Label>
+              <Input value={newFournisseurName} onChange={e => setNewFournisseurName(e.target.value)} placeholder="Nom du fournisseur" />
+            </div>
+            <div className="space-y-2">
+              <Label>Matricule Fiscale</Label>
+              <Input value={newFournisseurMatricule} onChange={e => setNewFournisseurMatricule(e.target.value)} placeholder="Ex: 1234567/A/B/C/000" />
+            </div>
+            <div className="space-y-2">
+              <Label>Spécialité *</Label>
+              <Select value={newFournisseurSpecialite} onValueChange={setNewFournisseurSpecialite}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une spécialité" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SPECIALITES.map(spec => (
+                    <SelectItem key={spec} value={spec}>{spec}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Téléphone</Label>
+              <Input value={newFournisseurPhone} onChange={e => setNewFournisseurPhone(e.target.value)} placeholder="Ex: +216 XX XXX XXX" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Gouvernorat</Label>
+                <Select value={newFournisseurGovernorate} onValueChange={val => { setNewFournisseurGovernorate(val); setNewFournisseurCity(''); }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Région" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {TUNISIA_LOCATIONS.map(r => (
+                      <SelectItem key={r.governorate} value={r.governorate}>{r.governorate}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Ville</Label>
+                <Select value={newFournisseurCity} onValueChange={setNewFournisseurCity} disabled={!newFournisseurGovernorate}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={newFournisseurGovernorate ? "Ville" : "Choisir région"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {newFournisseurCities.map(city => (
+                      <SelectItem key={city} value={city}>{city}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewFournisseur(false)}>Annuler</Button>
-            <Button onClick={createFournisseur}>Créer</Button>
+            <Button variant="outline" onClick={() => { setShowNewFournisseur(false); resetNewFournisseurForm(); }}>Annuler</Button>
+            <Button onClick={createFournisseur}>Ajouter</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
