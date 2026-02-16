@@ -194,15 +194,18 @@ export const Reports = () => {
         const productId = item.product_id;
         if (!productId) {
           toast.error(`Produit "${item.designation}" non lié à un article en stock`);
+          setIsSaving(false);
           return;
         }
         const product = await getProductById(productId);
         if (!product) {
           toast.error(`Produit "${item.designation}" introuvable en stock`);
+          setIsSaving(false);
           return;
         }
         if (item.quantity > product.quantity) {
           toast.error(`Stock insuffisant pour "${item.designation}": ${product.quantity} disponible(s), ${item.quantity} demandé(s)`);
+          setIsSaving(false);
           return;
         }
       }
@@ -228,6 +231,7 @@ export const Reports = () => {
     if (error) {
       toast.error('Erreur lors de la sauvegarde du document');
       console.error(error);
+      setIsSaving(false);
       return;
     }
 
@@ -248,7 +252,26 @@ export const Reports = () => {
           }
         }
       }
-      // Reload products to reflect new quantities
+      const productsData = await getAllProducts();
+      setProducts(productsData);
+      toast.success('Document sauvegardé et stock mis à jour');
+    } else if (docType === 'bon_entree') {
+      // For bon_entree: increment stock by creating IN transactions
+      for (const item of docItems) {
+        if (item.product_id) {
+          const result = await createTransaction({
+            product_id: item.product_id,
+            product_name: item.designation,
+            type: 'IN',
+            quantity: item.quantity,
+            date: new Date(docDate).toISOString(),
+            note: `Bon d'entrée ${docNumber}`
+          });
+          if (!result.success) {
+            toast.error(`Erreur ajout stock pour "${item.designation}": ${result.error}`);
+          }
+        }
+      }
       const productsData = await getAllProducts();
       setProducts(productsData);
       toast.success('Document sauvegardé et stock mis à jour');
