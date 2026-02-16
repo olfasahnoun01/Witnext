@@ -701,10 +701,16 @@ export const DevisForm = memo(({
               </div>
               <div className="space-y-2">
                 <Label>Catégorie *</Label>
-                <Input list="devis-categories" value={newArticle.category} onChange={e => setNewArticle(p => ({ ...p, category: e.target.value }))} placeholder="Sélectionner ou saisir" />
-                <datalist id="devis-categories">
-                  {dbCategories.map(cat => <option key={cat} value={cat} />)}
-                </datalist>
+                <Select value={newArticle.category} onValueChange={val => setNewArticle(p => ({ ...p, category: val }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner une catégorie" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {dbCategories.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Taille</Label>
