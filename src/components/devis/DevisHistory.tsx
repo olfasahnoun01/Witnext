@@ -1,10 +1,15 @@
-import { memo, useMemo, useState } from 'react';
-import { History, Edit, Trash2 } from 'lucide-react';
+import { memo, useMemo, useState, useCallback } from 'react';
+import { History, Edit, Trash2, Eye, Download, Loader2 } from 'lucide-react';
 import { Devis } from '@/types';
+import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 interface DevisHistoryProps {
   savedDevis: Devis[];
@@ -22,9 +27,25 @@ const statusColors: Record<string, string> = {
   refusé: 'bg-destructive/10 text-destructive',
 };
 
+const toDevisPDFData = (d: Devis): DevisPDFData => ({
+  devis_number: d.devis_number,
+  devis_date: d.devis_date,
+  type: d.type,
+  third_party_name: d.third_party_name,
+  third_party_address: d.third_party_address,
+  third_party_tax_id: d.third_party_tax_id,
+  third_party_phone: d.third_party_phone,
+  items: d.items,
+  total_amount: d.total_amount,
+  notes: d.notes,
+});
+
 export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: DevisHistoryProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<Devis | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewTitle, setPreviewTitle] = useState('');
+  const [isGenerating, setIsGenerating] = useState<number | null>(null);
 
   const paginatedDevis = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -32,6 +53,36 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
   }, [savedDevis, currentPage]);
 
   const totalPages = Math.ceil(savedDevis.length / ITEMS_PER_PAGE);
+
+  const handlePreview = useCallback(async (d: Devis) => {
+    setIsGenerating(d.id);
+    try {
+      const url = await getDevisPDFBlobUrl(toDevisPDFData(d));
+      setPreviewTitle(`Devis ${d.devis_number}`);
+      setPreviewUrl(url);
+    } catch (err) {
+      console.error('Error generating preview:', err);
+    } finally {
+      setIsGenerating(null);
+    }
+  }, []);
+
+  const handleDownload = useCallback(async (d: Devis) => {
+    setIsGenerating(d.id);
+    try {
+      await downloadDevisPDF(toDevisPDFData(d));
+    } catch (err) {
+      console.error('Error downloading PDF:', err);
+    } finally {
+      setIsGenerating(null);
+    }
+  }, []);
+
+  const closePreview = useCallback(() => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setPreviewTitle('');
+  }, [previewUrl]);
 
   if (savedDevis.length === 0) {
     return (
@@ -64,12 +115,14 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Statut</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">PDF</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody>
               {paginatedDevis.map(d => {
                 const totalQty = d.items.reduce((s, i) => s + i.quantity, 0);
+                const generating = isGenerating === d.id;
                 return (
                   <tr key={d.id} className="border-b border-border/50 hover:bg-muted/30">
                     <td className="py-3 px-4">
@@ -94,6 +147,26 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
                       <span className={`px-2 py-1 rounded text-xs font-medium capitalize ${statusColors[d.status] || ''}`}>
                         {d.status}
                       </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handlePreview(d)}
+                          disabled={generating}
+                          className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+                          title="Prévisualiser PDF"
+                        >
+                          {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                        <button
+                          onClick={() => handleDownload(d)}
+                          disabled={generating}
+                          className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+                          title="Télécharger PDF"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2">
@@ -130,6 +203,32 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
           </div>
         )}
       </div>
+
+      {/* PDF Preview Dialog */}
+      <Dialog open={!!previewUrl} onOpenChange={() => closePreview()}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader className="flex-shrink-0 flex flex-row items-center justify-between">
+            <DialogTitle>{previewTitle}</DialogTitle>
+            {previewUrl && (
+              <a href={previewUrl} download={`${previewTitle}.pdf`}>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Download className="w-4 h-4" />
+                  Télécharger
+                </Button>
+              </a>
+            )}
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            {previewUrl && (
+              <iframe
+                src={previewUrl}
+                className="w-full h-[75vh] border rounded-lg"
+                title="Prévisualisation PDF"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
