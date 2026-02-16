@@ -19,6 +19,8 @@ export interface ProductGroupFournisseur {
   id?: number;
   product_group_id?: number;
   fournisseur_name: string;
+  prix: number;
+  remise: number;
   prix_ttc: number;
 }
 

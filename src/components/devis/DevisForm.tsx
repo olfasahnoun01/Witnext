@@ -115,7 +115,7 @@ export const DevisForm = memo(({
   // New article dialog (full product creation popup)
   const [showNewArticle, setShowNewArticle] = useState(false);
   const [newArticle, setNewArticle] = useState({
-    name: '', sku: '', category: '', size: '', quantity: 0, price: 0, remise: 0, min_stock: 5, image: null as string | null, color: '',
+    name: '', sku: '', category: '', size: '', quantity: 0, min_stock: 5, image: null as string | null, color: '',
   });
   const [newArticleFournisseurs, setNewArticleFournisseurs] = useState<ProductGroupFournisseur[]>([]);
   const [isCreatingArticle, setIsCreatingArticle] = useState(false);
@@ -261,7 +261,7 @@ export const DevisForm = memo(({
 
   // New article creation
   const resetNewArticleForm = useCallback(() => {
-    setNewArticle({ name: '', sku: '', category: '', size: '', quantity: 0, price: 0, remise: 0, min_stock: 5, image: null, color: '' });
+    setNewArticle({ name: '', sku: '', category: '', size: '', quantity: 0, min_stock: 5, image: null, color: '' });
     setNewArticleFournisseurs([]);
   }, []);
 
@@ -281,15 +281,15 @@ export const DevisForm = memo(({
     if (!newArticle.sku.trim()) { toast.error('Code article requis'); return; }
     setIsCreatingArticle(true);
     try {
-      const prixTtc = newArticle.price * (1 - newArticle.remise / 100);
-      const primaryFournisseur = newArticleFournisseurs.length > 0 ? newArticleFournisseurs[0].fournisseur_name : null;
+      const primaryFournisseur = newArticleFournisseurs.length > 0 ? newArticleFournisseurs[0] : null;
+      const prixTtc = primaryFournisseur ? primaryFournisseur.prix_ttc : 0;
       
       // Create product group first
       const { data: pgData, error: pgError } = await supabase.from('product_groups').insert({
         name: newArticle.name.trim(),
         base_sku: newArticle.sku.trim(),
         category: newArticle.category || 'Non catégorisé',
-        fournisseur: primaryFournisseur,
+        fournisseur: primaryFournisseur?.fournisseur_name || null,
         min_stock: newArticle.min_stock,
         image: newArticle.image,
       }).select().single();
@@ -311,12 +311,12 @@ export const DevisForm = memo(({
         name: newArticle.name.trim(),
         sku: newArticle.sku.trim(),
         category: newArticle.category || 'Non catégorisé',
-        fournisseur: primaryFournisseur,
+        fournisseur: primaryFournisseur?.fournisseur_name || null,
         product_group_id: pgData?.id || null,
         size: newArticle.size.trim() || null,
         quantity: newArticle.quantity,
-        price: newArticle.price,
-        remise: newArticle.remise,
+        price: primaryFournisseur?.prix || 0,
+        remise: primaryFournisseur?.remise || 0,
         prix_ttc: prixTtc,
         min_stock: newArticle.min_stock,
         image: newArticle.image,
@@ -329,7 +329,7 @@ export const DevisForm = memo(({
         toast.success('Article créé avec succès');
         // Auto-fill the item fields
         setItemDesignation(data.name);
-        setItemFournisseur(primaryFournisseur || '');
+        setItemFournisseur(primaryFournisseur?.fournisseur_name || '');
         setItemPrixTtc(prixTtc);
         setItemQuantity(1);
         setItemDescription(`${data.sku}${data.size ? ` - Taille: ${data.size}` : ''}${data.color ? ` - ${data.color}` : ''}`);
@@ -754,20 +754,6 @@ export const DevisForm = memo(({
               </div>
               <div className="col-span-2 space-y-2">
                 <MultiFournisseurInput value={newArticleFournisseurs} onChange={setNewArticleFournisseurs} />
-              </div>
-              <div className="space-y-2">
-                <Label>Prix (TND)</Label>
-                <Input type="number" step="0.001" min="0" value={newArticle.price || ''} onChange={e => setNewArticle(p => ({ ...p, price: parseFloat(e.target.value) || 0 }))} placeholder="0.000" />
-              </div>
-              <div className="space-y-2">
-                <Label>Remise (%)</Label>
-                <Input type="number" step="0.1" min="0" max="100" value={newArticle.remise || ''} onChange={e => setNewArticle(p => ({ ...p, remise: parseFloat(e.target.value) || 0 }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Prix TTC (calculé)</Label>
-                <div className="h-10 px-3 rounded-lg bg-muted/50 border border-border text-primary font-medium flex items-center text-sm">
-                  {(newArticle.price * (1 - newArticle.remise / 100)).toFixed(3)} TND
-                </div>
               </div>
               <div className="space-y-2">
                 <Label>Couleur</Label>

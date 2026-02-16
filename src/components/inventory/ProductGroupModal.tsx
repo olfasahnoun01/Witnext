@@ -117,14 +117,16 @@ export const ProductGroupModal = ({
                 id: f.id,
                 product_group_id: f.product_group_id,
                 fournisseur_name: f.fournisseur_name,
-                prix_ttc: f.prix_ttc,
+                prix: Number(f.prix_ttc),
+                remise: 0,
+                prix_ttc: Number(f.prix_ttc),
               })),
             }));
           } else if (editingGroup.fournisseur && editingGroup.fournisseur.trim()) {
             // Fallback: use legacy fournisseur field if no entries in junction table
             setFormData(prev => ({
               ...prev,
-              fournisseurs: [{ fournisseur_name: editingGroup.fournisseur!, prix_ttc: 0 }],
+              fournisseurs: [{ fournisseur_name: editingGroup.fournisseur!, prix: 0, remise: 0, prix_ttc: 0 }],
             }));
           }
         }

@@ -14,7 +14,6 @@ interface MultiFournisseurInputProps {
 export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInputProps) => {
   const [existingFournisseurs, setExistingFournisseurs] = useState<string[]>([]);
 
-  // Fetch existing fournisseurs for autocomplete
   useEffect(() => {
     const fetchFournisseurs = async () => {
       const { data, error } = await supabase
@@ -31,7 +30,7 @@ export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInput
   }, []);
 
   const addFournisseur = useCallback(() => {
-    onChange([...value, { fournisseur_name: '', prix_ttc: 0 }]);
+    onChange([...value, { fournisseur_name: '', prix: 0, remise: 0, prix_ttc: 0 }]);
   }, [value, onChange]);
 
   const removeFournisseur = useCallback((index: number) => {
@@ -39,10 +38,17 @@ export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInput
     onChange(updated);
   }, [value, onChange]);
 
-  const updateFournisseur = useCallback((index: number, field: 'fournisseur_name' | 'prix_ttc', fieldValue: string | number) => {
+  const updateFournisseur = useCallback((index: number, field: keyof ProductGroupFournisseur, fieldValue: string | number) => {
     const updated = value.map((item, i) => {
       if (i === index) {
-        return { ...item, [field]: fieldValue };
+        const newItem = { ...item, [field]: fieldValue };
+        // Auto-calculate prix_ttc when prix or remise changes
+        if (field === 'prix' || field === 'remise') {
+          const prix = field === 'prix' ? (fieldValue as number) : newItem.prix;
+          const remise = field === 'remise' ? (fieldValue as number) : newItem.remise;
+          newItem.prix_ttc = prix * (1 - remise / 100);
+        }
+        return newItem;
       }
       return item;
     });
@@ -52,7 +58,7 @@ export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInput
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Label>Fournisseurs et Prix TTC</Label>
+        <Label>Fournisseurs, Prix & Remise</Label>
         <Button
           type="button"
           variant="outline"
@@ -72,51 +78,74 @@ export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInput
       ) : (
         <div className="space-y-2">
           {value.map((item, index) => (
-            <div key={index} className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
-              <div className="flex-1">
-                <Input
-                  list={`fournisseur-list-${index}`}
-                  value={item.fournisseur_name}
-                  onChange={(e) => updateFournisseur(index, 'fournisseur_name', e.target.value)}
-                  placeholder="Nom du fournisseur"
-                  className="h-9"
-                />
-                <datalist id={`fournisseur-list-${index}`}>
-                  {existingFournisseurs
-                    .filter(f => !value.some((v, i) => i !== index && v.fournisseur_name === f))
-                    .map(f => (
-                      <option key={f} value={f} />
-                    ))}
-                </datalist>
+            <div key={index} className="p-3 rounded-lg bg-muted/50 space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <Input
+                    list={`fournisseur-list-${index}`}
+                    value={item.fournisseur_name}
+                    onChange={(e) => updateFournisseur(index, 'fournisseur_name', e.target.value)}
+                    placeholder="Nom du fournisseur"
+                    className="h-9"
+                  />
+                  <datalist id={`fournisseur-list-${index}`}>
+                    {existingFournisseurs
+                      .filter(f => !value.some((v, i) => i !== index && v.fournisseur_name === f))
+                      .map(f => (
+                        <option key={f} value={f} />
+                      ))}
+                  </datalist>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeFournisseur(index)}
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10 h-9 w-9 p-0"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
               </div>
-              <div className="w-32">
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={item.prix_ttc || ''}
-                  onChange={(e) => updateFournisseur(index, 'prix_ttc', parseFloat(e.target.value) || 0)}
-                  placeholder="Prix TTC"
-                  className="h-9"
-                />
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Prix (TND)</label>
+                  <Input
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    value={item.prix || ''}
+                    onChange={(e) => updateFournisseur(index, 'prix', parseFloat(e.target.value) || 0)}
+                    placeholder="0.000"
+                    className="h-9"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Remise (%)</label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={item.remise || ''}
+                    onChange={(e) => updateFournisseur(index, 'remise', parseFloat(e.target.value) || 0)}
+                    placeholder="0"
+                    className="h-9"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Prix TTC</label>
+                  <div className="h-9 px-3 rounded-md bg-muted border border-border text-primary font-medium flex items-center text-sm">
+                    {item.prix_ttc.toFixed(3)} DT
+                  </div>
+                </div>
               </div>
-              <span className="text-sm text-muted-foreground">DT</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => removeFournisseur(index)}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10 h-9 w-9 p-0"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
             </div>
           ))}
         </div>
       )}
       
       <p className="text-xs text-muted-foreground">
-        Ajoutez plusieurs fournisseurs avec leurs prix TTC respectifs pour comparer les offres.
+        Ajoutez plusieurs fournisseurs avec leurs prix et remises pour comparer les offres.
       </p>
     </div>
   );
