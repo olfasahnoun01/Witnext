@@ -32,12 +32,10 @@ export interface ProductGroup {
   min_stock: number;
   created_at: string;
   updated_at: string;
-  // Computed fields from variants
   variant_count?: number;
   total_stock?: number;
   colors?: string[];
   sizes?: string[];
-  // Multi-suppliers
   fournisseurs?: ProductGroupFournisseur[];
 }
 
@@ -87,4 +85,31 @@ export interface DashboardStats {
   lowStockCount: number;
   outOfStockCount: number;
   categoryValues: CategoryValue[];
+}
+
+// Devis types
+export interface DevisItem {
+  designation: string;
+  fournisseur: string;
+  prix_ttc: number;
+  quantity: number;
+  description?: string;
+}
+
+export interface Devis {
+  id: number;
+  type: 'entrant' | 'sortant';
+  devis_number: string;
+  devis_date: string;
+  third_party_name: string | null;
+  third_party_address: string | null;
+  third_party_tax_id: string | null;
+  third_party_phone: string | null;
+  items: DevisItem[];
+  total_amount: number;
+  notes: string | null;
+  status: 'brouillon' | 'envoyé' | 'accepté' | 'refusé';
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
