@@ -507,7 +507,7 @@ export const DevisForm = memo(({
                       type="text"
                       value={productSearch}
                       onChange={e => setProductSearch(e.target.value)}
-                      className="form-input pl-9"
+                      className="form-input !pl-10"
                       placeholder="Rechercher par nom ou code article..."
                     />
                   </div>
