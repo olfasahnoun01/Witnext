@@ -1,10 +1,13 @@
 import { memo, useMemo, useState } from 'react';
-import { History, Download, Edit, Trash2 } from 'lucide-react';
+import { History, Download, Edit, Trash2, Eye } from 'lucide-react';
 import { SavedDocument, documentTypes, downloadDocumentPDF } from '@/utils/pdfGenerator';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle
+} from '@/components/ui/dialog';
 
 interface DocumentHistoryProps {
   savedDocuments: SavedDocument[];
@@ -19,6 +22,7 @@ const ITEMS_PER_PAGE = 10;
 
 export const DocumentHistory = memo(({ savedDocuments, canEdit, onEdit, onDelete, deleteConfirmDoc, setDeleteConfirmDoc }: DocumentHistoryProps) => {
   const [currentPage, setCurrentPage] = useState(1);
+  const [previewDoc, setPreviewDoc] = useState<SavedDocument | null>(null);
 
   const paginatedDocs = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -90,6 +94,13 @@ export const DocumentHistory = memo(({ savedDocuments, canEdit, onEdit, onDelete
                   <td className="py-3 px-4">
                     <div className="flex gap-2">
                       <button
+                        onClick={() => setPreviewDoc(doc)}
+                        className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                        title="Voir les articles"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => downloadDocumentPDF(doc)}
                         className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                         title="Télécharger PDF"
@@ -145,6 +156,61 @@ export const DocumentHistory = memo(({ savedDocuments, canEdit, onEdit, onDelete
           </button>
         </div>
       )}
+
+      {/* Preview Dialog */}
+      <Dialog open={!!previewDoc} onOpenChange={() => setPreviewDoc(null)}>
+        <DialogContent className="w-[95vw] max-w-[95vw]">
+          <DialogHeader>
+            <DialogTitle>
+              {previewDoc && documentTypes.find(t => t.value === previewDoc.type)?.label} - {previewDoc?.doc_number}
+            </DialogTitle>
+          </DialogHeader>
+          {previewDoc && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                <span>Date: {new Date(previewDoc.doc_date).toLocaleDateString('fr-FR')}</span>
+                {previewDoc.third_party_name && <span>Tiers: {previewDoc.third_party_name}</span>}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Réf</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Désignation</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Description</th>
+                      <th className="text-right py-2 px-3 font-medium text-muted-foreground">Qté</th>
+                      <th className="text-right py-2 px-3 font-medium text-muted-foreground">Prix</th>
+                      <th className="text-right py-2 px-3 font-medium text-muted-foreground">Sous-total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewDoc.items.map((item, i) => (
+                      <tr key={i} className="border-b border-border/50">
+                        <td className="py-2 px-3">{item.ref}</td>
+                        <td className="py-2 px-3">{item.designation}</td>
+                        <td className="py-2 px-3 text-muted-foreground">{item.description || '-'}</td>
+                        <td className="py-2 px-3 text-right">{item.quantity}</td>
+                        <td className="py-2 px-3 text-right">{item.price ? `${item.price.toFixed(3)} TND` : '-'}</td>
+                        <td className="py-2 px-3 text-right font-medium">
+                          {item.price ? `${(item.quantity * item.price).toFixed(3)} TND` : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-border">
+                      <td colSpan={5} className="py-2 px-3 text-right font-semibold">Total:</td>
+                      <td className="py-2 px-3 text-right font-semibold">
+                        {previewDoc.total_amount > 0 ? `${previewDoc.total_amount.toFixed(3)} TND` : '-'}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 });
