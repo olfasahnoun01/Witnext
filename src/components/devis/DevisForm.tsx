@@ -18,7 +18,7 @@ import { Upload } from 'lucide-react';
 import { useRef } from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
 
-const CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
+const DEFAULT_CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
 const COLORS = ['Noir', 'Blanc', 'Bleu', 'Rouge', 'Vert', 'Jaune', 'Orange', 'Gris', 'Marron', 'Beige'];
 
@@ -79,6 +79,7 @@ export const DevisForm = memo(({
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedThirdPartyId, setSelectedThirdPartyId] = useState('');
+  const [dbCategories, setDbCategories] = useState<string[]>([]);
 
   // New fournisseur dialog
   const [showNewFournisseur, setShowNewFournisseur] = useState(false);
@@ -116,12 +117,18 @@ export const DevisForm = memo(({
 
   useEffect(() => {
     const load = async () => {
-      const [fRes, cRes] = await Promise.all([
+      const [fRes, cRes, pCatRes, pgCatRes] = await Promise.all([
         supabase.from('fournisseurs').select('id, nom, matricule_fiscale, location, phone').order('nom'),
         supabase.from('clients').select('id, nom, matricule_fiscale, location, phone').order('nom'),
+        supabase.from('products').select('category'),
+        supabase.from('product_groups').select('category'),
       ]);
       if (fRes.data) setFournisseurs(fRes.data);
       if (cRes.data) setClients(cRes.data);
+      const allCats = new Set<string>(DEFAULT_CATEGORIES);
+      (pCatRes.data || []).forEach(p => allCats.add(p.category));
+      (pgCatRes.data || []).forEach(p => allCats.add(p.category));
+      setDbCategories([...allCats].sort());
     };
     load();
   }, []);
@@ -696,7 +703,7 @@ export const DevisForm = memo(({
                 <Label>Catégorie *</Label>
                 <Input list="devis-categories" value={newArticle.category} onChange={e => setNewArticle(p => ({ ...p, category: e.target.value }))} placeholder="Sélectionner ou saisir" />
                 <datalist id="devis-categories">
-                  {CATEGORIES.map(cat => <option key={cat} value={cat} />)}
+                  {dbCategories.map(cat => <option key={cat} value={cat} />)}
                 </datalist>
               </div>
               <div className="space-y-2">
