@@ -339,7 +339,7 @@ export const DevisForm = memo(({
     } finally {
       setIsCreatingArticle(false);
     }
-  }, [newArticle, resetNewArticleForm]);
+  }, [newArticle, newArticleFournisseurs, resetNewArticleForm]);
 
   const totalAmount = devisItems.reduce((s, i) => s + i.prix_ttc * i.quantity, 0);
   const thirdPartyList = isEntrant ? fournisseurs : clients;
