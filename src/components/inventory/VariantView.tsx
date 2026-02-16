@@ -70,6 +70,7 @@ const emptyFormData: VariantFormData = {
 export const VariantView = ({ group, onBack }: VariantViewProps) => {
   const { isModerator } = useAuth();
   const [variants, setVariants] = useState<Product[]>([]);
+  const [freshFournisseurs, setFreshFournisseurs] = useState<typeof group.fournisseurs>(group.fournisseurs);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVariant, setEditingVariant] = useState<Product | null>(null);
@@ -83,8 +84,22 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   const fetchVariants = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await getVariantsByGroupId(group.id);
-      setVariants(data);
+      const [variantsData, fournisseursResult] = await Promise.all([
+        getVariantsByGroupId(group.id),
+        supabase.from('product_group_fournisseurs').select('*').eq('product_group_id', group.id)
+      ]);
+      setVariants(variantsData);
+      if (fournisseursResult.data) {
+        setFreshFournisseurs(fournisseursResult.data.map(f => ({
+          id: f.id,
+          product_group_id: f.product_group_id,
+          fournisseur_name: f.fournisseur_name,
+          prix: Number(f.prix_ttc),
+          remise: 0,
+          prix_ttc: Number(f.prix_ttc),
+          fiche_technique_url: f.fiche_technique_url || null
+        })));
+      }
     } catch (error) {
       console.error('Error fetching variants:', error);
     } finally {
@@ -415,7 +430,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
               {variants.map((variant) => {
                 const status = getStockStatus(variant);
                 const style = statusStyles[status];
-                const matchedFournisseur = group.fournisseurs?.find(
+                const matchedFournisseur = freshFournisseurs?.find(
                   f => f.fournisseur_name === variant.fournisseur
                 );
                 const ficheUrl = matchedFournisseur?.fiche_technique_url;
