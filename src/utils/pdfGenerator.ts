@@ -525,7 +525,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
         item.designation,
         item.quantity.toString(),
         `${prixHT.toFixed(2)} DT`,
-        item.remise > 0 ? `${item.remise}%` : '—',
+        item.remise > 0 ? `${item.remise}%` : '',
         '19%',
         `${totalTTC.toFixed(2)} DT`
       ];
@@ -538,8 +538,8 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
         item.designation,
         item.quantity.toString(),
         `${prixHT.toFixed(2)} DT`,
-        item.remise > 0 ? `${item.remise}%` : '—',
-        '—',
+        item.remise > 0 ? `${item.remise}%` : '',
+        '19%',
         `${totalHT.toFixed(2)} DT`
       ];
     }
@@ -549,7 +549,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
   autoTable(doc, {
     startY: 96,
-    head: [['Code', 'Désignation', 'Qté', 'P.U. HT', 'Remise', isTTC ? 'TVA' : '—', headLabel]],
+    head: [['Code', 'Désignation', 'Qté', 'P.U. HT', 'Remise', 'TVA', headLabel]],
     body: tableData.length > 0 ? tableData : [['', '', '', '', '', '', '']],
     theme: 'grid',
     headStyles: {
