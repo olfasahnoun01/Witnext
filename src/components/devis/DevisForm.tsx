@@ -786,10 +786,6 @@ export const DevisForm = memo(({
                 </datalist>
               </div>
               <div className="space-y-2">
-                <Label>Quantité *</Label>
-                <Input type="number" min="0" value={newArticle.quantity} onChange={e => setNewArticle(p => ({ ...p, quantity: parseInt(e.target.value) || 0 }))} />
-              </div>
-              <div className="space-y-2">
                 <Label>Stock Minimum *</Label>
                 <Input type="number" min="0" value={newArticle.min_stock} onChange={e => setNewArticle(p => ({ ...p, min_stock: parseInt(e.target.value) || 0 }))} />
               </div>
