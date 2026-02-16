@@ -539,7 +539,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
         item.quantity.toString(),
         `${prixHT.toFixed(2)} DT`,
         item.remise > 0 ? `${item.remise}%` : '',
-        '19%',
+        '',
         `${totalHT.toFixed(2)} DT`
       ];
     }
