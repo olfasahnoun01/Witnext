@@ -410,3 +410,181 @@ export const downloadDocumentPDF = async (savedDoc: SavedDocument) => {
     docItems: savedDoc.items
   });
 };
+
+// ─── Devis (Offre de Prix) PDF ───────────────────────────────────
+
+export interface DevisPDFData {
+  devis_number: string;
+  devis_date: string;
+  type: 'entrant' | 'sortant';
+  third_party_name: string | null;
+  third_party_address: string | null;
+  third_party_tax_id: string | null;
+  third_party_phone: string | null;
+  items: { designation: string; fournisseur: string; prix_ttc: number; quantity: number; description?: string }[];
+  total_amount: number;
+  notes: string | null;
+}
+
+const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const logoBase64 = await getLogoBase64();
+
+  // Header: logo + company info
+  doc.addImage(logoBase64, 'PNG', 14, 8, 40, 20);
+
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 58, 95);
+  doc.text('Grosafe Équipement', pageWidth - 14, 14, { align: 'right' });
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 100, 100);
+  doc.text('Sécurité & Équipement Professionnel', pageWidth - 14, 20, { align: 'right' });
+
+  // Blue separator
+  doc.setDrawColor(30, 58, 95);
+  doc.setLineWidth(1);
+  doc.line(14, 32, pageWidth - 14, 32);
+
+  // Title
+  const title = devis.type === 'sortant' ? 'OFFRE DE PRIX' : 'DEMANDE DE PRIX';
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 58, 95);
+  doc.text(title, pageWidth / 2, 46, { align: 'center' });
+
+  // Number & Date
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(80, 80, 80);
+  const dateStr = new Date(devis.devis_date).toLocaleDateString('fr-FR');
+  doc.text(`N° ${devis.devis_number}`, pageWidth / 2 - 30, 54, { align: 'center' });
+  doc.text(`Date: ${dateStr}`, pageWidth / 2 + 30, 54, { align: 'center' });
+
+  // Client / Fournisseur box
+  const partyLabel = devis.type === 'sortant' ? 'CLIENT' : 'FOURNISSEUR';
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(14, 62, pageWidth - 28, 28, 2, 2);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 58, 95);
+  doc.text(partyLabel, 18, 70);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0, 0, 0);
+  doc.text(devis.third_party_name || '—', 18, 78);
+  if (devis.third_party_address) {
+    doc.setFontSize(9);
+    doc.text(devis.third_party_address, 18, 84);
+  }
+  if (devis.third_party_tax_id) {
+    doc.setFontSize(9);
+    doc.text(`MF: ${devis.third_party_tax_id}`, pageWidth - 18, 78, { align: 'right' });
+  }
+  if (devis.third_party_phone) {
+    doc.setFontSize(9);
+    doc.text(`Tél: ${devis.third_party_phone}`, pageWidth - 18, 84, { align: 'right' });
+  }
+
+  // Items table
+  const TVA_RATE = 0.19;
+  const tableData = devis.items.map((item, idx) => {
+    const prixHT = item.prix_ttc / (1 + TVA_RATE);
+    const totalTTC = item.prix_ttc * item.quantity;
+    return [
+      (idx + 1).toString(),
+      item.designation,
+      item.quantity.toString(),
+      `${prixHT.toFixed(2)} DT`,
+      '0%',
+      '19%',
+      `${totalTTC.toFixed(2)} DT`
+    ];
+  });
+
+  autoTable(doc, {
+    startY: 96,
+    head: [['Code', 'Désignation', 'Qté', 'P.U. HT', 'Remise', 'TVA', 'Prix TTC']],
+    body: tableData.length > 0 ? tableData : [['', '', '', '', '', '', '']],
+    theme: 'grid',
+    headStyles: {
+      fillColor: [30, 58, 95],
+      fontSize: 9,
+      fontStyle: 'bold',
+      halign: 'center'
+    },
+    styles: { fontSize: 9, cellPadding: 4 },
+    columnStyles: {
+      0: { cellWidth: 18, halign: 'center' },
+      1: { cellWidth: 50 },
+      2: { cellWidth: 18, halign: 'center' },
+      3: { cellWidth: 28, halign: 'right' },
+      4: { cellWidth: 22, halign: 'center' },
+      5: { cellWidth: 18, halign: 'center' },
+      6: { cellWidth: 28, halign: 'right' }
+    },
+    alternateRowStyles: { fillColor: [245, 247, 250] }
+  });
+
+  // Totals
+  const tableEndY = (doc as any).lastAutoTable?.finalY || 120;
+  const totalTTC = devis.total_amount;
+  const totalHT = totalTTC / (1 + TVA_RATE);
+  const tva = totalTTC - totalHT;
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 58, 95);
+  doc.text('Total HT', pageWidth - 65, tableEndY + 10);
+  doc.setTextColor(0, 0, 0);
+  doc.text(`${totalHT.toFixed(2)} DT`, pageWidth - 14, tableEndY + 10, { align: 'right' });
+
+  doc.setTextColor(30, 58, 95);
+  doc.text('TVA (19%)', pageWidth - 65, tableEndY + 18);
+  doc.setTextColor(0, 0, 0);
+  doc.text(`${tva.toFixed(2)} DT`, pageWidth - 14, tableEndY + 18, { align: 'right' });
+
+  // Total TTC highlighted
+  doc.setFillColor(30, 58, 95);
+  doc.roundedRect(pageWidth - 90, tableEndY + 22, 76, 12, 2, 2, 'F');
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  doc.text('Total TTC', pageWidth - 86, tableEndY + 30);
+  doc.text(`${totalTTC.toFixed(2)} DT`, pageWidth - 18, tableEndY + 30, { align: 'right' });
+
+  // Footer
+  const footerY = pageHeight - 25;
+  doc.setDrawColor(199, 62, 62);
+  doc.setLineWidth(0.5);
+  doc.line(14, footerY - 10, pageWidth - 14, footerY - 10);
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 58, 95);
+  doc.text('Grosafe Équipement - Sécurité & Équipement Professionnel', pageWidth / 2, footerY - 4, { align: 'center' });
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 100, 100);
+  doc.text('Cette offre est valable 30 jours à compter de la date d\'émission.', pageWidth / 2, footerY + 2, { align: 'center' });
+
+  return doc;
+};
+
+export const downloadDevisPDF = async (devis: DevisPDFData) => {
+  const doc = await buildDevisPDF(devis);
+  doc.save(`devis_${devis.devis_number}_${devis.devis_date}.pdf`);
+};
+
+export const getDevisPDFBlobUrl = async (devis: DevisPDFData): Promise<string> => {
+  const doc = await buildDevisPDF(devis);
+  const blob = doc.output('blob');
+  return URL.createObjectURL(blob);
+};
