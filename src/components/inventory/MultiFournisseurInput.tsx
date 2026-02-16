@@ -37,7 +37,7 @@ export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInput
   }, []);
 
   const addFournisseur = useCallback(() => {
-    onChange([...value, { fournisseur_name: '', prix: 0, remise: 0, prix_ttc: 0, fiche_technique_url: null }]);
+    onChange([...value, { fournisseur_name: '', prix: 0, remise: 0, prix_ttc: 0, fiche_technique_url: null, phone: '' }]);
   }, [value, onChange]);
 
   const removeFournisseur = useCallback((index: number) => {
@@ -166,6 +166,14 @@ export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInput
                         <option key={f} value={f} />
                       ))}
                   </datalist>
+                </div>
+                <div className="w-40">
+                  <Input
+                    value={item.phone || ''}
+                    onChange={(e) => updateFournisseur(index, 'phone', e.target.value)}
+                    placeholder="Téléphone"
+                    className="h-9"
+                  />
                 </div>
                 <Button
                   type="button"

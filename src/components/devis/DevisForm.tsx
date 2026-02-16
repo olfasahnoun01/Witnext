@@ -285,15 +285,15 @@ export const DevisForm = memo(({
       const { data: existingFourns } = await supabase.from('fournisseurs').select('nom');
       const existingNames = new Set((existingFourns || []).map(f => f.nom.toLowerCase()));
       
-      const newFournisseurNames = newArticleFournisseurs
-        .map(f => f.fournisseur_name.trim())
-        .filter(name => name && !existingNames.has(name.toLowerCase()));
+      const newFournisseurEntries = newArticleFournisseurs
+        .filter(f => f.fournisseur_name.trim() && !existingNames.has(f.fournisseur_name.trim().toLowerCase()));
       
-      if (newFournisseurNames.length > 0) {
+      if (newFournisseurEntries.length > 0) {
         await supabase.from('fournisseurs').insert(
-          newFournisseurNames.map(nom => ({
-            nom,
+          newFournisseurEntries.map(f => ({
+            nom: f.fournisseur_name.trim(),
             specialite: newArticle.category || 'Non catégorisé',
+            phone: f.phone?.trim() || null,
           }))
         );
       }
