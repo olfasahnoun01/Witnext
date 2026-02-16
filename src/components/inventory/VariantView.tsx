@@ -339,6 +339,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                 <TableHead className="text-right">Remise %</TableHead>
                 <TableHead className="text-right">Prix TTC</TableHead>
                 <TableHead>Statut</TableHead>
+                <TableHead>Fiche Technique</TableHead>
                 {isModerator && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
@@ -346,6 +347,10 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
               {variants.map((variant) => {
                 const status = getStockStatus(variant);
                 const style = statusStyles[status];
+                const matchedFournisseur = group.fournisseurs?.find(
+                  f => f.fournisseur_name === variant.fournisseur
+                );
+                const ficheUrl = matchedFournisseur?.fiche_technique_url;
                 
                   return (
                     <TableRow key={variant.id}>
@@ -360,6 +365,31 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                         <Badge className={`${style.bg} ${style.text} border-0`}>
                           {style.label}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {ficheUrl ? (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs gap-1"
+                              onClick={() => setPreviewFicheUrl(ficheUrl)}
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </Button>
+                            <a
+                              href={ficheUrl}
+                              download
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center h-7 w-7 rounded-md hover:bg-muted transition-colors"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                     {isModerator && (
                       <TableCell className="text-right">
