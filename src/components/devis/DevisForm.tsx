@@ -168,12 +168,14 @@ export const DevisForm = memo(({
     setSelectedProduct(product);
     setItemDesignation(product.name);
     setItemFournisseur(product.fournisseur || '');
-    setItemPrixTtc(product.prix_ttc || product.price * (1 - (product.remise || 0) / 100));
+    const priceTtc = product.prix_ttc || product.price * (1 - (product.remise || 0) / 100);
+    // In HT mode, convert TTC price to HT by removing 19% TVA
+    setItemPrixTtc(isTtc ? priceTtc : priceTtc / 1.19);
     setItemQuantity(1);
     setItemDescription(`${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`);
     setProductSearch('');
     setSearchResults([]);
-  }, []);
+  }, [isTtc]);
 
   useEffect(() => { setSelectedThirdPartyId(''); }, [devisType]);
 
