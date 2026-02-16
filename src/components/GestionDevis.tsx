@@ -68,9 +68,12 @@ export const GestionDevis = () => {
     setDevisNumber(`${prefix}-${(maxNum + 1).toString().padStart(2, '0')}`);
   }, [savedDevis]);
 
+  // Generate number when savedDevis load or type changes
   useEffect(() => {
-    if (!editingDevis) generateNextNumber(devisType);
-  }, [devisType, editingDevis, generateNextNumber]);
+    if (!editingDevis) {
+      generateNextNumber(devisType);
+    }
+  }, [savedDevis, devisType, editingDevis, generateNextNumber]);
 
   const resetForm = useCallback(() => {
     setDevisType('sortant');
