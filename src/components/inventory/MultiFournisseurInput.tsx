@@ -284,24 +284,26 @@ export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInput
 
       {/* Preview dialog */}
       <Dialog open={!!previewUrl} onOpenChange={() => setPreviewUrl(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh]">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Fiche Technique</DialogTitle>
           </DialogHeader>
           {previewUrl && (
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto min-h-0">
               {isPdf(previewUrl) ? (
                 <iframe
                   src={previewUrl}
-                  className="w-full h-[70vh] rounded-md border"
+                  className="w-full h-[75vh] rounded-md border"
                   title="Fiche technique PDF"
                 />
               ) : (
-                <img
-                  src={previewUrl}
-                  alt="Fiche technique"
-                  className="w-full h-auto rounded-md"
-                />
+                <div className="overflow-auto max-h-[75vh]">
+                  <img
+                    src={previewUrl}
+                    alt="Fiche technique"
+                    className="w-full h-auto rounded-md"
+                  />
+                </div>
               )}
               <div className="flex justify-end mt-3">
                 <a

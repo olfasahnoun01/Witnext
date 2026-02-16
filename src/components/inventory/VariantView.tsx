@@ -516,24 +516,26 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
 
       {/* Fiche technique preview dialog */}
       <Dialog open={!!previewFicheUrl} onOpenChange={() => setPreviewFicheUrl(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh]">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Fiche Technique</DialogTitle>
           </DialogHeader>
           {previewFicheUrl && (
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto min-h-0">
               {previewFicheUrl.toLowerCase().endsWith('.pdf') ? (
                 <iframe
                   src={previewFicheUrl}
-                  className="w-full h-[70vh] rounded-md border"
+                  className="w-full h-[75vh] rounded-md border"
                   title="Fiche technique PDF"
                 />
               ) : (
-                <img
-                  src={previewFicheUrl}
-                  alt="Fiche technique"
-                  className="w-full h-auto rounded-md"
-                />
+                <div className="overflow-auto max-h-[75vh]">
+                  <img
+                    src={previewFicheUrl}
+                    alt="Fiche technique"
+                    className="w-full h-auto rounded-md"
+                  />
+                </div>
               )}
               <div className="flex justify-end mt-3">
                 <a
