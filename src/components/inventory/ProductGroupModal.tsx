@@ -120,6 +120,7 @@ export const ProductGroupModal = ({
                 prix: Number(f.prix_ttc),
                 remise: 0,
                 prix_ttc: Number(f.prix_ttc),
+                fiche_technique_url: f.fiche_technique_url || null,
               })),
             }));
           } else if (editingGroup.fournisseur && editingGroup.fournisseur.trim()) {
@@ -241,6 +242,7 @@ export const ProductGroupModal = ({
             product_group_id: groupId,
             fournisseur_name: f.fournisseur_name.trim(),
             prix_ttc: f.prix_ttc || 0,
+            fiche_technique_url: f.fiche_technique_url || null,
           }));
         
         if (fournisseursToInsert.length > 0) {
