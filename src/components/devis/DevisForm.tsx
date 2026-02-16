@@ -324,9 +324,14 @@ export const DevisForm = memo(({
         );
       }
 
+      // Build unique SKU with size/color suffix
+      let finalSku = newArticle.sku.trim();
+      if (newArticle.size.trim()) finalSku += `-${newArticle.size.trim()}`;
+      if (newArticle.color.trim()) finalSku += `-${newArticle.color.trim()}`;
+
       const { data, error } = await supabase.from('products').insert({
         name: newArticle.name.trim(),
-        sku: newArticle.sku.trim(),
+        sku: finalSku,
         category: newArticle.category || 'Non catégorisé',
         fournisseur: primaryFournisseur?.fournisseur_name || null,
         product_group_id: pgData?.id || null,
