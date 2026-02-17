@@ -7,14 +7,12 @@ interface CompressionOptions {
   maxWidth?: number;
   maxHeight?: number;
   quality?: number;
-  outputFormat?: 'image/jpeg' | 'image/png' | 'image/webp';
 }
 
 const DEFAULT_OPTIONS: CompressionOptions = {
   maxWidth: 800,
   maxHeight: 800,
   quality: 0.7,
-  outputFormat: 'image/jpeg',
 };
 
 /**
@@ -67,7 +65,7 @@ export async function compressImage(
         ctx.drawImage(img, 0, 0, width, height);
 
         // Convert to base64 with compression
-        const compressedBase64 = canvas.toDataURL(opts.outputFormat, opts.quality);
+        const compressedBase64 = canvas.toDataURL('image/webp', opts.quality);
         resolve(compressedBase64);
       };
 
@@ -131,7 +129,7 @@ export async function compressBase64Image(
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, width, height);
 
-      const compressedBase64 = canvas.toDataURL(opts.outputFormat, opts.quality);
+      const compressedBase64 = canvas.toDataURL('image/webp', opts.quality);
       resolve(compressedBase64);
     };
 

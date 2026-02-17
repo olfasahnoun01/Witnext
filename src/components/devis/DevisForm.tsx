@@ -273,14 +273,20 @@ export const DevisForm = memo(({
     setNewArticleFournisseurs([]);
   }, []);
 
-  const handleArticleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleArticleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewArticle(prev => ({ ...prev, image: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+      try {
+        const { compressImage } = await import('@/lib/imageCompression');
+        const compressed = await compressImage(file);
+        setNewArticle(prev => ({ ...prev, image: compressed }));
+      } catch {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setNewArticle(prev => ({ ...prev, image: reader.result as string }));
+        };
+        reader.readAsDataURL(file);
+      }
     }
   }, []);
 
