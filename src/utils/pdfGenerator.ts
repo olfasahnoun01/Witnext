@@ -440,7 +440,7 @@ export interface DevisPDFData {
   third_party_address: string | null;
   third_party_tax_id: string | null;
   third_party_phone: string | null;
-  items: { designation: string; fournisseur: string; prix_ttc: number; quantity: number; remise: number; description?: string }[];
+  items: { designation: string; fournisseur: string; prix_ttc: number; quantity: number; remise: number; description?: string; prix_achat?: number }[];
   total_amount: number;
   notes: string | null;
   is_ttc: boolean;
@@ -516,41 +516,62 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   const TVA_RATE = 0.19;
   const isTTC = devis.is_ttc;
 
+  const isSortant = devis.type === 'sortant';
+  const hasPrixAchat = isSortant && devis.items.some(i => i.prix_achat != null && i.prix_achat > 0);
+
   const tableData = devis.items.map((item, idx) => {
     if (isTTC) {
       const prixHT = item.prix_ttc / (1 + TVA_RATE);
       const totalTTC = item.prix_ttc * item.quantity;
-      return [
+      const row = [
         (idx + 1).toString(),
         item.designation,
         item.quantity.toString(),
         `${prixHT.toFixed(2)} DT`,
-        item.remise > 0 ? `${item.remise}%` : '',
-        '19%',
-        `${totalTTC.toFixed(2)} DT`
       ];
+      if (hasPrixAchat) row.push(item.prix_achat != null && item.prix_achat > 0 ? `${item.prix_achat.toFixed(2)} DT` : '-');
+      row.push(item.remise > 0 ? `${item.remise}%` : '');
+      row.push('19%');
+      row.push(`${totalTTC.toFixed(2)} DT`);
+      return row;
     } else {
-      // HT mode: prix_ttc field actually stores the HT price
       const prixHT = item.prix_ttc;
       const totalHT = prixHT * item.quantity;
-      return [
+      const row = [
         (idx + 1).toString(),
         item.designation,
         item.quantity.toString(),
         `${prixHT.toFixed(2)} DT`,
-        item.remise > 0 ? `${item.remise}%` : '',
-        '',
-        `${totalHT.toFixed(2)} DT`
       ];
+      if (hasPrixAchat) row.push(item.prix_achat != null && item.prix_achat > 0 ? `${item.prix_achat.toFixed(2)} DT` : '-');
+      row.push(item.remise > 0 ? `${item.remise}%` : '');
+      row.push('');
+      row.push(`${totalHT.toFixed(2)} DT`);
+      return row;
     }
   });
 
   const headLabel = isTTC ? 'Prix TTC' : 'Total HT';
+  const headRow = ['Code', 'Désignation', 'Qté', 'P.U. Vente HT'];
+  if (hasPrixAchat) headRow.push('P.U. Achat');
+  headRow.push('Remise', 'TVA', headLabel);
+
+  const colStyles: Record<number, any> = {
+    0: { cellWidth: 16, halign: 'center' },
+    1: { cellWidth: hasPrixAchat ? 40 : 50 },
+    2: { cellWidth: 16, halign: 'center' },
+    3: { cellWidth: 26, halign: 'right' },
+  };
+  let colIdx = 4;
+  if (hasPrixAchat) { colStyles[colIdx] = { cellWidth: 24, halign: 'right' }; colIdx++; }
+  colStyles[colIdx] = { cellWidth: 20, halign: 'center' }; colIdx++;
+  colStyles[colIdx] = { cellWidth: 16, halign: 'center' }; colIdx++;
+  colStyles[colIdx] = { cellWidth: 26, halign: 'right' };
 
   autoTable(doc, {
     startY: 96,
-    head: [['Code', 'Désignation', 'Qté', 'P.U. HT', 'Remise', 'TVA', headLabel]],
-    body: tableData.length > 0 ? tableData : [['', '', '', '', '', '', '']],
+    head: [headRow],
+    body: tableData.length > 0 ? tableData : [headRow.map(() => '')],
     theme: 'grid',
     headStyles: {
       fillColor: [30, 58, 95],
@@ -559,15 +580,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       halign: 'center'
     },
     styles: { fontSize: 9, cellPadding: 4 },
-    columnStyles: {
-      0: { cellWidth: 18, halign: 'center' },
-      1: { cellWidth: 50 },
-      2: { cellWidth: 18, halign: 'center' },
-      3: { cellWidth: 28, halign: 'right' },
-      4: { cellWidth: 22, halign: 'center' },
-      5: { cellWidth: 18, halign: 'center' },
-      6: { cellWidth: 28, halign: 'right' }
-    },
+    columnStyles: colStyles,
     alternateRowStyles: { fillColor: [245, 247, 250] }
   });
 
