@@ -99,6 +99,7 @@ export interface DevisItem {
   remise: number;
   quantity: number;
   description?: string;
+  prix_achat?: number;
 }
 
 export interface Devis {
