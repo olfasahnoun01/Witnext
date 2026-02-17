@@ -23,8 +23,10 @@ export const Settings = () => {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const data = await exportDatabase();
-      if (!data) {
+      const blob = await exportDatabase((msg) => {
+        console.log('Export:', msg);
+      });
+      if (!blob) {
         toast({
           variant: "destructive",
           title: "Erreur",
@@ -33,11 +35,10 @@ export const Settings = () => {
         return;
       }
 
-      const blob = new Blob([new Uint8Array(data).buffer], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `grosafe_backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `grosafe_backup_${new Date().toISOString().split('T')[0]}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -45,7 +46,7 @@ export const Settings = () => {
 
       toast({
         title: "Sauvegarde réussie",
-        description: "La base de données a été exportée avec succès"
+        description: "La base de données a été exportée avec succès (ZIP)"
       });
     } finally {
       setIsExporting(false);
@@ -58,9 +59,9 @@ export const Settings = () => {
 
     setIsImporting(true);
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const data = new Uint8Array(arrayBuffer);
-      await importDatabase(data);
+      await importDatabase(file, (msg) => {
+        console.log('Import:', msg);
+      });
       
       toast({
         title: "Restauration réussie",
@@ -139,7 +140,7 @@ export const Settings = () => {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".json"
+                  accept=".zip,.json"
                   className="hidden"
                   onChange={handleImport}
                 />
