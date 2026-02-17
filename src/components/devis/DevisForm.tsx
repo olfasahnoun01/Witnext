@@ -176,8 +176,9 @@ export const DevisForm = memo(({
     setItemRemise(product.remise || 0);
     setItemQuantity(1);
     setItemDescription(`${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`);
-    // Prix d'achat = price from product (cost price)
-    setItemPrixAchat(product.price || 0);
+    // Prix d'achat = price from product (cost price), adjusted for TTC/HT mode
+    const basePrixAchat = product.price || 0;
+    setItemPrixAchat(isTtc ? basePrixAchat * 1.19 : basePrixAchat);
     setProductSearch('');
     setSearchResults([]);
   }, [isTtc]);
@@ -646,21 +647,21 @@ export const DevisForm = memo(({
                   )}
 
                   {/* Quantity, Price & Remise */}
-                  <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                   <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-4' : 'grid-cols-3'}`}>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
                     </div>
+                    {devisType === 'sortant' && (
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Prix Achat {isTtc ? 'TTC' : 'HT'}</label>
+                        <input type="number" min="0" step="0.001" value={itemPrixAchat || ''} onChange={e => setItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
+                      </div>
+                    )}
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Prix Vente {isTtc ? 'TTC' : 'HT'}</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
-                    {devisType === 'sortant' && (
-                      <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">Prix Achat</label>
-                        <input type="number" min="0" step="0.001" value={itemPrixAchat || ''} onChange={e => setItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
-                      </div>
-                    )}
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
                       <input type="number" min="0" max="100" step="0.1" value={itemRemise || ''} onChange={e => setItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
@@ -675,21 +676,21 @@ export const DevisForm = memo(({
                     <input type="text" value={itemFournisseur} onChange={e => setItemFournisseur(e.target.value)} className="form-input" placeholder="Fournisseur" />
                     <input type="text" value={itemDescription} onChange={e => setItemDescription(e.target.value)} className="form-input" placeholder="Description (opt.)" />
                   </div>
-                  <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                   <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-4' : 'grid-cols-3'}`}>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Quantité</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
                     </div>
+                    {devisType === 'sortant' && (
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Prix Achat {isTtc ? 'TTC' : 'HT'}</label>
+                        <input type="number" min="0" step="0.001" value={itemPrixAchat || ''} onChange={e => setItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
+                      </div>
+                    )}
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Prix Vente {isTtc ? 'TTC' : 'HT'}</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
-                    {devisType === 'sortant' && (
-                      <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">Prix Achat</label>
-                        <input type="number" min="0" step="0.001" value={itemPrixAchat || ''} onChange={e => setItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
-                      </div>
-                    )}
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
                       <input type="number" min="0" max="100" step="0.1" value={itemRemise || ''} onChange={e => setItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
@@ -749,8 +750,9 @@ export const DevisForm = memo(({
                     <p className="font-medium text-foreground">{item.designation}</p>
                     <p className="text-sm text-muted-foreground">
                       {item.fournisseur && `${item.fournisseur} • `}
-                      Qté: {item.quantity} • Vente: {item.prix_ttc.toFixed(3)} TND
+                      Qté: {item.quantity}
                       {item.prix_achat != null && item.prix_achat > 0 && ` • Achat: ${item.prix_achat.toFixed(3)} TND`}
+                      {` • Vente: ${item.prix_ttc.toFixed(3)} TND`}
                       {item.remise > 0 && ` (-${item.remise}%)`}
                       {item.quantity > 1 && ` = ${(item.prix_ttc * item.quantity).toFixed(3)} TND`}
                     </p>
