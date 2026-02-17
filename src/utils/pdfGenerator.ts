@@ -527,43 +527,44 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
         (idx + 1).toString(),
         item.designation,
         item.quantity.toString(),
-        `${prixHT.toFixed(2)} DT`,
       ];
-      if (hasPrixAchat) row.push(item.prix_achat != null && item.prix_achat > 0 ? `${item.prix_achat.toFixed(2)} DT` : '-');
+      if (hasPrixAchat) row.push(item.prix_achat != null && item.prix_achat > 0 ? `${item.prix_achat.toFixed(3)} DT` : '-');
+      row.push(`${prixHT.toFixed(3)} DT`);
       row.push(item.remise > 0 ? `${item.remise}%` : '');
       row.push('19%');
-      row.push(`${totalTTC.toFixed(2)} DT`);
+      row.push(`${totalTTC.toFixed(3)} DT`);
       return row;
     } else {
       const prixHT = item.prix_ttc;
       const totalHT = prixHT * item.quantity;
+      const prixAchatHT = item.prix_achat != null && item.prix_achat > 0 ? item.prix_achat / (1 + TVA_RATE) : 0;
       const row = [
         (idx + 1).toString(),
         item.designation,
         item.quantity.toString(),
-        `${prixHT.toFixed(2)} DT`,
       ];
-      if (hasPrixAchat) row.push(item.prix_achat != null && item.prix_achat > 0 ? `${item.prix_achat.toFixed(2)} DT` : '-');
+      if (hasPrixAchat) row.push(prixAchatHT > 0 ? `${prixAchatHT.toFixed(3)} DT` : '-');
+      row.push(`${prixHT.toFixed(3)} DT`);
       row.push(item.remise > 0 ? `${item.remise}%` : '');
       row.push('');
-      row.push(`${totalHT.toFixed(2)} DT`);
+      row.push(`${totalHT.toFixed(3)} DT`);
       return row;
     }
   });
 
   const headLabel = isTTC ? 'Prix TTC' : 'Total HT';
-  const headRow = ['Code', 'Désignation', 'Qté', 'P.U. Vente HT'];
-  if (hasPrixAchat) headRow.push('P.U. Achat');
-  headRow.push('Remise', 'TVA', headLabel);
+  const headRow = ['Code', 'Désignation', 'Qté'];
+  if (hasPrixAchat) headRow.push(isTTC ? 'P.U. Achat TTC' : 'P.U. Achat HT');
+  headRow.push(isTTC ? 'P.U. Vente HT' : 'P.U. Vente HT', 'Remise', 'TVA', headLabel);
 
   const colStyles: Record<number, any> = {
     0: { cellWidth: 16, halign: 'center' },
-    1: { cellWidth: hasPrixAchat ? 40 : 50 },
+    1: { cellWidth: hasPrixAchat ? 38 : 50 },
     2: { cellWidth: 16, halign: 'center' },
-    3: { cellWidth: 26, halign: 'right' },
   };
-  let colIdx = 4;
+  let colIdx = 3;
   if (hasPrixAchat) { colStyles[colIdx] = { cellWidth: 24, halign: 'right' }; colIdx++; }
+  colStyles[colIdx] = { cellWidth: 26, halign: 'right' }; colIdx++;
   colStyles[colIdx] = { cellWidth: 20, halign: 'center' }; colIdx++;
   colStyles[colIdx] = { cellWidth: 16, halign: 'center' }; colIdx++;
   colStyles[colIdx] = { cellWidth: 26, halign: 'right' };
