@@ -54,7 +54,15 @@ export const ProductModal = memo(({
       } catch {
         const reader = new FileReader();
         reader.onloadend = () => {
-          onFormDataChange({ ...formData, image: reader.result as string });
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            canvas.getContext('2d')?.drawImage(img, 0, 0);
+            onFormDataChange({ ...formData, image: canvas.toDataURL('image/webp', 0.7) });
+          };
+          img.src = reader.result as string;
         };
         reader.readAsDataURL(file);
       }

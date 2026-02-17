@@ -149,24 +149,26 @@ export const ProductGroupModal = ({
     if (file) {
       try {
         // Compress image before storing
-        const compressedImage = await compressImage(file, {
-          maxWidth: 800,
-          maxHeight: 800,
-          quality: 0.7,
-        });
+        const compressedImage = await compressImage(file);
         
         const originalSize = file.size;
         const compressedSize = getBase64Size(compressedImage);
-        
-        console.log(`Image compressed: ${formatBytes(originalSize)} → ${formatBytes(compressedSize)}`);
+        console.log(`Image compressed to WebP: ${formatBytes(originalSize)} → ${formatBytes(compressedSize)}`);
         
         setFormData(prev => ({ ...prev, image: compressedImage }));
       } catch (error) {
         console.error('Error compressing image:', error);
-        // Fallback to original image
         const reader = new FileReader();
         reader.onloadend = () => {
-          setFormData(prev => ({ ...prev, image: reader.result as string }));
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            canvas.getContext('2d')?.drawImage(img, 0, 0);
+            setFormData(prev => ({ ...prev, image: canvas.toDataURL('image/webp', 0.7) }));
+          };
+          img.src = reader.result as string;
         };
         reader.readAsDataURL(file);
       }
