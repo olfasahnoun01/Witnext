@@ -36,8 +36,6 @@ export const Transactions = memo(() => {
 
   useEffect(() => {
     loadProducts();
-    const interval = setInterval(loadProducts, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadProducts = async () => {

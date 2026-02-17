@@ -30,7 +30,7 @@ export const getProductGroupsByCategory = async (category: string): Promise<Prod
         .in('product_group_id', groupIds),
       supabase
         .from('product_group_fournisseurs')
-        .select('*')
+        .select('id, product_group_id, fournisseur_name, prix_ttc, fiche_technique_url')
         .in('product_group_id', groupIds)
     ]);
     
@@ -157,7 +157,7 @@ export const getVariantsByGroupId = async (groupId: number): Promise<Product[]> 
   try {
     const { data, error } = await supabase
       .from('products')
-      .select('*')
+      .select('id,name,sku,category,fournisseur,size,color,quantity,price,remise,prix_ttc,min_stock,image,product_group_id')
       .eq('product_group_id', groupId)
       .order('size')
       .order('color');

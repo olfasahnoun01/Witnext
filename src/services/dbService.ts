@@ -13,11 +13,31 @@ export const saveDatabase = (): void => {
   // PostgreSQL auto-saves, no action needed
 };
 
-// Products CRUD
+// Lightweight product columns (no image blob)
+const PRODUCT_COLUMNS_LIGHT = 'id,name,sku,category,fournisseur,size,color,quantity,price,remise,prix_ttc,min_stock,product_group_id' as const;
+
+const mapProduct = (p: any, includeImage = false): Product => ({
+  id: p.id,
+  name: p.name,
+  sku: p.sku,
+  category: p.category,
+  fournisseur: p.fournisseur || '',
+  size: p.size || '',
+  quantity: p.quantity,
+  price: Number(p.price),
+  remise: Number(p.remise) || 0,
+  prix_ttc: Number(p.prix_ttc) || Number(p.price),
+  min_stock: p.min_stock,
+  image: includeImage ? (p.image || null) : null,
+  color: p.color || null,
+  product_group_id: p.product_group_id
+});
+
+// Products CRUD - lightweight (no images)
 export const getAllProducts = async (): Promise<Product[]> => {
   const { data, error } = await supabase
     .from('products')
-    .select('*')
+    .select(PRODUCT_COLUMNS_LIGHT)
     .order('name');
   
   if (error) {
@@ -25,27 +45,25 @@ export const getAllProducts = async (): Promise<Product[]> => {
     return [];
   }
   
-  return data.map(p => ({
-    id: p.id,
-    name: p.name,
-    sku: p.sku,
-    category: p.category,
-    fournisseur: p.fournisseur || '',
-    size: p.size || '',
-    quantity: p.quantity,
-    price: Number(p.price),
-    remise: Number(p.remise) || 0,
-    prix_ttc: Number(p.prix_ttc) || Number(p.price),
-    min_stock: p.min_stock,
-    image: p.image || null,
-    color: (p as any).color || null
-  }));
+  return data.map(p => mapProduct(p));
+};
+
+// Full product with image - use only when displaying a single product
+export const getProductWithImage = async (id: number): Promise<Product | null> => {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  
+  if (error || !data) return null;
+  return mapProduct(data, true);
 };
 
 export const getProductById = async (id: number): Promise<Product | null> => {
   const { data, error } = await supabase
     .from('products')
-    .select('*')
+    .select(PRODUCT_COLUMNS_LIGHT)
     .eq('id', id)
     .maybeSingle();
   
@@ -54,21 +72,7 @@ export const getProductById = async (id: number): Promise<Product | null> => {
     return null;
   }
   
-  return {
-    id: data.id,
-    name: data.name,
-    sku: data.sku,
-    category: data.category,
-    fournisseur: data.fournisseur || '',
-    size: data.size || '',
-    quantity: data.quantity,
-    price: Number(data.price),
-    remise: Number(data.remise) || 0,
-    prix_ttc: Number(data.prix_ttc) || Number(data.price),
-    min_stock: data.min_stock,
-    image: data.image || null,
-    color: (data as any).color || null
-  };
+  return mapProduct(data);
 };
 
 export const createProduct = async (product: Omit<Product, 'id' | 'prix_ttc'>): Promise<{ success: boolean; id?: number; error?: string }> => {
@@ -216,30 +220,26 @@ export const createTransaction = async (tx: Omit<Transaction, 'id'>): Promise<{ 
   return { success: true };
 };
 
-// Dashboard Stats
+// Dashboard Stats - uses server-side aggregation
 export const getDashboardStats = async (): Promise<DashboardStats> => {
-  const products = await getAllProducts();
+  const { data, error } = await supabase.rpc('get_dashboard_stats');
   
-  const totalValue = products.reduce((sum, p) => sum + (p.price * p.quantity), 0);
-  const totalProducts = products.length;
-  const lowStockCount = products.filter(p => p.quantity > 0 && p.quantity <= p.min_stock).length;
-  const outOfStockCount = products.filter(p => p.quantity === 0).length;
+  if (error) {
+    console.error('Error fetching dashboard stats:', error);
+    return { totalValue: 0, totalProducts: 0, lowStockCount: 0, outOfStockCount: 0, categoryValues: [] };
+  }
   
-  // Group by category
-  const categoryMap: Record<string, number> = {};
-  products.forEach(p => {
-    if (!categoryMap[p.category]) {
-      categoryMap[p.category] = 0;
-    }
-    categoryMap[p.category] += p.price * p.quantity;
-  });
-  
-  const categoryValues: CategoryValue[] = Object.entries(categoryMap).map(([category, value]) => ({
-    category,
-    value
-  }));
-  
-  return { totalValue, totalProducts, lowStockCount, outOfStockCount, categoryValues };
+  const stats = data as any;
+  return {
+    totalValue: Number(stats.totalValue) || 0,
+    totalProducts: Number(stats.totalProducts) || 0,
+    lowStockCount: Number(stats.lowStockCount) || 0,
+    outOfStockCount: Number(stats.outOfStockCount) || 0,
+    categoryValues: (stats.categoryValues || []).map((cv: any) => ({
+      category: cv.category,
+      value: Number(cv.value) || 0
+    }))
+  };
 };
 
 // Database schema definition for export/documentation
@@ -657,10 +657,9 @@ export const getRecentTransactions = async (limit: number = 10): Promise<Transac
 };
 
 export const getLowStockProducts = async (): Promise<Product[]> => {
-  // Use a direct query with raw filter to compare quantity with min_stock
   const { data, error } = await supabase
     .from('products')
-    .select('*')
+    .select(PRODUCT_COLUMNS_LIGHT)
     .order('quantity', { ascending: true });
   
   if (error) {
@@ -668,22 +667,7 @@ export const getLowStockProducts = async (): Promise<Product[]> => {
     return [];
   }
   
-  // Filter products where quantity <= min_stock
   return data
     .filter(p => p.quantity <= p.min_stock)
-    .map(p => ({
-      id: p.id,
-      name: p.name,
-      sku: p.sku,
-      category: p.category,
-      fournisseur: p.fournisseur || '',
-      size: p.size || '',
-      quantity: p.quantity,
-      price: Number(p.price),
-      remise: Number(p.remise) || 0,
-      prix_ttc: Number(p.prix_ttc) || Number(p.price),
-      min_stock: p.min_stock,
-      image: p.image || null,
-      color: (p as any).color || null
-    }));
+    .map(p => mapProduct(p));
 };
