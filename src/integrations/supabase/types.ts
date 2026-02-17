@@ -17,6 +17,7 @@ export type Database = {
       clients: {
         Row: {
           created_at: string
+          email: string | null
           id: number
           location: string | null
           matricule_fiscale: string | null
@@ -26,6 +27,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          email?: string | null
           id?: number
           location?: string | null
           matricule_fiscale?: string | null
@@ -35,6 +37,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          email?: string | null
           id?: number
           location?: string | null
           matricule_fiscale?: string | null
