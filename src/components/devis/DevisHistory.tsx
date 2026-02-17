@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, useCallback } from 'react';
-import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List } from 'lucide-react';
+import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
@@ -10,6 +10,9 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 
 interface DevisHistoryProps {
@@ -50,17 +53,35 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
   const [isGenerating, setIsGenerating] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [itemsDevis, setItemsDevis] = useState<Devis | null>(null);
+  const [selectedFournisseur, setSelectedFournisseur] = useState('all');
+
+  // Extract unique fournisseurs from all devis items
+  const allFournisseurs = useMemo(() => {
+    const set = new Set<string>();
+    savedDevis.forEach(d => d.items.forEach(item => {
+      if (item.fournisseur?.trim()) set.add(item.fournisseur.trim());
+    }));
+    return [...set].sort();
+  }, [savedDevis]);
 
   const filteredDevis = useMemo(() => {
-    if (!searchTerm.trim()) return savedDevis;
-    const term = searchTerm.toLowerCase().trim();
-    return savedDevis.filter(d =>
-      d.items.some(item =>
-        item.designation.toLowerCase().includes(term) ||
-        item.fournisseur?.toLowerCase().includes(term)
-      )
-    );
-  }, [savedDevis, searchTerm]);
+    let result = savedDevis;
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      result = result.filter(d =>
+        d.items.some(item =>
+          item.designation.toLowerCase().includes(term) ||
+          item.fournisseur?.toLowerCase().includes(term)
+        )
+      );
+    }
+    if (selectedFournisseur !== 'all') {
+      result = result.filter(d =>
+        d.items.some(item => item.fournisseur?.trim() === selectedFournisseur)
+      );
+    }
+    return result;
+  }, [savedDevis, searchTerm, selectedFournisseur]);
 
   const paginatedDevis = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -116,7 +137,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
           <h3 className="text-lg font-semibold text-foreground">Historique des Devis</h3>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -131,6 +152,18 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
                 </button>
               )}
             </div>
+            <Select value={selectedFournisseur} onValueChange={v => { setSelectedFournisseur(v); setCurrentPage(1); }}>
+              <SelectTrigger className="h-9 w-48 bg-background">
+                <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="Fournisseur" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover z-50">
+                <SelectItem value="all">Tous les fournisseurs</SelectItem>
+                {allFournisseurs.map(f => (
+                  <SelectItem key={f} value={f}>{f}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <span className="text-sm text-muted-foreground whitespace-nowrap">{filteredDevis.length} devis</span>
           </div>
         </div>
