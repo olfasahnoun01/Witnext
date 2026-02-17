@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { FileText, History, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -13,6 +13,7 @@ export const GestionDevis = () => {
   const [activeSection, setActiveSection] = useState<'form' | 'history'>('form');
   const [savedDevis, setSavedDevis] = useState<Devis[]>([]);
   const [editingDevis, setEditingDevis] = useState<Devis | null>(null);
+  const devisNumberRef = useRef('');
 
   // Form state
   const [devisType, setDevisType] = useState<'entrant' | 'sortant'>('sortant');
@@ -57,6 +58,9 @@ export const GestionDevis = () => {
 
   useEffect(() => { loadDevis(); }, [loadDevis]);
 
+  // Keep ref in sync
+  useEffect(() => { devisNumberRef.current = devisNumber; }, [devisNumber]);
+
   const generateNextNumber = useCallback((type: 'entrant' | 'sortant') => {
     const prefix = type === 'entrant' ? 'DE' : 'DS';
     const docsOfType = savedDevis.filter(d => d.type === type);
@@ -95,6 +99,11 @@ export const GestionDevis = () => {
       toast.error('Ajoutez au moins un article');
       return;
     }
+    const currentDevisNumber = devisNumberRef.current;
+    if (!currentDevisNumber) {
+      toast.error('Numéro de devis manquant, veuillez patienter');
+      return;
+    }
     setIsSaving(true);
     try {
       const rawTotal = devisItems.reduce((s, i) => s + i.prix_ttc * i.quantity, 0);
@@ -103,7 +112,7 @@ export const GestionDevis = () => {
 
       const { error } = await supabase.from('devis').insert({
         type: devisType,
-        devis_number: devisNumber,
+        devis_number: currentDevisNumber,
         devis_date: devisDate,
         third_party_name: thirdPartyName || null,
         third_party_address: thirdPartyAddress || null,
