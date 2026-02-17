@@ -6,12 +6,16 @@ import { Devis, DevisItem } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { DevisForm } from './devis/DevisForm';
 import { DevisHistory } from './devis/DevisHistory';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 
 export const GestionDevis = () => {
   const { isAdmin, isModerator } = useAuth();
   const canEdit = isAdmin || isModerator;
   const [activeSection, setActiveSection] = useState<'form' | 'history'>('form');
   const [savedDevis, setSavedDevis] = useState<Devis[]>([]);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingDevis, setEditingDevis] = useState<Devis | null>(null);
   const devisNumberRef = useRef('');
 
@@ -91,6 +95,7 @@ export const GestionDevis = () => {
     setDevisItems([]);
     setEditingDevis(null);
     setIsTtc(true);
+    setShowEditDialog(false);
   }, []);
 
   const saveDevis = useCallback(async () => {
@@ -192,7 +197,7 @@ export const GestionDevis = () => {
     setNotes(d.notes || '');
     setDevisItems(d.items);
     setIsTtc(d.is_ttc);
-    setActiveSection('form');
+    setShowEditDialog(true);
   }, []);
 
   return (
@@ -261,6 +266,46 @@ export const GestionDevis = () => {
           onDelete={deleteDevis}
         />
       )}
+
+      {/* Edit Devis Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={(open) => { if (!open) resetForm(); }}>
+        <DialogContent className="max-w-6xl max-h-[95vh] overflow-auto p-0">
+          <DialogHeader className="p-6 pb-0">
+            <DialogTitle>Modifier Devis {editingDevis?.devis_number}</DialogTitle>
+          </DialogHeader>
+          <div className="p-6 pt-2">
+            {editingDevis && (
+              <DevisForm
+                devisType={devisType}
+                devisNumber={devisNumber}
+                devisDate={devisDate}
+                thirdPartyName={thirdPartyName}
+                thirdPartyAddress={thirdPartyAddress}
+                thirdPartyTaxId={thirdPartyTaxId}
+                thirdPartyPhone={thirdPartyPhone}
+                notes={notes}
+                devisItems={devisItems}
+                editingDevis={editingDevis}
+                isSaving={isSaving}
+                isTtc={isTtc}
+                setDevisType={setDevisType}
+                setDevisNumber={setDevisNumber}
+                setDevisDate={setDevisDate}
+                setThirdPartyName={setThirdPartyName}
+                setThirdPartyAddress={setThirdPartyAddress}
+                setThirdPartyTaxId={setThirdPartyTaxId}
+                setThirdPartyPhone={setThirdPartyPhone}
+                setNotes={setNotes}
+                setDevisItems={setDevisItems}
+                setIsTtc={setIsTtc}
+                onSave={saveDevis}
+                onUpdate={updateDevis}
+                onCancel={resetForm}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
