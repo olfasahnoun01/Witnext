@@ -44,14 +44,20 @@ export const ProductModal = memo(({
 }: ProductModalProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        onFormDataChange({ ...formData, image: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      try {
+        const { compressImage } = await import('@/lib/imageCompression');
+        const compressed = await compressImage(file);
+        onFormDataChange({ ...formData, image: compressed });
+      } catch {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          onFormDataChange({ ...formData, image: reader.result as string });
+        };
+        reader.readAsDataURL(file);
+      }
     }
   }, [formData, onFormDataChange]);
 
