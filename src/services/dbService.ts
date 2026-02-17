@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Product, Transaction, DashboardStats, CategoryValue } from '@/types';
+import JSZip from 'jszip';
 
 // Initialize database (now just a compatibility function)
 export const initDatabase = async (): Promise<void> => {
@@ -356,9 +357,11 @@ const DATABASE_SCHEMA = {
   }
 };
 
-// Export/Import Database - exports ALL business data and schema as JSON
-export const exportDatabase = async (): Promise<Uint8Array | null> => {
+// Export/Import Database - exports ALL business data, schema, and storage files as ZIP
+export const exportDatabase = async (onProgress?: (message: string) => void): Promise<Blob | null> => {
   try {
+    onProgress?.('Récupération des données...');
+    
     // Fetch all business data tables
     const [
       { data: products },
@@ -368,7 +371,8 @@ export const exportDatabase = async (): Promise<Uint8Array | null> => {
       { data: documents },
       { data: orders },
       { data: product_groups },
-      { data: product_group_fournisseurs }
+      { data: product_group_fournisseurs },
+      { data: devis }
     ] = await Promise.all([
       supabase.from('products').select('*').order('id'),
       supabase.from('transactions').select('*').order('id'),
@@ -377,12 +381,13 @@ export const exportDatabase = async (): Promise<Uint8Array | null> => {
       supabase.from('documents').select('*').order('id'),
       supabase.from('orders').select('*').order('id'),
       supabase.from('product_groups').select('*').order('id'),
-      supabase.from('product_group_fournisseurs').select('*').order('id')
+      supabase.from('product_group_fournisseurs').select('*').order('id'),
+      supabase.from('devis').select('*').order('id')
     ]);
 
     const exportData = {
       _metadata: {
-        version: 2,
+        version: 3,
         exportDate: new Date().toISOString(),
         application: 'Grosafe Gestion',
         format: 'grosafe-backup'
@@ -396,13 +401,51 @@ export const exportDatabase = async (): Promise<Uint8Array | null> => {
         transactions: transactions || [],
         documents: documents || [],
         orders: orders || [],
-        product_group_fournisseurs: product_group_fournisseurs || []
+        product_group_fournisseurs: product_group_fournisseurs || [],
+        devis: devis || []
       }
     };
 
-    const data = JSON.stringify(exportData, null, 2);
-    const encoder = new TextEncoder();
-    return encoder.encode(data);
+    const zip = new JSZip();
+    
+    // Add JSON data
+    zip.file('data.json', JSON.stringify(exportData, null, 2));
+
+    // Download all files from storage buckets
+    onProgress?.('Récupération des fichiers stockés...');
+    
+    try {
+      const { data: storageFiles, error: listError } = await supabase.storage
+        .from('fiches-techniques')
+        .list('fiches', { limit: 1000 });
+      
+      if (!listError && storageFiles && storageFiles.length > 0) {
+        const storageFolder = zip.folder('fiches-techniques');
+        let downloadedCount = 0;
+        
+        for (const file of storageFiles) {
+          if (file.name === '.emptyFolderPlaceholder') continue;
+          try {
+            onProgress?.(`Téléchargement fichier ${++downloadedCount}/${storageFiles.length}...`);
+            const { data: fileData, error: downloadError } = await supabase.storage
+              .from('fiches-techniques')
+              .download(`fiches/${file.name}`);
+            
+            if (!downloadError && fileData) {
+              storageFolder?.file(file.name, fileData);
+            }
+          } catch (err) {
+            console.warn(`Could not download file ${file.name}:`, err);
+          }
+        }
+      }
+    } catch (storageError) {
+      console.warn('Could not export storage files:', storageError);
+    }
+
+    onProgress?.('Création du fichier ZIP...');
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+    return zipBlob;
   } catch (error) {
     console.error('Erreur lors de l\'export:', error);
     return null;
@@ -435,22 +478,54 @@ const insertTableData = async (
   }
 };
 
-export const importDatabase = async (data: Uint8Array): Promise<void> => {
-  const decoder = new TextDecoder();
-  const jsonString = decoder.decode(data);
-  
+export const importDatabase = async (file: Blob, onProgress?: (message: string) => void): Promise<void> => {
   try {
-    const importData = JSON.parse(jsonString);
+    let importData: any;
+    let storageFiles: { name: string; data: Blob }[] = [];
+
+    // Check if it's a ZIP file
+    const arrayBuffer = await file.arrayBuffer();
+    const header = new Uint8Array(arrayBuffer.slice(0, 4));
+    const isZip = header[0] === 0x50 && header[1] === 0x4B;
+
+    if (isZip) {
+      onProgress?.('Extraction du fichier ZIP...');
+      const zip = await JSZip.loadAsync(arrayBuffer);
+      
+      // Read data.json
+      const dataFile = zip.file('data.json');
+      if (!dataFile) throw new Error('Fichier data.json manquant dans le ZIP');
+      const jsonString = await dataFile.async('string');
+      importData = JSON.parse(jsonString);
+
+      // Collect storage files
+      const fichesFolder = zip.folder('fiches-techniques');
+      if (fichesFolder) {
+        const filePromises: Promise<void>[] = [];
+        fichesFolder.forEach((relativePath, zipEntry) => {
+          if (!zipEntry.dir) {
+            filePromises.push(
+              zipEntry.async('blob').then(blob => {
+                storageFiles.push({ name: relativePath, data: blob });
+              })
+            );
+          }
+        });
+        await Promise.all(filePromises);
+      }
+    } else {
+      // Legacy JSON format
+      const decoder = new TextDecoder();
+      const jsonString = decoder.decode(new Uint8Array(arrayBuffer));
+      importData = JSON.parse(jsonString);
+    }
     
     // Handle different export formats
     let dataToImport: any;
     
-    // New format with _metadata and data
     if (importData._metadata && importData.data) {
       dataToImport = importData.data;
-    } 
-    // Old v2 format with version at root
-    else if (importData.version === 2) {
+    } else if (importData.version === 2) {
       dataToImport = {
         products: importData.products || [],
         transactions: importData.transactions || [],
@@ -459,11 +534,10 @@ export const importDatabase = async (data: Uint8Array): Promise<void> => {
         documents: importData.documents || [],
         orders: importData.orders || [],
         product_groups: importData.product_groups || [],
-        product_group_fournisseurs: importData.product_group_fournisseurs || []
+        product_group_fournisseurs: importData.product_group_fournisseurs || [],
+        devis: importData.devis || []
       };
-    }
-    // Old v1 format (only products and transactions)
-    else {
+    } else {
       dataToImport = {
         products: importData.products || [],
         transactions: importData.transactions || [],
@@ -472,7 +546,8 @@ export const importDatabase = async (data: Uint8Array): Promise<void> => {
         documents: [],
         orders: [],
         product_groups: [],
-        product_group_fournisseurs: []
+        product_group_fournisseurs: [],
+        devis: []
       };
     }
 
@@ -484,44 +559,72 @@ export const importDatabase = async (data: Uint8Array): Promise<void> => {
       documents = [],
       orders = [],
       product_groups = [],
-      product_group_fournisseurs = []
+      product_group_fournisseurs = [],
+      devis = []
     } = dataToImport;
 
     // Delete in correct order (respecting foreign key constraints)
-    console.log('Suppression des données existantes...');
+    onProgress?.('Suppression des données existantes...');
     await supabase.from('transactions').delete().gte('id', 0);
     await supabase.from('product_group_fournisseurs').delete().gte('id', 0);
     await supabase.from('products').delete().gte('id', 0);
     await supabase.from('product_groups').delete().gte('id', 0);
     await supabase.from('documents').delete().gte('id', 0);
+    await supabase.from('devis').delete().gte('id', 0);
     await supabase.from('orders').delete().gte('id', 0);
     await supabase.from('clients').delete().gte('id', 0);
     await supabase.from('fournisseurs').delete().gte('id', 0);
 
-    // Insert in correct order (respecting foreign key constraints)
-    console.log('Importation des clients...');
+    // Insert in correct order
+    onProgress?.('Importation des clients...');
     await insertTableData('clients', clients);
 
-    console.log('Importation des fournisseurs...');
+    onProgress?.('Importation des fournisseurs...');
     await insertTableData('fournisseurs', fournisseurs);
 
-    console.log('Importation des documents...');
+    onProgress?.('Importation des documents...');
     await insertTableData('documents', documents);
 
-    console.log('Importation des commandes...');
+    onProgress?.('Importation des devis...');
+    if (devis.length > 0) {
+      for (const item of devis) {
+        try {
+          const { id, ...itemData } = item;
+          await supabase.from('devis').insert(itemData as any);
+        } catch (err) {
+          console.error('Error importing devis item:', err);
+        }
+      }
+    }
+
+    onProgress?.('Importation des commandes...');
     await insertTableData('orders', orders);
 
-    console.log('Importation des groupes de produits...');
+    onProgress?.('Importation des groupes de produits...');
     await insertTableData('product_groups', product_groups);
 
-    console.log('Importation des produits...');
+    onProgress?.('Importation des produits...');
     await insertTableData('products', products);
 
-    console.log('Importation des fournisseurs de groupes...');
+    onProgress?.('Importation des fournisseurs de groupes...');
     await insertTableData('product_group_fournisseurs', product_group_fournisseurs);
 
-    console.log('Importation des transactions...');
+    onProgress?.('Importation des transactions...');
     await insertTableData('transactions', transactions);
+
+    // Upload storage files
+    if (storageFiles.length > 0) {
+      onProgress?.(`Restauration de ${storageFiles.length} fichier(s)...`);
+      for (const sf of storageFiles) {
+        try {
+          await supabase.storage
+            .from('fiches-techniques')
+            .upload(`fiches/${sf.name}`, sf.data, { upsert: true });
+        } catch (err) {
+          console.warn(`Could not restore file ${sf.name}:`, err);
+        }
+      }
+    }
     
     console.log('Base de données importée avec succès');
   } catch (error) {
