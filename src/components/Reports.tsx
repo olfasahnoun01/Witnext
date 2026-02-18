@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { FileText, Package, History } from 'lucide-react';
-import { getAllProducts, getLowStockProducts, createTransaction, getProductById } from '@/services/dbService';
+import { getAllProducts, getLowStockProducts, createTransaction, getProductById, updateProduct } from '@/services/dbService';
 import { Product, DocumentItem } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -44,6 +44,16 @@ export const Reports = () => {
 
   // Ref for debounce
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Stock shortage confirmation state
+  const [stockShortageItems, setStockShortageItems] = useState<Array<{
+    designation: string;
+    product_id: number;
+    requested: number;
+    available: number;
+    shortage: number;
+  }>>([]);
+  const [pendingSaveAfterShortage, setPendingSaveAfterShortage] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -170,61 +180,121 @@ export const Reports = () => {
 
   const [isSaving, setIsSaving] = useState(false);
 
-  const saveDocument = useCallback(async () => {
-    // Prevent double-save
-    if (isSaving) return;
-
-    // Validate: must have at least one item
-    if (docItems.length === 0) {
-      toast.error('Veuillez ajouter au moins un article avant de sauvegarder');
-      return;
-    }
-
+  // Helper: perform the actual save (insert document + deduct stock)
+  const performSave = useCallback(async (forceZeroShortages: boolean = false) => {
     setIsSaving(true);
-
     try {
-    const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
-    const totalAmount = showPrice 
-      ? docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)
-      : 0;
+      const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
+      const totalAmount = showPrice 
+        ? docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)
+        : 0;
 
-    // Get current user for document ownership
-    const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
 
-    const { error } = await supabase.from('documents').insert({
-      type: docType,
-      doc_number: docNumber,
-      doc_date: docDate,
-      validity: docValidity || null,
-      transport_ref: transportRef || null,
-      third_party_name: thirdPartyName || null,
-      third_party_address: thirdPartyAddress || null,
-      third_party_tax_id: thirdPartyTaxId || null,
-      items: JSON.parse(JSON.stringify(docItems)),
-      total_amount: totalAmount,
-      created_by: user?.id
-    });
+      const { error } = await supabase.from('documents').insert({
+        type: docType,
+        doc_number: docNumber,
+        doc_date: docDate,
+        validity: docValidity || null,
+        transport_ref: transportRef || null,
+        third_party_name: thirdPartyName || null,
+        third_party_address: thirdPartyAddress || null,
+        third_party_tax_id: thirdPartyTaxId || null,
+        items: JSON.parse(JSON.stringify(docItems)),
+        total_amount: totalAmount,
+        created_by: user?.id
+      });
 
-    if (error) {
-      toast.error('Erreur lors de la sauvegarde du document');
-      console.error(error);
-      return;
-    }
+      if (error) {
+        toast.error('Erreur lors de la sauvegarde du document');
+        console.error(error);
+        return;
+      }
 
-    toast.success('Document sauvegardé avec succès');
+      // Deduct stock for BL and BS
+      if (docType === 'bon_livraison' || docType === 'bon_sortie') {
+        for (const item of docItems) {
+          if (item.product_id) {
+            const product = await getProductById(item.product_id);
+            if (product) {
+              const newQty = Math.max(0, product.quantity - item.quantity);
+              await updateProduct(item.product_id, { quantity: newQty });
+              await supabase.from('transactions').insert({
+                product_id: item.product_id,
+                product_name: item.designation,
+                type: 'OUT',
+                quantity: item.quantity,
+                date: new Date().toISOString(),
+                note: `${docType === 'bon_livraison' ? 'Bon de Livraison' : 'Bon de Sortie'} ${docNumber}`
+              });
+            }
+          }
+        }
+      }
 
-    // Reset form and reload after successful save
-    const savedType = docType;
-    resetForm();
-    await loadDocuments();
-    generateNextDocNumber(savedType);
+      toast.success('Document sauvegardé avec succès');
+      const savedType = docType;
+      resetForm();
+      const productsData = await getAllProducts();
+      setProducts(productsData);
+      await loadDocuments();
+      generateNextDocNumber(savedType);
     } catch (err) {
       console.error('Save error:', err);
       toast.error('Erreur lors de la sauvegarde');
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, docType, docNumber, docDate, docValidity, transportRef, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems, loadDocuments, resetForm, generateNextDocNumber]);
+  }, [docType, docNumber, docDate, docValidity, transportRef, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems, loadDocuments, resetForm, generateNextDocNumber]);
+
+  const saveDocument = useCallback(async () => {
+    if (isSaving) return;
+
+    if (docItems.length === 0) {
+      toast.error('Veuillez ajouter au moins un article avant de sauvegarder');
+      return;
+    }
+
+    // Check stock shortages for BL and BS
+    if (docType === 'bon_livraison' || docType === 'bon_sortie') {
+      const shortages: typeof stockShortageItems = [];
+      
+      for (const item of docItems) {
+        if (item.product_id) {
+          const product = await getProductById(item.product_id);
+          if (product && item.quantity > product.quantity) {
+            shortages.push({
+              designation: item.designation,
+              product_id: item.product_id,
+              requested: item.quantity,
+              available: product.quantity,
+              shortage: item.quantity - product.quantity
+            });
+          }
+        }
+      }
+
+      if (shortages.length > 0) {
+        setStockShortageItems(shortages);
+        setPendingSaveAfterShortage(true);
+        return;
+      }
+    }
+
+    await performSave();
+  }, [isSaving, docType, docItems, performSave]);
+
+  // Handle shortage confirmation
+  const handleShortageAccept = useCallback(async () => {
+    setStockShortageItems([]);
+    setPendingSaveAfterShortage(false);
+    await performSave(true);
+  }, [performSave]);
+
+  const handleShortageReject = useCallback(() => {
+    setStockShortageItems([]);
+    setPendingSaveAfterShortage(false);
+  }, []);
 
   const updateDocument = useCallback(async () => {
     if (!editingDocument) return;
@@ -451,6 +521,38 @@ export const Reports = () => {
               onClick={() => deleteConfirmDoc && deleteDocument(deleteConfirmDoc)}
             >
               Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Stock shortage confirmation dialog */}
+      <AlertDialog open={stockShortageItems.length > 0} onOpenChange={(open) => !open && handleShortageReject()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>⚠️ Stock insuffisant</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p className="mb-3">Les articles suivants ont un stock insuffisant :</p>
+                <div className="space-y-2 mb-3">
+                  {stockShortageItems.map((item, i) => (
+                    <div key={i} className="p-2 rounded bg-destructive/10 border border-destructive/20 text-sm">
+                      <span className="font-medium text-foreground">{item.designation}</span>
+                      <br />
+                      <span className="text-muted-foreground">
+                        Demandé : <strong>{item.requested}</strong> — Disponible : <strong>{item.available}</strong> — Manque : <strong className="text-destructive">{item.shortage}</strong>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-sm font-medium">Si vous acceptez, le stock de ces articles sera mis à <strong>0</strong>.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleShortageReject}>Refuser</AlertDialogCancel>
+            <AlertDialogAction onClick={handleShortageAccept} className="bg-warning text-warning-foreground hover:bg-warning/90">
+              Accepter et continuer
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
