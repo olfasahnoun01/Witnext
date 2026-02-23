@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { X, Upload, Package } from 'lucide-react';
+import { X, Upload, Package, Plus, Trash2, ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,12 +22,16 @@ import { toast } from 'sonner';
 import { ProductGroup, ProductGroupFournisseur } from '@/types';
 import { compressImage, formatBytes, getBase64Size } from '@/lib/imageCompression';
 import { MultiFournisseurInput } from './MultiFournisseurInput';
+import { createVariant } from '@/services/productGroupService';
 
 // Default categories as fallback
 const DEFAULT_CATEGORIES = [
   'Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 
   'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Tablier'
 ];
+
+const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
+const COLORS = ['Noir', 'Blanc', 'Bleu', 'Rouge', 'Vert', 'Jaune', 'Orange', 'Gris', 'Gris Charbon', 'Marron', 'Beige', 'Bleu Marine'];
 
 interface ProductGroupFormData {
   name: string;
@@ -36,6 +40,13 @@ interface ProductGroupFormData {
   min_stock: number;
   image: string | null;
   fournisseurs: ProductGroupFournisseur[];
+}
+
+interface VariantDraft {
+  sku: string;
+  size: string;
+  color: string;
+  quantity: number;
 }
 
 interface ProductGroupModalProps {
@@ -66,6 +77,10 @@ export const ProductGroupModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Step management (only for creation)
+  const [step, setStep] = useState<1 | 2>(1);
+  const [variants, setVariants] = useState<VariantDraft[]>([]);
 
   // Load all categories from database
   useEffect(() => {
@@ -77,7 +92,6 @@ export const ProductGroupModal = ({
       
       if (!error && data) {
         const uniqueCategories = [...new Set(data.map(p => p.category))].filter(Boolean);
-        // Merge with defaults to ensure all are available
         const allCategories = [...new Set([...DEFAULT_CATEGORIES, ...uniqueCategories])].sort();
         setCategories(allCategories);
       }
@@ -88,21 +102,21 @@ export const ProductGroupModal = ({
     }
   }, [isOpen]);
 
-  // Initialize form when modal opens - including loading fournisseurs from DB
+  // Initialize form when modal opens
   useEffect(() => {
     const initializeForm = async () => {
       if (editingGroup) {
-        // First, set basic form data
+        setStep(1); // No step 2 for editing
+        setVariants([]);
         setFormData({
           name: editingGroup.name,
           category: editingGroup.category,
           base_sku: editingGroup.base_sku || '',
           min_stock: editingGroup.min_stock,
           image: editingGroup.image,
-          fournisseurs: [], // Will be loaded from DB
+          fournisseurs: [],
         });
         
-        // Then load fournisseurs from database
         if (editingGroup.id) {
           const { data, error } = await supabase
             .from('product_group_fournisseurs')
@@ -110,7 +124,6 @@ export const ProductGroupModal = ({
             .eq('product_group_id', editingGroup.id);
           
           if (!error && data && data.length > 0) {
-            // Use fournisseurs from the junction table
             setFormData(prev => ({
               ...prev,
               fournisseurs: data.map(f => ({
@@ -124,7 +137,6 @@ export const ProductGroupModal = ({
               })),
             }));
           } else if (editingGroup.fournisseur && editingGroup.fournisseur.trim()) {
-            // Fallback: use legacy fournisseur field if no entries in junction table
             setFormData(prev => ({
               ...prev,
               fournisseurs: [{ fournisseur_name: editingGroup.fournisseur!, prix: 0, remise: 0, prix_ttc: 0 }],
@@ -132,6 +144,8 @@ export const ProductGroupModal = ({
           }
         }
       } else {
+        setStep(1);
+        setVariants([]);
         setFormData({
           ...emptyFormData,
           category: defaultCategory || '',
@@ -148,13 +162,10 @@ export const ProductGroupModal = ({
     const file = e.target.files?.[0];
     if (file) {
       try {
-        // Compress image before storing
         const compressedImage = await compressImage(file);
-        
         const originalSize = file.size;
         const compressedSize = getBase64Size(compressedImage);
         console.log(`Image compressed to WebP: ${formatBytes(originalSize)} → ${formatBytes(compressedSize)}`);
-        
         setFormData(prev => ({ ...prev, image: compressedImage }));
       } catch (error) {
         console.error('Error compressing image:', error);
@@ -175,6 +186,44 @@ export const ProductGroupModal = ({
     }
   }, []);
 
+  // Validate step 1
+  const validateStep1 = useCallback(() => {
+    if (!formData.name.trim()) {
+      toast.error('Le nom du produit est requis');
+      return false;
+    }
+    if (!formData.category.trim()) {
+      toast.error('La catégorie est requise');
+      return false;
+    }
+    return true;
+  }, [formData.name, formData.category]);
+
+  // Go to step 2
+  const goToStep2 = useCallback(() => {
+    if (!validateStep1()) return;
+    // Add one empty variant by default if none
+    if (variants.length === 0) {
+      setVariants([{ sku: formData.base_sku || '', size: '', color: '', quantity: 0 }]);
+    }
+    setStep(2);
+  }, [validateStep1, variants.length, formData.base_sku]);
+
+  // Add variant row
+  const addVariantRow = useCallback(() => {
+    setVariants(prev => [...prev, { sku: formData.base_sku || '', size: '', color: '', quantity: 0 }]);
+  }, [formData.base_sku]);
+
+  // Remove variant row
+  const removeVariantRow = useCallback((index: number) => {
+    setVariants(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // Update variant
+  const updateVariant = useCallback((index: number, field: keyof VariantDraft, value: string | number) => {
+    setVariants(prev => prev.map((v, i) => i === index ? { ...v, [field]: value } : v));
+  }, []);
+
   const handleSubmit = useCallback(async () => {
     if (!formData.name.trim()) {
       toast.error('Le nom du produit est requis');
@@ -189,13 +238,11 @@ export const ProductGroupModal = ({
     try {
       let groupId: number;
       
-      // Get the primary fournisseur name for backward compatibility
       const primaryFournisseur = formData.fournisseurs.length > 0 
         ? formData.fournisseurs[0].fournisseur_name 
         : null;
 
       if (editingGroup) {
-        // Update existing group
         const { error } = await supabase
           .from('product_groups')
           .update({
@@ -212,13 +259,11 @@ export const ProductGroupModal = ({
         if (error) throw error;
         groupId = editingGroup.id;
         
-        // Delete old fournisseurs and insert new ones
         await supabase
           .from('product_group_fournisseurs')
           .delete()
           .eq('product_group_id', groupId);
       } else {
-        // Create new group
         const { data, error } = await supabase
           .from('product_groups')
           .insert({
@@ -256,6 +301,27 @@ export const ProductGroupModal = ({
         }
       }
 
+      // Create variants (only for new product groups, step 2)
+      if (!editingGroup && variants.length > 0) {
+        const validVariants = variants.filter(v => v.sku.trim());
+        for (const v of validVariants) {
+          const result = await createVariant(groupId, {
+            sku: v.sku.trim(),
+            size: v.size || undefined,
+            color: v.color || undefined,
+            quantity: v.quantity,
+            price: 0,
+            remise: 0,
+          });
+          if (!result.success) {
+            console.error(`Failed to create variant ${v.sku}:`, result.error);
+          }
+        }
+        if (validVariants.length > 0) {
+          toast.success(`${validVariants.length} variante(s) créée(s)`);
+        }
+      }
+
       toast.success(editingGroup ? 'Produit mis à jour' : 'Produit créé avec succès');
       onSuccess();
       onClose();
@@ -265,111 +331,214 @@ export const ProductGroupModal = ({
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, editingGroup, onSuccess, onClose]);
+  }, [formData, editingGroup, variants, onSuccess, onClose]);
+
+  const isCreating = !editingGroup;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>
-            {editingGroup ? 'Modifier le produit' : 'Créer un nouveau produit'}
+            {editingGroup ? 'Modifier le produit' : (
+              step === 1 ? 'Créer un Nouvel Article — Étape 1/2' : 'Ajouter des Variantes — Étape 2/2'
+            )}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4 overflow-y-auto flex-1 pr-2">
-          {/* Image Upload */}
-          <div className="flex items-center gap-4">
-            <div 
-              className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed border-border hover:border-primary transition-colors"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {formData.image ? (
-                <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
-              ) : (
-                <Package className="w-8 h-8 text-muted-foreground" />
-              )}
+        {step === 1 && (
+          <div className="grid gap-4 py-4 overflow-y-auto flex-1 pr-2">
+            {/* Image Upload */}
+            <div className="flex items-center gap-4">
+              <div 
+                className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed border-border hover:border-primary transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {formData.image ? (
+                  <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <Package className="w-8 h-8 text-muted-foreground" />
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">Image du produit</p>
+                <p className="text-xs text-muted-foreground">Cliquez pour télécharger (optionnel)</p>
+              </div>
             </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleImageUpload}
-            />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">Image du produit</p>
-              <p className="text-xs text-muted-foreground">Cliquez pour télécharger (optionnel)</p>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Nom du produit *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="ex: Pantalon de Travail Pro"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="base_sku">Code Article *</Label>
+                <Input
+                  id="base_sku"
+                  value={formData.base_sku}
+                  onChange={(e) => setFormData(prev => ({ ...prev, base_sku: e.target.value }))}
+                  placeholder="ex: PAN-001"
+                />
+              </div>
             </div>
-          </div>
 
-          {/* Name */}
-          <div className="grid gap-2">
-            <Label htmlFor="name">Nom du produit *</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              placeholder="ex: Pantalon de Travail Pro"
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="category">Catégorie *</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Sélectionner une catégorie" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border border-border z-50 max-h-[300px]">
+                    {categories.map(cat => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="min_stock">Stock Minimum *</Label>
+                <Input
+                  id="min_stock"
+                  type="number"
+                  min="0"
+                  value={formData.min_stock}
+                  onChange={(e) => setFormData(prev => ({ ...prev, min_stock: parseInt(e.target.value) || 0 }))}
+                />
+              </div>
+            </div>
+
+            <MultiFournisseurInput
+              value={formData.fournisseurs}
+              onChange={(fournisseurs) => setFormData(prev => ({ ...prev, fournisseurs }))}
             />
           </div>
+        )}
 
-          {/* Category Select */}
-          <div className="grid gap-2">
-            <Label htmlFor="category">Catégorie *</Label>
-            <Select
-              value={formData.category}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Sélectionner une catégorie" />
-              </SelectTrigger>
-              <SelectContent className="bg-background border border-border z-50 max-h-[300px]">
-                {categories.map(cat => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
+        {step === 2 && (
+          <div className="flex-1 overflow-y-auto pr-2 py-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Produit : <span className="font-medium text-foreground">{formData.name}</span>
+              </p>
+              <Button variant="outline" size="sm" onClick={addVariantRow} className="gap-1.5">
+                <Plus className="w-3.5 h-3.5" />
+                Ajouter
+              </Button>
+            </div>
+
+            {variants.length === 0 ? (
+              <div className="text-center py-8">
+                <Package className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
+                <p className="text-sm text-muted-foreground">Aucune variante. Cliquez sur "Ajouter" pour en créer.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {variants.map((v, idx) => (
+                  <div key={idx} className="p-3 rounded-lg border border-border bg-muted/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">Variante {idx + 1}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                        onClick={() => removeVariantRow(idx)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="grid gap-1">
+                        <Label className="text-xs">Code Article *</Label>
+                        <Input
+                          value={v.sku}
+                          onChange={(e) => updateVariant(idx, 'sku', e.target.value)}
+                          placeholder="SKU"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="grid gap-1">
+                        <Label className="text-xs">Taille</Label>
+                        <Input
+                          list="variant-sizes"
+                          value={v.size}
+                          onChange={(e) => updateVariant(idx, 'size', e.target.value)}
+                          placeholder="Taille"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="grid gap-1">
+                        <Label className="text-xs">Couleur</Label>
+                        <Input
+                          list="variant-colors"
+                          value={v.color}
+                          onChange={(e) => updateVariant(idx, 'color', e.target.value)}
+                          placeholder="Couleur"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="grid gap-1">
+                        <Label className="text-xs">Quantité</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={v.quantity}
+                          onChange={(e) => updateVariant(idx, 'quantity', parseInt(e.target.value) || 0)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 ))}
-              </SelectContent>
-            </Select>
+              </div>
+            )}
+
+            <datalist id="variant-sizes">
+              {SIZES.map(s => <option key={s} value={s} />)}
+            </datalist>
+            <datalist id="variant-colors">
+              {COLORS.map(c => <option key={c} value={c} />)}
+            </datalist>
           </div>
+        )}
 
-          {/* Base SKU */}
-          <div className="grid gap-2">
-            <Label htmlFor="base_sku">Code Article Base</Label>
-            <Input
-              id="base_sku"
-              value={formData.base_sku}
-              onChange={(e) => setFormData(prev => ({ ...prev, base_sku: e.target.value }))}
-              placeholder="ex: PAN-001 (optionnel)"
-            />
-          </div>
-
-          {/* Multi-Fournisseurs with Prix TTC */}
-          <MultiFournisseurInput
-            value={formData.fournisseurs}
-            onChange={(fournisseurs) => setFormData(prev => ({ ...prev, fournisseurs }))}
-          />
-
-          {/* Min Stock */}
-          <div className="grid gap-2">
-            <Label htmlFor="min_stock">Seuil d'alerte (stock minimum)</Label>
-            <Input
-              id="min_stock"
-              type="number"
-              min="0"
-              value={formData.min_stock}
-              onChange={(e) => setFormData(prev => ({ ...prev, min_stock: parseInt(e.target.value) || 0 }))}
-            />
-          </div>
-        </div>
-
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0">
+          {step === 2 && isCreating && (
+            <Button variant="outline" onClick={() => setStep(1)} className="mr-auto gap-1.5">
+              <ArrowLeft className="w-4 h-4" />
+              Retour
+            </Button>
+          )}
           <Button variant="outline" onClick={onClose}>
             Annuler
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? 'Enregistrement...' : (editingGroup ? 'Mettre à jour' : 'Créer')}
-          </Button>
+          {step === 1 && isCreating ? (
+            <Button onClick={goToStep2} className="gap-1.5">
+              Suivant
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          ) : (
+            <Button onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? 'Enregistrement...' : (editingGroup ? 'Mettre à jour' : 'Créer et Sélectionner')}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
