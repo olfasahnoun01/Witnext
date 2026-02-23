@@ -491,6 +491,16 @@ export const DevisForm = memo(({
   const handleCreateVariant = useCallback(async () => {
     if (!selectedGroupId) { toast.error('Sélectionnez un article'); return; }
     if (!variantSku.trim()) { toast.error('Code article requis'); return; }
+    // Check if SKU already exists
+    const { data: existing } = await supabase
+      .from('products')
+      .select('id')
+      .eq('sku', variantSku.trim())
+      .limit(1);
+    if (existing && existing.length > 0) {
+      toast.error('Ce Code Article existe déjà. Veuillez en choisir un autre.');
+      return;
+    }
     setIsCreatingVariant(true);
     try {
       const result = await createVariant(Number(selectedGroupId), {
