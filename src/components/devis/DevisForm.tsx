@@ -1,6 +1,6 @@
 import { memo, useCallback, useState, useEffect, useMemo } from 'react';
 import { ProductGroupFournisseur } from '@/types';
-import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package } from 'lucide-react';
+import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +8,7 @@ import { Devis, DevisItem, Product } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { MultiFournisseurInput } from '@/components/inventory/MultiFournisseurInput';
+import { createVariant } from '@/services/productGroupService';
 import { SPECIALITES } from '@/constants/fournisseurs';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
 import {
@@ -124,6 +125,17 @@ export const DevisForm = memo(({
   const [newArticleFournisseurs, setNewArticleFournisseurs] = useState<ProductGroupFournisseur[]>([]);
   const [isCreatingArticle, setIsCreatingArticle] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Add variant to existing product group
+  const [showAddVariant, setShowAddVariant] = useState(false);
+  const [productGroups, setProductGroups] = useState<{id: number; name: string; base_sku: string | null; category: string}[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState('');
+  const [variantSku, setVariantSku] = useState('');
+  const [variantSize, setVariantSize] = useState('');
+  const [variantColor, setVariantColor] = useState('');
+  const [variantQuantity, setVariantQuantity] = useState(0);
+  const [isCreatingVariant, setIsCreatingVariant] = useState(false);
+  const [groupSearch, setGroupSearch] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -436,6 +448,67 @@ export const DevisForm = memo(({
     }
   }, [newArticle, newArticleFournisseurs, resetNewArticleForm]);
 
+  // Load product groups when variant dialog opens
+  useEffect(() => {
+    if (!showAddVariant) return;
+    const loadGroups = async () => {
+      const { data } = await supabase.from('product_groups').select('id, name, base_sku, category').order('name');
+      setProductGroups(data || []);
+    };
+    loadGroups();
+  }, [showAddVariant]);
+
+  useEffect(() => {
+    if (!selectedGroupId) return;
+    const group = productGroups.find(g => g.id.toString() === selectedGroupId);
+    if (!group) return;
+    let sku = group.base_sku || group.name.substring(0, 3).toUpperCase();
+    if (variantSize) sku += `-${variantSize}`;
+    if (variantColor) sku += `-${variantColor}`;
+    setVariantSku(sku);
+  }, [selectedGroupId, variantSize, variantColor, productGroups]);
+
+  const handleCreateVariant = useCallback(async () => {
+    if (!selectedGroupId) { toast.error('Sélectionnez un article'); return; }
+    if (!variantSku.trim()) { toast.error('Code article requis'); return; }
+    setIsCreatingVariant(true);
+    try {
+      const result = await createVariant(Number(selectedGroupId), {
+        sku: variantSku.trim(),
+        size: variantSize || undefined,
+        color: variantColor || undefined,
+        quantity: variantQuantity,
+        price: 0,
+        remise: 0,
+      });
+      if (!result.success) {
+        toast.error(result.error || 'Erreur création variante');
+      } else {
+        toast.success('Variante créée avec succès');
+        const group = productGroups.find(g => g.id.toString() === selectedGroupId);
+        if (group) {
+          setItemDesignation(group.name);
+          setItemDescription(`${variantSku}${variantSize ? ` - Taille: ${variantSize}` : ''}${variantColor ? ` - ${variantColor}` : ''}`);
+        }
+        setShowAddVariant(false);
+        setSelectedGroupId('');
+        setVariantSku('');
+        setVariantSize('');
+        setVariantColor('');
+        setVariantQuantity(0);
+        setGroupSearch('');
+      }
+    } finally {
+      setIsCreatingVariant(false);
+    }
+  }, [selectedGroupId, variantSku, variantSize, variantColor, variantQuantity, productGroups]);
+
+  const filteredGroups = useMemo(() => {
+    if (!groupSearch.trim()) return productGroups;
+    const q = groupSearch.toLowerCase();
+    return productGroups.filter(g => g.name.toLowerCase().includes(q) || (g.base_sku || '').toLowerCase().includes(q));
+  }, [productGroups, groupSearch]);
+
   const rawTotal = devisItems.reduce((s, i) => {
     const priceAfterRemise = i.remise > 0 ? i.prix_ttc * (1 - i.remise / 100) : i.prix_ttc;
     return s + priceAfterRemise * i.quantity;
@@ -570,10 +643,16 @@ export const DevisForm = memo(({
           <div>
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-medium text-foreground">Ajouter un Article</h4>
-              <Button variant="outline" size="sm" onClick={() => setShowNewArticle(true)} className="text-xs">
-                <Plus className="w-3.5 h-3.5 mr-1" />
-                Créer Article
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setShowAddVariant(true)} className="text-xs">
+                  <Layers className="w-3.5 h-3.5 mr-1" />
+                  Ajouter Variante
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setShowNewArticle(true)} className="text-xs">
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Créer Article
+                </Button>
+              </div>
             </div>
             <p className="text-xs text-muted-foreground mb-3">
               ⚠️ Les devis n'affectent pas le stock
@@ -966,6 +1045,88 @@ export const DevisForm = memo(({
             <Button variant="outline" onClick={() => { setShowNewArticle(false); resetNewArticleForm(); }}>Annuler</Button>
             <Button onClick={createNewArticle} disabled={isCreatingArticle}>
               {isCreatingArticle ? 'Création...' : 'Créer et Sélectionner'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Variant Dialog */}
+      <Dialog open={showAddVariant} onOpenChange={(open) => { if (!open) { setShowAddVariant(false); setSelectedGroupId(''); setVariantSku(''); setVariantSize(''); setVariantColor(''); setVariantQuantity(0); setGroupSearch(''); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Layers className="w-5 h-5" />
+              Ajouter une Variante
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Search & select product group */}
+            <div>
+              <Label>Article existant *</Label>
+              <Input
+                placeholder="Rechercher un article..."
+                value={groupSearch}
+                onChange={e => setGroupSearch(e.target.value)}
+                className="mb-2"
+              />
+              <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un article" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[250px]">
+                  {filteredGroups.map(g => (
+                    <SelectItem key={g.id} value={g.id.toString()}>
+                      <span className="font-medium">{g.name}</span>
+                      <span className="text-muted-foreground text-xs ml-2">({g.base_sku || 'N/A'}) - {g.category}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Taille</Label>
+                <Select value={variantSize} onValueChange={setVariantSize}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Taille" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SIZES.map(s => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Couleur</Label>
+                <Select value={variantColor} onValueChange={setVariantColor}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Couleur" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COLORS.map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label>Code Article (SKU)</Label>
+              <Input value={variantSku} onChange={e => setVariantSku(e.target.value)} placeholder="Auto-généré" />
+            </div>
+
+            <div>
+              <Label>Quantité initiale</Label>
+              <Input type="number" min={0} value={variantQuantity} onChange={e => setVariantQuantity(Number(e.target.value))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddVariant(false)}>Annuler</Button>
+            <Button onClick={handleCreateVariant} disabled={isCreatingVariant}>
+              {isCreatingVariant ? 'Création...' : 'Créer Variante'}
             </Button>
           </DialogFooter>
         </DialogContent>
