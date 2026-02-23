@@ -561,19 +561,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   if (hasPrixAchat) headRow.push(isTTC ? 'P.U. Achat TTC' : 'P.U. Achat HT');
   headRow.push(isTTC ? 'P.U. Vente HT' : 'P.U. Vente HT', 'Remise', 'Après Remise', 'TVA', headLabel);
 
-  const colStyles: Record<number, any> = {
-    0: { cellWidth: 14, halign: 'center' },
-    1: { cellWidth: hasPrixAchat ? 32 : 40 },
-    2: { cellWidth: 14, halign: 'center' },
-  };
-  let colIdx = 3;
-  if (hasPrixAchat) { colStyles[colIdx] = { cellWidth: 22, halign: 'right' }; colIdx++; }
-  colStyles[colIdx] = { cellWidth: 22, halign: 'right' }; colIdx++;
-  colStyles[colIdx] = { cellWidth: 16, halign: 'center' }; colIdx++;
-  colStyles[colIdx] = { cellWidth: 22, halign: 'right' }; colIdx++;
-  colStyles[colIdx] = { cellWidth: 14, halign: 'center' }; colIdx++;
-  colStyles[colIdx] = { cellWidth: 24, halign: 'right' };
-
+  // Use auto width to fill the page
   autoTable(doc, {
     startY: 96,
     head: [headRow],
@@ -586,8 +574,17 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       halign: 'center'
     },
     styles: { fontSize: 9, cellPadding: 4 },
-    columnStyles: colStyles,
-    alternateRowStyles: { fillColor: [245, 247, 250] }
+    columnStyles: {
+      0: { halign: 'center' },
+      ...(hasPrixAchat ? { 3: { halign: 'right' } } : {}),
+      [hasPrixAchat ? 4 : 3]: { halign: 'right' },
+      [hasPrixAchat ? 5 : 4]: { halign: 'center' },
+      [hasPrixAchat ? 6 : 5]: { halign: 'right' },
+      [hasPrixAchat ? 7 : 6]: { halign: 'center' },
+      [hasPrixAchat ? 8 : 7]: { halign: 'right' },
+    },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
+    margin: { left: 14, right: 14 }
   });
 
   // Totals
