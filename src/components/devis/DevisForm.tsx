@@ -137,6 +137,8 @@ export const DevisForm = memo(({
   const [isCreatingVariant, setIsCreatingVariant] = useState(false);
   const [groupSearch, setGroupSearch] = useState('');
   const [groupPopoverOpen, setGroupPopoverOpen] = useState(false);
+  const [variantFicheFile, setVariantFicheFile] = useState<File | null>(null);
+  const variantFicheRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -514,6 +516,35 @@ export const DevisForm = memo(({
       if (!result.success) {
         toast.error(result.error || 'Erreur création variante');
       } else {
+        // Upload fiche technique if provided
+        if (variantFicheFile && result.id) {
+          try {
+            const ext = variantFicheFile.name.split('.').pop() || 'pdf';
+            const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+            const filePath = `fiches/${fileName}`;
+            const { error: uploadError } = await supabase.storage.from('fiches-techniques').upload(filePath, variantFicheFile);
+            if (!uploadError) {
+              const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
+              // Save URL to product_group_fournisseurs if group has a fournisseur
+              const group = productGroups.find(g => g.id.toString() === selectedGroupId);
+              if (group && urlData?.publicUrl) {
+                const { data: pgf } = await supabase
+                  .from('product_group_fournisseurs')
+                  .select('id')
+                  .eq('product_group_id', Number(selectedGroupId))
+                  .limit(1);
+                if (pgf && pgf.length > 0) {
+                  await supabase.from('product_group_fournisseurs')
+                    .update({ fiche_technique_url: urlData.publicUrl })
+                    .eq('id', pgf[0].id);
+                }
+              }
+              toast.success('Fiche technique uploadée');
+            }
+          } catch (e) {
+            console.error('Fiche upload error:', e);
+          }
+        }
         toast.success('Variante créée avec succès');
         const group = productGroups.find(g => g.id.toString() === selectedGroupId);
         if (group) {
@@ -527,6 +558,7 @@ export const DevisForm = memo(({
         setVariantColor('');
         setVariantQuantity(0);
         setGroupSearch('');
+        setVariantFicheFile(null);
       }
     } finally {
       setIsCreatingVariant(false);
@@ -1163,6 +1195,35 @@ export const DevisForm = memo(({
             <div>
               <Label>Quantité initiale</Label>
               <Input type="number" min={0} value={variantQuantity} onChange={e => setVariantQuantity(Number(e.target.value))} />
+            </div>
+
+            {/* Fiche Technique */}
+            <div>
+              <Label>Fiche Technique (PDF/Image)</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={variantFicheRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  className="hidden"
+                  onChange={e => setVariantFicheFile(e.target.files?.[0] || null)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => variantFicheRef.current?.click()}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  {variantFicheFile ? variantFicheFile.name : 'Choisir un fichier'}
+                </Button>
+                {variantFicheFile && (
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setVariantFicheFile(null)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
           <DialogFooter>
