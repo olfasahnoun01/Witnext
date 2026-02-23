@@ -60,6 +60,7 @@ export interface DocumentItem {
   quantity: number;
   price?: number;
   product_id?: number;
+  actual_deducted?: number;
 }
 
 export interface DocumentData {

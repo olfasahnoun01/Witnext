@@ -211,25 +211,34 @@ export const Reports = () => {
         return;
       }
 
-      // Deduct stock for BL and BS
+      // Deduct stock for BL and BS — track actual deducted quantities
       if (docType === 'bon_livraison' || docType === 'bon_sortie') {
-        for (const item of docItems) {
+        const itemsWithActual = [...docItems];
+        for (let i = 0; i < itemsWithActual.length; i++) {
+          const item = itemsWithActual[i];
           if (item.product_id) {
             const product = await getProductById(item.product_id);
             if (product) {
-              const newQty = Math.max(0, product.quantity - item.quantity);
+              const actualDeducted = Math.min(item.quantity, product.quantity);
+              const newQty = product.quantity - actualDeducted;
               await updateProduct(item.product_id, { quantity: newQty });
+              // Store actual deducted in item for accurate restoration on delete
+              itemsWithActual[i] = { ...item, actual_deducted: actualDeducted };
               await supabase.from('transactions').insert({
                 product_id: item.product_id,
                 product_name: item.designation,
                 type: 'OUT',
-                quantity: item.quantity,
+                quantity: actualDeducted,
                 date: new Date().toISOString(),
                 note: `${docType === 'bon_livraison' ? 'Bon de Livraison' : 'Bon de Sortie'} ${docNumber}`
               });
             }
           }
         }
+        // Update the saved document items with actual_deducted info
+        await supabase.from('documents').update({
+          items: JSON.parse(JSON.stringify(itemsWithActual))
+        }).eq('doc_number', docNumber);
       }
 
       toast.success('Document sauvegardé avec succès');
@@ -371,19 +380,21 @@ export const Reports = () => {
         }
       }
 
-      // For bon_livraison / bon_sortie: restore stock before deleting
+      // For bon_livraison / bon_sortie: restore only actually deducted stock
       if ((doc.type === 'bon_livraison' || doc.type === 'bon_sortie') && doc.items.length > 0) {
         for (const item of doc.items) {
           if (item.product_id) {
             const product = await getProductById(item.product_id);
             if (product) {
-              const restoredQty = product.quantity + item.quantity;
+              // Use actual_deducted if available, otherwise fall back to quantity
+              const qtyToRestore = item.actual_deducted ?? item.quantity;
+              const restoredQty = product.quantity + qtyToRestore;
               await updateProduct(item.product_id, { quantity: restoredQty });
               await supabase.from('transactions').insert({
                 product_id: item.product_id,
                 product_name: item.designation,
                 type: 'IN',
-                quantity: item.quantity,
+                quantity: qtyToRestore,
                 date: new Date().toISOString(),
                 note: `Restauration - Suppression ${doc.doc_number}`
               });
