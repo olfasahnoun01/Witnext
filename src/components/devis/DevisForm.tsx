@@ -250,7 +250,8 @@ export const DevisForm = memo(({
 
   const addItem = useCallback(() => {
     if (!itemDesignation.trim()) { toast.error('Nom d\'article requis'); return; }
-    const finalPrixTtc = isEntrant ? itemPrixTtc * 1.19 : itemPrixTtc;
+    const priceAfterRemise = itemRemise > 0 ? itemPrixTtc * (1 - itemRemise / 100) : itemPrixTtc;
+    const finalPrixTtc = isEntrant ? priceAfterRemise * 1.19 : priceAfterRemise;
     setDevisItems(prev => [...prev, {
       designation: itemDesignation.trim(),
       fournisseur: itemFournisseur.trim(),
