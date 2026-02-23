@@ -83,9 +83,7 @@ export const GestionDevis = () => {
     }
   }, [savedDevis, devisType, editingDevis, generateNextNumber]);
 
-  const resetForm = useCallback(() => {
-    setDevisType('sortant');
-    setDevisNumber('');
+  const clearFormFields = useCallback(() => {
     setDevisDate(new Date().toISOString().split('T')[0]);
     setThirdPartyName('');
     setThirdPartyAddress('');
@@ -93,10 +91,21 @@ export const GestionDevis = () => {
     setThirdPartyPhone('');
     setNotes('');
     setDevisItems([]);
-    setEditingDevis(null);
     setIsTtc(true);
-    setShowEditDialog(false);
   }, []);
+
+  const resetForm = useCallback(() => {
+    setDevisType('sortant');
+    setDevisNumber('');
+    clearFormFields();
+    setEditingDevis(null);
+    setShowEditDialog(false);
+  }, [clearFormFields]);
+
+  const handleTypeChange = useCallback((type: 'entrant' | 'sortant') => {
+    setDevisType(type);
+    clearFormFields();
+  }, [clearFormFields]);
 
   const saveDevis = useCallback(async () => {
     if (isSaving) return;
@@ -139,7 +148,7 @@ export const GestionDevis = () => {
       } else {
         toast.success('Devis sauvegardé');
         await loadDevis();
-        // Keep form populated - only update the devis number for the next one
+        clearFormFields();
         generateNextNumber(devisType);
       }
     } catch (err) {
@@ -248,7 +257,7 @@ export const GestionDevis = () => {
           editingDevis={editingDevis}
           isSaving={isSaving}
           isTtc={isTtc}
-          setDevisType={setDevisType}
+          setDevisType={handleTypeChange}
           setDevisNumber={setDevisNumber}
           setDevisDate={setDevisDate}
           setThirdPartyName={setThirdPartyName}
@@ -294,7 +303,7 @@ export const GestionDevis = () => {
                 editingDevis={editingDevis}
                 isSaving={isSaving}
                 isTtc={isTtc}
-                setDevisType={setDevisType}
+                setDevisType={handleTypeChange}
                 setDevisNumber={setDevisNumber}
                 setDevisDate={setDevisDate}
                 setThirdPartyName={setThirdPartyName}
