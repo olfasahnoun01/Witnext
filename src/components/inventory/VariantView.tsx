@@ -31,7 +31,6 @@ import { useAuth } from '@/hooks/useAuth';
 interface VariantViewProps {
   group: ProductGroup;
   onBack: () => void;
-  autoOpenAddModal?: boolean;
 }
 
 const getStockStatus = (product: Product): StockStatus => {
@@ -68,7 +67,7 @@ const emptyFormData: VariantFormData = {
   fiche_technique_url: null
 };
 
-export const VariantView = ({ group, onBack, autoOpenAddModal }: VariantViewProps) => {
+export const VariantView = ({ group, onBack }: VariantViewProps) => {
   const { isModerator } = useAuth();
   const [variants, setVariants] = useState<Product[]>([]);
   const [freshFournisseurs, setFreshFournisseurs] = useState<typeof group.fournisseurs>(group.fournisseurs);
@@ -112,13 +111,6 @@ export const VariantView = ({ group, onBack, autoOpenAddModal }: VariantViewProp
   useEffect(() => {
     fetchVariants();
   }, [fetchVariants]);
-
-  // Auto-open add variant modal if requested
-  useEffect(() => {
-    if (autoOpenAddModal && !isLoading) {
-      handleOpenModal();
-    }
-  }, [autoOpenAddModal, isLoading]);
 
   // Subscribe to realtime changes on products table
   useRealtimeData({
