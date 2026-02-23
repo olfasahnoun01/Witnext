@@ -522,8 +522,8 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   const tableData = devis.items.map((item, idx) => {
     if (isTTC) {
       const prixVenteHT = item.prix_ttc / (1 + TVA_RATE);
-      const prixApresRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
-      const totalTTC = prixApresRemise * item.quantity;
+      const prixApresRemiseHT = item.remise > 0 ? prixVenteHT * (1 - item.remise / 100) : prixVenteHT;
+      const totalTTC = prixApresRemiseHT * (1 + TVA_RATE) * item.quantity;
       const row = [
         (idx + 1).toString(),
         item.designation,
@@ -532,7 +532,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       if (hasPrixAchat) row.push(item.prix_achat != null && item.prix_achat > 0 ? `${item.prix_achat.toFixed(3)} DT` : '-');
       row.push(`${prixVenteHT.toFixed(3)} DT`);
       row.push(item.remise > 0 ? `${item.remise}%` : '-');
-      row.push(`${prixApresRemise.toFixed(3)} DT`);
+      row.push(`${prixApresRemiseHT.toFixed(3)} DT`);
       row.push('19%');
       row.push(`${totalTTC.toFixed(3)} DT`);
       return row;
