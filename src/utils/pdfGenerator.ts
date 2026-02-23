@@ -517,7 +517,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   const isTTC = devis.is_ttc;
 
   const isSortant = devis.type === 'sortant';
-  const hasPrixAchat = isSortant && devis.items.some(i => i.prix_achat != null && i.prix_achat > 0);
+  const hasPrixAchat = isSortant;
 
   const tableData = devis.items.map((item, idx) => {
     if (isTTC) {
