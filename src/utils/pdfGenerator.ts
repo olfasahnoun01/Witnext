@@ -521,22 +521,25 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
   const tableData = devis.items.map((item, idx) => {
     if (isTTC) {
-      const prixHT = item.prix_ttc / (1 + TVA_RATE);
-      const totalTTC = item.prix_ttc * item.quantity;
+      const prixVenteHT = item.prix_ttc / (1 + TVA_RATE);
+      const prixApresRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
+      const totalTTC = prixApresRemise * item.quantity;
       const row = [
         (idx + 1).toString(),
         item.designation,
         item.quantity.toString(),
       ];
       if (hasPrixAchat) row.push(item.prix_achat != null && item.prix_achat > 0 ? `${item.prix_achat.toFixed(3)} DT` : '-');
-      row.push(`${prixHT.toFixed(3)} DT`);
-      row.push(item.remise > 0 ? `${item.remise}%` : '');
+      row.push(`${prixVenteHT.toFixed(3)} DT`);
+      row.push(item.remise > 0 ? `${item.remise}%` : '-');
+      row.push(item.remise > 0 ? `${prixApresRemise.toFixed(3)} DT` : '-');
       row.push('19%');
       row.push(`${totalTTC.toFixed(3)} DT`);
       return row;
     } else {
       const prixHT = item.prix_ttc;
-      const totalHT = prixHT * item.quantity;
+      const prixApresRemise = item.remise > 0 ? prixHT * (1 - item.remise / 100) : prixHT;
+      const totalHT = prixApresRemise * item.quantity;
       const prixAchatHT = item.prix_achat != null && item.prix_achat > 0 ? item.prix_achat / (1 + TVA_RATE) : 0;
       const row = [
         (idx + 1).toString(),
@@ -545,29 +548,31 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       ];
       if (hasPrixAchat) row.push(prixAchatHT > 0 ? `${prixAchatHT.toFixed(3)} DT` : '-');
       row.push(`${prixHT.toFixed(3)} DT`);
-      row.push(item.remise > 0 ? `${item.remise}%` : '');
+      row.push(item.remise > 0 ? `${item.remise}%` : '-');
+      row.push(item.remise > 0 ? `${prixApresRemise.toFixed(3)} DT` : '-');
       row.push('');
       row.push(`${totalHT.toFixed(3)} DT`);
       return row;
     }
   });
 
-  const headLabel = isTTC ? 'Prix TTC' : 'Total HT';
+  const headLabel = isTTC ? 'Total TTC' : 'Total HT';
   const headRow = ['Code', 'Désignation', 'Qté'];
   if (hasPrixAchat) headRow.push(isTTC ? 'P.U. Achat TTC' : 'P.U. Achat HT');
-  headRow.push(isTTC ? 'P.U. Vente HT' : 'P.U. Vente HT', 'Remise', 'TVA', headLabel);
+  headRow.push(isTTC ? 'P.U. Vente HT' : 'P.U. Vente HT', 'Remise', 'Après Remise', 'TVA', headLabel);
 
   const colStyles: Record<number, any> = {
-    0: { cellWidth: 16, halign: 'center' },
-    1: { cellWidth: hasPrixAchat ? 38 : 50 },
-    2: { cellWidth: 16, halign: 'center' },
+    0: { cellWidth: 14, halign: 'center' },
+    1: { cellWidth: hasPrixAchat ? 32 : 40 },
+    2: { cellWidth: 14, halign: 'center' },
   };
   let colIdx = 3;
-  if (hasPrixAchat) { colStyles[colIdx] = { cellWidth: 24, halign: 'right' }; colIdx++; }
-  colStyles[colIdx] = { cellWidth: 26, halign: 'right' }; colIdx++;
-  colStyles[colIdx] = { cellWidth: 20, halign: 'center' }; colIdx++;
+  if (hasPrixAchat) { colStyles[colIdx] = { cellWidth: 22, halign: 'right' }; colIdx++; }
+  colStyles[colIdx] = { cellWidth: 22, halign: 'right' }; colIdx++;
   colStyles[colIdx] = { cellWidth: 16, halign: 'center' }; colIdx++;
-  colStyles[colIdx] = { cellWidth: 26, halign: 'right' };
+  colStyles[colIdx] = { cellWidth: 22, halign: 'right' }; colIdx++;
+  colStyles[colIdx] = { cellWidth: 14, halign: 'center' }; colIdx++;
+  colStyles[colIdx] = { cellWidth: 24, halign: 'right' };
 
   autoTable(doc, {
     startY: 96,
