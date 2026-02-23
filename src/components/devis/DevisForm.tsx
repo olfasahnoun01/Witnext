@@ -1063,25 +1063,37 @@ export const DevisForm = memo(({
             {/* Search & select product group */}
             <div>
               <Label>Article existant *</Label>
-              <Input
-                placeholder="Rechercher un article..."
-                value={groupSearch}
-                onChange={e => setGroupSearch(e.target.value)}
-                className="mb-2"
-              />
-              <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un article" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[250px]">
-                  {filteredGroups.map(g => (
-                    <SelectItem key={g.id} value={g.id.toString()}>
-                      <span className="font-medium">{g.name}</span>
-                      <span className="text-muted-foreground text-xs ml-2">({g.base_sku || 'N/A'}) - {g.category}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                    {selectedGroupId
+                      ? productGroups.find(g => g.id.toString() === selectedGroupId)?.name || 'Sélectionner...'
+                      : 'Rechercher un article...'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Rechercher..." value={groupSearch} onValueChange={setGroupSearch} />
+                    <CommandList>
+                      <CommandEmpty>Aucun article trouvé</CommandEmpty>
+                      <CommandGroup>
+                        {filteredGroups.map(g => (
+                          <CommandItem
+                            key={g.id}
+                            value={`${g.name} ${g.base_sku || ''}`}
+                            onSelect={() => setSelectedGroupId(g.id.toString())}
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", selectedGroupId === g.id.toString() ? "opacity-100" : "opacity-0")} />
+                            <span className="font-medium">{g.name}</span>
+                            <span className="text-muted-foreground text-xs ml-2">({g.base_sku || 'N/A'}) - {g.category}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
