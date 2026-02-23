@@ -729,15 +729,18 @@ export const DevisForm = memo(({
                     {(() => {
                       const afterRemise = itemRemise > 0 ? itemPrixTtc * (1 - itemRemise / 100) : itemPrixTtc;
                       if (isEntrant) {
-                        // itemPrixTtc is HT for entrant
                         const totalHT = afterRemise * itemQuantity;
                         const totalTTC = totalHT * 1.19;
                         return isTtc
-                          ? `${totalTTC.toFixed(3)} TTC`
+                          ? `${totalHT.toFixed(3)} HT — ${totalTTC.toFixed(3)} TTC`
                           : `${totalHT.toFixed(3)} HT`;
                       }
                       const total = afterRemise * itemQuantity;
-                      return `${total.toFixed(3)} ${isTtc ? 'TTC' : 'HT'}`;
+                      if (isTtc) {
+                        const totalHT = total / 1.19;
+                        return `${totalHT.toFixed(3)} HT — ${total.toFixed(3)} TTC`;
+                      }
+                      return `${total.toFixed(3)} HT`;
                     })()}
                   </span>
                 </div>
