@@ -516,7 +516,7 @@ export const DevisForm = memo(({
       if (!result.success) {
         toast.error(result.error || 'Erreur création variante');
       } else {
-        // Upload fiche technique if provided
+        // Upload fiche technique if provided — saved on the variant (product) itself
         if (variantFicheFile && result.id) {
           try {
             const ext = variantFicheFile.name.split('.').pop() || 'pdf';
@@ -525,19 +525,10 @@ export const DevisForm = memo(({
             const { error: uploadError } = await supabase.storage.from('fiches-techniques').upload(filePath, variantFicheFile);
             if (!uploadError) {
               const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
-              // Save URL to product_group_fournisseurs if group has a fournisseur
-              const group = productGroups.find(g => g.id.toString() === selectedGroupId);
-              if (group && urlData?.publicUrl) {
-                const { data: pgf } = await supabase
-                  .from('product_group_fournisseurs')
-                  .select('id')
-                  .eq('product_group_id', Number(selectedGroupId))
-                  .limit(1);
-                if (pgf && pgf.length > 0) {
-                  await supabase.from('product_group_fournisseurs')
-                    .update({ fiche_technique_url: urlData.publicUrl })
-                    .eq('id', pgf[0].id);
-                }
+              if (urlData?.publicUrl) {
+                await supabase.from('products')
+                  .update({ fiche_technique_url: urlData.publicUrl } as any)
+                  .eq('id', result.id);
               }
               toast.success('Fiche technique uploadée');
             }
