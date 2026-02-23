@@ -371,12 +371,33 @@ export const Reports = () => {
         }
       }
 
+      // For bon_livraison / bon_sortie: restore stock before deleting
+      if ((doc.type === 'bon_livraison' || doc.type === 'bon_sortie') && doc.items.length > 0) {
+        for (const item of doc.items) {
+          if (item.product_id) {
+            const product = await getProductById(item.product_id);
+            if (product) {
+              const restoredQty = product.quantity + item.quantity;
+              await updateProduct(item.product_id, { quantity: restoredQty });
+              await supabase.from('transactions').insert({
+                product_id: item.product_id,
+                product_name: item.designation,
+                type: 'IN',
+                quantity: item.quantity,
+                date: new Date().toISOString(),
+                note: `Restauration - Suppression ${doc.doc_number}`
+              });
+            }
+          }
+        }
+      }
+
       const { error } = await supabase.from('documents').delete().eq('id', doc.id);
       
       if (error) {
         toast.error('Erreur lors de la suppression');
       } else {
-        const stockMsg = doc.type === 'bon_entree' ? ' et stock ajusté' : '';
+        const stockMsg = (doc.type === 'bon_entree' || doc.type === 'bon_livraison' || doc.type === 'bon_sortie') ? ' et stock ajusté' : '';
         toast.success(`Document supprimé${stockMsg}`);
         const productsData = await getAllProducts();
         setProducts(productsData);
@@ -510,6 +531,11 @@ export const Reports = () => {
               {deleteConfirmDoc?.type === 'bon_entree' && (
                 <span className="block mt-2 text-warning font-medium">
                   ⚠️ Les quantités des articles seront automatiquement déduites du stock.
+                </span>
+              )}
+              {(deleteConfirmDoc?.type === 'bon_livraison' || deleteConfirmDoc?.type === 'bon_sortie') && (
+                <span className="block mt-2 text-success font-medium">
+                  ⚠️ Les quantités des articles seront automatiquement restaurées dans le stock.
                 </span>
               )}
             </AlertDialogDescription>
