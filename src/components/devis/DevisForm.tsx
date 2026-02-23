@@ -716,6 +716,20 @@ export const DevisForm = memo(({
                 </>
               )}
 
+              {itemDesignation.trim() && itemPrixTtc > 0 && (
+                <div className="p-2 rounded-lg bg-muted/50 border border-border text-center">
+                  <span className="text-sm text-muted-foreground">Total unitaire : </span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {(() => {
+                      const price = isEntrant ? itemPrixTtc : itemPrixTtc;
+                      const afterRemise = itemRemise > 0 ? price * (1 - itemRemise / 100) : price;
+                      const total = afterRemise * itemQuantity;
+                      return `${total.toFixed(3)} ${isEntrant ? 'HT' : (isTtc ? 'TTC' : 'HT')}`;
+                    })()}
+                  </span>
+                </div>
+              )}
+
               <Button onClick={addItem} disabled={!itemDesignation.trim()} className="w-full">
                 <Plus className="w-4 h-4 mr-2" /> Ajouter au devis
               </Button>
