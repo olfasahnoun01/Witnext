@@ -1,10 +1,17 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { ArrowLeft, Plus, RefreshCw, Search, X, Check, ChevronsUpDown } from 'lucide-react';
+import { ArrowLeft, Plus, RefreshCw, Search, X, Check, ChevronsUpDown, PackagePlus } from 'lucide-react';
 import { ProductGroup } from '@/types';
 import { getProductGroupsByCategory, deleteProductGroup } from '@/services/productGroupService';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { ProductGroupCard } from './ProductGroupCard';
 import { VariantView } from './VariantView';
 import { ProductGroupModal } from './ProductGroupModal';
@@ -51,6 +58,11 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
   const [selectedGroup, setSelectedGroup] = useState<ProductGroup | null>(null);
   const [isProductGroupModalOpen, setIsProductGroupModalOpen] = useState(false);
   const [editingProductGroup, setEditingProductGroup] = useState<ProductGroup | null>(null);
+  const [autoOpenVariantModal, setAutoOpenVariantModal] = useState(false);
+  
+  // Add variant to existing group
+  const [isSelectGroupOpen, setIsSelectGroupOpen] = useState(false);
+  const [groupSearchQuery, setGroupSearchQuery] = useState('');
   
   // Supplier filter state
   const [fournisseurs, setFournisseurs] = useState<string[]>([]);
@@ -170,7 +182,8 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
 
   const handleBackFromVariants = useCallback(() => {
     setSelectedGroup(null);
-    fetchGroups(); // Refresh in case stock changed
+    setAutoOpenVariantModal(false);
+    fetchGroups();
   }, [fetchGroups]);
 
   const handleDeleteGroup = useCallback(async (group: ProductGroup) => {
@@ -235,9 +248,17 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
       <VariantView 
         group={selectedGroup} 
         onBack={handleBackFromVariants}
+        autoOpenAddModal={autoOpenVariantModal}
       />
     );
   }
+
+  // Filter groups for the select dialog
+  const selectFilteredGroups = groups.filter(g => {
+    if (!groupSearchQuery) return true;
+    const q = groupSearchQuery.toLowerCase();
+    return g.name.toLowerCase().includes(q) || g.base_sku?.toLowerCase().includes(q);
+  });
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -260,9 +281,13 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
             <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Actualiser
           </Button>
+          <Button variant="secondary" size="sm" onClick={() => { setGroupSearchQuery(''); setIsSelectGroupOpen(true); }}>
+            <PackagePlus className="w-4 h-4 mr-2" />
+            Ajouter Variante
+          </Button>
           <Button size="sm" onClick={() => setIsProductGroupModalOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
-            Ajouter Produit
+            Créer Article
           </Button>
         </div>
       </div>
@@ -430,6 +455,52 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
         defaultCategory={category}
         editingGroup={editingProductGroup}
       />
+
+      {/* Select Group for Adding Variant */}
+      <Dialog open={isSelectGroupOpen} onOpenChange={setIsSelectGroupOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Choisir un article</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder="Rechercher un article..."
+            value={groupSearchQuery}
+            onChange={(e) => setGroupSearchQuery(e.target.value)}
+            className="mb-3"
+          />
+          <ScrollArea className="max-h-[350px]">
+            <div className="space-y-1">
+              {selectFilteredGroups.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">Aucun article trouvé</p>
+              ) : (
+                selectFilteredGroups.map((g) => (
+                  <button
+                    key={g.id}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-accent text-left transition-colors"
+                    onClick={() => {
+                      setIsSelectGroupOpen(false);
+                      setAutoOpenVariantModal(true);
+                      setSelectedGroup(g);
+                    }}
+                  >
+                    {g.image ? (
+                      <img src={g.image} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-10 h-10 rounded bg-muted flex items-center justify-center flex-shrink-0">
+                        <PackagePlus className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{g.name}</p>
+                      <p className="text-xs text-muted-foreground">{g.base_sku || 'N/A'} • {g.variant_count || 0} variante{(g.variant_count || 0) !== 1 ? 's' : ''}</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
