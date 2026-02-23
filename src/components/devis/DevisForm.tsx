@@ -461,12 +461,24 @@ export const DevisForm = memo(({
 
   useEffect(() => {
     if (!selectedGroupId) return;
-    const group = productGroups.find(g => g.id.toString() === selectedGroupId);
-    if (!group) return;
-    let sku = group.base_sku || group.name.substring(0, 3).toUpperCase();
-    if (variantSize) sku += `-${variantSize}`;
-    if (variantColor) sku += `-${variantColor}`;
-    setVariantSku(sku);
+    const fetchLastSku = async () => {
+      const { data } = await supabase
+        .from('products')
+        .select('sku')
+        .eq('product_group_id', Number(selectedGroupId))
+        .order('created_at', { ascending: false })
+        .limit(1);
+      const group = productGroups.find(g => g.id.toString() === selectedGroupId);
+      let baseSku = data?.[0]?.sku || group?.base_sku || group?.name.substring(0, 3).toUpperCase() || '';
+      // Strip existing size/color suffixes to get clean base
+      const parts = baseSku.split('-');
+      // Keep only the base part (first segment)
+      baseSku = parts[0];
+      if (variantSize) baseSku += `-${variantSize}`;
+      if (variantColor) baseSku += `-${variantColor}`;
+      setVariantSku(baseSku);
+    };
+    fetchLastSku();
   }, [selectedGroupId, variantSize, variantColor, productGroups]);
 
   const handleCreateVariant = useCallback(async () => {
