@@ -724,23 +724,22 @@ export const DevisForm = memo(({
 
               {itemDesignation.trim() && itemPrixTtc > 0 && (
                 <div className="p-2 rounded-lg bg-muted/50 border border-border text-center">
-                  <span className="text-sm text-muted-foreground">Total unitaire : </span>
+                  <span className="text-sm text-muted-foreground">Prix unitaire après remise : </span>
                   <span className="text-sm font-semibold text-foreground">
                     {(() => {
                       const afterRemise = itemRemise > 0 ? itemPrixTtc * (1 - itemRemise / 100) : itemPrixTtc;
                       if (isEntrant) {
-                        const totalHT = afterRemise * itemQuantity;
-                        const totalTTC = totalHT * 1.19;
+                        const unitHT = afterRemise;
+                        const unitTTC = unitHT * 1.19;
                         return isTtc
-                          ? `${totalHT.toFixed(3)} HT — ${totalTTC.toFixed(3)} TTC`
-                          : `${totalHT.toFixed(3)} HT`;
+                          ? `${unitHT.toFixed(3)} HT — ${unitTTC.toFixed(3)} TTC`
+                          : `${unitHT.toFixed(3)} HT`;
                       }
-                      const total = afterRemise * itemQuantity;
                       if (isTtc) {
-                        const totalHT = total / 1.19;
-                        return `${totalHT.toFixed(3)} HT — ${total.toFixed(3)} TTC`;
+                        const unitHT = afterRemise / 1.19;
+                        return `${unitHT.toFixed(3)} HT — ${afterRemise.toFixed(3)} TTC`;
                       }
-                      return `${total.toFixed(3)} HT`;
+                      return `${afterRemise.toFixed(3)} HT`;
                     })()}
                   </span>
                 </div>
