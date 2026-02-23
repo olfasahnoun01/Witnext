@@ -300,6 +300,7 @@ export type Database = {
           category: string
           color: string | null
           created_at: string
+          fiche_technique_url: string | null
           fournisseur: string | null
           id: number
           image: string | null
@@ -318,6 +319,7 @@ export type Database = {
           category: string
           color?: string | null
           created_at?: string
+          fiche_technique_url?: string | null
           fournisseur?: string | null
           id?: number
           image?: string | null
@@ -336,6 +338,7 @@ export type Database = {
           category?: string
           color?: string | null
           created_at?: string
+          fiche_technique_url?: string | null
           fournisseur?: string | null
           id?: number
           image?: string | null
