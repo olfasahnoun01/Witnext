@@ -250,8 +250,8 @@ export const DevisForm = memo(({
 
   const addItem = useCallback(() => {
     if (!itemDesignation.trim()) { toast.error('Nom d\'article requis'); return; }
-    const priceAfterRemise = itemRemise > 0 ? itemPrixTtc * (1 - itemRemise / 100) : itemPrixTtc;
-    const finalPrixTtc = isEntrant ? priceAfterRemise * 1.19 : priceAfterRemise;
+    // Store prix_ttc as the unit price BEFORE remise; remise is applied separately in totals
+    const finalPrixTtc = isEntrant ? itemPrixTtc * 1.19 : itemPrixTtc;
     setDevisItems(prev => [...prev, {
       designation: itemDesignation.trim(),
       fournisseur: itemFournisseur.trim(),
@@ -436,7 +436,10 @@ export const DevisForm = memo(({
     }
   }, [newArticle, newArticleFournisseurs, resetNewArticleForm]);
 
-  const rawTotal = devisItems.reduce((s, i) => s + i.prix_ttc * i.quantity, 0);
+  const rawTotal = devisItems.reduce((s, i) => {
+    const priceAfterRemise = i.remise > 0 ? i.prix_ttc * (1 - i.remise / 100) : i.prix_ttc;
+    return s + priceAfterRemise * i.quantity;
+  }, 0);
   const totalAmount = isTtc ? rawTotal : rawTotal / 1.19;
   const thirdPartyList = isEntrant ? fournisseurs : clients;
   const ThirdPartyIcon = isEntrant ? Building2 : Users;
@@ -766,9 +769,12 @@ export const DevisForm = memo(({
                       {item.fournisseur && `${item.fournisseur} • `}
                       Qté: {item.quantity}
                       {item.prix_achat != null && item.prix_achat > 0 && ` • Achat: ${item.prix_achat.toFixed(3)} TND`}
-                      {` • Vente: ${item.prix_ttc.toFixed(3)} TND`}
-                      {item.remise > 0 && ` (-${item.remise}%)`}
-                      {item.quantity > 1 && ` = ${(item.prix_ttc * item.quantity).toFixed(3)} TND`}
+                      {` • P.U: ${item.prix_ttc.toFixed(3)} TND`}
+                      {item.remise > 0 && ` • Remise: ${item.remise}% → ${(item.prix_ttc * (1 - item.remise / 100)).toFixed(3)} TND`}
+                      {(() => {
+                        const unitAfterRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
+                        return item.quantity > 1 ? ` = ${(unitAfterRemise * item.quantity).toFixed(3)} TND` : '';
+                      })()}
                     </p>
                     {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}
                   </div>
