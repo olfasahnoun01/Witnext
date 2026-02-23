@@ -602,12 +602,12 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     doc.setTextColor(30, 58, 95);
     doc.text('Total HT', pageWidth - 65, tableEndY + 10);
     doc.setTextColor(0, 0, 0);
-    doc.text(`${totalHT.toFixed(2)} DT`, pageWidth - 14, tableEndY + 10, { align: 'right' });
+    doc.text(`${totalHT.toFixed(3)} DT`, pageWidth - 14, tableEndY + 10, { align: 'right' });
 
     doc.setTextColor(30, 58, 95);
     doc.text('TVA (19%)', pageWidth - 65, tableEndY + 18);
     doc.setTextColor(0, 0, 0);
-    doc.text(`${tva.toFixed(2)} DT`, pageWidth - 14, tableEndY + 18, { align: 'right' });
+    doc.text(`${tva.toFixed(3)} DT`, pageWidth - 14, tableEndY + 18, { align: 'right' });
 
     // Total TTC highlighted
     doc.setFillColor(30, 58, 95);
@@ -616,7 +616,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
     doc.text('Total TTC', pageWidth - 86, tableEndY + 30);
-    doc.text(`${totalTTC.toFixed(2)} DT`, pageWidth - 18, tableEndY + 30, { align: 'right' });
+    doc.text(`${totalTTC.toFixed(3)} DT`, pageWidth - 18, tableEndY + 30, { align: 'right' });
   } else {
     // HT mode - just show Total HT
     doc.setFillColor(30, 58, 95);
@@ -625,7 +625,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
     doc.text('Total HT', pageWidth - 86, tableEndY + 16);
-    doc.text(`${devis.total_amount.toFixed(2)} DT`, pageWidth - 18, tableEndY + 16, { align: 'right' });
+    doc.text(`${devis.total_amount.toFixed(3)} DT`, pageWidth - 18, tableEndY + 16, { align: 'right' });
   }
 
   // Footer
