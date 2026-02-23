@@ -459,8 +459,11 @@ export const DevisForm = memo(({
     loadGroups();
   }, [showAddVariant]);
 
+  const [lastVariantBaseSku, setLastVariantBaseSku] = useState('');
+
+  // Fetch last variant SKU when group is selected
   useEffect(() => {
-    if (!selectedGroupId) return;
+    if (!selectedGroupId) { setLastVariantBaseSku(''); return; }
     const fetchLastSku = async () => {
       const { data } = await supabase
         .from('products')
@@ -469,17 +472,22 @@ export const DevisForm = memo(({
         .order('created_at', { ascending: false })
         .limit(1);
       const group = productGroups.find(g => g.id.toString() === selectedGroupId);
-      let baseSku = data?.[0]?.sku || group?.base_sku || group?.name.substring(0, 3).toUpperCase() || '';
-      // Strip existing size/color suffixes to get clean base
-      const parts = baseSku.split('-');
-      // Keep only the base part (first segment)
-      baseSku = parts[0];
-      if (variantSize) baseSku += `-${variantSize}`;
-      if (variantColor) baseSku += `-${variantColor}`;
-      setVariantSku(baseSku);
+      const fullSku = data?.[0]?.sku || group?.base_sku || group?.name.substring(0, 3).toUpperCase() || '';
+      setLastVariantBaseSku(fullSku);
     };
     fetchLastSku();
-  }, [selectedGroupId, variantSize, variantColor, productGroups]);
+  }, [selectedGroupId, productGroups]);
+
+  // Build SKU from last variant base + selected size/color
+  useEffect(() => {
+    if (!lastVariantBaseSku) return;
+    // Extract the base part (remove size/color suffixes)
+    const parts = lastVariantBaseSku.split('-');
+    let baseSku = parts[0];
+    if (variantSize) baseSku += `-${variantSize}`;
+    if (variantColor) baseSku += `-${variantColor}`;
+    setVariantSku(baseSku);
+  }, [lastVariantBaseSku, variantSize, variantColor]);
 
   const handleCreateVariant = useCallback(async () => {
     if (!selectedGroupId) { toast.error('Sélectionnez un article'); return; }
