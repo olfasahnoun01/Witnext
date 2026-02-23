@@ -73,6 +73,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   const [freshFournisseurs, setFreshFournisseurs] = useState<typeof group.fournisseurs>(group.fournisseurs);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [ficheOnlyMode, setFicheOnlyMode] = useState(false);
   const [editingVariant, setEditingVariant] = useState<Product | null>(null);
   const [formData, setFormData] = useState<VariantFormData>(emptyFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -227,17 +228,27 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     setIsModalOpen(false);
     setEditingVariant(null);
     setFormData(emptyFormData);
+    setFicheOnlyMode(false);
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    if (!formData.sku.trim()) {
+    if (!formData.sku.trim() && !ficheOnlyMode) {
       toast.error('Le code article est requis');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      if (editingVariant) {
+      if (ficheOnlyMode && editingVariant) {
+        // Only update fiche technique
+        const matchedF = group.fournisseurs?.find(f => f.fournisseur_name === editingVariant.fournisseur);
+        if (matchedF?.id) {
+          await supabase.from('product_group_fournisseurs')
+            .update({ fiche_technique_url: formData.fiche_technique_url || null })
+            .eq('id', matchedF.id);
+        }
+        toast.success('Fiche technique mise à jour');
+      } else if (editingVariant) {
         await updateProduct(editingVariant.id, {
           sku: formData.sku,
           size: formData.size || undefined,
@@ -269,7 +280,6 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           toast.error(result.error || 'Erreur lors de la création');
           return;
         }
-        // If fiche was uploaded during creation, save it to the group's primary fournisseur
         if (formData.fiche_technique_url && group.fournisseurs?.[0]?.id) {
           await supabase.from('product_group_fournisseurs')
             .update({ fiche_technique_url: formData.fiche_technique_url })
@@ -285,7 +295,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [editingVariant, formData, group.id, handleCloseModal, fetchVariants]);
+  }, [editingVariant, formData, group.id, ficheOnlyMode, handleCloseModal, fetchVariants]);
 
   const handleDelete = useCallback(async (variant: Product) => {
     if (!window.confirm(`Supprimer la variante "${variant.sku}" ?`)) return;
@@ -428,7 +438,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                 <TableHead className="text-right">Prix TTC</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead>Fiche Technique</TableHead>
-                {isModerator && <TableHead className="text-right">Actions</TableHead>}
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -479,27 +489,41 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                           <span className="text-xs text-muted-foreground">-</span>
                         )}
                       </TableCell>
-                    {isModerator && (
-                      <TableCell className="text-right">
+                    <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenModal(variant)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(variant)}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {isModerator ? (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenModal(variant)}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(variant)}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Gérer la fiche technique"
+                              onClick={() => {
+                                setFicheOnlyMode(true);
+                                handleOpenModal(variant);
+                              }}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
-                    )}
                   </TableRow>
                 );
               })}
@@ -513,112 +537,116 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {editingVariant ? 'Modifier la variante' : 'Ajouter une variante'}
+              {ficheOnlyMode ? 'Fiche Technique' : (editingVariant ? 'Modifier la variante' : 'Ajouter une variante')}
             </DialogTitle>
           </DialogHeader>
           
           <div className="grid gap-4 py-4">
-            {/* Image Upload */}
-            <div className="flex items-center gap-4">
-              <div 
-                className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed border-border hover:border-primary transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {formData.image ? (
-                  <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <Upload className="w-8 h-8 text-muted-foreground" />
-                )}
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageUpload}
-              />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">Image de l'article</p>
-                <p className="text-xs text-muted-foreground">Cliquez pour télécharger (optionnel)</p>
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="sku">Code Article *</Label>
-              <Input
-                id="sku"
-                value={formData.sku}
-                onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
-                placeholder="ex: 00001P.C.N"
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="size">Taille</Label>
-                <Input
-                  id="size"
-                  value={formData.size}
-                  onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
-                  placeholder="ex: 42, L, XL"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="color">Couleur</Label>
-                <Input
-                  id="color"
-                  value={formData.color}
-                  onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
-                  placeholder="ex: Noir, Bleu"
-                />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="quantity">Quantité</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  min="0"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value) || 0 }))}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="price">Prix (TND)</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  value={formData.price}
-                  onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="remise">Remise (%)</Label>
-                <Input
-                  id="remise"
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  value={formData.remise}
-                  onChange={(e) => setFormData(prev => ({ ...prev, remise: parseFloat(e.target.value) || 0 }))}
-                  placeholder="0"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>Prix TTC (calculé)</Label>
-                <div className="h-10 px-3 py-2 rounded-md border border-input bg-muted/50 text-sm font-medium text-primary flex items-center">
-                  {(formData.price * (1 - formData.remise / 100)).toFixed(3)} TND
+            {!ficheOnlyMode && (
+              <>
+                {/* Image Upload */}
+                <div className="flex items-center gap-4">
+                  <div 
+                    className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed border-border hover:border-primary transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {formData.image ? (
+                      <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <Upload className="w-8 h-8 text-muted-foreground" />
+                    )}
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageUpload}
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">Image de l'article</p>
+                    <p className="text-xs text-muted-foreground">Cliquez pour télécharger (optionnel)</p>
+                  </div>
                 </div>
-              </div>
-            </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="sku">Code Article *</Label>
+                  <Input
+                    id="sku"
+                    value={formData.sku}
+                    onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
+                    placeholder="ex: 00001P.C.N"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="size">Taille</Label>
+                    <Input
+                      id="size"
+                      value={formData.size}
+                      onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
+                      placeholder="ex: 42, L, XL"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="color">Couleur</Label>
+                    <Input
+                      id="color"
+                      value={formData.color}
+                      onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                      placeholder="ex: Noir, Bleu"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="quantity">Quantité</Label>
+                    <Input
+                      id="quantity"
+                      type="number"
+                      min="0"
+                      value={formData.quantity}
+                      onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value) || 0 }))}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="price">Prix (TND)</Label>
+                    <Input
+                      id="price"
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      value={formData.price}
+                      onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="remise">Remise (%)</Label>
+                    <Input
+                      id="remise"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={formData.remise}
+                      onChange={(e) => setFormData(prev => ({ ...prev, remise: parseFloat(e.target.value) || 0 }))}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Prix TTC (calculé)</Label>
+                    <div className="h-10 px-3 py-2 rounded-md border border-input bg-muted/50 text-sm font-medium text-primary flex items-center">
+                      {(formData.price * (1 - formData.remise / 100)).toFixed(3)} TND
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Fiche technique upload */}
             <div className="space-y-2">
