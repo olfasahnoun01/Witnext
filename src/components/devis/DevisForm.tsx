@@ -171,8 +171,8 @@ export const DevisForm = memo(({
     setItemDesignation(product.name);
     setItemFournisseur(product.fournisseur || '');
     const priceTtc = product.prix_ttc || product.price * (1 - (product.remise || 0) / 100);
-    // In HT mode, convert TTC price to HT by removing 19% TVA
-    setItemPrixTtc(isTtc ? priceTtc : priceTtc / 1.19);
+    // For entrant: always show HT (divide TTC by 1.19); for sortant: depends on isTtc toggle
+    setItemPrixTtc(isEntrant ? priceTtc / 1.19 : (isTtc ? priceTtc : priceTtc / 1.19));
     setItemRemise(product.remise || 0);
     setItemQuantity(1);
     setItemDescription(`${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`);
@@ -250,10 +250,11 @@ export const DevisForm = memo(({
 
   const addItem = useCallback(() => {
     if (!itemDesignation.trim()) { toast.error('Nom d\'article requis'); return; }
+    const finalPrixTtc = isEntrant ? itemPrixTtc * 1.19 : itemPrixTtc;
     setDevisItems(prev => [...prev, {
       designation: itemDesignation.trim(),
       fournisseur: itemFournisseur.trim(),
-      prix_ttc: itemPrixTtc,
+      prix_ttc: finalPrixTtc,
       remise: itemRemise,
       quantity: itemQuantity,
       description: itemDescription.trim() || undefined,
@@ -267,7 +268,7 @@ export const DevisForm = memo(({
     setItemDescription('');
     setItemPrixAchat(0);
     setSelectedProduct(null);
-  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemQuantity, itemDescription, itemPrixAchat, devisType, setDevisItems]);
+  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemQuantity, itemDescription, itemPrixAchat, devisType, isEntrant, setDevisItems]);
 
   const removeItem = useCallback((idx: number) => {
     setDevisItems(prev => prev.filter((_, i) => i !== idx));
@@ -647,7 +648,7 @@ export const DevisForm = memo(({
                   )}
 
                   {/* Quantity, Price & Remise */}
-                   <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                   <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-4' : (isEntrant ? 'grid-cols-4' : 'grid-cols-3')}`}>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
@@ -659,9 +660,15 @@ export const DevisForm = memo(({
                       </div>
                     )}
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Prix Vente {isTtc ? 'TTC' : 'HT'}</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">Prix Vente {isEntrant ? 'HT' : (isTtc ? 'TTC' : 'HT')}</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
+                    {isEntrant && (
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Prix Vente TTC</label>
+                        <input type="number" readOnly value={(itemPrixTtc * 1.19).toFixed(3)} className="form-input bg-muted/50 cursor-not-allowed" />
+                      </div>
+                    )}
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
                       <input type="number" min="0" max="100" step="0.1" value={itemRemise || ''} onChange={e => setItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
@@ -676,7 +683,7 @@ export const DevisForm = memo(({
                     <input type="text" value={itemFournisseur} onChange={e => setItemFournisseur(e.target.value)} className="form-input" placeholder="Fournisseur" />
                     <input type="text" value={itemDescription} onChange={e => setItemDescription(e.target.value)} className="form-input" placeholder="Description (opt.)" />
                   </div>
-                   <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                   <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-4' : (isEntrant ? 'grid-cols-4' : 'grid-cols-3')}`}>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Quantité</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
@@ -688,9 +695,15 @@ export const DevisForm = memo(({
                       </div>
                     )}
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Prix Vente {isTtc ? 'TTC' : 'HT'}</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">Prix Vente {isEntrant ? 'HT' : (isTtc ? 'TTC' : 'HT')}</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
+                    {isEntrant && (
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Prix Vente TTC</label>
+                        <input type="number" readOnly value={(itemPrixTtc * 1.19).toFixed(3)} className="form-input bg-muted/50 cursor-not-allowed" />
+                      </div>
+                    )}
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
                       <input type="number" min="0" max="100" step="0.1" value={itemRemise || ''} onChange={e => setItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
