@@ -136,6 +136,7 @@ export const DevisForm = memo(({
   const [variantQuantity, setVariantQuantity] = useState(0);
   const [isCreatingVariant, setIsCreatingVariant] = useState(false);
   const [groupSearch, setGroupSearch] = useState('');
+  const [groupPopoverOpen, setGroupPopoverOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -1063,7 +1064,7 @@ export const DevisForm = memo(({
             {/* Search & select product group */}
             <div>
               <Label>Article existant *</Label>
-              <Popover>
+              <Popover open={groupPopoverOpen} onOpenChange={setGroupPopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
                     {selectedGroupId
@@ -1082,7 +1083,7 @@ export const DevisForm = memo(({
                           <CommandItem
                             key={g.id}
                             value={`${g.name} ${g.base_sku || ''}`}
-                            onSelect={() => setSelectedGroupId(g.id.toString())}
+                            onSelect={() => { setSelectedGroupId(g.id.toString()); setGroupPopoverOpen(false); }}
                           >
                             <Check className={cn("mr-2 h-4 w-4", selectedGroupId === g.id.toString() ? "opacity-100" : "opacity-0")} />
                             <span className="font-medium">{g.name}</span>
