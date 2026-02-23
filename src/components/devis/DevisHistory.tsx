@@ -18,6 +18,8 @@ import { Button } from '@/components/ui/button';
 interface DevisHistoryProps {
   savedDevis: Devis[];
   canEdit: boolean;
+  currentUserId: string | null;
+  isAdminOrMod: boolean;
   onEdit: (d: Devis) => void;
   onDelete: (d: Devis) => void;
 }
@@ -45,7 +47,7 @@ const toDevisPDFData = (d: Devis): DevisPDFData => ({
   is_ttc: d.is_ttc,
 });
 
-export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: DevisHistoryProps) => {
+export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete }: DevisHistoryProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<Devis | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -176,6 +178,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">N°</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Tiers</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Créé par</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Mode</th>
@@ -202,6 +205,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
                       {new Date(d.devis_date).toLocaleDateString('fr-FR')}
                     </td>
                     <td className="py-3 px-4 text-sm text-foreground">{d.third_party_name || '-'}</td>
+                    <td className="py-3 px-4 text-sm text-muted-foreground">{d.creator_name || '-'}</td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1.5">
                         <button
@@ -254,14 +258,14 @@ export const DevisHistory = memo(({ savedDevis, canEdit, onEdit, onDelete }: Dev
                     <td className="py-3 px-4">
                       <div className="flex gap-2">
                         {canEdit && (
-                          <>
-                            <button onClick={() => onEdit(d)} className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors" title="Modifier">
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => setDeleteConfirm(d)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Supprimer">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </>
+                          <button onClick={() => onEdit(d)} className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors" title="Modifier">
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
+                        {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && (
+                          <button onClick={() => setDeleteConfirm(d)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Supprimer">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         )}
                       </div>
                     </td>

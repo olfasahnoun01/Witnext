@@ -11,8 +11,8 @@ import {
 } from '@/components/ui/dialog';
 
 export const GestionDevis = () => {
-  const { isAdmin, isModerator } = useAuth();
-  const canEdit = isAdmin || isModerator;
+  const { isAdmin, isModerator, user } = useAuth();
+  const canEdit = true; // All users can edit/delete (restricted by RLS)
   const [activeSection, setActiveSection] = useState<'form' | 'history'>('form');
   const [savedDevis, setSavedDevis] = useState<Devis[]>([]);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -39,6 +39,21 @@ export const GestionDevis = () => {
       .order('created_at', { ascending: false });
 
     if (!error && data) {
+      // Fetch creator names from profiles
+      const creatorIds = [...new Set(data.map(d => d.created_by).filter(Boolean))] as string[];
+      let profilesMap: Record<string, string> = {};
+      if (creatorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, email')
+          .in('user_id', creatorIds);
+        if (profiles) {
+          profiles.forEach(p => {
+            profilesMap[p.user_id] = p.full_name || p.email || 'Inconnu';
+          });
+        }
+      }
+
       setSavedDevis(data.map(d => {
         let parsedItems: DevisItem[] = [];
         if (d.items) {
@@ -55,6 +70,7 @@ export const GestionDevis = () => {
           items: parsedItems,
           total_amount: Number(d.total_amount) || 0,
           is_ttc: (d as any).is_ttc ?? true,
+          creator_name: d.created_by ? (profilesMap[d.created_by] || null) : null,
         };
       }));
     }
@@ -277,6 +293,8 @@ export const GestionDevis = () => {
         <DevisHistory
           savedDevis={savedDevis}
           canEdit={canEdit}
+          currentUserId={user?.id || null}
+          isAdminOrMod={isAdmin || isModerator}
           onEdit={startEdit}
           onDelete={deleteDevis}
         />

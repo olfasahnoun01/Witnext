@@ -117,6 +117,7 @@ export interface Devis {
   status: 'brouillon' | 'envoyé' | 'accepté' | 'refusé';
   is_ttc: boolean;
   created_by: string | null;
+  creator_name?: string | null;
   created_at: string;
   updated_at: string;
 }
