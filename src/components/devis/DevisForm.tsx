@@ -269,7 +269,7 @@ export const DevisForm = memo(({
     setItemDescription('');
     setItemPrixAchat(0);
     setSelectedProduct(null);
-  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemQuantity, itemDescription, itemPrixAchat, devisType, isEntrant, setDevisItems]);
+  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, devisType, isEntrant, setDevisItems]);
 
   const removeItem = useCallback((idx: number) => {
     setDevisItems(prev => prev.filter((_, i) => i !== idx));
