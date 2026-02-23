@@ -670,7 +670,10 @@ export const DevisForm = memo(({
                     {isEntrant && isTtc && (
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Prix Vente TTC</label>
-                        <input type="number" readOnly value={(itemPrixTtc * 1.19).toFixed(3)} className="form-input bg-muted/50 cursor-not-allowed" />
+                        <input type="number" min="0" step="0.001" value={parseFloat((itemPrixTtc * 1.19).toFixed(3)) || ''} onChange={e => {
+                          const ttcVal = parseFloat(e.target.value) || 0;
+                          setItemPrixTtc(ttcVal / 1.19);
+                        }} className="form-input" />
                       </div>
                     )}
                     <div>
@@ -705,7 +708,10 @@ export const DevisForm = memo(({
                     {isEntrant && isTtc && (
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Prix Vente TTC</label>
-                        <input type="number" readOnly value={(itemPrixTtc * 1.19).toFixed(3)} className="form-input bg-muted/50 cursor-not-allowed" />
+                        <input type="number" min="0" step="0.001" value={parseFloat((itemPrixTtc * 1.19).toFixed(3)) || ''} onChange={e => {
+                          const ttcVal = parseFloat(e.target.value) || 0;
+                          setItemPrixTtc(ttcVal / 1.19);
+                        }} className="form-input" />
                       </div>
                     )}
                     <div>
