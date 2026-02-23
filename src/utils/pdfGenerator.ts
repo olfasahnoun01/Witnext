@@ -532,7 +532,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       if (hasPrixAchat) row.push(item.prix_achat != null && item.prix_achat > 0 ? `${item.prix_achat.toFixed(3)} DT` : '-');
       row.push(`${prixVenteHT.toFixed(3)} DT`);
       row.push(item.remise > 0 ? `${item.remise}%` : '-');
-      row.push(item.remise > 0 ? `${prixApresRemise.toFixed(3)} DT` : '-');
+      row.push(`${prixApresRemise.toFixed(3)} DT`);
       row.push('19%');
       row.push(`${totalTTC.toFixed(3)} DT`);
       return row;
@@ -549,7 +549,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       if (hasPrixAchat) row.push(prixAchatHT > 0 ? `${prixAchatHT.toFixed(3)} DT` : '-');
       row.push(`${prixHT.toFixed(3)} DT`);
       row.push(item.remise > 0 ? `${item.remise}%` : '-');
-      row.push(item.remise > 0 ? `${prixApresRemise.toFixed(3)} DT` : '-');
+      row.push(`${prixApresRemise.toFixed(3)} DT`);
       row.push('');
       row.push(`${totalHT.toFixed(3)} DT`);
       return row;
