@@ -652,7 +652,7 @@ export const DevisForm = memo(({
                   )}
 
                   {/* Quantity, Price & Remise */}
-                   <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-4' : (isEntrant ? 'grid-cols-4' : 'grid-cols-3')}`}>
+                   <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-4' : (isEntrant && isTtc ? 'grid-cols-4' : 'grid-cols-3')}`}>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
@@ -667,7 +667,7 @@ export const DevisForm = memo(({
                       <label className="text-xs text-muted-foreground mb-1 block">Prix Vente {isEntrant ? 'HT' : (isTtc ? 'TTC' : 'HT')}</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
-                    {isEntrant && (
+                    {isEntrant && isTtc && (
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Prix Vente TTC</label>
                         <input type="number" readOnly value={(itemPrixTtc * 1.19).toFixed(3)} className="form-input bg-muted/50 cursor-not-allowed" />
@@ -687,7 +687,7 @@ export const DevisForm = memo(({
                     <input type="text" value={itemFournisseur} onChange={e => setItemFournisseur(e.target.value)} className="form-input" placeholder="Fournisseur" />
                     <input type="text" value={itemDescription} onChange={e => setItemDescription(e.target.value)} className="form-input" placeholder="Description (opt.)" />
                   </div>
-                   <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-4' : (isEntrant ? 'grid-cols-4' : 'grid-cols-3')}`}>
+                   <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-4' : (isEntrant && isTtc ? 'grid-cols-4' : 'grid-cols-3')}`}>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Quantité</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
@@ -702,7 +702,7 @@ export const DevisForm = memo(({
                       <label className="text-xs text-muted-foreground mb-1 block">Prix Vente {isEntrant ? 'HT' : (isTtc ? 'TTC' : 'HT')}</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
-                    {isEntrant && (
+                    {isEntrant && isTtc && (
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Prix Vente TTC</label>
                         <input type="number" readOnly value={(itemPrixTtc * 1.19).toFixed(3)} className="form-input bg-muted/50 cursor-not-allowed" />
