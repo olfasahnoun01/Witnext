@@ -323,10 +323,12 @@ export const Inventory = () => {
             <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Actualiser
           </Button>
-          <Button onClick={() => setIsAddCategoryOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Ajouter Catégorie
-          </Button>
+          {isModerator && (
+            <Button onClick={() => setIsAddCategoryOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Ajouter Catégorie
+            </Button>
+          )}
         </div>
       </div>
 
