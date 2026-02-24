@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { X, Upload, Package, Plus, Trash2, ArrowLeft, ArrowRight } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef, memo, createRef } from 'react';
+import { X, Upload, Package, Plus, Trash2, ArrowLeft, ArrowRight, FileUp, Eye, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,6 +47,8 @@ interface VariantDraft {
   size: string;
   color: string;
   quantity: number;
+  fiche_technique_file?: File | null;
+  fiche_technique_url?: string | null;
 }
 
 interface ProductGroupModalProps {
@@ -315,6 +317,24 @@ export const ProductGroupModal = ({
           });
           if (!result.success) {
             console.error(`Failed to create variant ${v.sku}:`, result.error);
+            continue;
+          }
+          // Upload fiche technique if provided
+          if (v.fiche_technique_file && result.id) {
+            const ext = v.fiche_technique_file.name.split('.').pop() || 'pdf';
+            const filePath = `${result.id}.${ext}`;
+            const { error: uploadError } = await supabase.storage
+              .from('fiches-techniques')
+              .upload(filePath, v.fiche_technique_file, { upsert: true });
+            if (!uploadError) {
+              const { data: urlData } = supabase.storage
+                .from('fiches-techniques')
+                .getPublicUrl(filePath);
+              await supabase
+                .from('products')
+                .update({ fiche_technique_url: urlData.publicUrl })
+                .eq('id', result.id);
+            }
           }
         }
         if (validVariants.length > 0) {
@@ -504,6 +524,34 @@ export const ProductGroupModal = ({
                           className="h-8 text-sm"
                         />
                       </div>
+                    </div>
+                    {/* Fiche technique upload */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        accept=".pdf,image/*"
+                        className="hidden"
+                        id={`variant-fiche-${idx}`}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          setVariants(prev => prev.map((vv, i) => i === idx ? { ...vv, fiche_technique_file: file } : vv));
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1.5 text-xs"
+                        onClick={() => document.getElementById(`variant-fiche-${idx}`)?.click()}
+                      >
+                        <FileUp className="w-3 h-3" />
+                        Fiche technique
+                      </Button>
+                      {v.fiche_technique_file && (
+                        <span className="text-xs text-muted-foreground truncate max-w-[150px]">
+                          {v.fiche_technique_file.name}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
