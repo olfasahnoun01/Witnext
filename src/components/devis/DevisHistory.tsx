@@ -26,12 +26,6 @@ interface DevisHistoryProps {
 
 const ITEMS_PER_PAGE = 10;
 
-const statusColors: Record<string, string> = {
-  brouillon: 'bg-muted text-muted-foreground',
-  envoyé: 'bg-primary/10 text-primary',
-  accepté: 'bg-success/10 text-success',
-  refusé: 'bg-destructive/10 text-destructive',
-};
 
 const toDevisPDFData = (d: Devis): DevisPDFData => ({
   devis_number: d.devis_number,
@@ -182,7 +176,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Mode</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Statut</th>
+                
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">PDF</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
               </tr>
@@ -228,11 +222,6 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                         d.is_ttc ? 'bg-primary/10 text-primary' : 'bg-warning/10 text-warning'
                       }`}>
                         {d.is_ttc ? 'TTC' : 'HT'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-1 rounded text-xs font-medium capitalize ${statusColors[d.status] || ''}`}>
-                        {d.status}
                       </span>
                     </td>
                     <td className="py-3 px-4">
