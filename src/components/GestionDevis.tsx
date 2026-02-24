@@ -259,7 +259,7 @@ export const GestionDevis = () => {
         </button>
       </div>
 
-      {activeSection === 'form' && (
+      {activeSection === 'form' && devisNumber && (
         <DevisForm
           devisType={devisType}
           devisNumber={devisNumber}
