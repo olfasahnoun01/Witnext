@@ -166,7 +166,7 @@ export const DevisForm = memo(({
       let query = supabase
         .from('products')
         .select('*')
-        .or(`name.ilike.%${debouncedSearch}%,sku.ilike.%${debouncedSearch}%`);
+        .ilike('name', `%${debouncedSearch}%`);
       
       // Filter by selected fournisseur in devis entrant
       if (isEntrant && thirdPartyName.trim()) {
@@ -599,7 +599,7 @@ export const DevisForm = memo(({
   const filteredGroups = useMemo(() => {
     if (!groupSearch.trim()) return productGroups;
     const q = groupSearch.toLowerCase();
-    return productGroups.filter(g => g.name.toLowerCase().includes(q) || (g.base_sku || '').toLowerCase().includes(q));
+    return productGroups.filter(g => g.name.toLowerCase().includes(q));
   }, [productGroups, groupSearch]);
 
   const rawTotal = devisItems.reduce((s, i) => {
