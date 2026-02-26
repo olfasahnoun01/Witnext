@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload, FileText, Eye, Download, X } from 'lucide-react';
+import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload, FileText, Eye, Download, X, Images } from 'lucide-react';
 import { ProductGroup, Product, StockStatus } from '@/types';
 import { getVariantsByGroupId, createVariant } from '@/services/productGroupService';
 import { updateProduct, deleteProduct } from '@/services/dbService';
@@ -8,19 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { compressImage, formatBytes, getBase64Size } from '@/lib/imageCompression';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -45,6 +36,22 @@ const statusStyles: Record<StockStatus, { bg: string; text: string; label: strin
   out_of_stock: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', label: 'Rupture' }
 };
 
+/** Parse fiche_technique_url which can be a single URL string or a JSON array of URLs */
+function parseFicheUrls(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.filter(Boolean);
+  } catch { /* not JSON */ }
+  return [raw];
+}
+
+function serializeFicheUrls(urls: string[]): string {
+  if (urls.length === 0) return '';
+  if (urls.length === 1) return urls[0];
+  return JSON.stringify(urls);
+}
+
 interface VariantFormData {
   sku: string;
   size: string;
@@ -53,18 +60,11 @@ interface VariantFormData {
   price: number;
   remise: number;
   image: string | null;
-  fiche_technique_url: string | null;
+  fiche_urls: string[];
 }
 
 const emptyFormData: VariantFormData = {
-  sku: '',
-  size: '',
-  color: '',
-  quantity: 0,
-  price: 0,
-  remise: 0,
-  image: null,
-  fiche_technique_url: null
+  sku: '', size: '', color: '', quantity: 0, price: 0, remise: 0, image: null, fiche_urls: []
 };
 
 export const VariantView = ({ group, onBack }: VariantViewProps) => {
@@ -77,7 +77,8 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   const [editingVariant, setEditingVariant] = useState<Product | null>(null);
   const [formData, setFormData] = useState<VariantFormData>(emptyFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [previewFicheUrl, setPreviewFicheUrl] = useState<string | null>(null);
+  const [previewFicheUrls, setPreviewFicheUrls] = useState<string[]>([]);
+  const [previewFicheIndex, setPreviewFicheIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const ficheInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingFiche, setIsUploadingFiche] = useState(false);
@@ -108,16 +109,9 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     }
   }, [group.id]);
 
-  useEffect(() => {
-    fetchVariants();
-  }, [fetchVariants]);
+  useEffect(() => { fetchVariants(); }, [fetchVariants]);
 
-  // Subscribe to realtime changes on products table
-  useRealtimeData({
-    tables: ['products'],
-    onDataChange: fetchVariants,
-    showToast: true
-  });
+  useRealtimeData({ tables: ['products'], onDataChange: fetchVariants, showToast: true });
 
   const totalStock = variants.reduce((sum, v) => sum + v.quantity, 0);
 
@@ -132,7 +126,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         price: variant.price,
         remise: variant.remise || 0,
         image: variant.image || null,
-        fiche_technique_url: variant.fiche_technique_url || null
+        fiche_urls: parseFicheUrls(variant.fiche_technique_url)
       });
     } else {
       setEditingVariant(null);
@@ -149,15 +143,12 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     if (file) {
       try {
         const compressedImage = await compressImage(file);
-        
         const originalSize = file.size;
         const compressedSize = getBase64Size(compressedImage);
         console.log(`Image compressed to WebP: ${formatBytes(originalSize)} → ${formatBytes(compressedSize)}`);
-        
         setFormData(prev => ({ ...prev, image: compressedImage }));
       } catch (error) {
         console.error('Error compressing image:', error);
-        // Fallback: still convert to WebP via canvas
         const reader = new FileReader();
         reader.onloadend = () => {
           const img = new Image();
@@ -175,44 +166,87 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     }
   }, []);
 
-  const handleFicheUpload = useCallback(async (file: File) => {
+  const uploadBlobToStorage = useCallback(async (blob: Blob): Promise<string> => {
+    const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.webp`;
+    const filePath = `fiches/${fileName}`;
+    const { error: uploadError } = await supabase.storage.from('fiches-techniques').upload(filePath, blob, {
+      contentType: 'image/webp',
+    });
+    if (uploadError) throw uploadError;
+    const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
+    return urlData.publicUrl;
+  }, []);
+
+  const handleFicheUpload = useCallback(async (files: FileList) => {
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error('Format non supporté. Utilisez PDF, JPG, PNG ou WebP.');
-      return;
+    const fileArray = Array.from(files);
+    
+    for (const file of fileArray) {
+      if (!allowedTypes.includes(file.type)) {
+        toast.error(`Format non supporté: ${file.name}. Utilisez PDF, JPG, PNG ou WebP.`);
+        return;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        toast.error(`Fichier trop volumineux: ${file.name} (max 20 Mo)`);
+        return;
+      }
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('Fichier trop volumineux (max 10 Mo)');
-      return;
-    }
+
     setIsUploadingFiche(true);
     try {
-      const { convertImageFileToWebp } = await import('@/lib/imageCompression');
-      const { blob, ext } = await convertImageFileToWebp(file);
-      const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-      const filePath = `fiches/${fileName}`;
-      const { error: uploadError } = await supabase.storage.from('fiches-techniques').upload(filePath, blob, {
-        contentType: 'image/webp',
-      });
-      if (uploadError) throw uploadError;
-      const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
-      setFormData(prev => ({ ...prev, fiche_technique_url: urlData.publicUrl }));
+      const newUrls: string[] = [];
 
-      // If editing, save directly on the product via secure RPC
+      for (const file of fileArray) {
+        if (file.type === 'application/pdf') {
+          // Convert ALL pages to separate WebP images
+          const { convertPdfAllPagesToWebp } = await import('@/lib/imageCompression');
+          const pages = await convertPdfAllPagesToWebp(file);
+          toast.info(`PDF "${file.name}": ${pages.length} page(s) détectée(s), conversion en cours...`);
+          for (const page of pages) {
+            const url = await uploadBlobToStorage(page.blob);
+            newUrls.push(url);
+          }
+        } else {
+          // Single image
+          const { convertImageFileToWebp } = await import('@/lib/imageCompression');
+          const { blob } = await convertImageFileToWebp(file);
+          const url = await uploadBlobToStorage(blob);
+          newUrls.push(url);
+        }
+      }
+
+      const updatedUrls = [...formData.fiche_urls, ...newUrls];
+      setFormData(prev => ({ ...prev, fiche_urls: updatedUrls }));
+
+      // If editing, save directly via secure RPC
       if (editingVariant) {
         await supabase.rpc('update_product_fiche_technique', {
           _product_id: editingVariant.id,
-          _fiche_technique_url: urlData.publicUrl,
-        });
+          _fiche_technique_url: serializeFicheUrls(updatedUrls),
+        } as any);
       }
-      toast.success('Fiche technique téléchargée');
+      toast.success(`${newUrls.length} fiche(s) technique(s) ajoutée(s)`);
     } catch (err) {
       console.error(err);
       toast.error('Erreur lors du téléchargement');
     } finally {
       setIsUploadingFiche(false);
     }
-  }, [editingVariant]);
+  }, [editingVariant, formData.fiche_urls, uploadBlobToStorage]);
+
+  const handleRemoveFiche = useCallback(async (index: number) => {
+    const updatedUrls = formData.fiche_urls.filter((_, i) => i !== index);
+    setFormData(prev => ({ ...prev, fiche_urls: updatedUrls }));
+
+    // If editing, save directly
+    if (editingVariant) {
+      await supabase.rpc('update_product_fiche_technique', {
+        _product_id: editingVariant.id,
+        _fiche_technique_url: serializeFicheUrls(updatedUrls),
+      } as any);
+      toast.success('Fiche technique supprimée');
+    }
+  }, [editingVariant, formData.fiche_urls]);
 
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
@@ -229,13 +263,14 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
 
     setIsSubmitting(true);
     try {
+      const serializedFiches = serializeFicheUrls(formData.fiche_urls);
+
       if (ficheOnlyMode && editingVariant) {
-        // Only update fiche technique via secure RPC
         await supabase.rpc('update_product_fiche_technique', {
           _product_id: editingVariant.id,
-          _fiche_technique_url: formData.fiche_technique_url ?? '',
+          _fiche_technique_url: serializedFiches,
         } as any);
-        toast.success('Fiche technique mise à jour');
+        toast.success('Fiches techniques mises à jour');
       } else if (editingVariant) {
         await updateProduct(editingVariant.id, {
           sku: formData.sku,
@@ -246,10 +281,9 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           remise: formData.remise,
           image: formData.image
         });
-        // Save fiche technique via secure RPC
         await supabase.rpc('update_product_fiche_technique', {
           _product_id: editingVariant.id,
-          _fiche_technique_url: formData.fiche_technique_url ?? '',
+          _fiche_technique_url: serializedFiches,
         } as any);
         toast.success('Variante mise à jour');
       } else {
@@ -266,12 +300,11 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           toast.error(result.error || 'Erreur lors de la création');
           return;
         }
-        // Save fiche technique via secure RPC
-        if (formData.fiche_technique_url && result.id) {
+        if (formData.fiche_urls.length > 0 && result.id) {
           await supabase.rpc('update_product_fiche_technique', {
             _product_id: result.id,
-            _fiche_technique_url: formData.fiche_technique_url,
-          });
+            _fiche_technique_url: serializedFiches,
+          } as any);
         }
         toast.success('Variante créée');
       }
@@ -287,7 +320,6 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
 
   const handleDelete = useCallback(async (variant: Product) => {
     if (!window.confirm(`Supprimer la variante "${variant.sku}" ?`)) return;
-    
     try {
       await deleteProduct(variant.id);
       toast.success('Variante supprimée');
@@ -296,6 +328,11 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
       toast.error('Erreur lors de la suppression');
     }
   }, [fetchVariants]);
+
+  const openPreview = useCallback((urls: string[], startIndex = 0) => {
+    setPreviewFicheUrls(urls);
+    setPreviewFicheIndex(startIndex);
+  }, []);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -308,11 +345,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           </Button>
           <div className="flex items-center gap-4">
             {group.image ? (
-              <img 
-                src={group.image} 
-                alt={group.name}
-                className="w-16 h-16 rounded-lg object-cover"
-              />
+              <img src={group.image} alt={group.name} className="w-16 h-16 rounded-lg object-cover" />
             ) : (
               <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
                 <Package className="w-8 h-8 text-muted-foreground" />
@@ -362,30 +395,18 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           <p className="text-sm text-muted-foreground">Fournisseurs</p>
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
             {group.fournisseurs.map((f, index) => (
-              <div 
-                key={f.id || index}
-                className="flex-shrink-0 bg-muted/50 rounded-lg px-4 py-2 border border-border"
-              >
+              <div key={f.id || index} className="flex-shrink-0 bg-muted/50 rounded-lg px-4 py-2 border border-border">
                 <p className="font-medium text-foreground whitespace-nowrap">{f.fournisseur_name}</p>
                 <p className="text-sm text-primary whitespace-nowrap">{f.prix_ttc.toFixed(3)} TND</p>
                 {f.fiche_technique_url && (
                   <div className="flex items-center gap-1.5 mt-1.5">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs gap-1"
-                      onClick={() => setPreviewFicheUrl(f.fiche_technique_url!)}
+                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1"
+                      onClick={() => openPreview(parseFicheUrls(f.fiche_technique_url))}
                     >
-                      <Eye className="w-3 h-3" />
-                      Voir
+                      <Eye className="w-3 h-3" /> Voir
                     </Button>
-                    <a
-                      href={f.fiche_technique_url}
-                      download
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-xs hover:bg-muted transition-colors"
-                    >
+                    <a href={f.fiche_technique_url} download target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-xs hover:bg-muted transition-colors">
                       <Download className="w-3 h-3" />
                     </a>
                   </div>
@@ -425,7 +446,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                 <TableHead className="text-right">Remise %</TableHead>
                 <TableHead className="text-right">Prix TTC</TableHead>
                 <TableHead>Statut</TableHead>
-                <TableHead>Fiche Technique</TableHead>
+                <TableHead>Fiches Techniques</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -433,84 +454,53 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
               {variants.map((variant) => {
                 const status = getStockStatus(variant);
                 const style = statusStyles[status];
-                const ficheUrl = variant.fiche_technique_url;
+                const ficheUrls = parseFicheUrls(variant.fiche_technique_url);
                 
-                  return (
-                    <TableRow key={variant.id}>
-                      <TableCell className="font-mono text-sm">{variant.sku}</TableCell>
-                      <TableCell>{variant.size || '-'}</TableCell>
-                      <TableCell>{variant.color || '-'}</TableCell>
-                      <TableCell className="text-right font-medium">{variant.quantity}</TableCell>
-                      <TableCell className="text-right">{variant.price.toFixed(3)} TND</TableCell>
-                      <TableCell className="text-right">{variant.remise ? `${variant.remise}%` : '-'}</TableCell>
-                      <TableCell className="text-right font-medium text-primary">{variant.prix_ttc?.toFixed(3) || variant.price.toFixed(3)} TND</TableCell>
-                      <TableCell>
-                        <Badge className={`${style.bg} ${style.text} border-0`}>
-                          {style.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {ficheUrl ? (
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-2 text-xs gap-1"
-                              title="Prévisualiser"
-                              onClick={() => setPreviewFicheUrl(ficheUrl)}
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </Button>
-                            <a
-                              href={ficheUrl}
-                              download
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center justify-center h-7 w-7 rounded-md hover:bg-muted transition-colors"
-                              title="Télécharger"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                            </a>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
+                return (
+                  <TableRow key={variant.id}>
+                    <TableCell className="font-mono text-sm">{variant.sku}</TableCell>
+                    <TableCell>{variant.size || '-'}</TableCell>
+                    <TableCell>{variant.color || '-'}</TableCell>
+                    <TableCell className="text-right font-medium">{variant.quantity}</TableCell>
+                    <TableCell className="text-right">{variant.price.toFixed(3)} TND</TableCell>
+                    <TableCell className="text-right">{variant.remise ? `${variant.remise}%` : '-'}</TableCell>
+                    <TableCell className="text-right font-medium text-primary">{variant.prix_ttc?.toFixed(3) || variant.price.toFixed(3)} TND</TableCell>
+                    <TableCell>
+                      <Badge className={`${style.bg} ${style.text} border-0`}>{style.label}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {ficheUrls.length > 0 ? (
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1"
+                            title="Prévisualiser" onClick={() => openPreview(ficheUrls)}>
+                            <Images className="w-3.5 h-3.5" />
+                            <span>{ficheUrls.length}</span>
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          {isModerator ? (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleOpenModal(variant)}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(variant)}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              title="Gérer la fiche technique"
-                              onClick={() => {
-                                setFicheOnlyMode(true);
-                                handleOpenModal(variant);
-                              }}
-                            >
+                      <div className="flex justify-end gap-1">
+                        {isModerator ? (
+                          <>
+                            <Button variant="ghost" size="sm" onClick={() => handleOpenModal(variant)}>
                               <Edit className="w-4 h-4" />
                             </Button>
-                          )}
-                        </div>
-                      </TableCell>
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(variant)}
+                              className="text-destructive hover:text-destructive">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button variant="ghost" size="sm" title="Gérer les fiches techniques"
+                            onClick={() => { setFicheOnlyMode(true); handleOpenModal(variant); }}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -521,10 +511,10 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
 
       {/* Add/Edit Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {ficheOnlyMode ? 'Fiche Technique' : (editingVariant ? 'Modifier la variante' : 'Ajouter une variante')}
+              {ficheOnlyMode ? 'Fiches Techniques' : (editingVariant ? 'Modifier la variante' : 'Ajouter une variante')}
             </DialogTitle>
           </DialogHeader>
           
@@ -533,23 +523,15 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
               <>
                 {/* Image Upload */}
                 <div className="flex items-center gap-4">
-                  <div 
-                    className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed border-border hover:border-primary transition-colors"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
+                  <div className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed border-border hover:border-primary transition-colors"
+                    onClick={() => fileInputRef.current?.click()}>
                     {formData.image ? (
                       <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
                     ) : (
                       <Upload className="w-8 h-8 text-muted-foreground" />
                     )}
                   </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageUpload}
-                  />
+                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-foreground">Image de l'article</p>
                     <p className="text-xs text-muted-foreground">Cliquez pour télécharger (optionnel)</p>
@@ -558,72 +540,45 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
 
                 <div className="grid gap-2">
                   <Label htmlFor="sku">Code Article *</Label>
-                  <Input
-                    id="sku"
-                    value={formData.sku}
+                  <Input id="sku" value={formData.sku}
                     onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
-                    placeholder="ex: 00001P.C.N"
-                  />
+                    placeholder="ex: 00001P.C.N" />
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="size">Taille</Label>
-                    <Input
-                      id="size"
-                      value={formData.size}
+                    <Input id="size" value={formData.size}
                       onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
-                      placeholder="ex: 42, L, XL"
-                    />
+                      placeholder="ex: 42, L, XL" />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="color">Couleur</Label>
-                    <Input
-                      id="color"
-                      value={formData.color}
+                    <Input id="color" value={formData.color}
                       onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
-                      placeholder="ex: Noir, Bleu"
-                    />
+                      placeholder="ex: Noir, Bleu" />
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="quantity">Quantité</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      min="0"
-                      value={formData.quantity}
-                      onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value) || 0 }))}
-                    />
+                    <Input id="quantity" type="number" min="0" value={formData.quantity}
+                      onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value) || 0 }))} />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="price">Prix (TND)</Label>
-                    <Input
-                      id="price"
-                      type="number"
-                      min="0"
-                      step="0.001"
-                      value={formData.price}
-                      onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                    />
+                    <Input id="price" type="number" min="0" step="0.001" value={formData.price}
+                      onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))} />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="remise">Remise (%)</Label>
-                    <Input
-                      id="remise"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={formData.remise}
+                    <Input id="remise" type="number" min="0" max="100" step="0.1" value={formData.remise}
                       onChange={(e) => setFormData(prev => ({ ...prev, remise: parseFloat(e.target.value) || 0 }))}
-                      placeholder="0"
-                    />
+                      placeholder="0" />
                   </div>
                   <div className="grid gap-2">
                     <Label>Prix TTC (calculé)</Label>
@@ -635,87 +590,58 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
               </>
             )}
 
-            {/* Fiche technique upload */}
-            <div className="space-y-2">
-              <Label>Fiche Technique</Label>
-              <input
-                ref={ficheInputRef}
-                type="file"
-                accept=".pdf,image/jpeg,image/png,image/webp"
+            {/* Fiches techniques - multiple upload */}
+            <div className="space-y-3">
+              <Label>Fiches Techniques ({formData.fiche_urls.length})</Label>
+              <input ref={ficheInputRef} type="file" accept=".pdf,image/jpeg,image/png,image/webp" multiple
                 className="hidden"
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFicheUpload(file);
+                  if (e.target.files && e.target.files.length > 0) handleFicheUpload(e.target.files);
                   e.target.value = '';
                 }}
               />
-              {formData.fiche_technique_url ? (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border">
-                  <FileText className="w-5 h-5 text-primary flex-shrink-0" />
-                  <span className="text-sm text-foreground truncate flex-1">Fiche technique</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    onClick={() => setPreviewFicheUrl(formData.fiche_technique_url!)}
-                    title="Prévisualiser"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </Button>
-                  <a
-                    href={formData.fiche_technique_url}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-muted transition-colors"
-                    title="Télécharger"
-                  >
-                    <Download className="w-4 h-4" />
-                  </a>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2 text-xs gap-1"
-                    onClick={() => ficheInputRef.current?.click()}
-                    title="Remplacer"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    Modifier
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                    onClick={() => setFormData(prev => ({ ...prev, fiche_technique_url: null }))}
-                    title="Supprimer"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
+
+              {/* Grid of existing fiches */}
+              {formData.fiche_urls.length > 0 && (
+                <div className="grid grid-cols-3 gap-2">
+                  {formData.fiche_urls.map((url, idx) => (
+                    <div key={idx} className="relative group rounded-lg border border-border overflow-hidden bg-muted/30">
+                      <img src={url} alt={`Fiche ${idx + 1}`}
+                        className="w-full h-24 object-cover cursor-pointer"
+                        onClick={() => openPreview(formData.fiche_urls, idx)} />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
+                        <Button type="button" variant="ghost" size="sm"
+                          className="h-7 w-7 p-0 text-white hover:text-white hover:bg-white/20"
+                          onClick={() => openPreview(formData.fiche_urls, idx)}>
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm"
+                          className="h-7 w-7 p-0 text-white hover:text-destructive hover:bg-white/20"
+                          onClick={() => handleRemoveFiche(idx)}>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] text-center py-0.5">
+                        {idx + 1}/{formData.fiche_urls.length}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  disabled={isUploadingFiche}
-                  onClick={() => ficheInputRef.current?.click()}
-                >
-                  <Upload className="w-4 h-4" />
-                  {isUploadingFiche ? 'Envoi en cours...' : 'Ajouter une fiche technique'}
-                </Button>
               )}
-              <p className="text-xs text-muted-foreground">PDF, JPG, PNG ou WebP (max 10 Mo)</p>
+
+              <Button type="button" variant="outline" size="sm" className="gap-2 w-full"
+                disabled={isUploadingFiche} onClick={() => ficheInputRef.current?.click()}>
+                <Upload className="w-4 h-4" />
+                {isUploadingFiche ? 'Envoi en cours...' : 'Ajouter des fiches techniques'}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                PDF (toutes les pages converties en images), JPG, PNG ou WebP (max 20 Mo). Sélection multiple possible.
+              </p>
             </div>
           </div>
           
           <DialogFooter>
-            <Button variant="outline" onClick={handleCloseModal}>
-              Annuler
-            </Button>
+            <Button variant="outline" onClick={handleCloseModal}>Annuler</Button>
             <Button onClick={handleSubmit} disabled={isSubmitting}>
               {isSubmitting ? 'Enregistrement...' : (editingVariant ? 'Mettre à jour' : 'Créer')}
             </Button>
@@ -723,42 +649,57 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         </DialogContent>
       </Dialog>
 
-      {/* Fiche technique preview dialog */}
-      <Dialog open={!!previewFicheUrl} onOpenChange={() => setPreviewFicheUrl(null)}>
+      {/* Fiche technique gallery preview dialog */}
+      <Dialog open={previewFicheUrls.length > 0} onOpenChange={() => setPreviewFicheUrls([])}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Fiche Technique</DialogTitle>
+            <DialogTitle>
+              Fiche Technique {previewFicheUrls.length > 1 && `(${previewFicheIndex + 1}/${previewFicheUrls.length})`}
+            </DialogTitle>
           </DialogHeader>
-          {previewFicheUrl && (
+          {previewFicheUrls.length > 0 && (
             <div className="flex-1 overflow-auto min-h-0">
-              {previewFicheUrl.toLowerCase().endsWith('.pdf') ? (
-                <iframe
-                  src={previewFicheUrl}
-                  className="w-full h-[75vh] rounded-md border"
-                  title="Fiche technique PDF"
-                />
-              ) : (
-                <div className="overflow-auto max-h-[75vh]">
-                  <img
-                    src={previewFicheUrl}
-                    alt="Fiche technique"
-                    className="w-full h-auto rounded-md"
-                  />
+              <div className="overflow-auto max-h-[70vh]">
+                <img src={previewFicheUrls[previewFicheIndex]}
+                  alt={`Fiche technique ${previewFicheIndex + 1}`}
+                  className="w-full h-auto rounded-md" />
+              </div>
+
+              {/* Navigation + download */}
+              <div className="flex items-center justify-between mt-3">
+                <div className="flex gap-2">
+                  {previewFicheUrls.length > 1 && (
+                    <>
+                      <Button variant="outline" size="sm" disabled={previewFicheIndex === 0}
+                        onClick={() => setPreviewFicheIndex(i => i - 1)}>
+                        ← Précédent
+                      </Button>
+                      <Button variant="outline" size="sm" disabled={previewFicheIndex === previewFicheUrls.length - 1}
+                        onClick={() => setPreviewFicheIndex(i => i + 1)}>
+                        Suivant →
+                      </Button>
+                    </>
+                  )}
                 </div>
-              )}
-              <div className="flex justify-end mt-3">
-                <a
-                  href={previewFicheUrl}
-                  download
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
+                <a href={previewFicheUrls[previewFicheIndex]} download target="_blank" rel="noopener noreferrer">
                   <Button variant="outline" size="sm" className="gap-2">
-                    <Download className="w-4 h-4" />
-                    Télécharger
+                    <Download className="w-4 h-4" /> Télécharger
                   </Button>
                 </a>
               </div>
+
+              {/* Thumbnails */}
+              {previewFicheUrls.length > 1 && (
+                <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
+                  {previewFicheUrls.map((url, idx) => (
+                    <img key={idx} src={url} alt={`Page ${idx + 1}`}
+                      className={`w-16 h-16 object-cover rounded cursor-pointer border-2 flex-shrink-0 ${
+                        idx === previewFicheIndex ? 'border-primary' : 'border-transparent opacity-60 hover:opacity-100'
+                      }`}
+                      onClick={() => setPreviewFicheIndex(idx)} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
