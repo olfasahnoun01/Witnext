@@ -301,6 +301,35 @@ export const DevisForm = memo(({
     setDevisItems(prev => prev.filter((_, i) => i !== idx));
   }, [setDevisItems]);
 
+  // Inline edit state for devis items
+  const [editingItemIdx, setEditingItemIdx] = useState<number | null>(null);
+  const [editItemPrix, setEditItemPrix] = useState<number>(0);
+  const [editItemQty, setEditItemQty] = useState<number>(1);
+  const [editItemPrixAchat, setEditItemPrixAchat] = useState<number>(0);
+
+  const startEditItem = useCallback((idx: number) => {
+    const item = devisItems[idx];
+    setEditingItemIdx(idx);
+    setEditItemPrix(item.prix_ttc);
+    setEditItemQty(item.quantity);
+    setEditItemPrixAchat(item.prix_achat || 0);
+  }, [devisItems]);
+
+  const saveEditItem = useCallback(() => {
+    if (editingItemIdx === null) return;
+    setDevisItems(prev => prev.map((item, i) => i === editingItemIdx ? {
+      ...item,
+      prix_ttc: editItemPrix,
+      quantity: editItemQty,
+      ...(devisType === 'sortant' ? { prix_achat: editItemPrixAchat } : {}),
+    } : item));
+    setEditingItemIdx(null);
+  }, [editingItemIdx, editItemPrix, editItemQty, editItemPrixAchat, devisType, setDevisItems]);
+
+  const cancelEditItem = useCallback(() => {
+    setEditingItemIdx(null);
+  }, []);
+
   // New article creation
   const resetNewArticleForm = useCallback(() => {
     setNewArticle({ name: '', sku: '', category: '', size: '', quantity: 0, min_stock: 5, image: null, color: '' });
@@ -934,25 +963,58 @@ export const DevisForm = memo(({
           ) : (
             <div className="space-y-3">
               {devisItems.map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
-                  <div className="flex-1">
-                    <p className="font-medium text-foreground">{item.designation}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {item.fournisseur && `${item.fournisseur} • `}
-                      Qté: {item.quantity}
-                      {item.prix_achat != null && item.prix_achat > 0 && ` • Achat: ${item.prix_achat.toFixed(3)} TND`}
-                      {` • P.U: ${item.prix_ttc.toFixed(3)} TND`}
-                      {item.remise > 0 && ` • Remise: ${item.remise}% → ${(item.prix_ttc * (1 - item.remise / 100)).toFixed(3)} TND`}
-                      {(() => {
-                        const unitAfterRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
-                        return item.quantity > 1 ? ` = ${(unitAfterRemise * item.quantity).toFixed(3)} TND` : '';
-                      })()}
-                    </p>
-                    {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}
-                  </div>
-                  <button onClick={() => removeItem(idx)} className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                <div key={idx} className="p-4 rounded-lg bg-muted/50">
+                  {editingItemIdx === idx ? (
+                    <div className="space-y-3">
+                      <p className="font-medium text-foreground">{item.designation}</p>
+                      <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
+                          <input type="number" min="1" value={editItemQty} onChange={e => setEditItemQty(parseInt(e.target.value) || 1)} className="form-input" />
+                        </div>
+                        {devisType === 'sortant' && (
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
+                            <input type="number" min="0" step="0.001" value={editItemPrixAchat || ''} onChange={e => setEditItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
+                          </div>
+                        )}
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">P.U {isTtc ? 'TTC' : 'HT'}</label>
+                          <input type="number" min="0" step="0.001" value={editItemPrix || ''} onChange={e => setEditItemPrix(parseFloat(e.target.value) || 0)} className="form-input" />
+                        </div>
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <Button size="sm" variant="outline" onClick={cancelEditItem}><X className="w-3 h-3 mr-1" /> Annuler</Button>
+                        <Button size="sm" onClick={saveEditItem}><Check className="w-3 h-3 mr-1" /> Valider</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="font-medium text-foreground">{item.designation}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {item.fournisseur && `${item.fournisseur} • `}
+                          Qté: {item.quantity}
+                          {item.prix_achat != null && item.prix_achat > 0 && ` • Achat: ${item.prix_achat.toFixed(3)} TND`}
+                          {` • P.U: ${item.prix_ttc.toFixed(3)} TND`}
+                          {item.remise > 0 && ` • Remise: ${item.remise}% → ${(item.prix_ttc * (1 - item.remise / 100)).toFixed(3)} TND`}
+                          {(() => {
+                            const unitAfterRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
+                            return item.quantity > 1 ? ` = ${(unitAfterRemise * item.quantity).toFixed(3)} TND` : '';
+                          })()}
+                        </p>
+                        {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}
+                      </div>
+                      <div className="flex gap-1">
+                        <button onClick={() => startEditItem(idx)} className="p-2 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors">
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => removeItem(idx)} className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
