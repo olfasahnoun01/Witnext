@@ -202,9 +202,9 @@ export const DevisForm = memo(({
     setItemRemise(product.remise || 0);
     setItemQuantity(1);
     setItemDescription(`${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`);
-    // Prix d'achat = price from product (cost price HT), adjusted for TTC/HT mode
+    // Prix d'achat = price from product (cost price HT, always)
     const basePrixAchat = product.price || 0;
-    setItemPrixAchat(isTtc ? basePrixAchat * 1.19 : basePrixAchat);
+    setItemPrixAchat(basePrixAchat);
     setProductSearch('');
     setSearchResults([]);
   }, [isTtc, isEntrant]);
@@ -802,7 +802,7 @@ export const DevisForm = memo(({
                     </div>
                     {devisType === 'sortant' && (
                       <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">Prix Achat {isTtc ? 'TTC' : 'HT'}</label>
+                        <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
                         <input type="number" min="0" step="0.001" value={itemPrixAchat || ''} onChange={e => setItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
                       </div>
                     )}
@@ -840,7 +840,7 @@ export const DevisForm = memo(({
                     </div>
                     {devisType === 'sortant' && (
                       <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">Prix Achat {isTtc ? 'TTC' : 'HT'}</label>
+                        <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
                         <input type="number" min="0" step="0.001" value={itemPrixAchat || ''} onChange={e => setItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
                       </div>
                     )}
