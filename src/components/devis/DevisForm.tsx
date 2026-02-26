@@ -166,7 +166,7 @@ export const DevisForm = memo(({
       let query = supabase
         .from('products')
         .select('*')
-        .ilike('name', `%${debouncedSearch}%`);
+        .ilike('name', `${debouncedSearch}%`);
       
       // Filter by selected fournisseur in devis entrant
       if (isEntrant && thirdPartyName.trim()) {
