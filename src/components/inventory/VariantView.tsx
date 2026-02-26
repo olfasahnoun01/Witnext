@@ -198,10 +198,13 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     }
     setIsUploadingFiche(true);
     try {
-      const ext = file.name.split('.').pop() || 'pdf';
+      const { convertImageFileToWebp } = await import('@/lib/imageCompression');
+      const { blob, ext } = await convertImageFileToWebp(file);
       const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
       const filePath = `fiches/${fileName}`;
-      const { error: uploadError } = await supabase.storage.from('fiches-techniques').upload(filePath, file);
+      const { error: uploadError } = await supabase.storage.from('fiches-techniques').upload(filePath, blob, {
+        contentType: ext === 'pdf' ? 'application/pdf' : 'image/webp',
+      });
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
       setFormData(prev => ({ ...prev, fiche_technique_url: urlData.publicUrl }));

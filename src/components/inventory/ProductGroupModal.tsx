@@ -326,11 +326,15 @@ export const ProductGroupModal = ({
           }
           // Upload fiche technique if provided
           if (v.fiche_technique_file && result.id) {
-            const ext = v.fiche_technique_file.name.split('.').pop() || 'pdf';
-            const filePath = `${result.id}.${ext}`;
+            const { convertImageFileToWebp } = await import('@/lib/imageCompression');
+            const { blob, ext } = await convertImageFileToWebp(v.fiche_technique_file);
+            const filePath = `fiches/fiche_${result.id}_${Date.now()}.${ext}`;
             const { error: uploadError } = await supabase.storage
               .from('fiches-techniques')
-              .upload(filePath, v.fiche_technique_file, { upsert: true });
+              .upload(filePath, blob, {
+                upsert: true,
+                contentType: ext === 'pdf' ? 'application/pdf' : 'image/webp',
+              });
             if (!uploadError) {
               const { data: urlData } = supabase.storage
                 .from('fiches-techniques')
@@ -534,11 +538,22 @@ export const ProductGroupModal = ({
                     <div className="flex items-center gap-2">
                       <input
                         type="file"
-                        accept=".pdf,image/*"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp"
                         className="hidden"
                         id={`variant-fiche-${idx}`}
                         onChange={(e) => {
                           const file = e.target.files?.[0] || null;
+                          if (file) {
+                            const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+                            if (!allowedTypes.includes(file.type)) {
+                              toast.error('Format non supporté. Utilisez PDF, JPG, PNG ou WebP.');
+                              return;
+                            }
+                            if (file.size > 10 * 1024 * 1024) {
+                              toast.error('Fichier trop volumineux (max 10 Mo)');
+                              return;
+                            }
+                          }
                           setVariants(prev => prev.map((vv, i) => i === idx ? { ...vv, fiche_technique_file: file } : vv));
                         }}
                       />
