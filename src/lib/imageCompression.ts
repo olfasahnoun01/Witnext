@@ -142,20 +142,91 @@ export async function compressBase64Image(
 }
 
 /**
- * Convert an image File to a WebP Blob for storage upload
- * PDFs are returned as-is.
+ * Convert any file (image or PDF) to a WebP Blob for storage upload.
+ * PDFs are rendered (first page) then converted to WebP.
  */
 export async function convertImageFileToWebp(
   file: File,
   options: CompressionOptions = {}
 ): Promise<{ blob: Blob; ext: string }> {
-  // If it's a PDF, return as-is
-  if (file.type === 'application/pdf') {
-    return { blob: file, ext: 'pdf' };
-  }
-
   const opts = { ...DEFAULT_OPTIONS, ...options, maxWidth: 1920, maxHeight: 1920 };
 
+  if (file.type === 'application/pdf') {
+    return convertPdfToWebp(file, opts);
+  }
+
+  return convertImageBlobToWebp(file, opts);
+}
+
+/** Render first page of a PDF to a WebP blob */
+async function convertPdfToWebp(
+  file: File,
+  opts: CompressionOptions & { maxWidth: number; maxHeight: number }
+): Promise<{ blob: Blob; ext: string }> {
+  const pdfjsLib = await import('pdfjs-dist');
+  // Use the bundled worker
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.mjs',
+    import.meta.url
+  ).toString();
+
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const page = await pdf.getPage(1);
+
+  // Render at 2x scale for quality, then constrain to maxWidth/maxHeight
+  const scale = 2;
+  const viewport = page.getViewport({ scale });
+
+  const canvas = document.createElement('canvas');
+  let width = viewport.width;
+  let height = viewport.height;
+
+  if (width > opts.maxWidth || height > opts.maxHeight) {
+    const ratio = width / height;
+    if (width > height) {
+      width = opts.maxWidth;
+      height = width / ratio;
+    } else {
+      height = opts.maxHeight;
+      width = height * ratio;
+    }
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not get canvas context');
+
+  // Render into a temp canvas at original viewport size, then draw scaled
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width = viewport.width;
+  tmpCanvas.height = viewport.height;
+  const tmpCtx = tmpCanvas.getContext('2d')!;
+
+  await page.render({ canvasContext: tmpCtx, viewport }).promise;
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(tmpCanvas, 0, 0, width, height);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) { reject(new Error('WebP conversion failed')); return; }
+        resolve({ blob, ext: 'webp' });
+      },
+      'image/webp',
+      opts.quality ?? 0.7
+    );
+  });
+}
+
+/** Convert an image file/blob to WebP */
+function convertImageBlobToWebp(
+  file: Blob,
+  opts: CompressionOptions & { maxWidth: number; maxHeight: number }
+): Promise<{ blob: Blob; ext: string }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -164,13 +235,13 @@ export async function convertImageFileToWebp(
         const canvas = document.createElement('canvas');
         let { width, height } = img;
 
-        if (width > opts.maxWidth! || height > opts.maxHeight!) {
+        if (width > opts.maxWidth || height > opts.maxHeight) {
           const aspectRatio = width / height;
           if (width > height) {
-            width = Math.min(width, opts.maxWidth!);
+            width = Math.min(width, opts.maxWidth);
             height = width / aspectRatio;
           } else {
-            height = Math.min(height, opts.maxHeight!);
+            height = Math.min(height, opts.maxHeight);
             width = height * aspectRatio;
           }
         }
@@ -189,7 +260,7 @@ export async function convertImageFileToWebp(
             resolve({ blob, ext: 'webp' });
           },
           'image/webp',
-          opts.quality
+          opts.quality ?? 0.7
         );
       };
       img.onerror = () => reject(new Error('Failed to load image'));

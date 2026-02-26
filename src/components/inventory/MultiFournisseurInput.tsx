@@ -74,13 +74,14 @@ export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInput
 
     setUploadingIndex(index);
     try {
-      const ext = file.name.split('.').pop() || 'pdf';
+      const { convertImageFileToWebp } = await import('@/lib/imageCompression');
+      const { blob, ext } = await convertImageFileToWebp(file);
       const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
       const filePath = `fiches/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('fiches-techniques')
-        .upload(filePath, file);
+        .upload(filePath, blob, { contentType: 'image/webp' });
 
       if (uploadError) throw uploadError;
 
@@ -124,7 +125,7 @@ export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInput
     }
   }, [value, onChange]);
 
-  const isPdf = (url: string) => url.toLowerCase().endsWith('.pdf');
+  // All fiches are now WebP images (PDFs converted automatically)
 
   return (
     <div className="space-y-3">
@@ -298,21 +299,13 @@ export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInput
           </DialogHeader>
           {previewUrl && (
             <div className="flex-1 overflow-auto min-h-0">
-              {isPdf(previewUrl) ? (
-                <iframe
+              <div className="overflow-auto max-h-[75vh]">
+                <img
                   src={previewUrl}
-                  className="w-full h-[75vh] rounded-md border"
-                  title="Fiche technique PDF"
+                  alt="Fiche technique"
+                  className="w-full h-auto rounded-md"
                 />
-              ) : (
-                <div className="overflow-auto max-h-[75vh]">
-                  <img
-                    src={previewUrl}
-                    alt="Fiche technique"
-                    className="w-full h-auto rounded-md"
-                  />
-                </div>
-              )}
+              </div>
               <div className="flex justify-end mt-3">
                 <a
                   href={previewUrl}
