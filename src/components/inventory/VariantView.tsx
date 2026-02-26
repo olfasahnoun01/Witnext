@@ -124,17 +124,6 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   const handleOpenModal = useCallback(async (variant?: Product) => {
     if (variant) {
       setEditingVariant(variant);
-      // Fetch fresh fournisseur data to get the latest fiche_technique_url
-      let ficheUrl: string | null = null;
-      if (variant.fournisseur) {
-        const { data: freshFournisseurs } = await supabase
-          .from('product_group_fournisseurs')
-          .select('*')
-          .eq('product_group_id', group.id)
-          .eq('fournisseur_name', variant.fournisseur)
-          .maybeSingle();
-        ficheUrl = freshFournisseurs?.fiche_technique_url || null;
-      }
       setFormData({
         sku: variant.sku,
         size: variant.size || '',
@@ -143,7 +132,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         price: variant.price,
         remise: variant.remise || 0,
         image: variant.image || null,
-        fiche_technique_url: ficheUrl
+        fiche_technique_url: variant.fiche_technique_url || null
       });
     } else {
       setEditingVariant(null);
@@ -209,14 +198,11 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
       const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
       setFormData(prev => ({ ...prev, fiche_technique_url: urlData.publicUrl }));
 
-      // If editing, update the matching fournisseur entry in DB
+      // If editing, save directly on the product
       if (editingVariant) {
-        const matchedF = group.fournisseurs?.find(f => f.fournisseur_name === editingVariant.fournisseur);
-        if (matchedF?.id) {
-          await supabase.from('product_group_fournisseurs')
-            .update({ fiche_technique_url: urlData.publicUrl })
-            .eq('id', matchedF.id);
-        }
+        await supabase.from('products')
+          .update({ fiche_technique_url: urlData.publicUrl })
+          .eq('id', editingVariant.id);
       }
       toast.success('Fiche technique téléchargée');
     } catch (err) {
@@ -225,7 +211,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     } finally {
       setIsUploadingFiche(false);
     }
-  }, [editingVariant, group.fournisseurs]);
+  }, [editingVariant]);
 
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
@@ -243,13 +229,10 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     setIsSubmitting(true);
     try {
       if (ficheOnlyMode && editingVariant) {
-        // Only update fiche technique
-        const matchedF = group.fournisseurs?.find(f => f.fournisseur_name === editingVariant.fournisseur);
-        if (matchedF?.id) {
-          await supabase.from('product_group_fournisseurs')
-            .update({ fiche_technique_url: formData.fiche_technique_url || null })
-            .eq('id', matchedF.id);
-        }
+        // Only update fiche technique directly on the product
+        await supabase.from('products')
+          .update({ fiche_technique_url: formData.fiche_technique_url || null })
+          .eq('id', editingVariant.id);
         toast.success('Fiche technique mise à jour');
       } else if (editingVariant) {
         await updateProduct(editingVariant.id, {
@@ -261,13 +244,10 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           remise: formData.remise,
           image: formData.image
         });
-        // Update fiche technique on matching fournisseur
-        const matchedF = group.fournisseurs?.find(f => f.fournisseur_name === editingVariant.fournisseur);
-        if (matchedF?.id) {
-          await supabase.from('product_group_fournisseurs')
-            .update({ fiche_technique_url: formData.fiche_technique_url || null })
-            .eq('id', matchedF.id);
-        }
+        // Save fiche technique directly on the product
+        await supabase.from('products')
+          .update({ fiche_technique_url: formData.fiche_technique_url || null })
+          .eq('id', editingVariant.id);
         toast.success('Variante mise à jour');
       } else {
         const result = await createVariant(group.id, {
@@ -283,10 +263,11 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           toast.error(result.error || 'Erreur lors de la création');
           return;
         }
-        if (formData.fiche_technique_url && group.fournisseurs?.[0]?.id) {
-          await supabase.from('product_group_fournisseurs')
+        // Save fiche technique directly on the new product
+        if (formData.fiche_technique_url && result.id) {
+          await supabase.from('products')
             .update({ fiche_technique_url: formData.fiche_technique_url })
-            .eq('id', group.fournisseurs[0].id);
+            .eq('id', result.id);
         }
         toast.success('Variante créée');
       }
@@ -448,10 +429,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
               {variants.map((variant) => {
                 const status = getStockStatus(variant);
                 const style = statusStyles[status];
-                const matchedFournisseur = freshFournisseurs?.find(
-                  f => f.fournisseur_name === variant.fournisseur
-                );
-                const ficheUrl = matchedFournisseur?.fiche_technique_url;
+                const ficheUrl = variant.fiche_technique_url;
                 
                   return (
                     <TableRow key={variant.id}>
@@ -474,6 +452,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                               variant="ghost"
                               size="sm"
                               className="h-7 px-2 text-xs gap-1"
+                              title="Prévisualiser"
                               onClick={() => setPreviewFicheUrl(ficheUrl)}
                             >
                               <Eye className="w-3.5 h-3.5" />
@@ -484,6 +463,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center justify-center h-7 w-7 rounded-md hover:bg-muted transition-colors"
+                              title="Télécharger"
                             >
                               <Download className="w-3.5 h-3.5" />
                             </a>

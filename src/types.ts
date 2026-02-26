@@ -13,6 +13,7 @@ export interface Product {
   image: string | null;
   color: string | null;
   product_group_id?: number | null;
+  fiche_technique_url?: string | null;
 }
 
 export interface ProductGroupFournisseur {
