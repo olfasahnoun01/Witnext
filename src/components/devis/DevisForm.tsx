@@ -163,11 +163,17 @@ export const DevisForm = memo(({
     if (!debouncedSearch.trim()) { setSearchResults([]); return; }
     const search = async () => {
       setIsSearching(true);
-      const { data } = await supabase
+      let query = supabase
         .from('products')
         .select('*')
-        .or(`name.ilike.%${debouncedSearch}%,sku.ilike.%${debouncedSearch}%`)
-        .limit(10);
+        .or(`name.ilike.%${debouncedSearch}%,sku.ilike.%${debouncedSearch}%`);
+      
+      // Filter by selected fournisseur in devis entrant
+      if (isEntrant && thirdPartyName.trim()) {
+        query = query.eq('fournisseur', thirdPartyName.trim());
+      }
+      
+      const { data } = await query.limit(10);
       setSearchResults((data || []).map(p => ({
         ...p,
         fournisseur: p.fournisseur || '',
@@ -179,7 +185,7 @@ export const DevisForm = memo(({
       setIsSearching(false);
     };
     search();
-  }, [debouncedSearch]);
+  }, [debouncedSearch, isEntrant, thirdPartyName]);
 
   const selectExistingProduct = useCallback((product: Product) => {
     setSelectedProduct(product);
