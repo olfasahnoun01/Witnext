@@ -616,9 +616,9 @@ export const DevisForm = memo(({
 
   return (
     <>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:h-[calc(100vh-12rem)]">
         {/* Form */}
-        <div className="bg-card rounded-xl border border-border p-6 space-y-6">
+        <div className="bg-card rounded-xl border border-border p-6 space-y-6 lg:overflow-y-auto">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-foreground">
               {editingDevis ? 'Modifier Devis' : 'Nouveau Devis'}
@@ -951,8 +951,8 @@ export const DevisForm = memo(({
         </div>
 
         {/* Items Preview */}
-        <div className="bg-card rounded-xl border border-border p-6">
-          <div className="flex items-center justify-between mb-4">
+        <div className="bg-card rounded-xl border border-border p-6 lg:overflow-y-auto">
+          <div className="flex items-center justify-between mb-4 sticky top-0 bg-card z-10 pb-2">
             <h3 className="text-lg font-semibold text-foreground">Articles du Devis</h3>
             <span className="text-sm font-medium text-primary">
               Total {isTtc ? 'TTC' : 'HT'}: {totalAmount.toFixed(3)} TND
