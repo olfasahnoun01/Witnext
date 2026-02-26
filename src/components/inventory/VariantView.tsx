@@ -198,11 +198,12 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
       const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
       setFormData(prev => ({ ...prev, fiche_technique_url: urlData.publicUrl }));
 
-      // If editing, save directly on the product
+      // If editing, save directly on the product via secure RPC
       if (editingVariant) {
-        await supabase.from('products')
-          .update({ fiche_technique_url: urlData.publicUrl })
-          .eq('id', editingVariant.id);
+        await supabase.rpc('update_product_fiche_technique', {
+          _product_id: editingVariant.id,
+          _fiche_technique_url: urlData.publicUrl,
+        });
       }
       toast.success('Fiche technique téléchargée');
     } catch (err) {
@@ -229,10 +230,11 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     setIsSubmitting(true);
     try {
       if (ficheOnlyMode && editingVariant) {
-        // Only update fiche technique directly on the product
-        await supabase.from('products')
-          .update({ fiche_technique_url: formData.fiche_technique_url || null })
-          .eq('id', editingVariant.id);
+        // Only update fiche technique via secure RPC
+        await supabase.rpc('update_product_fiche_technique', {
+          _product_id: editingVariant.id,
+          _fiche_technique_url: formData.fiche_technique_url || null,
+        });
         toast.success('Fiche technique mise à jour');
       } else if (editingVariant) {
         await updateProduct(editingVariant.id, {
@@ -244,10 +246,11 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           remise: formData.remise,
           image: formData.image
         });
-        // Save fiche technique directly on the product
-        await supabase.from('products')
-          .update({ fiche_technique_url: formData.fiche_technique_url || null })
-          .eq('id', editingVariant.id);
+        // Save fiche technique via secure RPC
+        await supabase.rpc('update_product_fiche_technique', {
+          _product_id: editingVariant.id,
+          _fiche_technique_url: formData.fiche_technique_url || null,
+        });
         toast.success('Variante mise à jour');
       } else {
         const result = await createVariant(group.id, {
@@ -263,11 +266,12 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           toast.error(result.error || 'Erreur lors de la création');
           return;
         }
-        // Save fiche technique directly on the new product
+        // Save fiche technique via secure RPC
         if (formData.fiche_technique_url && result.id) {
-          await supabase.from('products')
-            .update({ fiche_technique_url: formData.fiche_technique_url })
-            .eq('id', result.id);
+          await supabase.rpc('update_product_fiche_technique', {
+            _product_id: result.id,
+            _fiche_technique_url: formData.fiche_technique_url,
+          });
         }
         toast.success('Variante créée');
       }
