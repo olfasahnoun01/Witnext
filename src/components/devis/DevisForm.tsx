@@ -191,18 +191,23 @@ export const DevisForm = memo(({
     setSelectedProduct(product);
     setItemDesignation(product.name);
     setItemFournisseur(product.fournisseur || '');
-    const priceTtc = product.prix_ttc || product.price * (1 - (product.remise || 0) / 100);
-    // For entrant: always show HT (divide TTC by 1.19); for sortant: depends on isTtc toggle
-    setItemPrixTtc(isEntrant ? priceTtc / 1.19 : (isTtc ? priceTtc : priceTtc / 1.19));
+    if (isEntrant) {
+      // For entrant: show HT price (divide TTC by 1.19)
+      const priceTtc = product.prix_ttc || product.price * (1 - (product.remise || 0) / 100);
+      setItemPrixTtc(priceTtc / 1.19);
+    } else {
+      // For sortant: prix de vente stays empty, only prix d'achat is pre-filled
+      setItemPrixTtc(0);
+    }
     setItemRemise(product.remise || 0);
     setItemQuantity(1);
     setItemDescription(`${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`);
-    // Prix d'achat = price from product (cost price), adjusted for TTC/HT mode
+    // Prix d'achat = price from product (cost price HT), adjusted for TTC/HT mode
     const basePrixAchat = product.price || 0;
     setItemPrixAchat(isTtc ? basePrixAchat * 1.19 : basePrixAchat);
     setProductSearch('');
     setSearchResults([]);
-  }, [isTtc]);
+  }, [isTtc, isEntrant]);
 
   useEffect(() => { setSelectedThirdPartyId(''); }, [devisType]);
 
