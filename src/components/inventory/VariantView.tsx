@@ -233,8 +233,8 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         // Only update fiche technique via secure RPC
         await supabase.rpc('update_product_fiche_technique', {
           _product_id: editingVariant.id,
-          _fiche_technique_url: formData.fiche_technique_url || null,
-        });
+          _fiche_technique_url: formData.fiche_technique_url ?? '',
+        } as any);
         toast.success('Fiche technique mise à jour');
       } else if (editingVariant) {
         await updateProduct(editingVariant.id, {
@@ -249,8 +249,8 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         // Save fiche technique via secure RPC
         await supabase.rpc('update_product_fiche_technique', {
           _product_id: editingVariant.id,
-          _fiche_technique_url: formData.fiche_technique_url || null,
-        });
+          _fiche_technique_url: formData.fiche_technique_url ?? '',
+        } as any);
         toast.success('Variante mise à jour');
       } else {
         const result = await createVariant(group.id, {
