@@ -306,6 +306,7 @@ export const DevisForm = memo(({
   const [editItemPrix, setEditItemPrix] = useState<number>(0);
   const [editItemQty, setEditItemQty] = useState<number>(1);
   const [editItemPrixAchat, setEditItemPrixAchat] = useState<number>(0);
+  const [editItemRemise, setEditItemRemise] = useState<number>(0);
 
   const startEditItem = useCallback((idx: number) => {
     const item = devisItems[idx];
@@ -313,6 +314,7 @@ export const DevisForm = memo(({
     setEditItemPrix(item.prix_ttc);
     setEditItemQty(item.quantity);
     setEditItemPrixAchat(item.prix_achat || 0);
+    setEditItemRemise(item.remise || 0);
   }, [devisItems]);
 
   const saveEditItem = useCallback(() => {
@@ -321,10 +323,11 @@ export const DevisForm = memo(({
       ...item,
       prix_ttc: editItemPrix,
       quantity: editItemQty,
+      remise: editItemRemise,
       ...(devisType === 'sortant' ? { prix_achat: editItemPrixAchat } : {}),
     } : item));
     setEditingItemIdx(null);
-  }, [editingItemIdx, editItemPrix, editItemQty, editItemPrixAchat, devisType, setDevisItems]);
+  }, [editingItemIdx, editItemPrix, editItemQty, editItemRemise, editItemPrixAchat, devisType, setDevisItems]);
 
   const cancelEditItem = useCallback(() => {
     setEditingItemIdx(null);
@@ -967,7 +970,7 @@ export const DevisForm = memo(({
                   {editingItemIdx === idx ? (
                     <div className="space-y-3">
                       <p className="font-medium text-foreground">{item.designation}</p>
-                      <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                      <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-2' : 'grid-cols-3'}`}>
                         <div>
                           <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
                           <input type="number" min="1" value={editItemQty} onChange={e => setEditItemQty(parseInt(e.target.value) || 1)} className="form-input" />
@@ -981,6 +984,10 @@ export const DevisForm = memo(({
                         <div>
                           <label className="text-xs text-muted-foreground mb-1 block">P.U {isTtc ? 'TTC' : 'HT'}</label>
                           <input type="number" min="0" step="0.001" value={editItemPrix || ''} onChange={e => setEditItemPrix(parseFloat(e.target.value) || 0)} className="form-input" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
+                          <input type="number" min="0" max="100" step="0.1" value={editItemRemise || ''} onChange={e => setEditItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
                         </div>
                       </div>
                       <div className="flex gap-2 justify-end">
