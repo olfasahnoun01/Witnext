@@ -163,8 +163,19 @@ async function convertPdfToWebp(
   file: File,
   opts: CompressionOptions & { maxWidth: number; maxHeight: number }
 ): Promise<{ blob: Blob; ext: string }> {
+  const blobs = await convertPdfAllPagesToWebp(file, opts);
+  return blobs[0];
+}
+
+/**
+ * Convert ALL pages of a PDF to WebP blobs.
+ */
+export async function convertPdfAllPagesToWebp(
+  file: File,
+  options: CompressionOptions = {}
+): Promise<{ blob: Blob; ext: string }[]> {
+  const opts = { maxWidth: 1920, maxHeight: 1920, quality: 0.7, ...options };
   const pdfjsLib = await import('pdfjs-dist');
-  // Use the bundled worker
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
     'pdfjs-dist/build/pdf.worker.mjs',
     import.meta.url
@@ -172,54 +183,57 @@ async function convertPdfToWebp(
 
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const page = await pdf.getPage(1);
+  const numPages = pdf.numPages;
+  const results: { blob: Blob; ext: string }[] = [];
 
-  // Render at 2x scale for quality, then constrain to maxWidth/maxHeight
-  const scale = 2;
-  const viewport = page.getViewport({ scale });
+  for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const scale = 2;
+    const viewport = page.getViewport({ scale });
 
-  const canvas = document.createElement('canvas');
-  let width = viewport.width;
-  let height = viewport.height;
+    let width = viewport.width;
+    let height = viewport.height;
 
-  if (width > opts.maxWidth || height > opts.maxHeight) {
-    const ratio = width / height;
-    if (width > height) {
-      width = opts.maxWidth;
-      height = width / ratio;
-    } else {
-      height = opts.maxHeight;
-      width = height * ratio;
+    if (width > opts.maxWidth || height > opts.maxHeight) {
+      const ratio = width / height;
+      if (width > height) {
+        width = opts.maxWidth;
+        height = width / ratio;
+      } else {
+        height = opts.maxHeight;
+        width = height * ratio;
+      }
     }
+
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = viewport.width;
+    tmpCanvas.height = viewport.height;
+    const tmpCtx = tmpCanvas.getContext('2d')!;
+    await page.render({ canvasContext: tmpCtx, viewport }).promise;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Could not get canvas context');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(tmpCanvas, 0, 0, width, height);
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => {
+          if (!b) { reject(new Error('WebP conversion failed')); return; }
+          resolve(b);
+        },
+        'image/webp',
+        opts.quality ?? 0.7
+      );
+    });
+    results.push({ blob, ext: 'webp' });
   }
 
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Could not get canvas context');
-
-  // Render into a temp canvas at original viewport size, then draw scaled
-  const tmpCanvas = document.createElement('canvas');
-  tmpCanvas.width = viewport.width;
-  tmpCanvas.height = viewport.height;
-  const tmpCtx = tmpCanvas.getContext('2d')!;
-
-  await page.render({ canvasContext: tmpCtx, viewport }).promise;
-
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(tmpCanvas, 0, 0, width, height);
-
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) { reject(new Error('WebP conversion failed')); return; }
-        resolve({ blob, ext: 'webp' });
-      },
-      'image/webp',
-      opts.quality ?? 0.7
-    );
-  });
+  return results;
 }
 
 /** Convert an image file/blob to WebP */
