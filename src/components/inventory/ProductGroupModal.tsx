@@ -206,14 +206,19 @@ export const ProductGroupModal = ({
     if (!validateStep1()) return;
     // Add one empty variant by default if none
     if (variants.length === 0) {
-      setVariants([{ sku: formData.base_sku || '', size: '', color: '', quantity: 0 }]);
+      const baseSku = formData.base_sku || '';
+      setVariants([{ sku: `${baseSku}-1`, size: '', color: '', quantity: 0 }]);
     }
     setStep(2);
   }, [validateStep1, variants.length, formData.base_sku]);
 
   // Add variant row
   const addVariantRow = useCallback(() => {
-    setVariants(prev => [...prev, { sku: formData.base_sku || '', size: '', color: '', quantity: 0 }]);
+    setVariants(prev => {
+      const nextIndex = prev.length + 1;
+      const baseSku = formData.base_sku || '';
+      return [...prev, { sku: `${baseSku}-${nextIndex}`, size: '', color: '', quantity: 0 }];
+    });
   }, [formData.base_sku]);
 
   // Remove variant row
