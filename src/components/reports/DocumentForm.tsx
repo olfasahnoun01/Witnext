@@ -120,6 +120,34 @@ export const DocumentForm = memo(({
   const thirdPartyLabel = isEntree ? 'Fournisseur' : 'Client';
   const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
 
+  // Inline editing state for document items
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
+  const [editItemQuantity, setEditItemQuantity] = useState(1);
+  const [editItemPrice, setEditItemPrice] = useState(0);
+  const [editItemDescription, setEditItemDescription] = useState('');
+
+  const startEditItem = useCallback((index: number) => {
+    const item = docItems[index];
+    setEditingItemIndex(index);
+    setEditItemQuantity(item.quantity);
+    setEditItemPrice(item.price ?? 0);
+    setEditItemDescription(item.description || '');
+  }, [docItems]);
+
+  const saveEditItem = useCallback(() => {
+    if (editingItemIndex === null) return;
+    setDocItems(prev => prev.map((item, i) => 
+      i === editingItemIndex
+        ? { ...item, quantity: editItemQuantity, price: showPrice ? editItemPrice : item.price, description: editItemDescription }
+        : item
+    ));
+    setEditingItemIndex(null);
+  }, [editingItemIndex, editItemQuantity, editItemPrice, editItemDescription, showPrice, setDocItems]);
+
+  const cancelEditItem = useCallback(() => {
+    setEditingItemIndex(null);
+  }, []);
+
   // State for fournisseurs and clients
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -436,24 +464,83 @@ export const DocumentForm = memo(({
             {docItems.map((item, index) => (
               <div
                 key={index}
-                className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                className="p-4 rounded-lg bg-muted/50"
               >
-                <div className="flex-1">
-                  <p className="font-medium text-foreground">{item.designation}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Réf: {item.ref} • Qté: {item.quantity}
-                    {item.price !== undefined && (item.price > 0 ? ` • ${item.price.toFixed(3)} TND` : ' • -')}
-                  </p>
-                  {item.description && (
-                    <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
-                  )}
-                </div>
-                <button
-                  onClick={() => removeDocItem(index)}
-                  className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {editingItemIndex === index ? (
+                  <div className="space-y-3">
+                    <p className="font-medium text-foreground">{item.designation}</p>
+                    <p className="text-xs text-muted-foreground">Réf: {item.ref}</p>
+                    <div className="flex gap-2 flex-wrap items-end">
+                      <div>
+                        <label className="text-xs text-muted-foreground">Quantité</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={editItemQuantity}
+                          onChange={(e) => setEditItemQuantity(parseInt(e.target.value) || 1)}
+                          className="form-input w-24"
+                        />
+                      </div>
+                      {showPrice && (
+                        <div>
+                          <label className="text-xs text-muted-foreground">Prix TND</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            value={editItemPrice || ''}
+                            onChange={(e) => setEditItemPrice(parseFloat(e.target.value) || 0)}
+                            className="form-input w-32"
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      value={editItemDescription}
+                      onChange={(e) => setEditItemDescription(e.target.value)}
+                      className="form-input"
+                      placeholder="Description (optionnel)"
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={saveEditItem}>
+                        Enregistrer
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={cancelEditItem}>
+                        Annuler
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="font-medium text-foreground">{item.designation}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Réf: {item.ref} • Qté: {item.quantity}
+                        {item.price !== undefined && (item.price > 0 ? ` • ${item.price.toFixed(3)} TND` : ' • -')}
+                      </p>
+                      {item.description && (
+                        <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => startEditItem(index)}
+                        className="p-2 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                        title="Modifier"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => removeDocItem(index)}
+                        className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Supprimer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
