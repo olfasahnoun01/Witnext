@@ -192,9 +192,9 @@ export const DevisForm = memo(({
     setItemDesignation(product.name);
     setItemFournisseur(product.fournisseur || '');
     if (isEntrant) {
-      // For entrant: show HT price (divide TTC by 1.19)
-      const priceTtc = product.prix_ttc || product.price * (1 - (product.remise || 0) / 100);
-      setItemPrixTtc(priceTtc / 1.19);
+      // For entrant: retrieved price is HT (product.price), TTC is calculated from it
+      const priceHt = product.price || 0;
+      setItemPrixTtc(priceHt);
     } else {
       // For sortant: prix de vente stays empty, only prix d'achat is pre-filled
       setItemPrixTtc(0);
