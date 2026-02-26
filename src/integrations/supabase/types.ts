@@ -520,7 +520,7 @@ export type Database = {
         Returns: boolean
       }
       update_product_fiche_technique: {
-        Args: { _fiche_technique_url: string; _product_id: number }
+        Args: { _fiche_technique_url?: string; _product_id: number }
         Returns: undefined
       }
     }
