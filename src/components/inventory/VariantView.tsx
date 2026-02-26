@@ -192,7 +192,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
       const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
       const filePath = `fiches/${fileName}`;
       const { error: uploadError } = await supabase.storage.from('fiches-techniques').upload(filePath, blob, {
-        contentType: ext === 'pdf' ? 'application/pdf' : 'image/webp',
+        contentType: 'image/webp',
       });
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);

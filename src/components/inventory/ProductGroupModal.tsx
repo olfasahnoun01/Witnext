@@ -333,7 +333,7 @@ export const ProductGroupModal = ({
               .from('fiches-techniques')
               .upload(filePath, blob, {
                 upsert: true,
-                contentType: ext === 'pdf' ? 'application/pdf' : 'image/webp',
+                contentType: 'image/webp',
               });
             if (!uploadError) {
               const { data: urlData } = supabase.storage
