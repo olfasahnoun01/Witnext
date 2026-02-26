@@ -239,9 +239,9 @@ export const DocumentForm = memo(({
   const ThirdPartyIcon = isEntree ? Building2 : Users;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:h-[calc(100vh-12rem)]">
       {/* Document Form */}
-      <div className="bg-card rounded-xl border border-border p-6 space-y-6">
+      <div className="bg-card rounded-xl border border-border p-6 space-y-6 lg:overflow-y-auto">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-foreground">
             {editingDocument ? 'Modifier Document' : 'Nouveau Document'}
@@ -449,8 +449,8 @@ export const DocumentForm = memo(({
       </div>
 
       {/* Preview / Items List */}
-      <div className="bg-card rounded-xl border border-border p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Articles du Document</h3>
+      <div className="bg-card rounded-xl border border-border p-6 lg:overflow-y-auto">
+        <h3 className="text-lg font-semibold text-foreground mb-4 sticky top-0 bg-card z-10 pb-2">Articles du Document</h3>
         
         {docItems.length === 0 ? (
           <div className="text-center py-12">
