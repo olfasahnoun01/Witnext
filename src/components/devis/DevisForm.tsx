@@ -934,69 +934,25 @@ export const DevisForm = memo(({
           ) : (
             <div className="space-y-3">
               {devisItems.map((item, idx) => (
-                <div key={idx} className="p-4 rounded-lg bg-muted/50 space-y-2">
-                  <div className="flex items-center justify-between">
+                <div key={idx} className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                  <div className="flex-1">
                     <p className="font-medium text-foreground">{item.designation}</p>
-                    <button onClick={() => removeItem(idx)} className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <p className="text-sm text-muted-foreground">
+                      {item.fournisseur && `${item.fournisseur} • `}
+                      Qté: {item.quantity}
+                      {item.prix_achat != null && item.prix_achat > 0 && ` • Achat: ${item.prix_achat.toFixed(3)} TND`}
+                      {` • P.U: ${item.prix_ttc.toFixed(3)} TND`}
+                      {item.remise > 0 && ` • Remise: ${item.remise}% → ${(item.prix_ttc * (1 - item.remise / 100)).toFixed(3)} TND`}
+                      {(() => {
+                        const unitAfterRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
+                        return item.quantity > 1 ? ` = ${(unitAfterRemise * item.quantity).toFixed(3)} TND` : '';
+                      })()}
+                    </p>
+                    {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}
                   </div>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex items-center gap-1">
-                      <label className="text-xs text-muted-foreground">Qté:</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={e => {
-                          const val = parseInt(e.target.value) || 1;
-                          setDevisItems(prev => prev.map((it, i) => i === idx ? { ...it, quantity: val } : it));
-                        }}
-                        className="form-input w-16 text-sm py-1 px-2"
-                      />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <label className="text-xs text-muted-foreground">P.U {isTtc ? 'TTC' : 'HT'}:</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.001"
-                        value={item.prix_ttc || ''}
-                        onChange={e => {
-                          const val = parseFloat(e.target.value) || 0;
-                          setDevisItems(prev => prev.map((it, i) => i === idx ? { ...it, prix_ttc: val } : it));
-                        }}
-                        className="form-input w-28 text-sm py-1 px-2"
-                      />
-                    </div>
-                    {devisType === 'sortant' && (
-                      <div className="flex items-center gap-1">
-                        <label className="text-xs text-muted-foreground">Achat HT:</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.001"
-                          value={item.prix_achat || ''}
-                          onChange={e => {
-                            const val = parseFloat(e.target.value) || 0;
-                            setDevisItems(prev => prev.map((it, i) => i === idx ? { ...it, prix_achat: val } : it));
-                          }}
-                          className="form-input w-28 text-sm py-1 px-2"
-                        />
-                      </div>
-                    )}
-                    {item.remise > 0 && (
-                      <span className="text-xs text-muted-foreground">Remise: {item.remise}%</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {item.fournisseur && `${item.fournisseur} • `}
-                    Total: {(() => {
-                      const unitAfterRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
-                      return (unitAfterRemise * item.quantity).toFixed(3);
-                    })()} TND
-                  </p>
-                  {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
+                  <button onClick={() => removeItem(idx)} className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               ))}
             </div>
