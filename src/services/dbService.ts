@@ -242,173 +242,119 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
   };
 };
 
-// Database schema definition for export/documentation
-const DATABASE_SCHEMA = {
-  version: 2,
-  tables: {
-    clients: {
-      columns: [
-        { name: 'id', type: 'integer', primary: true, auto_increment: true },
-        { name: 'nom', type: 'text', nullable: false },
-        { name: 'phone', type: 'text', nullable: true },
-        { name: 'location', type: 'text', nullable: true },
-        { name: 'matricule_fiscale', type: 'text', nullable: true },
-        { name: 'created_at', type: 'timestamp', default: 'now()' },
-        { name: 'updated_at', type: 'timestamp', default: 'now()' }
-      ]
-    },
-    fournisseurs: {
-      columns: [
-        { name: 'id', type: 'integer', primary: true, auto_increment: true },
-        { name: 'nom', type: 'text', nullable: false },
-        { name: 'specialite', type: 'text', nullable: false },
-        { name: 'phone', type: 'text', nullable: true },
-        { name: 'location', type: 'text', nullable: true },
-        { name: 'matricule_fiscale', type: 'text', nullable: true },
-        { name: 'created_at', type: 'timestamp', default: 'now()' },
-        { name: 'updated_at', type: 'timestamp', default: 'now()' }
-      ]
-    },
-    product_groups: {
-      columns: [
-        { name: 'id', type: 'integer', primary: true, auto_increment: true },
-        { name: 'name', type: 'text', nullable: false },
-        { name: 'category', type: 'text', nullable: false },
-        { name: 'base_sku', type: 'text', nullable: true },
-        { name: 'fournisseur', type: 'text', nullable: true },
-        { name: 'min_stock', type: 'integer', default: 5 },
-        { name: 'image', type: 'text', nullable: true },
-        { name: 'created_at', type: 'timestamp', default: 'now()' },
-        { name: 'updated_at', type: 'timestamp', default: 'now()' }
-      ]
-    },
-    products: {
-      columns: [
-        { name: 'id', type: 'integer', primary: true, auto_increment: true },
-        { name: 'name', type: 'text', nullable: false },
-        { name: 'sku', type: 'text', nullable: false, unique: true },
-        { name: 'category', type: 'text', nullable: false },
-        { name: 'fournisseur', type: 'text', nullable: true },
-        { name: 'size', type: 'text', nullable: true },
-        { name: 'color', type: 'text', nullable: true },
-        { name: 'quantity', type: 'integer', default: 0 },
-        { name: 'price', type: 'numeric', default: 0 },
-        { name: 'remise', type: 'numeric', default: 0 },
-        { name: 'prix_ttc', type: 'numeric', nullable: true },
-        { name: 'min_stock', type: 'integer', default: 5 },
-        { name: 'image', type: 'text', nullable: true },
-        { name: 'product_group_id', type: 'integer', nullable: true, references: 'product_groups.id' },
-        { name: 'created_at', type: 'timestamp', default: 'now()' },
-        { name: 'updated_at', type: 'timestamp', default: 'now()' }
-      ]
-    },
-    transactions: {
-      columns: [
-        { name: 'id', type: 'integer', primary: true, auto_increment: true },
-        { name: 'product_id', type: 'integer', nullable: false, references: 'products.id' },
-        { name: 'product_name', type: 'text', nullable: false },
-        { name: 'type', type: 'text', nullable: false },
-        { name: 'quantity', type: 'integer', nullable: false },
-        { name: 'date', type: 'timestamp', default: 'now()' },
-        { name: 'note', type: 'text', nullable: true },
-        { name: 'created_at', type: 'timestamp', default: 'now()' }
-      ]
-    },
-    documents: {
-      columns: [
-        { name: 'id', type: 'integer', primary: true, auto_increment: true },
-        { name: 'doc_number', type: 'text', nullable: false },
-        { name: 'type', type: 'text', nullable: false },
-        { name: 'doc_date', type: 'date', default: 'CURRENT_DATE' },
-        { name: 'items', type: 'jsonb', default: '[]' },
-        { name: 'total_amount', type: 'numeric', default: 0 },
-        { name: 'third_party_name', type: 'text', nullable: true },
-        { name: 'third_party_address', type: 'text', nullable: true },
-        { name: 'third_party_tax_id', type: 'text', nullable: true },
-        { name: 'transport_ref', type: 'text', nullable: true },
-        { name: 'validity', type: 'text', nullable: true },
-        { name: 'created_by', type: 'uuid', nullable: true },
-        { name: 'created_at', type: 'timestamp', default: 'now()' },
-        { name: 'updated_at', type: 'timestamp', default: 'now()' }
-      ]
-    },
-    orders: {
-      columns: [
-        { name: 'id', type: 'integer', primary: true, auto_increment: true },
-        { name: 'client_name', type: 'text', nullable: false },
-        { name: 'client_phone', type: 'text', nullable: true },
-        { name: 'client_description', type: 'text', nullable: true },
-        { name: 'items', type: 'jsonb', nullable: false },
-        { name: 'total_amount', type: 'numeric', default: 0 },
-        { name: 'status', type: 'text', default: 'En attente' },
-        { name: 'created_at', type: 'timestamp', default: 'now()' }
-      ]
-    },
-    product_group_fournisseurs: {
-      columns: [
-        { name: 'id', type: 'integer', primary: true, auto_increment: true },
-        { name: 'product_group_id', type: 'integer', nullable: false, references: 'product_groups.id' },
-        { name: 'fournisseur_name', type: 'text', nullable: false },
-        { name: 'prix_ttc', type: 'numeric', default: 0 },
-        { name: 'created_at', type: 'timestamp', default: 'now()' },
-        { name: 'updated_at', type: 'timestamp', default: 'now()' }
-      ]
+// Helper to fetch ALL rows from a table (handles Supabase 1000-row limit)
+const fetchAllRows = async (tableName: string): Promise<any[]> => {
+  const allRows: any[] = [];
+  const pageSize = 1000;
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await (supabase
+      .from(tableName as any)
+      .select('*') as any)
+      .order('id')
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error(`Error fetching ${tableName}:`, error);
+      break;
+    }
+
+    if (data && data.length > 0) {
+      allRows.push(...data);
+      from += pageSize;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
     }
   }
+
+  return allRows;
 };
 
-// Export/Import Database - exports ALL business data, schema, and storage files as ZIP
+// Same but for tables with uuid id
+const fetchAllRowsUuid = async (tableName: string, orderCol = 'created_at'): Promise<any[]> => {
+  const allRows: any[] = [];
+  const pageSize = 1000;
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await (supabase
+      .from(tableName as any)
+      .select('*') as any)
+      .order(orderCol)
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error(`Error fetching ${tableName}:`, error);
+      break;
+    }
+
+    if (data && data.length > 0) {
+      allRows.push(...data);
+      from += pageSize;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allRows;
+};
+
+// Export/Import Database - exports ALL data and storage files as ZIP
 export const exportDatabase = async (onProgress?: (message: string) => void): Promise<Blob | null> => {
   try {
     onProgress?.('Récupération des données...');
     
-    // Fetch all business data tables
+    // Fetch ALL rows from every table (handles >1000 rows)
     const [
-      { data: products },
-      { data: transactions },
-      { data: clients },
-      { data: fournisseurs },
-      { data: documents },
-      { data: orders },
-      { data: product_groups },
-      { data: product_group_fournisseurs },
-      { data: devis }
+      products, transactions, clients, fournisseurs, documents,
+      orders, product_groups, product_group_fournisseurs, devis,
+      profiles, user_roles, user_presence, team_chat_messages
     ] = await Promise.all([
-      supabase.from('products').select('*').order('id'),
-      supabase.from('transactions').select('*').order('id'),
-      supabase.from('clients').select('*').order('id'),
-      supabase.from('fournisseurs').select('*').order('id'),
-      supabase.from('documents').select('*').order('id'),
-      supabase.from('orders').select('*').order('id'),
-      supabase.from('product_groups').select('*').order('id'),
-      supabase.from('product_group_fournisseurs').select('*').order('id'),
-      supabase.from('devis').select('*').order('id')
+      fetchAllRows('products'),
+      fetchAllRows('transactions'),
+      fetchAllRows('clients'),
+      fetchAllRows('fournisseurs'),
+      fetchAllRows('documents'),
+      fetchAllRows('orders'),
+      fetchAllRows('product_groups'),
+      fetchAllRows('product_group_fournisseurs'),
+      fetchAllRows('devis'),
+      fetchAllRowsUuid('profiles'),
+      fetchAllRowsUuid('user_roles'),
+      fetchAllRowsUuid('user_presence'),
+      fetchAllRowsUuid('team_chat_messages'),
     ]);
 
     const exportData = {
       _metadata: {
-        version: 3,
+        version: 4,
         exportDate: new Date().toISOString(),
         application: 'Grosafe Gestion',
         format: 'grosafe-backup'
       },
-      schema: DATABASE_SCHEMA,
       data: {
-        clients: clients || [],
-        fournisseurs: fournisseurs || [],
-        product_groups: product_groups || [],
-        products: products || [],
-        transactions: transactions || [],
-        documents: documents || [],
-        orders: orders || [],
-        product_group_fournisseurs: product_group_fournisseurs || [],
-        devis: devis || []
+        clients,
+        fournisseurs,
+        product_groups,
+        products,
+        transactions,
+        documents,
+        orders,
+        product_group_fournisseurs,
+        devis,
+        profiles,
+        user_roles,
+        user_presence,
+        team_chat_messages,
       }
     };
 
     const zip = new JSZip();
-    
-    // Add JSON data
     zip.file('data.json', JSON.stringify(exportData, null, 2));
 
     // Download all files from storage buckets
@@ -452,18 +398,19 @@ export const exportDatabase = async (onProgress?: (message: string) => void): Pr
   }
 };
 
-// Helper function to insert data into a table
+// Helper function to insert data into any table
 const insertTableData = async (
-  tableName: 'clients' | 'fournisseurs' | 'documents' | 'orders' | 'product_groups' | 'products' | 'product_group_fournisseurs' | 'transactions',
-  items: any[]
+  tableName: string,
+  items: any[],
+  stripId = true
 ): Promise<void> => {
   for (const item of items) {
     try {
-      const { id, ...itemData } = item;
+      const insertData = stripId ? (() => { const { id, ...rest } = item; return rest; })() : { ...item };
       
-      const { error } = await supabase
-        .from(tableName)
-        .insert(itemData as any);
+      const { error } = await (supabase
+        .from(tableName as any)
+        .insert(insertData as any) as any);
       
       if (error) {
         if (error.code === '23505') {
@@ -492,13 +439,11 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
       onProgress?.('Extraction du fichier ZIP...');
       const zip = await JSZip.loadAsync(arrayBuffer);
       
-      // Read data.json
       const dataFile = zip.file('data.json');
       if (!dataFile) throw new Error('Fichier data.json manquant dans le ZIP');
       const jsonString = await dataFile.async('string');
       importData = JSON.parse(jsonString);
 
-      // Collect storage files
       const fichesFolder = zip.folder('fiches-techniques');
       if (fichesFolder) {
         const filePromises: Promise<void>[] = [];
@@ -514,7 +459,6 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
         await Promise.all(filePromises);
       }
     } else {
-      // Legacy JSON format
       const decoder = new TextDecoder();
       const jsonString = decoder.decode(new Uint8Array(arrayBuffer));
       importData = JSON.parse(jsonString);
@@ -560,11 +504,17 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
       orders = [],
       product_groups = [],
       product_group_fournisseurs = [],
-      devis = []
+      devis = [],
+      profiles = [],
+      user_roles = [],
+      user_presence = [],
+      team_chat_messages = []
     } = dataToImport;
 
     // Delete in correct order (respecting foreign key constraints)
     onProgress?.('Suppression des données existantes...');
+    await (supabase.from('team_chat_messages' as any).delete() as any).gte('created_at', '1970-01-01');
+    await (supabase.from('user_presence' as any).delete() as any).gte('last_seen', '1970-01-01');
     await supabase.from('transactions').delete().gte('id', 0);
     await supabase.from('product_group_fournisseurs').delete().gte('id', 0);
     await supabase.from('products').delete().gte('id', 0);
@@ -586,16 +536,7 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
     await insertTableData('documents', documents);
 
     onProgress?.('Importation des devis...');
-    if (devis.length > 0) {
-      for (const item of devis) {
-        try {
-          const { id, ...itemData } = item;
-          await supabase.from('devis').insert(itemData as any);
-        } catch (err) {
-          console.error('Error importing devis item:', err);
-        }
-      }
-    }
+    await insertTableData('devis', devis);
 
     onProgress?.('Importation des commandes...');
     await insertTableData('orders', orders);
@@ -611,6 +552,27 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
 
     onProgress?.('Importation des transactions...');
     await insertTableData('transactions', transactions);
+
+    // Import user-related data (profiles, roles, presence, chat)
+    if (profiles.length > 0) {
+      onProgress?.('Importation des profils...');
+      await insertTableData('profiles', profiles, false);
+    }
+
+    if (user_roles.length > 0) {
+      onProgress?.('Importation des rôles...');
+      await insertTableData('user_roles', user_roles, false);
+    }
+
+    if (user_presence.length > 0) {
+      onProgress?.('Importation de la présence...');
+      await insertTableData('user_presence', user_presence, false);
+    }
+
+    if (team_chat_messages.length > 0) {
+      onProgress?.('Importation des messages...');
+      await insertTableData('team_chat_messages', team_chat_messages, false);
+    }
 
     // Upload storage files
     if (storageFiles.length > 0) {
