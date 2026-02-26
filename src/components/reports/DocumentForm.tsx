@@ -436,24 +436,61 @@ export const DocumentForm = memo(({
             {docItems.map((item, index) => (
               <div
                 key={index}
-                className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                className="p-4 rounded-lg bg-muted/50 space-y-2"
               >
-                <div className="flex-1">
+                <div className="flex items-center justify-between">
                   <p className="font-medium text-foreground">{item.designation}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Réf: {item.ref} • Qté: {item.quantity}
-                    {item.price !== undefined && (item.price > 0 ? ` • ${item.price.toFixed(3)} TND` : ' • -')}
-                  </p>
-                  {item.description && (
-                    <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
-                  )}
+                  <button
+                    onClick={() => removeDocItem(index)}
+                    className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => removeDocItem(index)}
-                  className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <p className="text-xs text-muted-foreground">Réf: {item.ref}</p>
+                <div className="flex gap-2 flex-wrap items-end">
+                  <div className="w-20">
+                    <label className="text-xs text-muted-foreground block mb-1">Qté</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={item.quantity}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 1;
+                        setDocItems(prev => prev.map((it, i) => i === index ? { ...it, quantity: val } : it));
+                      }}
+                      className="form-input h-8 text-sm"
+                    />
+                  </div>
+                  {showPrice && (
+                    <div className="w-28">
+                      <label className="text-xs text-muted-foreground block mb-1">Prix TND</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.001"
+                        value={item.price ?? ''}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setDocItems(prev => prev.map((it, i) => i === index ? { ...it, price: val } : it));
+                        }}
+                        className="form-input h-8 text-sm"
+                      />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-[120px]">
+                    <label className="text-xs text-muted-foreground block mb-1">Description</label>
+                    <input
+                      type="text"
+                      value={item.description || ''}
+                      onChange={(e) => {
+                        setDocItems(prev => prev.map((it, i) => i === index ? { ...it, description: e.target.value } : it));
+                      }}
+                      className="form-input h-8 text-sm"
+                      placeholder="Optionnel"
+                    />
+                  </div>
+                </div>
               </div>
             ))}
           </div>
