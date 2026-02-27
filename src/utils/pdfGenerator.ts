@@ -537,8 +537,9 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       row.push(`${totalTTC.toFixed(3)} DT`);
       return row;
     } else {
-      // prix_ttc is ALWAYS stored as TTC, so always divide to get HT
-      const prixHT = item.prix_ttc / (1 + TVA_RATE);
+      // For entrant devis, prix_ttc is ALWAYS stored as TTC (HT * 1.19), so divide to get HT
+      const isEntrantDevis = devis.type === 'entrant';
+      const prixHT = isEntrantDevis ? item.prix_ttc / (1 + TVA_RATE) : item.prix_ttc;
       const prixApresRemise = item.remise > 0 ? prixHT * (1 - item.remise / 100) : prixHT;
       const totalHT = prixApresRemise * item.quantity;
       const prixAchatHT = item.prix_achat != null && item.prix_achat > 0 ? item.prix_achat / (1 + TVA_RATE) : 0;
