@@ -625,9 +625,9 @@ export const DevisForm = memo(({
       totalTVA += lineTVA;
       totalTTC += lineNet + lineTVA;
     });
-    return { totalHT, totalRemise, totalNet, totalTVA, totalTTC };
+    return { totalHT, totalRemise, totalNet, totalTVA, totalTTC, totalFinal: totalTTC + 1 };
   }, [devisItems]);
-  const totalAmount = devisTotals.totalTTC;
+  const totalAmount = devisTotals.totalFinal;
   const thirdPartyList = isEntrant ? fournisseurs : clients;
   const ThirdPartyIcon = isEntrant ? Building2 : Users;
   const thirdPartyLabel = isEntrant ? 'Fournisseur (expéditeur)' : 'Client (destinataire)';
@@ -992,7 +992,7 @@ export const DevisForm = memo(({
           </div>
 
           {devisItems.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4 p-3 rounded-lg bg-muted/50 border border-border text-center text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4 p-3 rounded-lg bg-muted/50 border border-border text-center text-xs">
               <div>
                 <p className="text-muted-foreground">Total HT</p>
                 <p className="font-semibold text-foreground">{devisTotals.totalHT.toFixed(3)}</p>
@@ -1011,7 +1011,15 @@ export const DevisForm = memo(({
               </div>
               <div>
                 <p className="text-muted-foreground">Total TTC</p>
-                <p className="font-bold text-primary">{devisTotals.totalTTC.toFixed(3)} TND</p>
+                <p className="font-semibold text-foreground">{devisTotals.totalTTC.toFixed(3)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Timbre</p>
+                <p className="font-semibold text-foreground">1.000</p>
+              </div>
+              <div className="col-span-2 sm:col-span-3 border-t border-border pt-2 mt-1">
+                <p className="text-muted-foreground">Total Final</p>
+                <p className="font-bold text-primary text-sm">{devisTotals.totalFinal.toFixed(3)} TND</p>
               </div>
             </div>
           )}
