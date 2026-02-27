@@ -355,40 +355,40 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                       <>
                         <tr className="border-t-2 border-border">
                           <td colSpan={colSpan} />
-                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground">Total HT</td>
-                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground">{totalHT.toFixed(3)} TND</td>
+                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Total HT</td>
+                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalHT.toFixed(3)} TND</td>
                         </tr>
                         {totalRemise > 0 && (
                           <tr>
                             <td colSpan={colSpan} />
-                            <td className="py-1.5 px-3 text-right text-sm text-muted-foreground">Remise</td>
-                            <td className="py-1.5 px-3 text-right text-sm font-medium text-destructive">-{totalRemise.toFixed(3)} TND</td>
+                            <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Remise</td>
+                            <td className="py-1.5 px-3 text-right text-sm font-medium text-destructive whitespace-nowrap">-{totalRemise.toFixed(3)} TND</td>
                           </tr>
                         )}
                         <tr>
                           <td colSpan={colSpan} />
-                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground">Net HT</td>
-                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground">{totalNet.toFixed(3)} TND</td>
+                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Net HT</td>
+                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalNet.toFixed(3)} TND</td>
                         </tr>
                         <tr>
                           <td colSpan={colSpan} />
-                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground">TVA</td>
-                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground">{totalTVA.toFixed(3)} TND</td>
+                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">TVA</td>
+                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalTVA.toFixed(3)} TND</td>
                         </tr>
                         <tr>
                           <td colSpan={colSpan} />
-                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground">Total TTC</td>
-                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground">{totalTTC.toFixed(3)} TND</td>
+                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Total TTC</td>
+                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalTTC.toFixed(3)} TND</td>
                         </tr>
                         <tr>
                           <td colSpan={colSpan} />
-                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground">Timbre fiscal</td>
-                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground">1.000 TND</td>
+                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Timbre fiscal</td>
+                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">1.000 TND</td>
                         </tr>
                         <tr className="border-t border-border">
                           <td colSpan={colSpan} />
-                          <td className="py-2 px-3 text-right font-semibold text-foreground">Total TTC</td>
-                          <td className="py-2 px-3 text-right font-bold text-primary">{(totalTTC + 1).toFixed(3)} TND</td>
+                          <td className="py-2 px-3 text-right font-semibold text-foreground whitespace-nowrap">Total TTC</td>
+                          <td className="py-2 px-3 text-right font-bold text-primary whitespace-nowrap">{(totalTTC + 1).toFixed(3)} TND</td>
                         </tr>
                       </>
                     );
