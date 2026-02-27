@@ -536,7 +536,7 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
         const filePromises: Promise<void>[] = [];
         fichesFolder.forEach((relativePath, zipEntry) => {
           if (!zipEntry.dir) {
-            // relativePath could be "ArticleName/file.webp" (v5) or "file.webp" (v4)
+            // relativePath could be "ArticleName/file.jpeg" (v5+) or "file.webp" (legacy v4/v5)
             const fileName = relativePath.split('/').pop() || relativePath;
             filePromises.push(
               zipEntry.async('blob').then(blob => {

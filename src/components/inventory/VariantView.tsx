@@ -145,7 +145,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         const compressedImage = await compressImage(file);
         const originalSize = file.size;
         const compressedSize = getBase64Size(compressedImage);
-        console.log(`Image compressed to WebP: ${formatBytes(originalSize)} → ${formatBytes(compressedSize)}`);
+        console.log(`Image compressed to JPEG: ${formatBytes(originalSize)} → ${formatBytes(compressedSize)}`);
         setFormData(prev => ({ ...prev, image: compressedImage }));
       } catch (error) {
         console.error('Error compressing image:', error);
@@ -157,7 +157,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
             canvas.width = img.width;
             canvas.height = img.height;
             canvas.getContext('2d')?.drawImage(img, 0, 0);
-            setFormData(prev => ({ ...prev, image: canvas.toDataURL('image/webp', 0.7) }));
+            setFormData(prev => ({ ...prev, image: canvas.toDataURL('image/jpeg', 1.0) }));
           };
           img.src = reader.result as string;
         };
@@ -167,10 +167,10 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   }, []);
 
   const uploadBlobToStorage = useCallback(async (blob: Blob): Promise<string> => {
-    const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.webp`;
+    const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.jpeg`;
     const filePath = `fiches/${fileName}`;
     const { error: uploadError } = await supabase.storage.from('fiches-techniques').upload(filePath, blob, {
-      contentType: 'image/webp',
+      contentType: 'image/jpeg',
     });
     if (uploadError) throw uploadError;
     const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
@@ -178,12 +178,12 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   }, []);
 
   const handleFicheUpload = useCallback(async (files: FileList) => {
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
     const fileArray = Array.from(files);
     
     for (const file of fileArray) {
       if (!allowedTypes.includes(file.type)) {
-        toast.error(`Format non supporté: ${file.name}. Utilisez PDF, JPG, PNG ou WebP.`);
+        toast.error(`Format non supporté: ${file.name}. Utilisez PDF, JPG ou PNG.`);
         return;
       }
       if (file.size > 20 * 1024 * 1024) {
@@ -198,9 +198,9 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
 
       for (const file of fileArray) {
         if (file.type === 'application/pdf') {
-          // Convert ALL pages to separate WebP images
-          const { convertPdfAllPagesToWebp } = await import('@/lib/imageCompression');
-          const pages = await convertPdfAllPagesToWebp(file);
+          // Convert ALL pages to separate JPEG images
+          const { convertPdfAllPagesToJpeg } = await import('@/lib/imageCompression');
+          const pages = await convertPdfAllPagesToJpeg(file);
           toast.info(`PDF "${file.name}": ${pages.length} page(s) détectée(s), conversion en cours...`);
           for (const page of pages) {
             const url = await uploadBlobToStorage(page.blob);
@@ -208,8 +208,8 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           }
         } else {
           // Single image
-          const { convertImageFileToWebp } = await import('@/lib/imageCompression');
-          const { blob } = await convertImageFileToWebp(file);
+          const { convertImageFileToJpeg } = await import('@/lib/imageCompression');
+          const { blob } = await convertImageFileToJpeg(file);
           const url = await uploadBlobToStorage(blob);
           newUrls.push(url);
         }
@@ -375,7 +375,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         const x = (pageW - w) / 2;
         const y = (pageH - h) / 2;
 
-        pdf.addImage(base64, 'WEBP', x, y, w, h);
+        pdf.addImage(base64, 'JPEG', x, y, w, h);
       }
 
       const fileName = `fiches_${variant.sku.replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
@@ -637,7 +637,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
             {/* Fiches techniques - multiple upload */}
             <div className="space-y-3">
               <Label>Fiches Techniques ({formData.fiche_urls.length})</Label>
-              <input ref={ficheInputRef} type="file" accept=".pdf,image/jpeg,image/png,image/webp" multiple
+              <input ref={ficheInputRef} type="file" accept=".pdf,image/jpeg,image/png" multiple
                 className="hidden"
                 onChange={(e) => {
                   if (e.target.files && e.target.files.length > 0) handleFicheUpload(e.target.files);
@@ -679,7 +679,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                 {isUploadingFiche ? 'Envoi en cours...' : 'Ajouter des fiches techniques'}
               </Button>
               <p className="text-xs text-muted-foreground">
-                PDF (toutes les pages converties en images), JPG, PNG ou WebP (max 20 Mo). Sélection multiple possible.
+                PDF (toutes les pages converties en images), JPG ou PNG (max 20 Mo). Sélection multiple possible.
               </p>
             </div>
           </div>

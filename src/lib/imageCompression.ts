@@ -1,6 +1,6 @@
 /**
  * Image compression utility
- * Compresses images before storage to reduce database load and improve performance
+ * Converts images to JPEG at full quality before storage
  */
 
 interface CompressionOptions {
@@ -12,14 +12,14 @@ interface CompressionOptions {
 const DEFAULT_OPTIONS: CompressionOptions = {
   maxWidth: 800,
   maxHeight: 800,
-  quality: 0.7,
+  quality: 1.0,
 };
 
 /**
  * Compress an image file
  * @param file - The image file to compress
  * @param options - Compression options
- * @returns Promise<string> - Base64 encoded compressed image
+ * @returns Promise<string> - Base64 encoded JPEG image
  */
 export async function compressImage(
   file: File,
@@ -37,10 +37,8 @@ export async function compressImage(
         const canvas = document.createElement('canvas');
         let { width, height } = img;
 
-        // Calculate new dimensions while maintaining aspect ratio
         if (width > opts.maxWidth! || height > opts.maxHeight!) {
           const aspectRatio = width / height;
-          
           if (width > height) {
             width = Math.min(width, opts.maxWidth!);
             height = width / aspectRatio;
@@ -59,13 +57,11 @@ export async function compressImage(
           return;
         }
 
-        // Draw image with smoothing for better quality
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Convert to base64 with compression
-        const compressedBase64 = canvas.toDataURL('image/webp', opts.quality);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 1.0);
         resolve(compressedBase64);
       };
 
@@ -88,7 +84,7 @@ export async function compressImage(
  * Compress an existing base64 image string
  * @param base64 - The base64 encoded image
  * @param options - Compression options
- * @returns Promise<string> - Compressed base64 image
+ * @returns Promise<string> - JPEG base64 image
  */
 export async function compressBase64Image(
   base64: string,
@@ -103,10 +99,8 @@ export async function compressBase64Image(
       const canvas = document.createElement('canvas');
       let { width, height } = img;
 
-      // Calculate new dimensions while maintaining aspect ratio
       if (width > opts.maxWidth! || height > opts.maxHeight!) {
         const aspectRatio = width / height;
-        
         if (width > height) {
           width = Math.min(width, opts.maxWidth!);
           height = width / aspectRatio;
@@ -129,7 +123,7 @@ export async function compressBase64Image(
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, width, height);
 
-      const compressedBase64 = canvas.toDataURL('image/webp', opts.quality);
+      const compressedBase64 = canvas.toDataURL('image/jpeg', 1.0);
       resolve(compressedBase64);
     };
 
@@ -142,39 +136,42 @@ export async function compressBase64Image(
 }
 
 /**
- * Convert any file (image or PDF) to a WebP Blob for storage upload.
- * PDFs are rendered (first page) then converted to WebP.
+ * Convert any file (image or PDF) to a JPEG Blob for storage upload.
+ * PDFs are rendered (first page) then converted to JPEG.
  */
-export async function convertImageFileToWebp(
+export async function convertImageFileToJpeg(
   file: File,
   options: CompressionOptions = {}
 ): Promise<{ blob: Blob; ext: string }> {
   const opts = { ...DEFAULT_OPTIONS, ...options, maxWidth: 1920, maxHeight: 1920 };
 
   if (file.type === 'application/pdf') {
-    return convertPdfToWebp(file, opts);
+    return convertPdfToJpeg(file, opts);
   }
 
-  return convertImageBlobToWebp(file, opts);
+  return convertImageBlobToJpeg(file, opts);
 }
 
-/** Render first page of a PDF to a WebP blob */
-async function convertPdfToWebp(
+/** Keep old name as alias for backward compatibility */
+export const convertImageFileToWebp = convertImageFileToJpeg;
+
+/** Render first page of a PDF to a JPEG blob */
+async function convertPdfToJpeg(
   file: File,
   opts: CompressionOptions & { maxWidth: number; maxHeight: number }
 ): Promise<{ blob: Blob; ext: string }> {
-  const blobs = await convertPdfAllPagesToWebp(file, opts);
+  const blobs = await convertPdfAllPagesToJpeg(file, opts);
   return blobs[0];
 }
 
 /**
- * Convert ALL pages of a PDF to WebP blobs.
+ * Convert ALL pages of a PDF to JPEG blobs.
  */
-export async function convertPdfAllPagesToWebp(
+export async function convertPdfAllPagesToJpeg(
   file: File,
   options: CompressionOptions = {}
 ): Promise<{ blob: Blob; ext: string }[]> {
-  const opts = { maxWidth: 1920, maxHeight: 1920, quality: 0.7, ...options };
+  const opts = { maxWidth: 1920, maxHeight: 1920, quality: 1.0, ...options };
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
     'pdfjs-dist/build/pdf.worker.mjs',
@@ -223,21 +220,24 @@ export async function convertPdfAllPagesToWebp(
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         (b) => {
-          if (!b) { reject(new Error('WebP conversion failed')); return; }
+          if (!b) { reject(new Error('JPEG conversion failed')); return; }
           resolve(b);
         },
-        'image/webp',
-        opts.quality ?? 0.7
+        'image/jpeg',
+        1.0
       );
     });
-    results.push({ blob, ext: 'webp' });
+    results.push({ blob, ext: 'jpeg' });
   }
 
   return results;
 }
 
-/** Convert an image file/blob to WebP */
-function convertImageBlobToWebp(
+/** Keep old name as alias for backward compatibility */
+export const convertPdfAllPagesToWebp = convertPdfAllPagesToJpeg;
+
+/** Convert an image file/blob to JPEG */
+function convertImageBlobToJpeg(
   file: Blob,
   opts: CompressionOptions & { maxWidth: number; maxHeight: number }
 ): Promise<{ blob: Blob; ext: string }> {
@@ -270,11 +270,11 @@ function convertImageBlobToWebp(
 
         canvas.toBlob(
           (blob) => {
-            if (!blob) { reject(new Error('WebP conversion failed')); return; }
-            resolve({ blob, ext: 'webp' });
+            if (!blob) { reject(new Error('JPEG conversion failed')); return; }
+            resolve({ blob, ext: 'jpeg' });
           },
-          'image/webp',
-          opts.quality ?? 0.7
+          'image/jpeg',
+          1.0
         );
       };
       img.onerror = () => reject(new Error('Failed to load image'));

@@ -167,7 +167,7 @@ export const ProductGroupModal = ({
         const compressedImage = await compressImage(file);
         const originalSize = file.size;
         const compressedSize = getBase64Size(compressedImage);
-        console.log(`Image compressed to WebP: ${formatBytes(originalSize)} → ${formatBytes(compressedSize)}`);
+        console.log(`Image compressed to JPEG: ${formatBytes(originalSize)} → ${formatBytes(compressedSize)}`);
         setFormData(prev => ({ ...prev, image: compressedImage }));
       } catch (error) {
         console.error('Error compressing image:', error);
@@ -179,7 +179,7 @@ export const ProductGroupModal = ({
             canvas.width = img.width;
             canvas.height = img.height;
             canvas.getContext('2d')?.drawImage(img, 0, 0);
-            setFormData(prev => ({ ...prev, image: canvas.toDataURL('image/webp', 0.7) }));
+            setFormData(prev => ({ ...prev, image: canvas.toDataURL('image/jpeg', 1.0) }));
           };
           img.src = reader.result as string;
         };
@@ -326,14 +326,14 @@ export const ProductGroupModal = ({
           }
           // Upload fiche technique if provided
           if (v.fiche_technique_file && result.id) {
-            const { convertImageFileToWebp } = await import('@/lib/imageCompression');
-            const { blob, ext } = await convertImageFileToWebp(v.fiche_technique_file);
+            const { convertImageFileToJpeg } = await import('@/lib/imageCompression');
+            const { blob, ext } = await convertImageFileToJpeg(v.fiche_technique_file);
             const filePath = `fiches/fiche_${result.id}_${Date.now()}.${ext}`;
             const { error: uploadError } = await supabase.storage
               .from('fiches-techniques')
               .upload(filePath, blob, {
                 upsert: true,
-                contentType: 'image/webp',
+                contentType: 'image/jpeg',
               });
             if (!uploadError) {
               const { data: urlData } = supabase.storage
@@ -538,15 +538,15 @@ export const ProductGroupModal = ({
                     <div className="flex items-center gap-2">
                       <input
                         type="file"
-                        accept=".pdf,.jpg,.jpeg,.png,.webp"
+                        accept=".pdf,.jpg,.jpeg,.png"
                         className="hidden"
                         id={`variant-fiche-${idx}`}
                         onChange={(e) => {
                           const file = e.target.files?.[0] || null;
                           if (file) {
-                            const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+                            const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
                             if (!allowedTypes.includes(file.type)) {
-                              toast.error('Format non supporté. Utilisez PDF, JPG, PNG ou WebP.');
+                              toast.error('Format non supporté. Utilisez PDF, JPG ou PNG.');
                               return;
                             }
                             if (file.size > 10 * 1024 * 1024) {
