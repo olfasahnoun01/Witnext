@@ -630,7 +630,8 @@ export const DevisForm = memo(({
       totalTVA += lineTVA;
       totalTTC += lineNet + lineTVA;
     });
-    return { totalHT, totalRemise, totalNet, totalTVA, totalTTC, totalFinal: totalTTC + 1 };
+    const totalFinalHT = totalNet + 1;
+    return { totalHT, totalRemise, totalNet, totalTVA, totalTTC, totalFinal: totalTTC + 1, totalFinalHT };
   }, [devisItems]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyList = isEntrant ? fournisseurs : clients;
@@ -1001,7 +1002,7 @@ export const DevisForm = memo(({
           </div>
 
           {devisItems.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4 p-3 rounded-lg bg-muted/50 border border-border text-center text-xs">
+            <div className={`grid ${isTtc ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'} gap-2 mb-4 p-3 rounded-lg bg-muted/50 border border-border text-center text-xs`}>
               <div>
                 <p className="text-muted-foreground">Total HT</p>
                 <p className="font-semibold text-foreground">{devisTotals.totalHT.toFixed(3)}</p>
@@ -1014,21 +1015,25 @@ export const DevisForm = memo(({
                 <p className="text-muted-foreground">Net HT</p>
                 <p className="font-semibold text-foreground">{devisTotals.totalNet.toFixed(3)}</p>
               </div>
-              <div>
-                <p className="text-muted-foreground">TVA</p>
-                <p className="font-semibold text-foreground">{devisTotals.totalTVA.toFixed(3)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Total TTC</p>
-                <p className="font-semibold text-foreground">{devisTotals.totalTTC.toFixed(3)}</p>
-              </div>
+              {isTtc && (
+                <div>
+                  <p className="text-muted-foreground">TVA</p>
+                  <p className="font-semibold text-foreground">{devisTotals.totalTVA.toFixed(3)}</p>
+                </div>
+              )}
+              {isTtc && (
+                <div>
+                  <p className="text-muted-foreground">Total TTC</p>
+                  <p className="font-semibold text-foreground">{devisTotals.totalTTC.toFixed(3)}</p>
+                </div>
+              )}
               <div>
                 <p className="text-muted-foreground">Timbre</p>
                 <p className="font-semibold text-foreground">1.000</p>
               </div>
-              <div className="col-span-2 sm:col-span-3 border-t border-border pt-2 mt-1">
-                <p className="text-muted-foreground">Total TTC</p>
-                <p className="font-bold text-primary text-sm">{devisTotals.totalFinal.toFixed(3)} TND</p>
+              <div className={`${isTtc ? 'col-span-2 sm:col-span-3' : 'col-span-2'} border-t border-border pt-2 mt-1`}>
+                <p className="text-muted-foreground">{isTtc ? 'Total TTC' : 'Total HT'}</p>
+                <p className="font-bold text-primary text-sm">{(isTtc ? devisTotals.totalFinal : devisTotals.totalFinalHT).toFixed(3)} TND</p>
               </div>
             </div>
           )}
