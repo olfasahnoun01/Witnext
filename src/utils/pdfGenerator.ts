@@ -597,7 +597,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
   drawTotalRow('Total HT', `${totalHT.toFixed(3)} TND`);
   if (totalRemise > 0) {
-    drawTotalRow('Remise', `-${totalRemise.toFixed(3)} TND`, false, [200, 50, 50]);
+    drawTotalRow('Remise', `-${totalRemise.toFixed(3)} TND`);
   }
   drawTotalRow('Net HT', `${totalNet.toFixed(3)} TND`);
   drawTotalRow('TVA', `${totalTVA.toFixed(3)} TND`);
