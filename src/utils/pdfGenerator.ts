@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Product, DocumentItem } from '@/types';
+import { computeDevisLine, computeDevisTotals } from '@/lib/devisPricing';
 import grosafeLogo from '@/assets/grosafe-logo.webp';
 
 export interface SavedDocument {
@@ -515,21 +516,17 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   // Items table
   const isTTC = devis.is_ttc;
 
+  const isSortantTTC = isTTC && devis.type === 'sortant';
+
   const tableData = devis.items.map((item, idx) => {
-    const tvaRate = (item.tva ?? 19) / 100;
-    
-    const prixApresRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
-    let sousTotal: number;
-    if (isTTC) {
-      sousTotal = prixApresRemise * item.quantity * (1 + tvaRate);
-    } else {
-      sousTotal = prixApresRemise * item.quantity;
-    }
+    const line = computeDevisLine(item, isSortantTTC);
+    const sousTotal = isTTC ? line.lineTTC : line.lineHT;
+    const prixUnitDisplay = (isSortantTTC ? line.unitHT : item.prix_ttc).toFixed(3);
     return [
       (idx + 1).toString(),
       item.designation,
       item.fournisseur || '-',
-      `${item.prix_ttc.toFixed(3)} TND`,
+      `${prixUnitDisplay} TND`,
       item.remise > 0 ? `${item.remise}%` : '-',
       ...(isTTC ? [`${item.tva ?? 19}%`] : []),
       item.quantity.toString(),
@@ -576,19 +573,9 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     margin: { left: 14, right: 14 }
   });
 
-  // Compute detailed totals
-  let totalHT = 0, totalRemise = 0, totalNet = 0, totalTVA = 0, totalTTC = 0;
-  devis.items.forEach(i => {
-    const lineHT = i.prix_ttc * i.quantity;
-    const remiseDT = i.remise > 0 ? lineHT * (i.remise / 100) : 0;
-    const lineNet = lineHT - remiseDT;
-    const lineTVA = lineNet * ((i.tva ?? 19) / 100);
-    totalHT += lineHT;
-    totalRemise += remiseDT;
-    totalNet += lineNet;
-    totalTVA += lineTVA;
-    totalTTC += lineNet + lineTVA;
-  });
+  // Compute detailed totals using shared helper
+  const totals = computeDevisTotals(devis.items, isSortantTTC);
+  const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
 
   const tableEndY = (doc as any).lastAutoTable?.finalY || 120;
   const totalFinal = totalTTC + 1;

@@ -1,5 +1,6 @@
 import { memo, useCallback, useState, useEffect, useMemo } from 'react';
 import { ProductGroupFournisseur } from '@/types';
+import { computeDevisTotals, computeDevisLine } from '@/lib/devisPricing';
 import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -617,22 +618,10 @@ export const DevisForm = memo(({
     return productGroups.filter(g => g.name.toLowerCase().includes(q));
   }, [productGroups, groupSearch]);
 
+  const isSortantTTC = isTtc && devisType === 'sortant';
   const devisTotals = useMemo(() => {
-    let totalHT = 0, totalRemise = 0, totalNet = 0, totalTVA = 0, totalTTC = 0;
-    devisItems.forEach(i => {
-      const lineHT = i.prix_ttc * i.quantity;
-      const remiseDT = i.remise > 0 ? lineHT * (i.remise / 100) : 0;
-      const lineNet = lineHT - remiseDT;
-      const lineTVA = lineNet * ((i.tva ?? 19) / 100);
-      totalHT += lineHT;
-      totalRemise += remiseDT;
-      totalNet += lineNet;
-      totalTVA += lineTVA;
-      totalTTC += lineNet + lineTVA;
-    });
-    const totalFinalHT = totalNet + 1;
-    return { totalHT, totalRemise, totalNet, totalTVA, totalTTC, totalFinal: totalTTC + 1, totalFinalHT };
-  }, [devisItems]);
+    return computeDevisTotals(devisItems, isSortantTTC);
+  }, [devisItems, isSortantTTC]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyList = isEntrant ? fournisseurs : clients;
   const ThirdPartyIcon = isEntrant ? Building2 : Users;
@@ -1094,10 +1083,16 @@ export const DevisForm = memo(({
                           {item.prix_achat != null && item.prix_achat > 0 && ` • Achat: ${item.prix_achat.toFixed(3)} TND`}
                           {` • P.U: ${item.prix_ttc.toFixed(3)} TND`}
                           {isTtc && ` • TVA: ${item.tva ?? 19}%`}
-                          {item.remise > 0 && ` • Remise: ${item.remise}% → ${(item.prix_ttc * (1 - item.remise / 100)).toFixed(3)} TND`}
                           {(() => {
-                            const unitAfterRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
-                            return item.quantity > 1 ? ` = ${(unitAfterRemise * item.quantity).toFixed(3)} TND` : '';
+                            const line = computeDevisLine(item, isSortantTTC);
+                            const unitAfter = isSortantTTC ? line.unitAfterRemiseTTC : line.unitAfterRemiseHT;
+                            const lineTotal = isSortantTTC ? line.lineTTC : line.lineHT;
+                            return (
+                              <>
+                                {item.remise > 0 && ` • Remise: ${item.remise}% → ${unitAfter.toFixed(3)} TND`}
+                                {item.quantity > 1 ? ` = ${lineTotal.toFixed(3)} TND` : ''}
+                              </>
+                            );
                           })()}
                         </p>
                         {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}
