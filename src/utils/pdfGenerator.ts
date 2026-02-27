@@ -598,16 +598,22 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   );
 
   autoTable(doc, {
-    startY: tableEndY + 4,
-    margin: { left: pageWidth - 104 },
-    tableWidth: 90,
+    startY: tableEndY + 6,
+    margin: { left: pageWidth - 110 },
+    tableWidth: 96,
     head: [],
     body: totalsRows,
-    theme: 'plain',
-    styles: { fontSize: 9, cellPadding: { top: 2, bottom: 2, left: 3, right: 3 }, textColor: [50, 50, 50] },
+    theme: 'grid',
+    styles: {
+      fontSize: 9,
+      cellPadding: { top: 3, bottom: 3, left: 5, right: 5 },
+      textColor: [40, 40, 40],
+      lineColor: [200, 200, 200],
+      lineWidth: 0.3,
+    },
     columnStyles: {
-      0: { halign: 'left', fontStyle: 'normal' },
-      1: { halign: 'right', fontStyle: 'normal' },
+      0: { halign: 'left', cellWidth: 40 },
+      1: { halign: 'right' },
     },
     didParseCell: (data) => {
       const isLastRow = data.row.index === totalsRows.length - 1;
@@ -616,6 +622,16 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
         data.cell.styles.textColor = [255, 255, 255];
         data.cell.styles.fontStyle = 'bold';
         data.cell.styles.fontSize = 11;
+        data.cell.styles.cellPadding = { top: 4, bottom: 4, left: 5, right: 5 };
+      } else if (data.row.index % 2 === 0) {
+        data.cell.styles.fillColor = [248, 249, 252];
+      } else {
+        data.cell.styles.fillColor = [255, 255, 255];
+      }
+      // Bold for Net HT and Total TTC rows (before last)
+      const label = String(totalsRows[data.row.index]?.[0] || '');
+      if (label === 'Net HT' || label === 'Total TTC') {
+        data.cell.styles.fontStyle = 'bold';
       }
     },
   });
