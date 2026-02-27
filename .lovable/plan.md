@@ -1,15 +1,24 @@
 
 
-## Plan: Hide TVA field when HT mode is selected
+## Problem
 
-When the user toggles the HT/TTC switch to HT (`isTtc === false`), hide the TVA % input field in three places within `DevisForm.tsx`:
+In `addItem()` (line 287 of `DevisForm.tsx`), when adding an article for an entrant devis, the code **always** converts the HT price to TTC:
 
-### Changes in `src/components/devis/DevisForm.tsx`
+```typescript
+const finalPrixTtc = isEntrant ? itemPrixTtc * (1 + tvaRate) : itemPrixTtc;
+```
 
-1. **Search mode TVA field** (lines 876-883): Wrap the TVA `<div>` with `{isTtc && (...)}` conditional
-2. **Manual mode TVA field** (lines 922-929): Same conditional wrapping
-3. **Inline edit TVA field** (lines 1057-1064): Same conditional wrapping
-4. **Item display TVA info** (line 1080): Hide the `TVA: X%` text in item summary when `!isTtc`
-5. **Grid column counts**: Adjust grid column classes where TVA field removal affects layout (lines 894, ~847 area for search mode grid)
-6. **Default TVA behavior**: When `!isTtc`, the TVA value should still default to 19% internally for calculations, just hidden from UI
+This runs even when `isTtc` is `false` (HT mode), so the stored unit price becomes a TTC value instead of the real HT value the user entered/selected.
+
+## Fix
+
+**File:** `src/components/devis/DevisForm.tsx`
+
+**Line 287** — Only convert HT→TTC when in TTC mode:
+
+```typescript
+const finalPrixTtc = isEntrant && isTtc ? itemPrixTtc * (1 + tvaRate) : itemPrixTtc;
+```
+
+This ensures that in HT mode, the prix vente U stays as the real HT value without any TVA conversion.
 
