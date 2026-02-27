@@ -284,7 +284,7 @@ export const DevisForm = memo(({
     if (!itemDesignation.trim()) { toast.error('Nom d\'article requis'); return; }
     const tvaRate = itemTva / 100;
     // For entrant: user enters HT, store as TTC (HT * (1 + tva))
-    const finalPrixTtc = isEntrant ? itemPrixTtc * (1 + tvaRate) : itemPrixTtc;
+    const finalPrixTtc = isEntrant && isTtc ? itemPrixTtc * (1 + tvaRate) : itemPrixTtc;
     setDevisItems(prev => [...prev, {
       designation: itemDesignation.trim(),
       fournisseur: itemFournisseur.trim(),
