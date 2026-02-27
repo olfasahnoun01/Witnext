@@ -285,7 +285,7 @@ export const DevisForm = memo(({
     if (!itemDesignation.trim()) { toast.error('Nom d\'article requis'); return; }
     const tvaRate = itemTva / 100;
     // For entrant: user enters HT, store as TTC (HT * (1 + tva))
-    const finalPrixTtc = isEntrant && isTtc ? itemPrixTtc * (1 + tvaRate) : itemPrixTtc;
+    const finalPrixTtc = itemPrixTtc;
     setDevisItems(prev => [...prev, {
       designation: itemDesignation.trim(),
       fournisseur: itemFournisseur.trim(),
@@ -620,8 +620,9 @@ export const DevisForm = memo(({
 
   const isSortantTTC = isTtc && devisType === 'sortant';
   const devisTotals = useMemo(() => {
-    return computeDevisTotals(devisItems, isSortantTTC);
-  }, [devisItems, isSortantTTC]);
+    const flag = isTtc && devisType === 'sortant';
+    return computeDevisTotals(devisItems, flag);
+  }, [devisItems, isTtc, devisType]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyList = isEntrant ? fournisseurs : clients;
   const ThirdPartyIcon = isEntrant ? Building2 : Users;
