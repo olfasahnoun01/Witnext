@@ -102,6 +102,7 @@ export interface DevisItem {
   quantity: number;
   description?: string;
   prix_achat?: number;
+  tva?: number; // 7, 13, or 19 (default 19)
 }
 
 export interface Devis {

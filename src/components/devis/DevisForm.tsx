@@ -116,6 +116,7 @@ export const DevisForm = memo(({
   const [itemQuantity, setItemQuantity] = useState<number>(1);
   const [itemDescription, setItemDescription] = useState('');
   const [itemPrixAchat, setItemPrixAchat] = useState<number>(0);
+  const [itemTva, setItemTva] = useState<number>(19);
 
   // New article dialog (full product creation popup)
   const [showNewArticle, setShowNewArticle] = useState(false);
@@ -276,8 +277,9 @@ export const DevisForm = memo(({
 
   const addItem = useCallback(() => {
     if (!itemDesignation.trim()) { toast.error('Nom d\'article requis'); return; }
-    // Store prix_ttc as the unit price BEFORE remise; remise is applied separately in totals
-    const finalPrixTtc = isEntrant ? itemPrixTtc * 1.19 : itemPrixTtc;
+    const tvaRate = itemTva / 100;
+    // For entrant: user enters HT, store as TTC (HT * (1 + tva))
+    const finalPrixTtc = isEntrant ? itemPrixTtc * (1 + tvaRate) : itemPrixTtc;
     setDevisItems(prev => [...prev, {
       designation: itemDesignation.trim(),
       fournisseur: itemFournisseur.trim(),
@@ -285,6 +287,7 @@ export const DevisForm = memo(({
       remise: itemRemise,
       quantity: itemQuantity,
       description: itemDescription.trim() || undefined,
+      tva: itemTva,
       ...(devisType === 'sortant' && itemPrixAchat > 0 ? { prix_achat: itemPrixAchat } : {}),
     }]);
     setItemDesignation('');
@@ -294,8 +297,9 @@ export const DevisForm = memo(({
     setItemQuantity(1);
     setItemDescription('');
     setItemPrixAchat(0);
+    setItemTva(19);
     setSelectedProduct(null);
-  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, devisType, isEntrant, setDevisItems]);
+  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, itemTva, devisType, isEntrant, setDevisItems]);
 
   const removeItem = useCallback((idx: number) => {
     setDevisItems(prev => prev.filter((_, i) => i !== idx));
@@ -307,6 +311,7 @@ export const DevisForm = memo(({
   const [editItemQty, setEditItemQty] = useState<number>(1);
   const [editItemPrixAchat, setEditItemPrixAchat] = useState<number>(0);
   const [editItemRemise, setEditItemRemise] = useState<number>(0);
+  const [editItemTva, setEditItemTva] = useState<number>(19);
 
   const startEditItem = useCallback((idx: number) => {
     const item = devisItems[idx];
@@ -315,6 +320,7 @@ export const DevisForm = memo(({
     setEditItemQty(item.quantity);
     setEditItemPrixAchat(item.prix_achat || 0);
     setEditItemRemise(item.remise || 0);
+    setEditItemTva(item.tva ?? 19);
   }, [devisItems]);
 
   const saveEditItem = useCallback(() => {
@@ -324,10 +330,11 @@ export const DevisForm = memo(({
       prix_ttc: editItemPrix,
       quantity: editItemQty,
       remise: editItemRemise,
+      tva: editItemTva,
       ...(devisType === 'sortant' ? { prix_achat: editItemPrixAchat } : {}),
     } : item));
     setEditingItemIdx(null);
-  }, [editingItemIdx, editItemPrix, editItemQty, editItemRemise, editItemPrixAchat, devisType, setDevisItems]);
+  }, [editingItemIdx, editItemPrix, editItemQty, editItemRemise, editItemTva, editItemPrixAchat, devisType, setDevisItems]);
 
   const cancelEditItem = useCallback(() => {
     setEditingItemIdx(null);
@@ -605,11 +612,12 @@ export const DevisForm = memo(({
     return productGroups.filter(g => g.name.toLowerCase().includes(q));
   }, [productGroups, groupSearch]);
 
-  const rawTotal = devisItems.reduce((s, i) => {
+  const totalAmount = devisItems.reduce((s, i) => {
     const priceAfterRemise = i.remise > 0 ? i.prix_ttc * (1 - i.remise / 100) : i.prix_ttc;
-    return s + priceAfterRemise * i.quantity;
+    const lineTotal = priceAfterRemise * i.quantity;
+    // prix_ttc is stored as TTC; if HT mode, convert each line using its own TVA rate
+    return s + (isTtc ? lineTotal : lineTotal / (1 + (i.tva ?? 19) / 100));
   }, 0);
-  const totalAmount = isTtc ? rawTotal : rawTotal / 1.19;
   const thirdPartyList = isEntrant ? fournisseurs : clients;
   const ThirdPartyIcon = isEntrant ? Building2 : Users;
   const thirdPartyLabel = isEntrant ? 'Fournisseur (expéditeur)' : 'Client (destinataire)';
@@ -845,15 +853,23 @@ export const DevisForm = memo(({
                     {isEntrant && isTtc && (
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Prix Vente TTC</label>
-                        <input type="number" min="0" step="0.001" value={parseFloat((itemPrixTtc * 1.19).toFixed(3)) || ''} onChange={e => {
+                        <input type="number" min="0" step="0.001" value={parseFloat((itemPrixTtc * (1 + itemTva / 100)).toFixed(3)) || ''} onChange={e => {
                           const ttcVal = parseFloat(e.target.value) || 0;
-                          setItemPrixTtc(ttcVal / 1.19);
+                          setItemPrixTtc(ttcVal / (1 + itemTva / 100));
                         }} className="form-input" />
                       </div>
                     )}
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
                       <input type="number" min="0" max="100" step="0.1" value={itemRemise || ''} onChange={e => setItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
+                      <select value={itemTva} onChange={e => setItemTva(Number(e.target.value))} className="form-input">
+                        <option value={7}>7%</option>
+                        <option value={13}>13%</option>
+                        <option value={19}>19%</option>
+                      </select>
                     </div>
                   </div>
                 </>
@@ -883,15 +899,23 @@ export const DevisForm = memo(({
                     {isEntrant && isTtc && (
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Prix Vente TTC</label>
-                        <input type="number" min="0" step="0.001" value={parseFloat((itemPrixTtc * 1.19).toFixed(3)) || ''} onChange={e => {
+                        <input type="number" min="0" step="0.001" value={parseFloat((itemPrixTtc * (1 + itemTva / 100)).toFixed(3)) || ''} onChange={e => {
                           const ttcVal = parseFloat(e.target.value) || 0;
-                          setItemPrixTtc(ttcVal / 1.19);
+                          setItemPrixTtc(ttcVal / (1 + itemTva / 100));
                         }} className="form-input" />
                       </div>
                     )}
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
                       <input type="number" min="0" max="100" step="0.1" value={itemRemise || ''} onChange={e => setItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
+                      <select value={itemTva} onChange={e => setItemTva(Number(e.target.value))} className="form-input">
+                        <option value={7}>7%</option>
+                        <option value={13}>13%</option>
+                        <option value={19}>19%</option>
+                      </select>
                     </div>
                   </div>
                 </>
@@ -902,16 +926,17 @@ export const DevisForm = memo(({
                   <span className="text-sm text-muted-foreground">Prix unitaire après remise : </span>
                   <span className="text-sm font-semibold text-foreground">
                     {(() => {
+                      const tvaRate = itemTva / 100;
                       const afterRemise = itemRemise > 0 ? itemPrixTtc * (1 - itemRemise / 100) : itemPrixTtc;
                       if (isEntrant) {
                         const unitHT = afterRemise;
-                        const unitTTC = unitHT * 1.19;
+                        const unitTTC = unitHT * (1 + tvaRate);
                         return isTtc
                           ? `${unitHT.toFixed(3)} HT — ${unitTTC.toFixed(3)} TTC`
                           : `${unitHT.toFixed(3)} HT`;
                       }
                       if (isTtc) {
-                        const unitHT = afterRemise / 1.19;
+                        const unitHT = afterRemise / (1 + tvaRate);
                         return `${unitHT.toFixed(3)} HT — ${afterRemise.toFixed(3)} TTC`;
                       }
                       return `${afterRemise.toFixed(3)} HT`;
@@ -989,6 +1014,14 @@ export const DevisForm = memo(({
                           <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
                           <input type="number" min="0" max="100" step="0.1" value={editItemRemise || ''} onChange={e => setEditItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
                         </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
+                          <select value={editItemTva} onChange={e => setEditItemTva(Number(e.target.value))} className="form-input">
+                            <option value={7}>7%</option>
+                            <option value={13}>13%</option>
+                            <option value={19}>19%</option>
+                          </select>
+                        </div>
                       </div>
                       <div className="flex gap-2 justify-end">
                         <Button size="sm" variant="outline" onClick={cancelEditItem}><X className="w-3 h-3 mr-1" /> Annuler</Button>
@@ -1004,6 +1037,7 @@ export const DevisForm = memo(({
                           Qté: {item.quantity}
                           {item.prix_achat != null && item.prix_achat > 0 && ` • Achat: ${item.prix_achat.toFixed(3)} TND`}
                           {` • P.U: ${item.prix_ttc.toFixed(3)} TND`}
+                          {` • TVA: ${item.tva ?? 19}%`}
                           {item.remise > 0 && ` • Remise: ${item.remise}% → ${(item.prix_ttc * (1 - item.remise / 100)).toFixed(3)} TND`}
                           {(() => {
                             const unitAfterRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
