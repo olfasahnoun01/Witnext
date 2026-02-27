@@ -371,7 +371,7 @@ export const DevisForm = memo(({
             canvas.width = img.width;
             canvas.height = img.height;
             canvas.getContext('2d')?.drawImage(img, 0, 0);
-            setNewArticle(prev => ({ ...prev, image: canvas.toDataURL('image/webp', 0.7) }));
+            setNewArticle(prev => ({ ...prev, image: canvas.toDataURL('image/jpeg', 1.0) }));
           };
           img.src = reader.result as string;
         };
@@ -476,16 +476,16 @@ export const DevisForm = memo(({
         const firstVariantId = data[0].id;
         if (newArticleFicheFiles.length > 0 && firstVariantId) {
           try {
-            const { convertImageFileToWebp, convertPdfAllPagesToWebp } = await import('@/lib/imageCompression');
+            const { convertImageFileToJpeg, convertPdfAllPagesToJpeg } = await import('@/lib/imageCompression');
             const uploadedUrls: string[] = [];
 
             for (const file of newArticleFicheFiles) {
               let blobs: { blob: Blob; ext: string }[] = [];
               if (file.type === 'application/pdf') {
-                blobs = await convertPdfAllPagesToWebp(file);
-                toast.info(`PDF "${file.name}": ${blobs.length} page(s) convertie(s) en WebP`);
+                blobs = await convertPdfAllPagesToJpeg(file);
+                toast.info(`PDF "${file.name}": ${blobs.length} page(s) convertie(s) en JPEG`);
               } else {
-                const convResult = await convertImageFileToWebp(file);
+                const convResult = await convertImageFileToJpeg(file);
                 blobs = [convResult];
               }
               for (const { blob, ext } of blobs) {
@@ -493,7 +493,7 @@ export const DevisForm = memo(({
                 const filePath = `fiches/${fileName}`;
                 const { error: uploadError } = await supabase.storage
                   .from('fiches-techniques')
-                  .upload(filePath, blob, { contentType: 'image/webp' });
+                  .upload(filePath, blob, { contentType: 'image/jpeg' });
                 if (uploadError) {
                   console.error('Storage upload error:', uploadError);
                   toast.error(`Erreur upload: ${uploadError.message}`);
@@ -651,19 +651,19 @@ export const DevisForm = memo(({
       if (!result.success) {
         toast.error(result.error || 'Erreur création variante');
       } else {
-        // Upload fiche technique files — convert all to WebP
+        // Upload fiche technique files — convert all to JPEG
         if (variantFicheFiles.length > 0 && result.id) {
           try {
-            const { convertImageFileToWebp, convertPdfAllPagesToWebp } = await import('@/lib/imageCompression');
+            const { convertImageFileToJpeg, convertPdfAllPagesToJpeg } = await import('@/lib/imageCompression');
             const uploadedUrls: string[] = [];
 
             for (const file of variantFicheFiles) {
               let blobs: { blob: Blob; ext: string }[] = [];
 
               if (file.type === 'application/pdf') {
-                blobs = await convertPdfAllPagesToWebp(file);
+                blobs = await convertPdfAllPagesToJpeg(file);
               } else {
-                const convResult = await convertImageFileToWebp(file);
+                const convResult = await convertImageFileToJpeg(file);
                 blobs = [convResult];
               }
 
@@ -672,7 +672,7 @@ export const DevisForm = memo(({
                 const filePath = `fiches/${fileName}`;
                 const { error: uploadError } = await supabase.storage
                   .from('fiches-techniques')
-                  .upload(filePath, blob, { contentType: 'image/webp' });
+                  .upload(filePath, blob, { contentType: 'image/jpeg' });
                 if (uploadError) {
                   console.error('Storage upload error:', uploadError);
                   toast.error(`Erreur upload: ${uploadError.message}`);
@@ -1403,7 +1403,7 @@ export const DevisForm = memo(({
                       e.target.value = '';
                     }}
                   />
-                  <span className="text-xs text-muted-foreground">Images & PDF (convertis en WebP)</span>
+                  <span className="text-xs text-muted-foreground">Images & PDF (convertis en JPEG)</span>
                 </div>
                 {newArticleFicheFiles.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-1">
@@ -1527,7 +1527,7 @@ export const DevisForm = memo(({
                     ref={variantFicheRef}
                     type="file"
                     multiple
-                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    accept=".pdf,.jpg,.jpeg,.png"
                     className="hidden"
                     onChange={e => {
                       const files = e.target.files;

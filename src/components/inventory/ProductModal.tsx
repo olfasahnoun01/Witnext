@@ -60,7 +60,7 @@ export const ProductModal = memo(({
             canvas.width = img.width;
             canvas.height = img.height;
             canvas.getContext('2d')?.drawImage(img, 0, 0);
-            onFormDataChange({ ...formData, image: canvas.toDataURL('image/webp', 0.7) });
+            onFormDataChange({ ...formData, image: canvas.toDataURL('image/jpeg', 1.0) });
           };
           img.src = reader.result as string;
         };
