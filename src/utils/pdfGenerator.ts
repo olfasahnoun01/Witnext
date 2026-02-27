@@ -521,9 +521,8 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
   const tableData = devis.items.map((item, idx) => {
     if (isTTC) {
-      // item.prix_ttc is already the price after discount (TTC), so reverse to get original
-      const prixApresRemiseHT = item.prix_ttc / (1 + TVA_RATE);
-      const prixVenteHTOriginal = item.remise > 0 ? prixApresRemiseHT / (1 - item.remise / 100) : prixApresRemiseHT;
+      const prixVenteHT = item.prix_ttc / (1 + TVA_RATE);
+      const prixApresRemiseHT = item.remise > 0 ? prixVenteHT * (1 - item.remise / 100) : prixVenteHT;
       const totalTTC = prixApresRemiseHT * (1 + TVA_RATE) * item.quantity;
       const row = [
         (idx + 1).toString(),
@@ -531,7 +530,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
         item.quantity.toString(),
       ];
       if (hasPrixAchat) row.push(item.prix_achat != null && item.prix_achat > 0 ? `${item.prix_achat.toFixed(3)} DT` : '-');
-      row.push(`${prixVenteHTOriginal.toFixed(3)} DT`);
+      row.push(`${prixVenteHT.toFixed(3)} DT`);
       row.push(item.remise > 0 ? `${item.remise}%` : '-');
       row.push(`${prixApresRemiseHT.toFixed(3)} DT`);
       row.push('19%');
@@ -540,9 +539,8 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     } else {
       // For entrant devis, prix_ttc is ALWAYS stored as TTC (HT * 1.19), so divide to get HT
       const isEntrantDevis = devis.type === 'entrant';
-      // item.prix_ttc is already the price after discount, reverse to get original
-      const prixApresRemise = isEntrantDevis ? item.prix_ttc / (1 + TVA_RATE) : item.prix_ttc;
-      const prixHTOriginal = item.remise > 0 ? prixApresRemise / (1 - item.remise / 100) : prixApresRemise;
+      const prixHT = isEntrantDevis ? item.prix_ttc / (1 + TVA_RATE) : item.prix_ttc;
+      const prixApresRemise = item.remise > 0 ? prixHT * (1 - item.remise / 100) : prixHT;
       const totalHT = prixApresRemise * item.quantity;
       const prixAchatHT = item.prix_achat != null && item.prix_achat > 0 ? item.prix_achat / (1 + TVA_RATE) : 0;
       const row = [
@@ -551,7 +549,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
         item.quantity.toString(),
       ];
       if (hasPrixAchat) row.push(prixAchatHT > 0 ? `${prixAchatHT.toFixed(3)} DT` : '-');
-      row.push(`${prixHTOriginal.toFixed(3)} DT`);
+      row.push(`${prixHT.toFixed(3)} DT`);
       row.push(item.remise > 0 ? `${item.remise}%` : '-');
       row.push(`${prixApresRemise.toFixed(3)} DT`);
       row.push('');
