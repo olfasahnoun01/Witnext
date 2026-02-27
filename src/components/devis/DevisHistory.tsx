@@ -327,11 +327,52 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-border">
-                    <td colSpan={itemsDevis.type === 'sortant' ? 8 : 7} />
-                    <td className="py-2 px-3 text-right font-semibold text-foreground">Total</td>
-                    <td className="py-2 px-3 text-right font-semibold text-primary">{itemsDevis.total_amount.toFixed(3)} TND</td>
-                  </tr>
+                  {(() => {
+                    let totalHT = 0, totalRemise = 0, totalNet = 0, totalTVA = 0, totalTTC = 0;
+                    itemsDevis.items.forEach(i => {
+                      const lineHT = i.prix_ttc * i.quantity;
+                      const remiseDT = i.remise > 0 ? lineHT * (i.remise / 100) : 0;
+                      const lineNet = lineHT - remiseDT;
+                      const lineTVA = lineNet * ((i.tva ?? 19) / 100);
+                      totalHT += lineHT;
+                      totalRemise += remiseDT;
+                      totalNet += lineNet;
+                      totalTVA += lineTVA;
+                      totalTTC += lineNet + lineTVA;
+                    });
+                    const colSpan = itemsDevis.type === 'sortant' ? 7 : 6;
+                    return (
+                      <>
+                        <tr className="border-t-2 border-border">
+                          <td colSpan={colSpan} />
+                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground">Total HT</td>
+                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground">{totalHT.toFixed(3)} TND</td>
+                        </tr>
+                        {totalRemise > 0 && (
+                          <tr>
+                            <td colSpan={colSpan} />
+                            <td className="py-1.5 px-3 text-right text-sm text-muted-foreground">Remise</td>
+                            <td className="py-1.5 px-3 text-right text-sm font-medium text-destructive">-{totalRemise.toFixed(3)} TND</td>
+                          </tr>
+                        )}
+                        <tr>
+                          <td colSpan={colSpan} />
+                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground">Net HT</td>
+                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground">{totalNet.toFixed(3)} TND</td>
+                        </tr>
+                        <tr>
+                          <td colSpan={colSpan} />
+                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground">TVA</td>
+                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground">{totalTVA.toFixed(3)} TND</td>
+                        </tr>
+                        <tr className="border-t border-border">
+                          <td colSpan={colSpan} />
+                          <td className="py-2 px-3 text-right font-semibold text-foreground">Total TTC</td>
+                          <td className="py-2 px-3 text-right font-bold text-primary">{totalTTC.toFixed(3)} TND</td>
+                        </tr>
+                      </>
+                    );
+                  })()}
                 </tfoot>
               </table>
             </div>

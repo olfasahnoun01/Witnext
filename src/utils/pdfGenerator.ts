@@ -566,17 +566,50 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     margin: { left: 14, right: 14 }
   });
 
-  // Totals
-  const tableEndY = (doc as any).lastAutoTable?.finalY || 120;
-  const modeLabel = devis.is_ttc ? 'TTC' : 'HT';
+  // Compute detailed totals
+  let totalHT = 0, totalRemise = 0, totalNet = 0, totalTVA = 0, totalTTC = 0;
+  devis.items.forEach(i => {
+    const lineHT = i.prix_ttc * i.quantity;
+    const remiseDT = i.remise > 0 ? lineHT * (i.remise / 100) : 0;
+    const lineNet = lineHT - remiseDT;
+    const lineTVA = lineNet * ((i.tva ?? 19) / 100);
+    totalHT += lineHT;
+    totalRemise += remiseDT;
+    totalNet += lineNet;
+    totalTVA += lineTVA;
+    totalTTC += lineNet + lineTVA;
+  });
 
+  const tableEndY = (doc as any).lastAutoTable?.finalY || 120;
+  const boxX = pageWidth - 100;
+  const boxW = 86;
+  let rowY = tableEndY + 8;
+  const rowH = 7;
+
+  const drawTotalRow = (label: string, value: string, bold = false, color: [number, number, number] = [50, 50, 50]) => {
+    doc.setFontSize(9);
+    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    doc.setTextColor(...color);
+    doc.text(label, boxX, rowY + 5);
+    doc.text(value, pageWidth - 18, rowY + 5, { align: 'right' });
+    rowY += rowH;
+  };
+
+  drawTotalRow('Total HT', `${totalHT.toFixed(3)} TND`);
+  if (totalRemise > 0) {
+    drawTotalRow('Remise', `-${totalRemise.toFixed(3)} TND`, false, [200, 50, 50]);
+  }
+  drawTotalRow('Net HT', `${totalNet.toFixed(3)} TND`);
+  drawTotalRow('TVA', `${totalTVA.toFixed(3)} TND`);
+
+  // Total TTC highlighted
   doc.setFillColor(30, 58, 95);
-  doc.roundedRect(pageWidth - 90, tableEndY + 8, 76, 12, 2, 2, 'F');
-  doc.setFontSize(12);
+  doc.roundedRect(boxX - 4, rowY, boxW + 4, 12, 2, 2, 'F');
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
-  doc.text(`Total ${modeLabel}`, pageWidth - 86, tableEndY + 16);
-  doc.text(`${devis.total_amount.toFixed(3)} TND`, pageWidth - 18, tableEndY + 16, { align: 'right' });
+  doc.text('Total TTC', boxX, rowY + 8);
+  doc.text(`${totalTTC.toFixed(3)} TND`, pageWidth - 18, rowY + 8, { align: 'right' });
 
   // Footer
   const footerY = pageHeight - 25;
