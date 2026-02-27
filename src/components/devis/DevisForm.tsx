@@ -127,6 +127,8 @@ export const DevisForm = memo(({
   const [newArticleFournisseurs, setNewArticleFournisseurs] = useState<ProductGroupFournisseur[]>([]);
   const [isCreatingArticle, setIsCreatingArticle] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [newArticleFicheFiles, setNewArticleFicheFiles] = useState<File[]>([]);
+  const newArticleFicheRef = useRef<HTMLInputElement>(null);
 
   // Add variant to existing product group
   const [showAddVariant, setShowAddVariant] = useState(false);
@@ -350,6 +352,7 @@ export const DevisForm = memo(({
   const resetNewArticleForm = useCallback(() => {
     setNewArticle({ name: '', sku: '', category: '', size: '', quantity: 0, min_stock: 5, image: null, color: '' });
     setNewArticleFournisseurs([]);
+    setNewArticleFicheFiles([]);
   }, []);
 
   const handleArticleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -469,12 +472,62 @@ export const DevisForm = memo(({
         console.error('Product insert error:', error);
         toast.error(`Erreur création article: ${error.message}`);
       } else if (data && data.length > 0) {
+        // Upload fiche technique files for the first variant
+        const firstVariantId = data[0].id;
+        if (newArticleFicheFiles.length > 0 && firstVariantId) {
+          try {
+            const { convertImageFileToWebp, convertPdfAllPagesToWebp } = await import('@/lib/imageCompression');
+            const uploadedUrls: string[] = [];
+
+            for (const file of newArticleFicheFiles) {
+              let blobs: { blob: Blob; ext: string }[] = [];
+              if (file.type === 'application/pdf') {
+                blobs = await convertPdfAllPagesToWebp(file);
+                toast.info(`PDF "${file.name}": ${blobs.length} page(s) convertie(s) en WebP`);
+              } else {
+                const convResult = await convertImageFileToWebp(file);
+                blobs = [convResult];
+              }
+              for (const { blob, ext } of blobs) {
+                const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+                const filePath = `fiches/${fileName}`;
+                const { error: uploadError } = await supabase.storage
+                  .from('fiches-techniques')
+                  .upload(filePath, blob, { contentType: 'image/webp' });
+                if (uploadError) {
+                  console.error('Storage upload error:', uploadError);
+                  toast.error(`Erreur upload: ${uploadError.message}`);
+                  continue;
+                }
+                const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
+                if (urlData?.publicUrl) uploadedUrls.push(urlData.publicUrl);
+              }
+            }
+
+            if (uploadedUrls.length > 0) {
+              const fichePayload = uploadedUrls.length === 1 ? uploadedUrls[0] : JSON.stringify(uploadedUrls);
+              const { error: rpcError } = await supabase.rpc('update_product_fiche_technique', {
+                _product_id: firstVariantId,
+                _fiche_technique_url: fichePayload,
+              });
+              if (rpcError) {
+                console.error('RPC fiche error:', rpcError);
+                toast.error(`Erreur sauvegarde fiche: ${rpcError.message}`);
+              } else {
+                toast.success(`${uploadedUrls.length} fiche(s) technique(s) uploadée(s)`);
+              }
+            }
+          } catch (ficheErr) {
+            console.error('Fiche technique upload error:', ficheErr);
+            toast.error('Erreur lors de l\'upload des fiches techniques');
+          }
+        }
+
         toast.success('Article créé avec succès');
         const first = data[0];
         const description = `${first.sku}${first.size ? ` - Taille: ${first.size}` : ''}${first.color ? ` - ${first.color}` : ''}`;
         
         if (data.length > 1) {
-          // Multiple products created (one per fournisseur) — add all as devis lines
           const newItems = data.map(d => ({
             designation: d.name,
             fournisseur: d.fournisseur || '',
@@ -492,7 +545,6 @@ export const DevisForm = memo(({
           setItemDescription('');
           setSelectedProduct(null);
         } else {
-          // Single product: fill the form fields as before
           setItemDesignation(first.name);
           setItemFournisseur(first.fournisseur || '');
           setItemPrixTtc(first.prix_ttc ?? (first.price * (1 - (first.remise || 0) / 100)));
@@ -506,7 +558,7 @@ export const DevisForm = memo(({
     } finally {
       setIsCreatingArticle(false);
     }
-  }, [newArticle, newArticleFournisseurs, resetNewArticleForm]);
+  }, [newArticle, newArticleFournisseurs, newArticleFicheFiles, resetNewArticleForm]);
 
   // Load product groups when variant dialog opens
   useEffect(() => {
@@ -1330,6 +1382,45 @@ export const DevisForm = memo(({
               <div className="space-y-2">
                 <Label>Stock Minimum *</Label>
                 <Input type="number" min="0" value={newArticle.min_stock} onChange={e => setNewArticle(p => ({ ...p, min_stock: parseInt(e.target.value) || 0 }))} />
+              </div>
+              {/* Fiche Technique Upload */}
+              <div className="col-span-2 space-y-2">
+                <Label>Fiches Techniques</Label>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => newArticleFicheRef.current?.click()}>
+                    <Upload className="w-4 h-4 mr-1" />
+                    Ajouter fichier(s)
+                  </Button>
+                  <input
+                    ref={newArticleFicheRef}
+                    type="file"
+                    accept="image/*,application/pdf"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length > 0) setNewArticleFicheFiles(prev => [...prev, ...files]);
+                      e.target.value = '';
+                    }}
+                  />
+                  <span className="text-xs text-muted-foreground">Images & PDF (convertis en WebP)</span>
+                </div>
+                {newArticleFicheFiles.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {newArticleFicheFiles.map((file, idx) => (
+                      <div key={idx} className="flex items-center gap-1 bg-muted px-2 py-1 rounded text-xs">
+                        <span className="truncate max-w-[150px]">{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewArticleFicheFiles(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
