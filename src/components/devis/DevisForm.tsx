@@ -446,6 +446,7 @@ export const DevisForm = memo(({
             min_stock: newArticle.min_stock,
             image: newArticle.image,
             color: newArticle.color.trim() || null,
+            fiche_technique_url: f.fiche_technique_url || null,
           }))
         : [{
             name: newArticle.name.trim(),
