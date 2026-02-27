@@ -377,7 +377,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                         </tr>
                         <tr className="border-t border-border">
                           <td colSpan={colSpan} />
-                          <td className="py-2 px-3 text-right font-semibold text-foreground">Total Final</td>
+                          <td className="py-2 px-3 text-right font-semibold text-foreground">Total TTC</td>
                           <td className="py-2 px-3 text-right font-bold text-primary">{(totalTTC + 1).toFixed(3)} TND</td>
                         </tr>
                       </>

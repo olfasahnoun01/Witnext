@@ -581,38 +581,44 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   });
 
   const tableEndY = (doc as any).lastAutoTable?.finalY || 120;
-  const boxX = pageWidth - 100;
-  const boxW = 86;
-  let rowY = tableEndY + 8;
-  const rowH = 7;
-
-  const drawTotalRow = (label: string, value: string, bold = false, color: [number, number, number] = [50, 50, 50]) => {
-    doc.setFontSize(9);
-    doc.setFont('helvetica', bold ? 'bold' : 'normal');
-    doc.setTextColor(...color);
-    doc.text(label, boxX, rowY + 5);
-    doc.text(value, pageWidth - 18, rowY + 5, { align: 'right' });
-    rowY += rowH;
-  };
-
-  drawTotalRow('Total HT', `${totalHT.toFixed(3)} TND`);
-  if (totalRemise > 0) {
-    drawTotalRow('Remise', `-${totalRemise.toFixed(3)} TND`);
-  }
-  drawTotalRow('Net HT', `${totalNet.toFixed(3)} TND`);
-  drawTotalRow('TVA', `${totalTVA.toFixed(3)} TND`);
-  drawTotalRow('Total TTC', `${totalTTC.toFixed(3)} TND`);
-  drawTotalRow('Timbre fiscal', '1.000 TND');
-
-  // Total Final highlighted
   const totalFinal = totalTTC + 1;
-  doc.setFillColor(30, 58, 95);
-  doc.roundedRect(boxX - 4, rowY, boxW + 4, 12, 2, 2, 'F');
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(255, 255, 255);
-  doc.text('Total Final', boxX, rowY + 8);
-  doc.text(`${totalFinal.toFixed(3)} TND`, pageWidth - 18, rowY + 8, { align: 'right' });
+
+  const totalsRows: (string | string[])[][] = [
+    ['Total HT', `${totalHT.toFixed(3)} TND`],
+  ];
+  if (totalRemise > 0) {
+    totalsRows.push(['Remise', `-${totalRemise.toFixed(3)} TND`]);
+  }
+  totalsRows.push(
+    ['Net HT', `${totalNet.toFixed(3)} TND`],
+    ['TVA', `${totalTVA.toFixed(3)} TND`],
+    ['Total TTC', `${totalTTC.toFixed(3)} TND`],
+    ['Timbre fiscal', '1.000 TND'],
+    ['Total TTC', `${totalFinal.toFixed(3)} TND`],
+  );
+
+  autoTable(doc, {
+    startY: tableEndY + 4,
+    margin: { left: pageWidth - 104 },
+    tableWidth: 90,
+    head: [],
+    body: totalsRows,
+    theme: 'plain',
+    styles: { fontSize: 9, cellPadding: { top: 2, bottom: 2, left: 3, right: 3 }, textColor: [50, 50, 50] },
+    columnStyles: {
+      0: { halign: 'left', fontStyle: 'normal' },
+      1: { halign: 'right', fontStyle: 'normal' },
+    },
+    didParseCell: (data) => {
+      const isLastRow = data.row.index === totalsRows.length - 1;
+      if (isLastRow) {
+        data.cell.styles.fillColor = [30, 58, 95];
+        data.cell.styles.textColor = [255, 255, 255];
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fontSize = 11;
+      }
+    },
+  });
 
   // Footer
   const footerY = pageHeight - 25;
