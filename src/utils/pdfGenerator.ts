@@ -520,10 +520,8 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     const prixApresRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
     let sousTotal: number;
     if (isTTC) {
-      // prix_ttc is HT, sous-total TTC = HT * (1 + tva)
       sousTotal = prixApresRemise * item.quantity * (1 + tvaRate);
     } else {
-      // sous-total HT
       sousTotal = prixApresRemise * item.quantity;
     }
     return [
@@ -532,13 +530,15 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       item.fournisseur || '-',
       `${item.prix_ttc.toFixed(3)} TND`,
       item.remise > 0 ? `${item.remise}%` : '-',
-      `${item.tva ?? 19}%`,
+      ...(isTTC ? [`${item.tva ?? 19}%`] : []),
       item.quantity.toString(),
       `${sousTotal.toFixed(3)} TND`,
     ];
   });
 
-  const headRow = ['#', 'Désignation', 'Fournisseur', `Prix U ${isTTC ? 'TTC' : 'HT'}`, 'Remise', 'TVA', 'Qté', `Sous-total ${isTTC ? 'TTC' : 'HT'}`];
+  const headRow = isTTC
+    ? ['#', 'Désignation', 'Fournisseur', 'Prix U TTC', 'Remise', 'TVA', 'Qté', 'Sous-total TTC']
+    : ['#', 'Désignation', 'Fournisseur', 'Prix U HT', 'Remise', 'Qté', 'Sous-total HT'];
 
   autoTable(doc, {
     startY: 96,
@@ -553,7 +553,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     },
     styles: { fontSize: 9, cellPadding: 4 },
     rowPageBreak: 'avoid',
-    columnStyles: {
+    columnStyles: isTTC ? {
       0: { cellWidth: 12, halign: 'center' },
       1: { cellWidth: 'auto' },
       2: { cellWidth: 28 },
@@ -562,6 +562,14 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       5: { halign: 'center' },
       6: { halign: 'center' },
       7: { halign: 'right' },
+    } : {
+      0: { cellWidth: 12, halign: 'center' },
+      1: { cellWidth: 'auto' },
+      2: { cellWidth: 28 },
+      3: { halign: 'right' },
+      4: { halign: 'center' },
+      5: { halign: 'center' },
+      6: { halign: 'right' },
     },
     alternateRowStyles: { fillColor: [245, 247, 250] },
     margin: { left: 14, right: 14 }
@@ -583,6 +591,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
   const tableEndY = (doc as any).lastAutoTable?.finalY || 120;
   const totalFinal = totalTTC + 1;
+  const totalFinalHT = totalNet + 1;
 
   const totalsRows: (string | string[])[][] = [
     ['Total HT', `${totalHT.toFixed(3)} TND`],
@@ -590,12 +599,16 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   if (totalRemise > 0) {
     totalsRows.push(['Remise', `-${totalRemise.toFixed(3)} TND`]);
   }
+  totalsRows.push(['Net HT', `${totalNet.toFixed(3)} TND`]);
+  if (isTTC) {
+    totalsRows.push(
+      ['TVA', `${totalTVA.toFixed(3)} TND`],
+      ['Total TTC', `${totalTTC.toFixed(3)} TND`],
+    );
+  }
   totalsRows.push(
-    ['Net HT', `${totalNet.toFixed(3)} TND`],
-    ['TVA', `${totalTVA.toFixed(3)} TND`],
-    ['Total TTC', `${totalTTC.toFixed(3)} TND`],
     ['Timbre fiscal', '1.000 TND'],
-    ['Total TTC', `${totalFinal.toFixed(3)} TND`],
+    [isTTC ? 'Total TTC' : 'Total HT', `${(isTTC ? totalFinal : totalFinalHT).toFixed(3)} TND`],
   );
 
   autoTable(doc, {
@@ -627,9 +640,9 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       } else {
         data.cell.styles.fillColor = [255, 255, 255];
       }
-      // Bold for Net HT and Total TTC rows (before last)
+      // Bold for Net HT and final total rows
       const label = String(totalsRows[data.row.index]?.[0] || '');
-      if (label === 'Net HT' || label === 'Total TTC') {
+      if (label === 'Net HT' || label === 'Total TTC' || label === 'Total HT') {
         data.cell.styles.fontStyle = 'bold';
       }
     },
