@@ -122,6 +122,7 @@ export const GestionDevis = () => {
   const handleTypeChange = useCallback((type: 'entrant' | 'sortant') => {
     setDevisType(type);
     clearFormFields();
+    if (type === 'entrant') setIsTtc(true);
   }, [clearFormFields]);
 
   const saveDevis = useCallback(async () => {
@@ -224,7 +225,7 @@ export const GestionDevis = () => {
     setThirdPartyPhone(d.third_party_phone || '');
     setNotes(d.notes || '');
     setDevisItems(d.items);
-    setIsTtc(d.is_ttc);
+    setIsTtc(d.type === 'entrant' ? true : d.is_ttc);
     setShowEditDialog(true);
   }, []);
 
