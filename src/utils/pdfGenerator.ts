@@ -535,7 +535,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   });
 
   const headRow = isTTC
-    ? ['#', 'Désignation', 'Fournisseur', devis.type === 'sortant' ? 'Prix U HT' : 'Prix U TTC', 'Remise', 'TVA', 'Qté', 'Sous-total TTC']
+    ? ['#', 'Désignation', 'Fournisseur', 'Prix U HT', 'Remise', 'TVA', 'Qté', 'Sous-total TTC']
     : ['#', 'Désignation', 'Fournisseur', 'Prix U HT', 'Remise', 'Qté', 'Sous-total HT'];
 
   autoTable(doc, {
