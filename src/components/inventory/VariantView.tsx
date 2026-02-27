@@ -385,7 +385,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         pdf.addImage(pngBase64, 'PNG', x, y, w, h, undefined, 'NONE');
       }
 
-      const fileName = `fiches_${variant.sku.replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
+      const fileName = `FicheTechnique-${group.name.replace(/[^a-zA-Z0-9àâäéèêëïîôùûüÿçÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ -_]/g, '_')}.pdf`;
       pdf.save(fileName);
       toast.success('PDF téléchargé');
     } catch (err) {
