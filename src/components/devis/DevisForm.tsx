@@ -1260,14 +1260,25 @@ export const DevisForm = memo(({
           <div className="space-y-4">
             {/* Image Upload */}
             <div className="flex items-center gap-4">
-              <div
-                className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed border-border hover:border-primary transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {newArticle.image ? (
-                  <img src={newArticle.image} alt="Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <Upload className="w-6 h-6 text-muted-foreground" />
+              <div className="relative">
+                <div
+                  className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed border-border hover:border-primary transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {newArticle.image ? (
+                    <img src={newArticle.image} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <Upload className="w-6 h-6 text-muted-foreground" />
+                  )}
+                </div>
+                {newArticle.image && (
+                  <button
+                    type="button"
+                    className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full p-0.5 hover:bg-destructive/90 transition-colors"
+                    onClick={(e) => { e.stopPropagation(); setNewArticle(p => ({ ...p, image: null })); }}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 )}
               </div>
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleArticleImageUpload} />
