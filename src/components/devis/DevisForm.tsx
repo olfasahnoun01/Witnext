@@ -1,7 +1,7 @@
 import { memo, useCallback, useState, useEffect, useMemo } from 'react';
 import { ProductGroupFournisseur } from '@/types';
 import { computeDevisTotals, computeDevisLine } from '@/lib/devisPricing';
-import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package, Layers, FileText, Eye } from 'lucide-react';
+import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -127,11 +127,6 @@ export const DevisForm = memo(({
   const [newArticleFournisseurs, setNewArticleFournisseurs] = useState<ProductGroupFournisseur[]>([]);
   const [isCreatingArticle, setIsCreatingArticle] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [newArticleFicheUrls, setNewArticleFicheUrls] = useState<string[]>([]);
-  const [isUploadingArticleFiche, setIsUploadingArticleFiche] = useState(false);
-  const ficheInputRef = useRef<HTMLInputElement>(null);
-  const [previewFicheUrls, setPreviewFicheUrls] = useState<string[]>([]);
-  const [previewFicheIndex, setPreviewFicheIndex] = useState(0);
 
   // Add variant to existing product group
   const [showAddVariant, setShowAddVariant] = useState(false);
@@ -355,7 +350,6 @@ export const DevisForm = memo(({
   const resetNewArticleForm = useCallback(() => {
     setNewArticle({ name: '', sku: '', category: '', size: '', quantity: 0, min_stock: 5, image: null, color: '' });
     setNewArticleFournisseurs([]);
-    setNewArticleFicheUrls([]);
   }, []);
 
   const handleArticleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -475,22 +469,6 @@ export const DevisForm = memo(({
         console.error('Product insert error:', error);
         toast.error(`Erreur création article: ${error.message}`);
       } else if (data && data.length > 0) {
-        // Attach fiche technique URLs if any were uploaded
-        if (newArticleFicheUrls.length > 0) {
-          const fichePayload = newArticleFicheUrls.length === 1 ? newArticleFicheUrls[0] : JSON.stringify(newArticleFicheUrls);
-          for (const product of data) {
-            await supabase.rpc('update_product_fiche_technique', {
-              _product_id: product.id,
-              _fiche_technique_url: fichePayload,
-            });
-          }
-          if (pgData && newArticleFournisseurs.length > 0) {
-            await supabase.from('product_group_fournisseurs')
-              .update({ fiche_technique_url: fichePayload })
-              .eq('product_group_id', pgData.id);
-          }
-        }
-
         toast.success('Article créé avec succès');
         const first = data[0];
         const description = `${first.sku}${first.size ? ` - Taille: ${first.size}` : ''}${first.color ? ` - ${first.color}` : ''}`;
@@ -528,7 +506,7 @@ export const DevisForm = memo(({
     } finally {
       setIsCreatingArticle(false);
     }
-  }, [newArticle, newArticleFournisseurs, newArticleFicheUrls, resetNewArticleForm]);
+  }, [newArticle, newArticleFournisseurs, resetNewArticleForm]);
 
   // Load product groups when variant dialog opens
   useEffect(() => {
@@ -1342,95 +1320,6 @@ export const DevisForm = memo(({
               <div className="col-span-2 space-y-2">
                 <MultiFournisseurInput value={newArticleFournisseurs} onChange={setNewArticleFournisseurs} />
               </div>
-              {/* Fiche Technique Upload — same UI as inventory */}
-              <div className="col-span-2 space-y-3">
-                <Label>Fiches Techniques ({newArticleFicheUrls.length})</Label>
-                <input
-                  ref={ficheInputRef}
-                  type="file"
-                  accept=".pdf,image/jpeg,image/png,image/webp"
-                  multiple
-                  className="hidden"
-                  onChange={async (e) => {
-                    if (!e.target.files || e.target.files.length === 0) return;
-                    const files = Array.from(e.target.files);
-                    e.target.value = '';
-                    setIsUploadingArticleFiche(true);
-                    try {
-                      const { convertImageFileToWebp, convertPdfAllPagesToWebp } = await import('@/lib/imageCompression');
-                      const newUrls: string[] = [];
-                      for (const file of files) {
-                        if (file.type === 'application/pdf') {
-                          const pages = await convertPdfAllPagesToWebp(file);
-                          toast.info(`PDF "${file.name}": ${pages.length} page(s) détectée(s)`);
-                          for (const page of pages) {
-                            const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.webp`;
-                            const filePath = `fiches/${fileName}`;
-                            const { error: uploadError } = await supabase.storage.from('fiches-techniques').upload(filePath, page.blob, { contentType: 'image/webp' });
-                            if (uploadError) { console.error(uploadError); continue; }
-                            const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
-                            if (urlData?.publicUrl) newUrls.push(urlData.publicUrl);
-                          }
-                        } else {
-                          const { blob } = await convertImageFileToWebp(file);
-                          const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.webp`;
-                          const filePath = `fiches/${fileName}`;
-                          const { error: uploadError } = await supabase.storage.from('fiches-techniques').upload(filePath, blob, { contentType: 'image/webp' });
-                          if (uploadError) { console.error(uploadError); continue; }
-                          const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
-                          if (urlData?.publicUrl) newUrls.push(urlData.publicUrl);
-                        }
-                      }
-                      if (newUrls.length > 0) {
-                        setNewArticleFicheUrls(prev => [...prev, ...newUrls]);
-                        toast.success(`${newUrls.length} fiche(s) technique(s) ajoutée(s)`);
-                      }
-                    } catch (err: any) {
-                      console.error(err);
-                      toast.error('Erreur lors du téléchargement');
-                    } finally {
-                      setIsUploadingArticleFiche(false);
-                    }
-                  }}
-                />
-
-                {/* Grid of uploaded fiche thumbnails */}
-                {newArticleFicheUrls.length > 0 && (
-                  <div className="grid grid-cols-3 gap-2">
-                    {newArticleFicheUrls.map((url, idx) => (
-                      <div key={idx} className="relative group rounded-lg border border-border overflow-hidden bg-muted/30">
-                        <img src={url} alt={`Fiche ${idx + 1}`}
-                          className="w-full h-24 object-cover cursor-pointer"
-                          onClick={() => { setPreviewFicheUrls(newArticleFicheUrls); setPreviewFicheIndex(idx); }} />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
-                          <button type="button"
-                            className="h-7 w-7 flex items-center justify-center rounded text-white hover:bg-white/20"
-                            onClick={() => { setPreviewFicheUrls(newArticleFicheUrls); setPreviewFicheIndex(idx); }}>
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button type="button"
-                            className="h-7 w-7 flex items-center justify-center rounded text-white hover:text-destructive hover:bg-white/20"
-                            onClick={() => setNewArticleFicheUrls(prev => prev.filter((_, i) => i !== idx))}>
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] text-center py-0.5">
-                          {idx + 1}/{newArticleFicheUrls.length}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <Button type="button" variant="outline" size="sm" className="gap-2 w-full"
-                  disabled={isUploadingArticleFiche} onClick={() => ficheInputRef.current?.click()}>
-                  <Upload className="w-4 h-4" />
-                  {isUploadingArticleFiche ? 'Envoi en cours...' : 'Ajouter des fiches techniques'}
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  PDF (toutes les pages converties en images), JPG, PNG ou WebP (max 20 Mo). Sélection multiple possible.
-                </p>
-              </div>
               <div className="space-y-2">
                 <Label>Couleur</Label>
                 <Input list="devis-colors" value={newArticle.color} onChange={e => setNewArticle(p => ({ ...p, color: e.target.value }))} placeholder="Optionnel" />
@@ -1600,43 +1489,6 @@ export const DevisForm = memo(({
               {isCreatingVariant ? 'Création...' : 'Créer Variante'}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Fiche technique gallery preview dialog */}
-      <Dialog open={previewFicheUrls.length > 0} onOpenChange={() => setPreviewFicheUrls([])}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>
-              Fiche Technique {previewFicheUrls.length > 1 && `(${previewFicheIndex + 1}/${previewFicheUrls.length})`}
-            </DialogTitle>
-          </DialogHeader>
-          {previewFicheUrls.length > 0 && (
-            <div className="flex-1 overflow-auto min-h-0">
-              <div className="overflow-auto max-h-[70vh]">
-                <img src={previewFicheUrls[previewFicheIndex]}
-                  alt={`Fiche technique ${previewFicheIndex + 1}`}
-                  className="w-full h-auto object-contain" />
-              </div>
-              {previewFicheUrls.length > 1 && (
-                <div className="flex items-center justify-center gap-4 mt-4">
-                  <Button variant="outline" size="sm"
-                    disabled={previewFicheIndex === 0}
-                    onClick={() => setPreviewFicheIndex(i => i - 1)}>
-                    ← Précédent
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    {previewFicheIndex + 1} / {previewFicheUrls.length}
-                  </span>
-                  <Button variant="outline" size="sm"
-                    disabled={previewFicheIndex === previewFicheUrls.length - 1}
-                    onClick={() => setPreviewFicheIndex(i => i + 1)}>
-                    Suivant →
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
         </DialogContent>
       </Dialog>
     </>
