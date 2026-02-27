@@ -612,12 +612,22 @@ export const DevisForm = memo(({
     return productGroups.filter(g => g.name.toLowerCase().includes(q));
   }, [productGroups, groupSearch]);
 
-  const totalAmount = devisItems.reduce((s, i) => {
-    const priceAfterRemise = i.remise > 0 ? i.prix_ttc * (1 - i.remise / 100) : i.prix_ttc;
-    const lineTotal = priceAfterRemise * i.quantity;
-    // prix_ttc is HT; if TTC mode, multiply by (1 + tva) to get real TTC
-    return s + (isTtc ? lineTotal * (1 + (i.tva ?? 19) / 100) : lineTotal);
-  }, 0);
+  const devisTotals = useMemo(() => {
+    let totalHT = 0, totalRemise = 0, totalNet = 0, totalTVA = 0, totalTTC = 0;
+    devisItems.forEach(i => {
+      const lineHT = i.prix_ttc * i.quantity;
+      const remiseDT = i.remise > 0 ? lineHT * (i.remise / 100) : 0;
+      const lineNet = lineHT - remiseDT;
+      const lineTVA = lineNet * ((i.tva ?? 19) / 100);
+      totalHT += lineHT;
+      totalRemise += remiseDT;
+      totalNet += lineNet;
+      totalTVA += lineTVA;
+      totalTTC += lineNet + lineTVA;
+    });
+    return { totalHT, totalRemise, totalNet, totalTVA, totalTTC };
+  }, [devisItems]);
+  const totalAmount = devisTotals.totalTTC;
   const thirdPartyList = isEntrant ? fournisseurs : clients;
   const ThirdPartyIcon = isEntrant ? Building2 : Users;
   const thirdPartyLabel = isEntrant ? 'Fournisseur (expéditeur)' : 'Client (destinataire)';
@@ -979,10 +989,32 @@ export const DevisForm = memo(({
         <div className="bg-card rounded-xl border border-border p-6 lg:overflow-y-auto">
           <div className="flex items-center justify-between mb-4 sticky top-0 bg-card z-10 pb-2">
             <h3 className="text-lg font-semibold text-foreground">Articles du Devis</h3>
-            <span className="text-sm font-medium text-primary">
-              Total {isTtc ? 'TTC' : 'HT'}: {totalAmount.toFixed(3)} TND
-            </span>
           </div>
+
+          {devisItems.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4 p-3 rounded-lg bg-muted/50 border border-border text-center text-xs">
+              <div>
+                <p className="text-muted-foreground">Total HT</p>
+                <p className="font-semibold text-foreground">{devisTotals.totalHT.toFixed(3)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Remise</p>
+                <p className="font-semibold text-destructive">-{devisTotals.totalRemise.toFixed(3)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Net HT</p>
+                <p className="font-semibold text-foreground">{devisTotals.totalNet.toFixed(3)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">TVA</p>
+                <p className="font-semibold text-foreground">{devisTotals.totalTVA.toFixed(3)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Total TTC</p>
+                <p className="font-bold text-primary">{devisTotals.totalTTC.toFixed(3)} TND</p>
+              </div>
+            </div>
+          )}
 
           {devisItems.length === 0 ? (
             <div className="text-center py-12">

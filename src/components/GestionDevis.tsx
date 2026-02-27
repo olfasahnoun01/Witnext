@@ -136,11 +136,14 @@ export const GestionDevis = () => {
     }
     setIsSaving(true);
     try {
-      const totalAmount = devisItems.reduce((s, i) => {
-        const priceAfterRemise = i.remise > 0 ? i.prix_ttc * (1 - i.remise / 100) : i.prix_ttc;
-        const lineTotal = priceAfterRemise * i.quantity;
-        return s + (isTtc ? lineTotal * (1 + (i.tva ?? 19) / 100) : lineTotal);
-      }, 0);
+      let totalTTC = 0;
+      devisItems.forEach(i => {
+        const lineHT = i.prix_ttc * i.quantity;
+        const remiseDT = i.remise > 0 ? lineHT * (i.remise / 100) : 0;
+        const lineNet = lineHT - remiseDT;
+        totalTTC += lineNet + lineNet * ((i.tva ?? 19) / 100);
+      });
+      const totalAmount = totalTTC;
       const { data: { user } } = await supabase.auth.getUser();
 
       const { error } = await supabase.from('devis').insert({
@@ -177,11 +180,14 @@ export const GestionDevis = () => {
 
   const updateDevis = useCallback(async () => {
     if (!editingDevis) return;
-    const totalAmount = devisItems.reduce((s, i) => {
-      const priceAfterRemise = i.remise > 0 ? i.prix_ttc * (1 - i.remise / 100) : i.prix_ttc;
-      const lineTotal = priceAfterRemise * i.quantity;
-      return s + (isTtc ? lineTotal * (1 + (i.tva ?? 19) / 100) : lineTotal);
-    }, 0);
+    let totalTTC = 0;
+    devisItems.forEach(i => {
+      const lineHT = i.prix_ttc * i.quantity;
+      const remiseDT = i.remise > 0 ? lineHT * (i.remise / 100) : 0;
+      const lineNet = lineHT - remiseDT;
+      totalTTC += lineNet + lineNet * ((i.tva ?? 19) / 100);
+    });
+    const totalAmount = totalTTC;
 
     const { error } = await supabase.from('devis').update({
       type: devisType,
