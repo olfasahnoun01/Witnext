@@ -609,9 +609,10 @@ export const DevisForm = memo(({
             if (!uploadError) {
               const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
               if (urlData?.publicUrl) {
-                await supabase.from('products')
-                  .update({ fiche_technique_url: urlData.publicUrl } as any)
-                  .eq('id', result.id);
+                await supabase.rpc('update_product_fiche_technique', {
+                  _product_id: result.id,
+                  _fiche_technique_url: urlData.publicUrl,
+                });
               }
               toast.success('Fiche technique uploadée');
             }
