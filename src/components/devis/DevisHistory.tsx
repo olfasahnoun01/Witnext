@@ -223,7 +223,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                           const lineNet = lineHT - remiseDT;
                           totalTTC += lineNet + lineNet * ((i.tva ?? 19) / 100);
                         });
-                        return totalTTC > 0 ? `${totalTTC.toFixed(3)} TND` : '-';
+                        const finalTotal = totalTTC + 1;
+                        return finalTotal > 1 ? `${finalTotal.toFixed(3)} TND` : '-';
                       })()}
                     </td>
                     <td className="py-3 px-4">
