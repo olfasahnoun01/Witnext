@@ -257,7 +257,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                             <Edit className="w-4 h-4" />
                           </button>
                         )}
-                        {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && (
+                        {(
                           <button onClick={() => setDeleteConfirm(d)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Supprimer">
                             <Trash2 className="w-4 h-4" />
                           </button>
