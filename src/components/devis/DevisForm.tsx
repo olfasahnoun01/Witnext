@@ -523,19 +523,45 @@ export const DevisForm = memo(({
   // Fetch last variant SKU when group is selected
   useEffect(() => {
     if (!selectedGroupId) { setLastVariantFullSku(''); setVariantSku(''); return; }
-    const fetchLastSku = async () => {
+    const fetchNextSku = async () => {
+      const group = productGroups.find(g => g.id.toString() === selectedGroupId);
+      const baseSku = group?.base_sku || group?.name.substring(0, 3).toUpperCase() || '';
+      
+      // Fetch all variant SKUs for this group to find the next number
       const { data } = await supabase
         .from('products')
         .select('sku')
-        .eq('product_group_id', Number(selectedGroupId))
-        .order('created_at', { ascending: false })
-        .limit(1);
-      const group = productGroups.find(g => g.id.toString() === selectedGroupId);
-      const fullSku = data?.[0]?.sku || group?.base_sku || group?.name.substring(0, 3).toUpperCase() || '';
-      setLastVariantFullSku(fullSku);
-      setVariantSku(fullSku);
+        .eq('product_group_id', Number(selectedGroupId));
+      
+      if (!data || data.length === 0) {
+        // No variants yet — start with baseSku-1
+        setLastVariantFullSku(`${baseSku}-1`);
+        setVariantSku(`${baseSku}-1`);
+        return;
+      }
+      
+      // Extract numeric suffixes from SKUs that match baseSku-{number} pattern
+      let maxNum = 0;
+      const basePattern = baseSku.toLowerCase();
+      data.forEach(v => {
+        const sku = v.sku.toLowerCase();
+        // Match baseSku-NUMBER or baseSku-SIZE-COLOR patterns, extract first number after base
+        if (sku.startsWith(basePattern)) {
+          const rest = v.sku.substring(baseSku.length);
+          // Try to find a leading -NUMBER
+          const match = rest.match(/^-(\d+)/);
+          if (match) {
+            maxNum = Math.max(maxNum, parseInt(match[1], 10));
+          }
+        }
+      });
+      
+      const nextNum = maxNum + 1;
+      const nextSku = `${baseSku}-${nextNum}`;
+      setLastVariantFullSku(nextSku);
+      setVariantSku(nextSku);
     };
-    fetchLastSku();
+    fetchNextSku();
   }, [selectedGroupId, productGroups]);
 
   // Append size/color when changed
