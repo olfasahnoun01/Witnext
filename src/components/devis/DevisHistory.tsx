@@ -291,9 +291,13 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">#</th>
                     <th className="text-left py-2 px-3 font-medium text-muted-foreground">Désignation</th>
                     <th className="text-left py-2 px-3 font-medium text-muted-foreground">Fournisseur</th>
                     <th className="text-right py-2 px-3 font-medium text-muted-foreground">Prix U Vente</th>
+                    {itemsDevis.type === 'sortant' && (
+                      <th className="text-right py-2 px-3 font-medium text-muted-foreground">Prix Achat</th>
+                    )}
                     <th className="text-right py-2 px-3 font-medium text-muted-foreground">Remise</th>
                     <th className="text-right py-2 px-3 font-medium text-muted-foreground">Après Remise</th>
                     <th className="text-right py-2 px-3 font-medium text-muted-foreground">Qté</th>
@@ -305,11 +309,15 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     const prixApresRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
                     return (
                       <tr key={idx} className="border-b border-border/50">
+                        <td className="py-2 px-3 text-muted-foreground">{idx + 1}</td>
                         <td className="py-2 px-3 text-foreground font-medium">{item.designation}</td>
                         <td className="py-2 px-3 text-muted-foreground">{item.fournisseur || '-'}</td>
                         <td className="py-2 px-3 text-right text-foreground">{item.prix_ttc.toFixed(3)} TND</td>
+                        {itemsDevis.type === 'sortant' && (
+                          <td className="py-2 px-3 text-right text-muted-foreground">{item.prix_achat != null && item.prix_achat > 0 ? `${item.prix_achat.toFixed(3)} TND` : '-'}</td>
+                        )}
                         <td className="py-2 px-3 text-right text-muted-foreground">{item.remise > 0 ? `${item.remise}%` : '-'}</td>
-                        <td className="py-2 px-3 text-right text-foreground">{prixApresRemise.toFixed(3)} TND</td>
+                        <td className="py-2 px-3 text-right text-foreground">{item.remise > 0 ? `${prixApresRemise.toFixed(3)} TND` : '-'}</td>
                         <td className="py-2 px-3 text-right text-foreground">{item.quantity}</td>
                         <td className="py-2 px-3 text-right font-medium text-foreground">{(prixApresRemise * item.quantity).toFixed(3)} TND</td>
                       </tr>
@@ -318,7 +326,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-border">
-                    <td colSpan={5} />
+                    <td colSpan={itemsDevis.type === 'sortant' ? 7 : 6} />
                     <td className="py-2 px-3 text-right font-semibold text-foreground">Total</td>
                     <td className="py-2 px-3 text-right font-semibold text-primary">{itemsDevis.total_amount.toFixed(3)} TND</td>
                   </tr>
