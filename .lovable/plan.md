@@ -1,24 +1,29 @@
 
 
-## Problem
+## Plan: Remove all TTC references when toggle is HT
 
-In `addItem()` (line 287 of `DevisForm.tsx`), when adding an article for an entrant devis, the code **always** converts the HT price to TTC:
+When `isTtc === false`, hide every mention of "TTC" from the summary grid and ensure labels only reference HT.
 
-```typescript
-const finalPrixTtc = isEntrant ? itemPrixTtc * (1 + tvaRate) : itemPrixTtc;
-```
+### Changes in `src/components/devis/DevisForm.tsx`
 
-This runs even when `isTtc` is `false` (HT mode), so the stored unit price becomes a TTC value instead of the real HT value the user entered/selected.
+**1. Summary totals grid (lines 1003-1033)**
 
-## Fix
+When `!isTtc`:
+- Hide the "TVA" cell (lines 1017-1020)
+- Hide the "Total TTC" cell (lines 1021-1024)
+- Change the final total label from "Total TTC" to "Total HT" (line 1030)
+- Recalculate the final total to be `totalNet + 1` (timbre) instead of `totalTTC + 1`
+- Adjust grid columns: use `grid-cols-2 sm:grid-cols-3` when TTC, `grid-cols-2` when HT (fewer cells)
 
-**File:** `src/components/devis/DevisForm.tsx`
+**2. devisTotals calculation (lines 620-634)**
 
-**Line 287** — Only convert HT→TTC when in TTC mode:
+Add a `totalFinalHT` value: `totalNet + 1` so the final line can show the correct HT total when not in TTC mode.
 
-```typescript
-const finalPrixTtc = isEntrant && isTtc ? itemPrixTtc * (1 + tvaRate) : itemPrixTtc;
-```
+**3. Summary structure when HT:**
+- Show: Total HT, Remise, Net HT, Timbre
+- Final line: "Total HT" with value `(totalNet + 1).toFixed(3) TND`
 
-This ensures that in HT mode, the prix vente U stays as the real HT value without any TVA conversion.
+**4. Summary structure when TTC (unchanged):**
+- Show: Total HT, Remise, Net HT, TVA, Total TTC, Timbre
+- Final line: "Total TTC" with value `totalFinal.toFixed(3) TND`
 
