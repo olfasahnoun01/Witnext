@@ -304,6 +304,50 @@ const fetchAllRowsUuid = async (tableName: string, orderCol = 'created_at'): Pro
   return allRows;
 };
 
+// Helper: recursively list all files in a storage bucket
+const listAllStorageFiles = async (bucket: string, prefix = ''): Promise<string[]> => {
+  const allPaths: string[] = [];
+  const { data, error } = await supabase.storage.from(bucket).list(prefix, { limit: 1000 });
+  if (error || !data) return allPaths;
+
+  for (const item of data) {
+    if (item.name === '.emptyFolderPlaceholder') continue;
+    const fullPath = prefix ? `${prefix}/${item.name}` : item.name;
+    if (item.id) {
+      // It's a file
+      allPaths.push(fullPath);
+    } else {
+      // It's a folder — recurse
+      const subFiles = await listAllStorageFiles(bucket, fullPath);
+      allPaths.push(...subFiles);
+    }
+  }
+  return allPaths;
+};
+
+// Helper: extract storage path from a public URL
+const extractStoragePath = (url: string, bucket: string): string | null => {
+  const marker = `/${bucket}/`;
+  const idx = url.indexOf(marker);
+  if (idx !== -1) return url.substring(idx + marker.length);
+  return null;
+};
+
+// Helper: parse fiche_technique_url which can be a JSON array or single URL
+const parseFicheUrls = (value: string | null | undefined): string[] => {
+  if (!value) return [];
+  const trimmed = value.trim();
+  if (trimmed.startsWith('[')) {
+    try { return JSON.parse(trimmed); } catch { return [trimmed]; }
+  }
+  return [trimmed];
+};
+
+// Helper: sanitize a string for use as a folder name
+const sanitizeFolderName = (name: string): string => {
+  return name.replace(/[\/\\:*?"<>|]/g, '_').trim() || '_unnamed';
+};
+
 // Export/Import Database - exports ALL data and storage files as ZIP
 export const exportDatabase = async (onProgress?: (message: string) => void): Promise<Blob | null> => {
   try {
@@ -332,7 +376,7 @@ export const exportDatabase = async (onProgress?: (message: string) => void): Pr
 
     const exportData = {
       _metadata: {
-        version: 4,
+        version: 5,
         exportDate: new Date().toISOString(),
         application: 'Grosafe Gestion',
         format: 'grosafe-backup'
@@ -357,36 +401,79 @@ export const exportDatabase = async (onProgress?: (message: string) => void): Pr
     const zip = new JSZip();
     zip.file('data.json', JSON.stringify(exportData, null, 2));
 
-    // Download all files from storage buckets
-    onProgress?.('Récupération des fichiers stockés...');
+    // Build mapping: storage path → article (product group) name
+    onProgress?.('Construction du mapping fichiers → articles...');
     
-    try {
-      const { data: storageFiles, error: listError } = await supabase.storage
-        .from('fiches-techniques')
-        .list('fiches', { limit: 1000 });
+    const groupNameById = new Map<number, string>();
+    for (const g of product_groups) {
+      groupNameById.set(g.id, g.name);
+    }
+
+    // Map: storage path → article folder name
+    const pathToArticle = new Map<string, string>();
+    const bucket = 'fiches-techniques';
+
+    const mapUrlToArticle = (url: string, articleName: string) => {
+      const path = extractStoragePath(url, bucket);
+      if (path) pathToArticle.set(path, sanitizeFolderName(articleName));
+    };
+
+    // From products (variants) — map via product_group_id
+    for (const p of products) {
+      const groupName = p.product_group_id ? groupNameById.get(p.product_group_id) : null;
+      const articleName = groupName || p.name;
       
-      if (!listError && storageFiles && storageFiles.length > 0) {
-        const storageFolder = zip.folder('fiches-techniques');
-        let downloadedCount = 0;
-        
-        for (const file of storageFiles) {
-          if (file.name === '.emptyFolderPlaceholder') continue;
-          try {
-            onProgress?.(`Téléchargement fichier ${++downloadedCount}/${storageFiles.length}...`);
-            const { data: fileData, error: downloadError } = await supabase.storage
-              .from('fiches-techniques')
-              .download(`fiches/${file.name}`);
-            
-            if (!downloadError && fileData) {
-              storageFolder?.file(file.name, fileData);
-            }
-          } catch (err) {
-            console.warn(`Could not download file ${file.name}:`, err);
-          }
+      for (const url of parseFicheUrls(p.fiche_technique_url)) {
+        mapUrlToArticle(url, articleName);
+      }
+      if (p.image) mapUrlToArticle(p.image, articleName);
+    }
+
+    // From product_group_fournisseurs
+    for (const pgf of product_group_fournisseurs) {
+      const groupName = groupNameById.get(pgf.product_group_id);
+      if (groupName) {
+        for (const url of parseFicheUrls(pgf.fiche_technique_url)) {
+          mapUrlToArticle(url, groupName);
         }
       }
-    } catch (storageError) {
-      console.warn('Could not export storage files:', storageError);
+    }
+
+    // From product_groups (group images)
+    for (const g of product_groups) {
+      if (g.image) mapUrlToArticle(g.image, g.name);
+    }
+
+    // List ALL files in storage recursively
+    onProgress?.('Récupération de la liste des fichiers stockés...');
+    let allStoragePaths: string[] = [];
+    try {
+      allStoragePaths = await listAllStorageFiles(bucket);
+    } catch (err) {
+      console.warn('Could not list storage files:', err);
+    }
+
+    // Download and organize files into article-named folders
+    if (allStoragePaths.length > 0) {
+      const storageFolder = zip.folder('fiches-techniques');
+      let downloadedCount = 0;
+
+      for (const filePath of allStoragePaths) {
+        try {
+          onProgress?.(`Téléchargement fichier ${++downloadedCount}/${allStoragePaths.length}...`);
+          const { data: fileData, error: downloadError } = await supabase.storage
+            .from(bucket)
+            .download(filePath);
+          
+          if (!downloadError && fileData) {
+            const articleFolder = pathToArticle.get(filePath) || '_unlinked';
+            const fileName = filePath.split('/').pop() || filePath;
+            storageFolder?.file(`${articleFolder}/${fileName}`, fileData);
+          }
+        } catch (err) {
+          console.warn(`Could not download file ${filePath}:`, err);
+        }
+      }
     }
 
     onProgress?.('Création du fichier ZIP...');
@@ -449,9 +536,11 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
         const filePromises: Promise<void>[] = [];
         fichesFolder.forEach((relativePath, zipEntry) => {
           if (!zipEntry.dir) {
+            // relativePath could be "ArticleName/file.webp" (v5) or "file.webp" (v4)
+            const fileName = relativePath.split('/').pop() || relativePath;
             filePromises.push(
               zipEntry.async('blob').then(blob => {
-                storageFiles.push({ name: relativePath, data: blob });
+                storageFiles.push({ name: fileName, data: blob });
               })
             );
           }
@@ -574,14 +663,40 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
       await insertTableData('team_chat_messages', team_chat_messages, false);
     }
 
-    // Upload storage files
+    // Upload storage files — rebuild original paths from data.json URLs
     if (storageFiles.length > 0) {
       onProgress?.(`Restauration de ${storageFiles.length} fichier(s)...`);
+      
+      // Build a map: fileName → original storage path from all URL fields in data
+      const fileNameToPath = new Map<string, string>();
+      const bucket = 'fiches-techniques';
+      
+      const registerUrl = (url: string) => {
+        const path = extractStoragePath(url, bucket);
+        if (path) {
+          const fn = path.split('/').pop();
+          if (fn) fileNameToPath.set(fn, path);
+        }
+      };
+      
+      for (const p of products) {
+        for (const u of parseFicheUrls(p.fiche_technique_url)) registerUrl(u);
+        if (p.image) registerUrl(p.image);
+      }
+      for (const pgf of product_group_fournisseurs) {
+        for (const u of parseFicheUrls(pgf.fiche_technique_url)) registerUrl(u);
+      }
+      for (const g of product_groups) {
+        if (g.image) registerUrl(g.image);
+      }
+
       for (const sf of storageFiles) {
         try {
+          // Use original path from data.json, fallback to fiches/filename
+          const storagePath = fileNameToPath.get(sf.name) || `fiches/${sf.name}`;
           await supabase.storage
-            .from('fiches-techniques')
-            .upload(`fiches/${sf.name}`, sf.data, { upsert: true });
+            .from(bucket)
+            .upload(storagePath, sf.data, { upsert: true });
         } catch (err) {
           console.warn(`Could not restore file ${sf.name}:`, err);
         }
