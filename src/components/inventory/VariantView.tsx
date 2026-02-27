@@ -200,7 +200,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         if (file.type === 'application/pdf') {
           // Convert ALL pages to separate JPEG images
           const { convertPdfAllPagesToJpeg } = await import('@/lib/imageCompression');
-          const pages = await convertPdfAllPagesToJpeg(file);
+          const pages = await convertPdfAllPagesToJpeg(file, { maxWidth: 5000, maxHeight: 5000, quality: 1.0 });
           toast.info(`PDF "${file.name}": ${pages.length} page(s) détectée(s), conversion en cours...`);
           for (const page of pages) {
             const url = await uploadBlobToStorage(page.blob);
@@ -341,7 +341,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     toast.info('Génération du PDF en cours...');
     try {
       const { default: jsPDF } = await import('jspdf');
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: false });
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
       const margin = 10;

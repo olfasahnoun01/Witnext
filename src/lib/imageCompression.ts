@@ -143,7 +143,7 @@ export async function convertImageFileToJpeg(
   file: File,
   options: CompressionOptions = {}
 ): Promise<{ blob: Blob; ext: string }> {
-  const opts = { ...DEFAULT_OPTIONS, ...options, maxWidth: 1920, maxHeight: 1920 };
+  const opts = { ...DEFAULT_OPTIONS, ...options, maxWidth: 5000, maxHeight: 5000 };
 
   if (file.type === 'application/pdf') {
     return convertPdfToJpeg(file, opts);
@@ -171,7 +171,7 @@ export async function convertPdfAllPagesToJpeg(
   file: File,
   options: CompressionOptions = {}
 ): Promise<{ blob: Blob; ext: string }[]> {
-  const opts = { maxWidth: 1920, maxHeight: 1920, quality: 1.0, ...options };
+  const opts = { maxWidth: 5000, maxHeight: 5000, quality: 1.0, ...options };
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
     'pdfjs-dist/build/pdf.worker.mjs',
@@ -185,7 +185,7 @@ export async function convertPdfAllPagesToJpeg(
 
   for (let pageNum = 1; pageNum <= numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
-    const scale = 2;
+    const scale = 4;
     const viewport = page.getViewport({ scale });
 
     let width = viewport.width;
