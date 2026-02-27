@@ -603,13 +603,11 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     tableWidth: 96,
     head: [],
     body: totalsRows,
-    theme: 'grid',
+    theme: 'plain',
     styles: {
       fontSize: 9,
       cellPadding: { top: 3, bottom: 3, left: 5, right: 5 },
       textColor: [40, 40, 40],
-      lineColor: [200, 200, 200],
-      lineWidth: 0.3,
     },
     columnStyles: {
       0: { halign: 'left', cellWidth: 40 },
@@ -632,6 +630,19 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       const label = String(totalsRows[data.row.index]?.[0] || '');
       if (label === 'Net HT' || label === 'Total TTC') {
         data.cell.styles.fontStyle = 'bold';
+      }
+    },
+    didDrawCell: (data) => {
+      const isLastRow = data.row.index === totalsRows.length - 1;
+      if (!isLastRow) {
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.3);
+        const y = data.cell.y + data.cell.height;
+        if (data.column.index === 0) {
+          doc.line(data.cell.x, y, data.cell.x + data.cell.width, y);
+        } else {
+          doc.line(data.cell.x, y, data.cell.x + data.cell.width, y);
+        }
       }
     },
   });
