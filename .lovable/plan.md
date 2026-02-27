@@ -1,29 +1,30 @@
 
 
-## Plan: Remove all TTC references when toggle is HT
+## Plan: Remove TVA from PDF and article preview when devis is HT
 
-When `isTtc === false`, hide every mention of "TTC" from the summary grid and ensure labels only reference HT.
+### Changes in `src/utils/pdfGenerator.ts`
+
+**1. Items table (lines 518-568)**
+- When `!isTTC`: remove the TVA column (`item.tva ?? 19}%`) from each data row (index 5 in the array)
+- Remove `'TVA'` from the header row
+- Adjust `columnStyles` indices (columns shift left after TVA removal)
+- Change `Prix U TTC` label to `Prix U HT` (already done via ternary)
+- Change `Sous-total TTC` to `Sous-total HT` (already done via ternary)
+
+**2. Totals section (lines 587-599)**
+When `!isTTC`:
+- Remove `['TVA', ...]` row
+- Remove intermediate `['Total TTC', ...]` row
+- Change final row label from `'Total TTC'` to `'Total HT'`
+- Use `totalNet + 1` instead of `totalFinal` (which is `totalTTC + 1`)
+
+**3. Bold styling in `didParseCell` (lines 630-634)**
+When `!isTTC`: bold `'Net HT'` and `'Total HT'` instead of `'Total TTC'`.
 
 ### Changes in `src/components/devis/DevisForm.tsx`
 
-**1. Summary totals grid (lines 1003-1033)**
+**4. Article preview (lines 944-966)**
+Already handled — shows only HT when `!isTtc`. No changes needed here.
 
-When `!isTtc`:
-- Hide the "TVA" cell (lines 1017-1020)
-- Hide the "Total TTC" cell (lines 1021-1024)
-- Change the final total label from "Total TTC" to "Total HT" (line 1030)
-- Recalculate the final total to be `totalNet + 1` (timbre) instead of `totalTTC + 1`
-- Adjust grid columns: use `grid-cols-2 sm:grid-cols-3` when TTC, `grid-cols-2` when HT (fewer cells)
-
-**2. devisTotals calculation (lines 620-634)**
-
-Add a `totalFinalHT` value: `totalNet + 1` so the final line can show the correct HT total when not in TTC mode.
-
-**3. Summary structure when HT:**
-- Show: Total HT, Remise, Net HT, Timbre
-- Final line: "Total HT" with value `(totalNet + 1).toFixed(3) TND`
-
-**4. Summary structure when TTC (unchanged):**
-- Show: Total HT, Remise, Net HT, TVA, Total TTC, Timbre
-- Final line: "Total TTC" with value `totalFinal.toFixed(3) TND`
+**Summary:** 6 targeted edits in `pdfGenerator.ts` to conditionally strip TVA column and TTC totals from the generated PDF document when the devis is in HT mode.
 
