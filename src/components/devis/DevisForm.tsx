@@ -159,14 +159,15 @@ export const DevisForm = memo(({
     load();
   }, []);
 
-  // Search products
+  // Search products — light query excluding heavy columns (image, fiche_technique_url)
   useEffect(() => {
     if (!debouncedSearch.trim()) { setSearchResults([]); return; }
+    let cancelled = false;
     const search = async () => {
       setIsSearching(true);
       let query = supabase
         .from('products')
-        .select('*')
+        .select('id, name, sku, category, fournisseur, size, color, price, prix_ttc, remise, quantity, min_stock, product_group_id')
         .ilike('name', `${debouncedSearch}%`);
       
       // Filter by selected fournisseur in devis entrant
@@ -175,8 +176,11 @@ export const DevisForm = memo(({
       }
       
       const { data } = await query.limit(10);
+      if (cancelled) return;
       setSearchResults((data || []).map(p => ({
         ...p,
+        image: null,
+        fiche_technique_url: null,
         fournisseur: p.fournisseur || '',
         size: p.size || '',
         remise: p.remise || 0,
@@ -186,6 +190,7 @@ export const DevisForm = memo(({
       setIsSearching(false);
     };
     search();
+    return () => { cancelled = true; };
   }, [debouncedSearch, isEntrant, thirdPartyName]);
 
   const selectExistingProduct = useCallback((product: Product) => {
