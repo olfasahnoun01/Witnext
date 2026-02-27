@@ -845,7 +845,7 @@ export const DevisForm = memo(({
                   )}
 
                   {/* Quantity, Price & Remise */}
-                   <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-4' : (isEntrant && isTtc ? 'grid-cols-4' : 'grid-cols-3')}`}>
+                   <div className={`grid gap-3 ${devisType === 'sortant' ? (isTtc ? 'grid-cols-4' : 'grid-cols-3') : (isEntrant && isTtc ? 'grid-cols-4' : (isTtc ? 'grid-cols-3' : 'grid-cols-2'))}`}>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
@@ -873,17 +873,19 @@ export const DevisForm = memo(({
                       <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
                       <input type="number" min="0" max="100" step="0.1" value={itemRemise || ''} onChange={e => setItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
-                      <select value={String(itemTva)} onChange={e => setItemTva(Number(e.target.value))} className="form-input">
-                        <option value="7">7%</option>
-                        <option value="13">13%</option>
-                        <option value="19">19%</option>
-                      </select>
-                    </div>
-                  </div>
-                </>
-              ) : (
+                     {isTtc && (
+                       <div>
+                         <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
+                         <select value={String(itemTva)} onChange={e => setItemTva(Number(e.target.value))} className="form-input">
+                           <option value="7">7%</option>
+                           <option value="13">13%</option>
+                           <option value="19">19%</option>
+                         </select>
+                       </div>
+                     )}
+                   </div>
+                 </>
+               ) : (
                 <>
                   {/* Manual entry */}
                   <input type="text" value={itemDesignation} onChange={e => setItemDesignation(e.target.value)} className="form-input" placeholder="Nom de l'article *" />
@@ -891,7 +893,7 @@ export const DevisForm = memo(({
                     <input type="text" value={itemFournisseur} onChange={e => setItemFournisseur(e.target.value)} className="form-input" placeholder="Fournisseur" />
                     <input type="text" value={itemDescription} onChange={e => setItemDescription(e.target.value)} className="form-input" placeholder="Description (opt.)" />
                   </div>
-                   <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-4' : (isEntrant && isTtc ? 'grid-cols-4' : 'grid-cols-3')}`}>
+                   <div className={`grid gap-3 ${devisType === 'sortant' ? (isTtc ? 'grid-cols-4' : 'grid-cols-3') : (isEntrant && isTtc ? 'grid-cols-4' : (isTtc ? 'grid-cols-3' : 'grid-cols-2'))}`}>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Quantité</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
@@ -919,17 +921,19 @@ export const DevisForm = memo(({
                       <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
                       <input type="number" min="0" max="100" step="0.1" value={itemRemise || ''} onChange={e => setItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
-                      <select value={String(itemTva)} onChange={e => setItemTva(Number(e.target.value))} className="form-input">
-                        <option value="7">7%</option>
-                        <option value="13">13%</option>
-                        <option value="19">19%</option>
-                      </select>
-                    </div>
-                  </div>
-                </>
-              )}
+                     {isTtc && (
+                       <div>
+                         <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
+                         <select value={String(itemTva)} onChange={e => setItemTva(Number(e.target.value))} className="form-input">
+                           <option value="7">7%</option>
+                           <option value="13">13%</option>
+                           <option value="19">19%</option>
+                         </select>
+                       </div>
+                     )}
+                   </div>
+                 </>
+               )}
 
               {itemDesignation.trim() && itemPrixTtc > 0 && (
                 <div className="p-2 rounded-lg bg-muted/50 border border-border text-center">
@@ -1035,7 +1039,7 @@ export const DevisForm = memo(({
                   {editingItemIdx === idx ? (
                     <div className="space-y-3">
                       <p className="font-medium text-foreground">{item.designation}</p>
-                      <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                      <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-2' : (isTtc ? 'grid-cols-3' : 'grid-cols-2')}`}>
                         <div>
                           <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
                           <input type="number" min="1" value={editItemQty} onChange={e => setEditItemQty(parseInt(e.target.value) || 1)} className="form-input" />
@@ -1054,14 +1058,16 @@ export const DevisForm = memo(({
                           <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
                           <input type="number" min="0" max="100" step="0.1" value={editItemRemise || ''} onChange={e => setEditItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
                         </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
-                          <select value={String(editItemTva)} onChange={e => setEditItemTva(Number(e.target.value))} className="form-input">
-                            <option value="7">7%</option>
-                            <option value="13">13%</option>
-                            <option value="19">19%</option>
-                          </select>
-                        </div>
+                         {isTtc && (
+                           <div>
+                             <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
+                             <select value={String(editItemTva)} onChange={e => setEditItemTva(Number(e.target.value))} className="form-input">
+                               <option value="7">7%</option>
+                               <option value="13">13%</option>
+                               <option value="19">19%</option>
+                             </select>
+                           </div>
+                         )}
                       </div>
                       <div className="flex gap-2 justify-end">
                         <Button size="sm" variant="outline" onClick={cancelEditItem}><X className="w-3 h-3 mr-1" /> Annuler</Button>
@@ -1077,7 +1083,7 @@ export const DevisForm = memo(({
                           Qté: {item.quantity}
                           {item.prix_achat != null && item.prix_achat > 0 && ` • Achat: ${item.prix_achat.toFixed(3)} TND`}
                           {` • P.U: ${item.prix_ttc.toFixed(3)} TND`}
-                          {` • TVA: ${item.tva ?? 19}%`}
+                          {isTtc && ` • TVA: ${item.tva ?? 19}%`}
                           {item.remise > 0 && ` • Remise: ${item.remise}% → ${(item.prix_ttc * (1 - item.remise / 100)).toFixed(3)} TND`}
                           {(() => {
                             const unitAfterRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
