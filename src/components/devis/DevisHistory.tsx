@@ -292,7 +292,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
 
       {/* Items Detail Dialog */}
       <Dialog open={!!itemsDevis} onOpenChange={() => setItemsDevis(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+        <DialogContent className="w-[80vw] max-w-[80vw] max-h-[85vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>Articles du devis {itemsDevis?.devis_number}</DialogTitle>
           </DialogHeader>
