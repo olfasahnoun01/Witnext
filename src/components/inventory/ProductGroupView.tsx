@@ -176,13 +176,76 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
   const handleDeleteGroup = useCallback(async (group: ProductGroup) => {
     const variantCount = group.variant_count || 0;
     const confirmMessage = variantCount > 0
-      ? `Supprimer l'article "${group.name}" et ses ${variantCount} variante${variantCount > 1 ? 's' : ''} ?`
+      ? `Supprimer l'article "${group.name}" et ses ${variantCount} variante${variantCount > 1 ? 's' : ''} ? Les fiches techniques et images seront aussi supprimées.`
       : `Supprimer l'article "${group.name}" ?`;
     
     if (!window.confirm(confirmMessage)) return;
     
     try {
-      // First delete all variants associated with this group
+      // Collect storage paths to delete
+      const storagePaths: string[] = [];
+
+      // Helper: extract storage path from public URL
+      const extractPath = (url: string | null | undefined) => {
+        if (!url) return;
+        // URL format: .../storage/v1/object/public/bucket-name/path
+        const marker = '/fiches-techniques/';
+        const idx = url.indexOf(marker);
+        if (idx !== -1) storagePaths.push(url.substring(idx + marker.length));
+      };
+
+      // Get variants' fiche_technique_url and image
+      if (variantCount > 0) {
+        const { data: variants } = await supabase
+          .from('products')
+          .select('fiche_technique_url, image')
+          .eq('product_group_id', group.id);
+
+        variants?.forEach(v => {
+          // Parse fiche URLs (could be JSON array or single URL)
+          if (v.fiche_technique_url) {
+            const trimmed = v.fiche_technique_url.trim();
+            let urls: string[] = [];
+            if (trimmed.startsWith('[')) {
+              try { urls = JSON.parse(trimmed); } catch { urls = [trimmed]; }
+            } else {
+              urls = [trimmed];
+            }
+            urls.forEach(extractPath);
+          }
+          // Variant images stored in fiches-techniques bucket
+          extractPath(v.image);
+        });
+      }
+
+      // Get fournisseurs' fiche_technique_url
+      const { data: pgf } = await supabase
+        .from('product_group_fournisseurs')
+        .select('fiche_technique_url')
+        .eq('product_group_id', group.id);
+
+      pgf?.forEach(f => {
+        if (f.fiche_technique_url) {
+          const trimmed = f.fiche_technique_url.trim();
+          let urls: string[] = [];
+          if (trimmed.startsWith('[')) {
+            try { urls = JSON.parse(trimmed); } catch { urls = [trimmed]; }
+          } else {
+            urls = [trimmed];
+          }
+          urls.forEach(extractPath);
+        }
+      });
+
+      // Group image
+      extractPath(group.image);
+
+      // Delete files from storage (best effort)
+      if (storagePaths.length > 0) {
+        await supabase.storage.from('fiches-techniques').remove(storagePaths);
+      }
+
+      // Delete variants
       if (variantCount > 0) {
         const { error: variantsError } = await supabase
           .from('products')
@@ -191,6 +254,9 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
         
         if (variantsError) throw variantsError;
       }
+
+      // Delete fournisseurs links
+      await supabase.from('product_group_fournisseurs').delete().eq('product_group_id', group.id);
       
       // Then delete the product group
       await deleteProductGroup(group.id);
