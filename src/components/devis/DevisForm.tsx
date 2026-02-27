@@ -139,7 +139,7 @@ export const DevisForm = memo(({
   const [isCreatingVariant, setIsCreatingVariant] = useState(false);
   const [groupSearch, setGroupSearch] = useState('');
   const [groupPopoverOpen, setGroupPopoverOpen] = useState(false);
-  const [variantFicheFile, setVariantFicheFile] = useState<File | null>(null);
+  const [variantFicheFiles, setVariantFicheFiles] = useState<File[]>([]);
   const variantFicheRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -599,25 +599,59 @@ export const DevisForm = memo(({
       if (!result.success) {
         toast.error(result.error || 'Erreur création variante');
       } else {
-        // Upload fiche technique if provided — saved on the variant (product) itself
-        if (variantFicheFile && result.id) {
+        // Upload fiche technique files — convert all to WebP
+        if (variantFicheFiles.length > 0 && result.id) {
           try {
-            const ext = variantFicheFile.name.split('.').pop() || 'pdf';
-            const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-            const filePath = `fiches/${fileName}`;
-            const { error: uploadError } = await supabase.storage.from('fiches-techniques').upload(filePath, variantFicheFile);
-            if (!uploadError) {
-              const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
-              if (urlData?.publicUrl) {
-                await supabase.rpc('update_product_fiche_technique', {
-                  _product_id: result.id,
-                  _fiche_technique_url: urlData.publicUrl,
-                });
+            const { convertImageFileToWebp, convertPdfAllPagesToWebp } = await import('@/lib/imageCompression');
+            const uploadedUrls: string[] = [];
+
+            for (const file of variantFicheFiles) {
+              let blobs: { blob: Blob; ext: string }[] = [];
+
+              if (file.type === 'application/pdf') {
+                blobs = await convertPdfAllPagesToWebp(file);
+              } else {
+                const convResult = await convertImageFileToWebp(file);
+                blobs = [convResult];
               }
-              toast.success('Fiche technique uploadée');
+
+              for (const { blob, ext } of blobs) {
+                const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+                const filePath = `fiches/${fileName}`;
+                const { error: uploadError } = await supabase.storage
+                  .from('fiches-techniques')
+                  .upload(filePath, blob, { contentType: 'image/webp' });
+                if (uploadError) {
+                  console.error('Storage upload error:', uploadError);
+                  toast.error(`Erreur upload: ${uploadError.message}`);
+                  continue;
+                }
+                const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
+                if (urlData?.publicUrl) {
+                  uploadedUrls.push(urlData.publicUrl);
+                }
+              }
             }
-          } catch (e) {
+
+            if (uploadedUrls.length > 0) {
+              const fichePayload = uploadedUrls.length === 1
+                ? uploadedUrls[0]
+                : JSON.stringify(uploadedUrls);
+
+              const { error: rpcError } = await supabase.rpc('update_product_fiche_technique', {
+                _product_id: result.id,
+                _fiche_technique_url: fichePayload,
+              });
+              if (rpcError) {
+                console.error('RPC fiche error:', rpcError);
+                toast.error(`Erreur sauvegarde fiche: ${rpcError.message}`);
+              } else {
+                toast.success(`${uploadedUrls.length} fiche(s) technique(s) uploadée(s)`);
+              }
+            }
+          } catch (e: any) {
             console.error('Fiche upload error:', e);
+            toast.error(`Erreur traitement fiches: ${e.message || e}`);
           }
         }
         toast.success('Variante créée avec succès');
@@ -633,12 +667,12 @@ export const DevisForm = memo(({
         setVariantColor('');
         setVariantQuantity(0);
         setGroupSearch('');
-        setVariantFicheFile(null);
+        setVariantFicheFiles([]);
       }
     } finally {
       setIsCreatingVariant(false);
     }
-  }, [selectedGroupId, variantSku, variantSize, variantColor, variantQuantity, productGroups]);
+  }, [selectedGroupId, variantSku, variantSize, variantColor, variantQuantity, productGroups, variantFicheFiles]);
 
   const filteredGroups = useMemo(() => {
     if (!groupSearch.trim()) return productGroups;
@@ -1384,29 +1418,56 @@ export const DevisForm = memo(({
 
             {/* Fiche Technique */}
             <div>
-              <Label>Fiche Technique (PDF/Image)</Label>
-              <div className="flex items-center gap-2">
-                <input
-                  ref={variantFicheRef}
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png,.webp"
-                  className="hidden"
-                  onChange={e => setVariantFicheFile(e.target.files?.[0] || null)}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => variantFicheRef.current?.click()}
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  {variantFicheFile ? variantFicheFile.name : 'Choisir un fichier'}
-                </Button>
-                {variantFicheFile && (
-                  <Button type="button" variant="ghost" size="icon" onClick={() => setVariantFicheFile(null)}>
-                    <X className="w-4 h-4" />
+              <Label>Fiches Techniques (PDF/Images — multiple)</Label>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={variantFicheRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    className="hidden"
+                    onChange={e => {
+                      const files = e.target.files;
+                      if (files && files.length > 0) {
+                        setVariantFicheFiles(prev => [...prev, ...Array.from(files)]);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => variantFicheRef.current?.click()}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {variantFicheFiles.length > 0 ? `${variantFicheFiles.length} fichier(s)` : 'Choisir des fichiers'}
                   </Button>
+                  {variantFicheFiles.length > 0 && (
+                    <Button type="button" variant="ghost" size="icon" onClick={() => setVariantFicheFiles([])}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+                {variantFicheFiles.length > 0 && (
+                  <div className="text-xs text-muted-foreground space-y-0.5">
+                    {variantFicheFiles.map((f, i) => (
+                      <div key={i} className="flex items-center justify-between">
+                        <span className="truncate max-w-[200px]">{f.name}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          onClick={() => setVariantFicheFiles(prev => prev.filter((_, j) => j !== i))}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
