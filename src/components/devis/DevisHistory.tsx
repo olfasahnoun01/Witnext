@@ -306,7 +306,9 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </thead>
                 <tbody>
                   {itemsDevis.items.map((item, idx) => {
+                    const tvaRate = (item.tva ?? 19) / 100;
                     const prixApresRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
+                    const sousTotalTTC = prixApresRemise * item.quantity * (1 + tvaRate);
                     return (
                       <tr key={idx} className="border-b border-border/50">
                         <td className="py-2 px-3 text-muted-foreground">{idx + 1}</td>
@@ -319,7 +321,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                         <td className="py-2 px-3 text-right text-muted-foreground">{item.remise > 0 ? `${item.remise}%` : '-'}</td>
                         <td className="py-2 px-3 text-center text-muted-foreground">{(item as any).tva ?? 19}%</td>
                         <td className="py-2 px-3 text-right text-foreground">{item.quantity}</td>
-                        <td className="py-2 px-3 text-right font-medium text-foreground">{(prixApresRemise * item.quantity).toFixed(3)} TND</td>
+                        <td className="py-2 px-3 text-right font-medium text-foreground">{sousTotalTTC.toFixed(3)} TND</td>
                       </tr>
                     );
                   })}

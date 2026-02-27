@@ -520,10 +520,10 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     const prixApresRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
     let sousTotal: number;
     if (isTTC) {
-      // prix_ttc is stored as TTC value, sous-total is TTC
-      sousTotal = prixApresRemise * item.quantity;
+      // prix_ttc is HT, sous-total TTC = HT * (1 + tva)
+      sousTotal = prixApresRemise * item.quantity * (1 + tvaRate);
     } else {
-      // prix_ttc is stored as HT value, sous-total is HT
+      // sous-total HT
       sousTotal = prixApresRemise * item.quantity;
     }
     return [

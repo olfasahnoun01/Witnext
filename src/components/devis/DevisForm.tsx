@@ -615,8 +615,8 @@ export const DevisForm = memo(({
   const totalAmount = devisItems.reduce((s, i) => {
     const priceAfterRemise = i.remise > 0 ? i.prix_ttc * (1 - i.remise / 100) : i.prix_ttc;
     const lineTotal = priceAfterRemise * i.quantity;
-    // prix_ttc is stored as TTC; if HT mode, convert each line using its own TVA rate
-    return s + (isTtc ? lineTotal : lineTotal / (1 + (i.tva ?? 19) / 100));
+    // prix_ttc is HT; if TTC mode, multiply by (1 + tva) to get real TTC
+    return s + (isTtc ? lineTotal * (1 + (i.tva ?? 19) / 100) : lineTotal);
   }, 0);
   const thirdPartyList = isEntrant ? fournisseurs : clients;
   const ThirdPartyIcon = isEntrant ? Building2 : Users;
