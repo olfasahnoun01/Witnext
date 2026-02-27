@@ -398,19 +398,6 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
               <div key={f.id || index} className="flex-shrink-0 bg-muted/50 rounded-lg px-4 py-2 border border-border">
                 <p className="font-medium text-foreground whitespace-nowrap">{f.fournisseur_name}</p>
                 <p className="text-sm text-primary whitespace-nowrap">{f.prix_ttc.toFixed(3)} TND</p>
-                {f.fiche_technique_url && (
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1"
-                      onClick={() => openPreview(parseFicheUrls(f.fiche_technique_url))}
-                    >
-                      <Eye className="w-3 h-3" /> Voir
-                    </Button>
-                    <a href={f.fiche_technique_url} download target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-xs hover:bg-muted transition-colors">
-                      <Download className="w-3 h-3" />
-                    </a>
-                  </div>
-                )}
               </div>
             ))}
           </div>
