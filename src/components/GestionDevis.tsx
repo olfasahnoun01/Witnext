@@ -112,11 +112,11 @@ export const GestionDevis = () => {
 
   const resetForm = useCallback(() => {
     setDevisType('sortant');
-    setDevisNumber('');
     clearFormFields();
     setEditingDevis(null);
     setShowEditDialog(false);
-  }, [clearFormFields]);
+    generateNextNumber('sortant');
+  }, [clearFormFields, generateNextNumber]);
 
   const handleTypeChange = useCallback((type: 'entrant' | 'sortant') => {
     setDevisType(type);
