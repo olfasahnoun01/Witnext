@@ -15,7 +15,7 @@ const Settings = lazy(() => import('@/components/Settings').then(m => ({ default
 const SupplierComparison = lazy(() => import('@/components/SupplierComparison').then(m => ({ default: m.SupplierComparison })));
 const Fournisseurs = lazy(() => import('@/components/Fournisseurs').then(m => ({ default: m.Fournisseurs })));
 const Clients = lazy(() => import('@/components/Clients').then(m => ({ default: m.Clients })));
-const TeamChat = lazy(() => import('@/components/TeamChat').then(m => ({ default: m.TeamChat })));
+
 const GestionDevis = lazy(() => import('@/components/GestionDevis').then(m => ({ default: m.GestionDevis })));
 
 const tabTitles: Record<string, string> = {
@@ -105,10 +105,6 @@ const Index = () => {
         </main>
       </div>
       
-      {/* Team Chat - lazy loaded */}
-      <Suspense fallback={null}>
-        <TeamChat />
-      </Suspense>
     </div>
   );
 };
