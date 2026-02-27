@@ -1018,7 +1018,7 @@ export const DevisForm = memo(({
                 <p className="font-semibold text-foreground">1.000</p>
               </div>
               <div className="col-span-2 sm:col-span-3 border-t border-border pt-2 mt-1">
-                <p className="text-muted-foreground">Total Final</p>
+                <p className="text-muted-foreground">Total TTC</p>
                 <p className="font-bold text-primary text-sm">{devisTotals.totalFinal.toFixed(3)} TND</p>
               </div>
             </div>
