@@ -865,10 +865,10 @@ export const DevisForm = memo(({
                     </div>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
-                      <select value={itemTva} onChange={e => setItemTva(Number(e.target.value))} className="form-input">
-                        <option value={7}>7%</option>
-                        <option value={13}>13%</option>
-                        <option value={19}>19%</option>
+                      <select value={String(itemTva)} onChange={e => setItemTva(Number(e.target.value))} className="form-input">
+                        <option value="7">7%</option>
+                        <option value="13">13%</option>
+                        <option value="19">19%</option>
                       </select>
                     </div>
                   </div>
@@ -911,10 +911,10 @@ export const DevisForm = memo(({
                     </div>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
-                      <select value={itemTva} onChange={e => setItemTva(Number(e.target.value))} className="form-input">
-                        <option value={7}>7%</option>
-                        <option value={13}>13%</option>
-                        <option value={19}>19%</option>
+                      <select value={String(itemTva)} onChange={e => setItemTva(Number(e.target.value))} className="form-input">
+                        <option value="7">7%</option>
+                        <option value="13">13%</option>
+                        <option value="19">19%</option>
                       </select>
                     </div>
                   </div>
@@ -1016,10 +1016,10 @@ export const DevisForm = memo(({
                         </div>
                         <div>
                           <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
-                          <select value={editItemTva} onChange={e => setEditItemTva(Number(e.target.value))} className="form-input">
-                            <option value={7}>7%</option>
-                            <option value={13}>13%</option>
-                            <option value={19}>19%</option>
+                          <select value={String(editItemTva)} onChange={e => setEditItemTva(Number(e.target.value))} className="form-input">
+                            <option value="7">7%</option>
+                            <option value="13">13%</option>
+                            <option value="19">19%</option>
                           </select>
                         </div>
                       </div>
