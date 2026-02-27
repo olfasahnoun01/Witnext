@@ -216,14 +216,15 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     </td>
                     <td className="py-3 px-4 text-sm font-medium text-foreground">
                       {(() => {
-                        let totalTTC = 0;
+                        let totalNet = 0, totalTTC = 0;
                         d.items.forEach(i => {
                           const lineHT = i.prix_ttc * i.quantity;
                           const remiseDT = i.remise > 0 ? lineHT * (i.remise / 100) : 0;
                           const lineNet = lineHT - remiseDT;
+                          totalNet += lineNet;
                           totalTTC += lineNet + lineNet * ((i.tva ?? 19) / 100);
                         });
-                        const finalTotal = totalTTC + 1;
+                        const finalTotal = d.is_ttc ? totalTTC + 1 : totalNet + 1;
                         return finalTotal > 1 ? `${finalTotal.toFixed(3)} TND` : '-';
                       })()}
                     </td>
