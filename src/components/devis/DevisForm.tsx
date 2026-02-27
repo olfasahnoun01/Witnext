@@ -482,7 +482,7 @@ export const DevisForm = memo(({
             for (const file of newArticleFicheFiles) {
               let blobs: { blob: Blob; ext: string }[] = [];
               if (file.type === 'application/pdf') {
-                blobs = await convertPdfAllPagesToJpeg(file);
+                blobs = await convertPdfAllPagesToJpeg(file, { maxWidth: 5000, maxHeight: 5000, quality: 1.0 });
                 toast.info(`PDF "${file.name}": ${blobs.length} page(s) convertie(s) en JPEG`);
               } else {
                 const convResult = await convertImageFileToJpeg(file);
@@ -661,7 +661,7 @@ export const DevisForm = memo(({
               let blobs: { blob: Blob; ext: string }[] = [];
 
               if (file.type === 'application/pdf') {
-                blobs = await convertPdfAllPagesToJpeg(file);
+                blobs = await convertPdfAllPagesToJpeg(file, { maxWidth: 5000, maxHeight: 5000, quality: 1.0 });
               } else {
                 const convResult = await convertImageFileToJpeg(file);
                 blobs = [convResult];
