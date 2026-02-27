@@ -252,12 +252,12 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2">
-                        {canEdit && (
+                        {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && canEdit && (
                           <button onClick={() => onEdit(d)} className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors" title="Modifier">
                             <Edit className="w-4 h-4" />
                           </button>
                         )}
-                        {(
+                        {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && (
                           <button onClick={() => setDeleteConfirm(d)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Supprimer">
                             <Trash2 className="w-4 h-4" />
                           </button>
