@@ -1,43 +1,41 @@
 
 
-## Plan: Fix fiche technique in "Créer Article" + multi-file + PDF all pages + delete article image
+## Plan: Enhanced Export with Article-Named Fiche Technique Folders
 
-### Root Cause Analysis
+### Current State
+- Export already fetches all 13 tables and files from `fiches-techniques` bucket under `fiches/` prefix
+- All storage files are dumped flat into a single `fiches-techniques/` folder in the ZIP
+- No organization by article name
 
-The "Créer un Nouvel Article" dialog in Gestion Devis uses `MultiFournisseurInput` for fiche technique uploads. Two problems:
+### Changes
 
-1. **PDF only converts first page**: `MultiFournisseurInput.handleFicheUpload` calls `convertImageFileToWebp()` which internally uses `convertPdfToWebp()` -- this only renders page 1 of a PDF. The user wants ALL pages converted.
-2. **Only one fiche per fournisseur**: Currently stores a single URL string. The user wants to add multiple images/files per fournisseur.
-3. **No delete button for article image**: The image upload area in the create dialog has no way to remove a selected image.
+#### File: `src/services/dbService.ts` — `exportDatabase` function
 
-### Implementation Steps
+1. **List ALL storage files** (not just `fiches/` subfolder) — also list root-level files and any other subfolders to capture all uploaded content (article images stored there too)
 
-#### 1. Update `MultiFournisseurInput` -- multi-file fiche with PDF all-pages support
-**File**: `src/components/inventory/MultiFournisseurInput.tsx`
+2. **Build article-name mapping**: After fetching `products` and `product_groups`, create a map from storage file path → article (product group) name by parsing `fiche_technique_url` and `image` fields from:
+   - `products` table (map via `product_group_id` → group name)
+   - `product_group_fournisseurs` table (map via `product_group_id` → group name)
+   - `product_groups` table (for group images)
 
-- Change `fiche_technique_url` handling from single URL to array of URLs (JSON string format, same as `products.fiche_technique_url`).
-- Replace `handleFicheUpload` to accept multiple files: for images, convert each to WebP; for PDFs, use `convertPdfAllPagesToWebp()` to get all pages as WebP blobs.
-- Upload all blobs to storage, collect URLs, serialize as JSON array string.
-- Update the UI to show all uploaded fiches as thumbnails with individual delete buttons.
-- Update the preview dialog to support gallery navigation (previous/next).
-- Add helper functions `parseFicheUrls()` and `serializeFicheUrls()` (reuse pattern from VariantView).
-- Change file input to `multiple`.
+3. **Organize ZIP structure**:
+   ```
+   data.json
+   fiches-techniques/
+     ArticleName1/
+       file1.webp
+       file2.webp
+     ArticleName2/
+       file3.webp
+     _unlinked/
+       orphan-file.webp
+   ```
+   - Sanitize article names for folder safety (remove `/`, `\`, etc.)
+   - Files not linked to any article go into `_unlinked/`
 
-#### 2. Add delete button for article image in create dialog
-**File**: `src/components/devis/DevisForm.tsx`
+4. **List storage recursively**: Use `supabase.storage.from('fiches-techniques').list()` with empty path first, then list subfolders to get all files (the bucket may have files at root, `fiches/`, or other paths)
 
-- In the "Créer un Nouvel Article" dialog (line ~1262), add an X button overlay on the image preview to clear `newArticle.image` back to `null`.
-- Only show the X button when an image is already selected.
+5. **Update import** to handle both old flat format and new article-folder format — on import, flatten all files back to their original storage paths using the URL references in `data.json`
 
-#### 3. Ensure fiche URLs flow correctly through article creation
-**File**: `src/components/devis/DevisForm.tsx`
-
-- In `createNewArticle`, the `f.fiche_technique_url` from `MultiFournisseurInput` already flows into both `product_group_fournisseurs` insert and `products` insert -- this is correct and no change needed here, as long as MultiFournisseurInput correctly sets the URL.
-
-### Technical Details
-
-- **Storage format**: `fiche_technique_url` stores either a single URL string or a JSON array string `["url1","url2"]` -- compatible with existing `parseFicheUrls()` in VariantView.
-- **No DB migration needed**: The `fiche_technique_url` column is already `text` type on both `products` and `product_group_fournisseurs` tables.
-- **WebP conversion**: Uses existing `convertImageFileToWebp` for images and `convertPdfAllPagesToWebp` for PDFs from `src/lib/imageCompression.ts`.
-- **Storage bucket**: `fiches-techniques` (public, already exists).
+### No DB changes needed
 
