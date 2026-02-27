@@ -1,41 +1,38 @@
 
 
-## Plan: Enhanced Export with Article-Named Fiche Technique Folders
+## Plan: Replace WebP with JPEG at 100% Quality
 
-### Current State
-- Export already fetches all 13 tables and files from `fiches-techniques` bucket under `fiches/` prefix
-- All storage files are dumped flat into a single `fiches-techniques/` folder in the ZIP
-- No organization by article name
+### Files to Modify (6 files)
 
-### Changes
+#### 1. `src/lib/imageCompression.ts`
+- All `toDataURL('image/webp', ...)` → `toDataURL('image/jpeg', 1.0)`
+- All `toBlob(..., 'image/webp', ...)` → `toBlob(..., 'image/jpeg', 1.0)`
+- Rename: `convertImageFileToWebp` → `convertImageFileToJpeg`, `convertPdfAllPagesToWebp` → `convertPdfAllPagesToJpeg`, helper functions accordingly
+- All `ext: 'webp'` → `ext: 'jpeg'`
+- Default quality: `1.0`
 
-#### File: `src/services/dbService.ts` — `exportDatabase` function
+#### 2. `src/components/inventory/ProductModal.tsx`
+- Fallback: `toDataURL('image/webp', 0.7)` → `toDataURL('image/jpeg', 1.0)`
 
-1. **List ALL storage files** (not just `fiches/` subfolder) — also list root-level files and any other subfolders to capture all uploaded content (article images stored there too)
+#### 3. `src/components/inventory/ProductGroupModal.tsx`
+- Import rename: `convertImageFileToWebp` → `convertImageFileToJpeg`
+- Upload contentType: `'image/webp'` → `'image/jpeg'`
+- Fallback canvas: `toDataURL('image/webp', 0.7)` → `toDataURL('image/jpeg', 1.0)`
 
-2. **Build article-name mapping**: After fetching `products` and `product_groups`, create a map from storage file path → article (product group) name by parsing `fiche_technique_url` and `image` fields from:
-   - `products` table (map via `product_group_id` → group name)
-   - `product_group_fournisseurs` table (map via `product_group_id` → group name)
-   - `product_groups` table (for group images)
+#### 4. `src/components/inventory/VariantView.tsx`
+- Import rename: `convertImageFileToWebp` → `convertImageFileToJpeg`, `convertPdfAllPagesToWebp` → `convertPdfAllPagesToJpeg`
+- Upload contentType: `'image/webp'` → `'image/jpeg'`
+- Fallback canvas: `toDataURL('image/webp', 0.7)` → `toDataURL('image/jpeg', 1.0)`
+- PDF download: `pdf.addImage(base64, 'WEBP', ...)` → `pdf.addImage(base64, 'JPEG', ...)`
 
-3. **Organize ZIP structure**:
-   ```
-   data.json
-   fiches-techniques/
-     ArticleName1/
-       file1.webp
-       file2.webp
-     ArticleName2/
-       file3.webp
-     _unlinked/
-       orphan-file.webp
-   ```
-   - Sanitize article names for folder safety (remove `/`, `\`, etc.)
-   - Files not linked to any article go into `_unlinked/`
+#### 5. `src/components/devis/DevisForm.tsx`
+- Import rename: `convertImageFileToWebp` → `convertImageFileToJpeg`, `convertPdfAllPagesToWebp` → `convertPdfAllPagesToJpeg`
+- Upload contentType: `'image/webp'` → `'image/jpeg'`
+- Fallback canvas: `toDataURL('image/webp', 0.7)` → `toDataURL('image/jpeg', 1.0)`
+- Toast/labels: "WebP" → "JPEG"
 
-4. **List storage recursively**: Use `supabase.storage.from('fiches-techniques').list()` with empty path first, then list subfolders to get all files (the bucket may have files at root, `fiches/`, or other paths)
+#### 6. `src/services/dbService.ts` (export)
+- Any WebP references in export logic updated to reflect JPEG
 
-5. **Update import** to handle both old flat format and new article-folder format — on import, flatten all files back to their original storage paths using the URL references in `data.json`
-
-### No DB changes needed
+All quality parameters set to `1.0` for maximum fidelity. Existing stored WebP files will still display fine in browsers.
 
