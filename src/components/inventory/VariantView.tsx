@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload, FileText, Eye, Download, X, Images } from 'lucide-react';
+import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload, FileText, Eye, Download, X, Images, FileDown } from 'lucide-react';
 import { ProductGroup, Product, StockStatus } from '@/types';
 import { getVariantsByGroupId, createVariant } from '@/services/productGroupService';
 import { updateProduct, deleteProduct } from '@/services/dbService';
@@ -334,6 +334,59 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     setPreviewFicheIndex(startIndex);
   }, []);
 
+  const downloadFichesAsPdf = useCallback(async (variant: Product) => {
+    const urls = parseFicheUrls(variant.fiche_technique_url);
+    if (urls.length === 0) return;
+
+    toast.info('Génération du PDF en cours...');
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+
+      for (let i = 0; i < urls.length; i++) {
+        if (i > 0) pdf.addPage();
+
+        // Fetch image as blob then convert to base64
+        const response = await fetch(urls[i]);
+        const blob = await response.blob();
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+
+        // Load image to get dimensions
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const image = new Image();
+          image.crossOrigin = 'anonymous';
+          image.onload = () => resolve(image);
+          image.onerror = reject;
+          image.src = base64;
+        });
+
+        const availW = pageW - margin * 2;
+        const availH = pageH - margin * 2;
+        const ratio = Math.min(availW / img.width, availH / img.height);
+        const w = img.width * ratio;
+        const h = img.height * ratio;
+        const x = (pageW - w) / 2;
+        const y = (pageH - h) / 2;
+
+        pdf.addImage(base64, 'WEBP', x, y, w, h);
+      }
+
+      const fileName = `fiches_${variant.sku.replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
+      pdf.save(fileName);
+      toast.success('PDF téléchargé');
+    } catch (err) {
+      console.error('PDF generation error:', err);
+      toast.error('Erreur lors de la génération du PDF');
+    }
+  }, []);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -462,6 +515,10 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                             title="Prévisualiser" onClick={() => openPreview(ficheUrls)}>
                             <Images className="w-3.5 h-3.5" />
                             <span>{ficheUrls.length}</span>
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs"
+                            title="Télécharger en PDF" onClick={() => downloadFichesAsPdf(variant)}>
+                            <FileDown className="w-3.5 h-3.5" />
                           </Button>
                         </div>
                       ) : (
