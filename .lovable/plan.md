@@ -1,30 +1,18 @@
 
 
-## Plan: Remove TVA from PDF and article preview when devis is HT
+## Plan: Remove TVA from article preview dialog when devis is HT
 
-### Changes in `src/utils/pdfGenerator.ts`
+### Changes in `src/components/devis/DevisHistory.tsx`
 
-**1. Items table (lines 518-568)**
-- When `!isTTC`: remove the TVA column (`item.tva ?? 19}%`) from each data row (index 5 in the array)
-- Remove `'TVA'` from the header row
-- Adjust `columnStyles` indices (columns shift left after TVA removal)
-- Change `Prix U TTC` label to `Prix U HT` (already done via ternary)
-- Change `Sous-total TTC` to `Sous-total HT` (already done via ternary)
+**1. Table header (line 312)** — Conditionally hide the TVA column header when `!itemsDevis.is_ttc`.
 
-**2. Totals section (lines 587-599)**
-When `!isTTC`:
-- Remove `['TVA', ...]` row
-- Remove intermediate `['Total TTC', ...]` row
-- Change final row label from `'Total TTC'` to `'Total HT'`
-- Use `totalNet + 1` instead of `totalFinal` (which is `totalTTC + 1`)
+**2. Table body (line 332)** — Conditionally hide the TVA cell per row when `!itemsDevis.is_ttc`.
 
-**3. Bold styling in `didParseCell` (lines 630-634)**
-When `!isTTC`: bold `'Net HT'` and `'Total HT'` instead of `'Total TTC'`.
+**3. Sous-total calculation (line 321)** — When `!itemsDevis.is_ttc`, compute sous-total as `prixApresRemise * quantity` (no TVA).
 
-### Changes in `src/components/devis/DevisForm.tsx`
+**4. Footer totals (lines 373-382)** — Conditionally hide the TVA row and Total TTC row when `!itemsDevis.is_ttc`.
 
-**4. Article preview (lines 944-966)**
-Already handled — shows only HT when `!isTtc`. No changes needed here.
+**5. Final total row (line 390)** — Change label from "Total TTC" to "Total HT" and value from `totalTTC + 1` to `totalNet + 1` when `!itemsDevis.is_ttc`.
 
-**Summary:** 6 targeted edits in `pdfGenerator.ts` to conditionally strip TVA column and TTC totals from the generated PDF document when the devis is in HT mode.
+**6. ColSpan adjustment (line 353)** — Reduce colSpan by 1 when HT (TVA column removed).
 
