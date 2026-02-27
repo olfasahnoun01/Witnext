@@ -1,7 +1,7 @@
 import { memo, useCallback, useState, useEffect, useMemo } from 'react';
 import { ProductGroupFournisseur } from '@/types';
 import { computeDevisTotals, computeDevisLine } from '@/lib/devisPricing';
-import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package, Layers } from 'lucide-react';
+import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package, Layers, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -127,6 +127,8 @@ export const DevisForm = memo(({
   const [newArticleFournisseurs, setNewArticleFournisseurs] = useState<ProductGroupFournisseur[]>([]);
   const [isCreatingArticle, setIsCreatingArticle] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [newArticleFicheFiles, setNewArticleFicheFiles] = useState<File[]>([]);
+  const ficheInputRef = useRef<HTMLInputElement>(null);
 
   // Add variant to existing product group
   const [showAddVariant, setShowAddVariant] = useState(false);
@@ -350,6 +352,7 @@ export const DevisForm = memo(({
   const resetNewArticleForm = useCallback(() => {
     setNewArticle({ name: '', sku: '', category: '', size: '', quantity: 0, min_stock: 5, image: null, color: '' });
     setNewArticleFournisseurs([]);
+    setNewArticleFicheFiles([]);
   }, []);
 
   const handleArticleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -469,6 +472,59 @@ export const DevisForm = memo(({
         console.error('Product insert error:', error);
         toast.error(`Erreur création article: ${error.message}`);
       } else if (data && data.length > 0) {
+        // Upload fiche technique files if any
+        if (newArticleFicheFiles.length > 0) {
+          try {
+            const { convertImageFileToWebp, convertPdfAllPagesToWebp } = await import('@/lib/imageCompression');
+            const uploadedUrls: string[] = [];
+
+            for (const file of newArticleFicheFiles) {
+              let blobs: { blob: Blob; ext: string }[] = [];
+              if (file.type === 'application/pdf') {
+                blobs = await convertPdfAllPagesToWebp(file);
+              } else {
+                const convResult = await convertImageFileToWebp(file);
+                blobs = [convResult];
+              }
+
+              for (const { blob, ext } of blobs) {
+                const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+                const filePath = `fiches/${fileName}`;
+                const { error: uploadError } = await supabase.storage
+                  .from('fiches-techniques')
+                  .upload(filePath, blob, { contentType: 'image/webp' });
+                if (uploadError) {
+                  console.error('Storage upload error:', uploadError);
+                  continue;
+                }
+                const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
+                if (urlData?.publicUrl) uploadedUrls.push(urlData.publicUrl);
+              }
+            }
+
+            if (uploadedUrls.length > 0) {
+              const fichePayload = uploadedUrls.length === 1 ? uploadedUrls[0] : JSON.stringify(uploadedUrls);
+              // Update all created products with fiche URLs
+              for (const product of data) {
+                await supabase.rpc('update_product_fiche_technique', {
+                  _product_id: product.id,
+                  _fiche_technique_url: fichePayload,
+                });
+              }
+              // Also update product_group_fournisseurs
+              if (pgData && newArticleFournisseurs.length > 0) {
+                await supabase.from('product_group_fournisseurs')
+                  .update({ fiche_technique_url: fichePayload })
+                  .eq('product_group_id', pgData.id);
+              }
+              toast.success(`${uploadedUrls.length} fiche(s) technique(s) uploadée(s)`);
+            }
+          } catch (e: any) {
+            console.error('Fiche upload error:', e);
+            toast.error(`Erreur traitement fiches: ${e.message || e}`);
+          }
+        }
+
         toast.success('Article créé avec succès');
         const first = data[0];
         const description = `${first.sku}${first.size ? ` - Taille: ${first.size}` : ''}${first.color ? ` - ${first.color}` : ''}`;
@@ -506,7 +562,7 @@ export const DevisForm = memo(({
     } finally {
       setIsCreatingArticle(false);
     }
-  }, [newArticle, newArticleFournisseurs, resetNewArticleForm]);
+  }, [newArticle, newArticleFournisseurs, newArticleFicheFiles, resetNewArticleForm]);
 
   // Load product groups when variant dialog opens
   useEffect(() => {
@@ -1319,6 +1375,53 @@ export const DevisForm = memo(({
               </div>
               <div className="col-span-2 space-y-2">
                 <MultiFournisseurInput value={newArticleFournisseurs} onChange={setNewArticleFournisseurs} />
+              </div>
+              {/* Fiche Technique Upload */}
+              <div className="col-span-2 space-y-2">
+                <Label className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Fiches Techniques
+                </Label>
+                <div
+                  className="border-2 border-dashed border-border rounded-lg p-4 cursor-pointer hover:border-primary transition-colors text-center"
+                  onClick={() => ficheInputRef.current?.click()}
+                >
+                  <p className="text-sm text-muted-foreground">
+                    Cliquez pour ajouter des images ou PDF
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Les PDF seront convertis en WebP (toutes les pages)
+                  </p>
+                </div>
+                <input
+                  ref={ficheInputRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length > 0) setNewArticleFicheFiles(prev => [...prev, ...files]);
+                    e.target.value = '';
+                  }}
+                />
+                {newArticleFicheFiles.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {newArticleFicheFiles.map((file, idx) => (
+                      <div key={idx} className="flex items-center gap-1.5 bg-muted rounded-lg px-2.5 py-1.5 text-sm">
+                        <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="max-w-[120px] truncate">{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewArticleFicheFiles(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-destructive hover:text-destructive/80 ml-1"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Couleur</Label>
