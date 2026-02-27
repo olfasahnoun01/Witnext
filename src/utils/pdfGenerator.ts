@@ -517,6 +517,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
   const tableData = devis.items.map((item, idx) => {
     const tvaRate = (item.tva ?? 19) / 100;
+    const prixUnit = (isTTC && devis.type === 'sortant') ? item.prix_ttc / (1 + tvaRate) : item.prix_ttc;
     const prixApresRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
     let sousTotal: number;
     if (isTTC) {
@@ -528,7 +529,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       (idx + 1).toString(),
       item.designation,
       item.fournisseur || '-',
-      `${item.prix_ttc.toFixed(3)} TND`,
+      `${prixUnit.toFixed(3)} TND`,
       item.remise > 0 ? `${item.remise}%` : '-',
       ...(isTTC ? [`${item.tva ?? 19}%`] : []),
       item.quantity.toString(),
