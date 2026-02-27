@@ -601,15 +601,18 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   }
   drawTotalRow('Net HT', `${totalNet.toFixed(3)} TND`);
   drawTotalRow('TVA', `${totalTVA.toFixed(3)} TND`);
+  drawTotalRow('Total TTC', `${totalTTC.toFixed(3)} TND`);
+  drawTotalRow('Timbre fiscal', '1.000 TND');
 
-  // Total TTC highlighted
+  // Total Final highlighted
+  const totalFinal = totalTTC + 1;
   doc.setFillColor(30, 58, 95);
   doc.roundedRect(boxX - 4, rowY, boxW + 4, 12, 2, 2, 'F');
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
-  doc.text('Total TTC', boxX, rowY + 8);
-  doc.text(`${totalTTC.toFixed(3)} TND`, pageWidth - 18, rowY + 8, { align: 'right' });
+  doc.text('Total Final', boxX, rowY + 8);
+  doc.text(`${totalFinal.toFixed(3)} TND`, pageWidth - 18, rowY + 8, { align: 'right' });
 
   // Footer
   const footerY = pageHeight - 25;
