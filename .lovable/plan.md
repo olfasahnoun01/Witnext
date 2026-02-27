@@ -1,26 +1,20 @@
 
-## DONE — Devis sortant pricing fix
 
-### Règle unifiée (implémentée dans `src/lib/devisPricing.ts`)
+## Fix: Revert the incorrect unit price division for sortant devis
 
-```text
-Si sortant + is_ttc:
-  unitTTC = item.prix_ttc          (prix saisi par l'utilisateur = TTC)
-  unitHT  = unitTTC / (1 + tva)
-  unitTTC_after = unitTTC * (1 - remise%)
-  unitHT_after  = unitHT  * (1 - remise%)
-  lineTTC = unitTTC_after * qty
-  lineHT  = unitHT_after  * qty
-  lineTVA = lineTTC - lineHT
-Sinon (entrant ou mode HT):
-  unitHT = item.prix_ttc            (prix saisi = HT)
-  unitTTC = unitHT * (1 + tva)
-  ... même logique remise/lignes
+### File: `src/utils/pdfGenerator.ts`
+
+**Line 520** — Remove the division. `item.prix_ttc` is already the HT base price, so for sortant devis we just display it as-is with the "Prix U HT" label:
+
+```typescript
+// Before (wrong):
+const prixUnit = (isTTC && devis.type === 'sortant') ? item.prix_ttc / (1 + tvaRate) : item.prix_ttc;
+
+// After (correct):
+// Remove prixUnit entirely, just use item.prix_ttc for display (line 532)
 ```
 
-### Fichiers modifiés
-- `src/lib/devisPricing.ts` — helper partagé (computeDevisLine, computeDevisTotals)
-- `src/utils/pdfGenerator.ts` — PDF table + totaux utilisent le helper
-- `src/components/GestionDevis.tsx` — save/update total_amount via helper
-- `src/components/devis/DevisForm.tsx` — devisTotals + affichage articles via helper
-- `src/components/devis/DevisHistory.tsx` — colonne Total + popup détail via helper
+Simply delete line 520 and revert line 532 back to `item.prix_ttc.toFixed(3)`. The header label "Prix U HT" stays as-is.
+
+**Single line change**, one file.
+

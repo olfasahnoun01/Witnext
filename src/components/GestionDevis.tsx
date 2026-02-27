@@ -4,7 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Devis, DevisItem } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
-import { computeDevisTotals } from '@/lib/devisPricing';
 import { DevisForm } from './devis/DevisForm';
 import { DevisHistory } from './devis/DevisHistory';
 import {
@@ -137,9 +136,14 @@ export const GestionDevis = () => {
     }
     setIsSaving(true);
     try {
-      const isSortantTTC = isTtc && devisType === 'sortant';
-      const totals = computeDevisTotals(devisItems, isSortantTTC);
-      const totalAmount = totals.totalTTC;
+      let totalTTC = 0;
+      devisItems.forEach(i => {
+        const lineHT = i.prix_ttc * i.quantity;
+        const remiseDT = i.remise > 0 ? lineHT * (i.remise / 100) : 0;
+        const lineNet = lineHT - remiseDT;
+        totalTTC += lineNet + lineNet * ((i.tva ?? 19) / 100);
+      });
+      const totalAmount = totalTTC;
       const { data: { user } } = await supabase.auth.getUser();
 
       const { error } = await supabase.from('devis').insert({
@@ -176,9 +180,14 @@ export const GestionDevis = () => {
 
   const updateDevis = useCallback(async () => {
     if (!editingDevis) return;
-    const isSortantTTC = isTtc && devisType === 'sortant';
-    const totals = computeDevisTotals(devisItems, isSortantTTC);
-    const totalAmount = totals.totalTTC;
+    let totalTTC = 0;
+    devisItems.forEach(i => {
+      const lineHT = i.prix_ttc * i.quantity;
+      const remiseDT = i.remise > 0 ? lineHT * (i.remise / 100) : 0;
+      const lineNet = lineHT - remiseDT;
+      totalTTC += lineNet + lineNet * ((i.tva ?? 19) / 100);
+    });
+    const totalAmount = totalTTC;
 
     const { error } = await supabase.from('devis').update({
       type: devisType,

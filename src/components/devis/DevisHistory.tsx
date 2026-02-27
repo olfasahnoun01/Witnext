@@ -2,7 +2,6 @@ import { memo, useMemo, useState, useCallback } from 'react';
 import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
-import { computeDevisLine, computeDevisTotals } from '@/lib/devisPricing';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -217,9 +216,15 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     </td>
                     <td className="py-3 px-4 text-sm font-medium text-foreground">
                       {(() => {
-                        const isSortantTTC = d.is_ttc && d.type === 'sortant';
-                        const totals = computeDevisTotals(d.items, isSortantTTC);
-                        const finalTotal = d.is_ttc ? totals.totalFinal : totals.totalFinalHT;
+                        let totalNet = 0, totalTTC = 0;
+                        d.items.forEach(i => {
+                          const lineHT = i.prix_ttc * i.quantity;
+                          const remiseDT = i.remise > 0 ? lineHT * (i.remise / 100) : 0;
+                          const lineNet = lineHT - remiseDT;
+                          totalNet += lineNet;
+                          totalTTC += lineNet + lineNet * ((i.tva ?? 19) / 100);
+                        });
+                        const finalTotal = d.is_ttc ? totalTTC + 1 : totalNet + 1;
                         return finalTotal > 1 ? `${finalTotal.toFixed(3)} TND` : '-';
                       })()}
                     </td>
@@ -312,9 +317,9 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </thead>
                 <tbody>
                   {itemsDevis.items.map((item, idx) => {
-                    const isSortantTTC = itemsDevis.is_ttc && itemsDevis.type === 'sortant';
-                    const line = computeDevisLine(item, isSortantTTC);
-                    const sousTotal = itemsDevis.is_ttc ? line.lineTTC : line.lineHT;
+                    const tvaRate = (item.tva ?? 19) / 100;
+                    const prixApresRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
+                    const sousTotalTTC = itemsDevis.is_ttc ? prixApresRemise * item.quantity * (1 + tvaRate) : prixApresRemise * item.quantity;
                     return (
                       <tr key={idx} className="border-b border-border/50">
                         <td className="py-2 px-3 text-muted-foreground">{idx + 1}</td>
@@ -327,16 +332,25 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                         <td className="py-2 px-3 text-right text-muted-foreground">{item.remise > 0 ? `${item.remise}%` : '-'}</td>
                         {itemsDevis.is_ttc && <td className="py-2 px-3 text-center text-muted-foreground">{(item as any).tva ?? 19}%</td>}
                         <td className="py-2 px-3 text-right text-foreground">{item.quantity}</td>
-                        <td className="py-2 px-3 text-right font-medium text-foreground">{sousTotal.toFixed(3)} TND</td>
+                        <td className="py-2 px-3 text-right font-medium text-foreground">{sousTotalTTC.toFixed(3)} TND</td>
                       </tr>
                     );
                   })}
                 </tbody>
                 <tfoot>
                   {(() => {
-                    const isSortantTTC = itemsDevis.is_ttc && itemsDevis.type === 'sortant';
-                    const totals = computeDevisTotals(itemsDevis.items, isSortantTTC);
-                    const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
+                    let totalHT = 0, totalRemise = 0, totalNet = 0, totalTVA = 0, totalTTC = 0;
+                    itemsDevis.items.forEach(i => {
+                      const lineHT = i.prix_ttc * i.quantity;
+                      const remiseDT = i.remise > 0 ? lineHT * (i.remise / 100) : 0;
+                      const lineNet = lineHT - remiseDT;
+                      const lineTVA = lineNet * ((i.tva ?? 19) / 100);
+                      totalHT += lineHT;
+                      totalRemise += remiseDT;
+                      totalNet += lineNet;
+                      totalTVA += lineTVA;
+                      totalTTC += lineNet + lineTVA;
+                    });
                     const baseColSpan = itemsDevis.type === 'sortant' ? 7 : 6;
                     const colSpan = itemsDevis.is_ttc ? baseColSpan : baseColSpan - 1;
                     return (
