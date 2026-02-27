@@ -440,7 +440,7 @@ export interface DevisPDFData {
   third_party_address: string | null;
   third_party_tax_id: string | null;
   third_party_phone: string | null;
-  items: { designation: string; fournisseur: string; prix_ttc: number; quantity: number; remise: number; description?: string; prix_achat?: number }[];
+  items: { designation: string; fournisseur: string; prix_ttc: number; quantity: number; remise: number; description?: string; prix_achat?: number; tva?: number }[];
   total_amount: number;
   notes: string | null;
   is_ttc: boolean;
@@ -512,22 +512,33 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     doc.text(`Tél: ${devis.third_party_phone}`, pageWidth - 18, 84, { align: 'right' });
   }
 
-  // Items table - matches the "Articles du devis" dialog exactly
+  // Items table
+  const isTTC = devis.is_ttc;
+
   const tableData = devis.items.map((item, idx) => {
+    const tvaRate = (item.tva ?? 19) / 100;
     const prixApresRemise = item.remise > 0 ? item.prix_ttc * (1 - item.remise / 100) : item.prix_ttc;
-    const sousTotal = prixApresRemise * item.quantity;
+    let sousTotal: number;
+    if (isTTC) {
+      // prix_ttc is stored as TTC value, sous-total is TTC
+      sousTotal = prixApresRemise * item.quantity;
+    } else {
+      // prix_ttc is stored as HT value, sous-total is HT
+      sousTotal = prixApresRemise * item.quantity;
+    }
     return [
       (idx + 1).toString(),
       item.designation,
       item.fournisseur || '-',
       `${item.prix_ttc.toFixed(3)} TND`,
       item.remise > 0 ? `${item.remise}%` : '-',
+      `${item.tva ?? 19}%`,
       item.quantity.toString(),
       `${sousTotal.toFixed(3)} TND`,
     ];
   });
 
-  const headRow = ['#', 'Désignation', 'Fournisseur', 'Prix U Vente', 'Remise', 'Qté', 'Sous-total'];
+  const headRow = ['#', 'Désignation', 'Fournisseur', `Prix U ${isTTC ? 'TTC' : 'HT'}`, 'Remise', 'TVA', 'Qté', `Sous-total ${isTTC ? 'TTC' : 'HT'}`];
 
   autoTable(doc, {
     startY: 96,
@@ -548,7 +559,8 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       3: { halign: 'right' },
       4: { halign: 'center' },
       5: { halign: 'center' },
-      6: { halign: 'right' },
+      6: { halign: 'center' },
+      7: { halign: 'right' },
     },
     alternateRowStyles: { fillColor: [245, 247, 250] },
     margin: { left: 14, right: 14 }
