@@ -358,7 +358,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           reader.readAsDataURL(blob);
         });
 
-        // Load image to get dimensions
+        // Draw image on canvas at native resolution, export as PNG (lossless)
         const img = await new Promise<HTMLImageElement>((resolve, reject) => {
           const image = new Image();
           image.crossOrigin = 'anonymous';
@@ -367,15 +367,22 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           image.src = base64;
         });
 
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+        const pngBase64 = canvas.toDataURL('image/png');
+
         const availW = pageW - margin * 2;
         const availH = pageH - margin * 2;
-        const ratio = Math.min(availW / img.width, availH / img.height);
-        const w = img.width * ratio;
-        const h = img.height * ratio;
+        const ratio = Math.min(availW / img.naturalWidth, availH / img.naturalHeight);
+        const w = img.naturalWidth * ratio;
+        const h = img.naturalHeight * ratio;
         const x = (pageW - w) / 2;
         const y = (pageH - h) / 2;
 
-        pdf.addImage(base64, 'JPEG', x, y, w, h);
+        pdf.addImage(pngBase64, 'PNG', x, y, w, h, undefined, 'NONE');
       }
 
       const fileName = `fiches_${variant.sku.replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
