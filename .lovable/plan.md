@@ -1,18 +1,16 @@
 
 
-## Plan: Remove TVA from article preview dialog when devis is HT
+## Plan: Change "Prix U TTC" to "Prix U HT" for sortant devis in PDF
 
-### Changes in `src/components/devis/DevisHistory.tsx`
+### File: `src/utils/pdfGenerator.ts`
 
-**1. Table header (line 312)** — Conditionally hide the TVA column header when `!itemsDevis.is_ttc`.
+**Line 539-541** — Update the TTC header row to use "Prix U HT" when `devis.type === 'sortant'`:
 
-**2. Table body (line 332)** — Conditionally hide the TVA cell per row when `!itemsDevis.is_ttc`.
+```typescript
+const headRow = isTTC
+  ? ['#', 'Désignation', 'Fournisseur', devis.type === 'sortant' ? 'Prix U HT' : 'Prix U TTC', 'Remise', 'TVA', 'Qté', devis.type === 'sortant' ? 'Sous-total HT' : 'Sous-total TTC']
+  : ['#', 'Désignation', 'Fournisseur', 'Prix U HT', 'Remise', 'Qté', 'Sous-total HT'];
+```
 
-**3. Sous-total calculation (line 321)** — When `!itemsDevis.is_ttc`, compute sous-total as `prixApresRemise * quantity` (no TVA).
-
-**4. Footer totals (lines 373-382)** — Conditionally hide the TVA row and Total TTC row when `!itemsDevis.is_ttc`.
-
-**5. Final total row (line 390)** — Change label from "Total TTC" to "Total HT" and value from `totalTTC + 1` to `totalNet + 1` when `!itemsDevis.is_ttc`.
-
-**6. ColSpan adjustment (line 353)** — Reduce colSpan by 1 when HT (TVA column removed).
+One edit, one file.
 
