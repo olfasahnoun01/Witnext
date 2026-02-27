@@ -139,7 +139,7 @@ export const GestionDevis = () => {
       const totalAmount = devisItems.reduce((s, i) => {
         const priceAfterRemise = i.remise > 0 ? i.prix_ttc * (1 - i.remise / 100) : i.prix_ttc;
         const lineTotal = priceAfterRemise * i.quantity;
-        return s + (isTtc ? lineTotal : lineTotal / (1 + (i.tva ?? 19) / 100));
+        return s + (isTtc ? lineTotal * (1 + (i.tva ?? 19) / 100) : lineTotal);
       }, 0);
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -180,7 +180,7 @@ export const GestionDevis = () => {
     const totalAmount = devisItems.reduce((s, i) => {
       const priceAfterRemise = i.remise > 0 ? i.prix_ttc * (1 - i.remise / 100) : i.prix_ttc;
       const lineTotal = priceAfterRemise * i.quantity;
-      return s + (isTtc ? lineTotal : lineTotal / (1 + (i.tva ?? 19) / 100));
+      return s + (isTtc ? lineTotal * (1 + (i.tva ?? 19) / 100) : lineTotal);
     }, 0);
 
     const { error } = await supabase.from('devis').update({
