@@ -143,7 +143,7 @@ export const GestionDevis = () => {
         const lineNet = lineHT - remiseDT;
         totalTTC += lineNet + lineNet * ((i.tva ?? 19) / 100);
       });
-      const totalAmount = totalTTC + 1; // +1 TND timbre fiscal
+      const totalAmount = totalTTC;
       const { data: { user } } = await supabase.auth.getUser();
 
       const { error } = await supabase.from('devis').insert({
@@ -187,7 +187,7 @@ export const GestionDevis = () => {
       const lineNet = lineHT - remiseDT;
       totalTTC += lineNet + lineNet * ((i.tva ?? 19) / 100);
     });
-    const totalAmount = totalTTC + 1; // +1 TND timbre fiscal
+    const totalAmount = totalTTC;
 
     const { error } = await supabase.from('devis').update({
       type: devisType,
