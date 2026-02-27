@@ -522,13 +522,12 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       item.fournisseur || '-',
       `${item.prix_ttc.toFixed(3)} TND`,
       item.remise > 0 ? `${item.remise}%` : '-',
-      item.remise > 0 ? `${prixApresRemise.toFixed(3)} TND` : '-',
       item.quantity.toString(),
       `${sousTotal.toFixed(3)} TND`,
     ];
   });
 
-  const headRow = ['#', 'Désignation', 'Fournisseur', 'Prix U Vente', 'Remise', 'Après Remise', 'Qté', 'Sous-total'];
+  const headRow = ['#', 'Désignation', 'Fournisseur', 'Prix U Vente', 'Remise', 'Qté', 'Sous-total'];
 
   autoTable(doc, {
     startY: 96,
@@ -548,9 +547,8 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       2: { cellWidth: 28 },
       3: { halign: 'right' },
       4: { halign: 'center' },
-      5: { halign: 'right' },
-      6: { halign: 'center' },
-      7: { halign: 'right' },
+      5: { halign: 'center' },
+      6: { halign: 'right' },
     },
     alternateRowStyles: { fillColor: [245, 247, 250] },
     margin: { left: 14, right: 14 }
