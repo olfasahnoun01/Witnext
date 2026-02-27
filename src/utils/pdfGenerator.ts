@@ -552,6 +552,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       halign: 'center'
     },
     styles: { fontSize: 9, cellPadding: 4 },
+    rowPageBreak: 'avoid',
     columnStyles: {
       0: { cellWidth: 12, halign: 'center' },
       1: { cellWidth: 'auto' },
