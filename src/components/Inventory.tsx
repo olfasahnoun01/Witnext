@@ -37,9 +37,11 @@ interface CategoryCount {
   count: number;
 }
 
-interface CustomCategoryData {
-  name: string;
-  color?: string;
+interface CategorySettingRow {
+  id: number;
+  category_name: string;
+  color: string | null;
+  is_custom: boolean;
 }
 
 export const Inventory = () => {
@@ -48,22 +50,7 @@ export const Inventory = () => {
   const [categoryCounts, setCategoryCounts] = useState<CategoryCount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [uncategorizedCount, setUncategorizedCount] = useState(0);
-  const [customCategories, setCustomCategories] = useState<CustomCategoryData[]>(() => {
-    const saved = localStorage.getItem('grosafe_custom_categories_v2');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // Migrate from old format
-        const oldSaved = localStorage.getItem('grosafe_custom_categories');
-        if (oldSaved) {
-          const oldCategories = JSON.parse(oldSaved) as string[];
-          return oldCategories.map(name => ({ name }));
-        }
-      }
-    }
-    return [];
-  });
+  const [categorySettings, setCategorySettings] = useState<CategorySettingRow[]>([]);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   
@@ -71,10 +58,84 @@ export const Inventory = () => {
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingCategoryCount, setEditingCategoryCount] = useState(0);
 
-  // Get custom category names for easy lookup
-  const customCategoryNames = useMemo(() => 
-    customCategories.map(c => c.name), 
-    [customCategories]
+  // Fetch category settings from DB
+  const fetchCategorySettings = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('category_settings')
+      .select('id, category_name, color, is_custom');
+    
+    if (!error && data) {
+      setCategorySettings(data as CategorySettingRow[]);
+    }
+  }, []);
+
+  // Migrate localStorage data to DB on first load (one-time)
+  const migrateLocalStorage = useCallback(async () => {
+    const migrated = localStorage.getItem('grosafe_categories_migrated_to_db');
+    if (migrated) return;
+
+    const rows: { category_name: string; color: string | null; is_custom: boolean }[] = [];
+
+    // Migrate custom categories
+    const savedV2 = localStorage.getItem('grosafe_custom_categories_v2');
+    if (savedV2) {
+      try {
+        const customs = JSON.parse(savedV2) as { name: string; color?: string }[];
+        customs.forEach(c => {
+          rows.push({ category_name: c.name, color: c.color || null, is_custom: true });
+        });
+      } catch { /* ignore */ }
+    }
+
+    // Migrate color overrides for default categories
+    const colorOverrides = JSON.parse(localStorage.getItem('grosafe_category_colors') || '{}');
+    Object.entries(colorOverrides).forEach(([name, color]) => {
+      if (!rows.find(r => r.category_name === name)) {
+        rows.push({ category_name: name, color: color as string, is_custom: false });
+      }
+    });
+
+    if (rows.length > 0) {
+      const { error } = await supabase
+        .from('category_settings')
+        .upsert(rows.map(r => ({
+          category_name: r.category_name,
+          color: r.color,
+          is_custom: r.is_custom,
+        })), { onConflict: 'category_name' });
+
+      if (!error) {
+        localStorage.setItem('grosafe_categories_migrated_to_db', 'true');
+      }
+    } else {
+      localStorage.setItem('grosafe_categories_migrated_to_db', 'true');
+    }
+  }, []);
+
+  useEffect(() => {
+    const init = async () => {
+      await migrateLocalStorage();
+      await fetchCategorySettings();
+    };
+    init();
+  }, [migrateLocalStorage, fetchCategorySettings]);
+
+  // Subscribe to realtime changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('category_settings_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'category_settings' }, () => {
+        fetchCategorySettings();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchCategorySettings]);
+
+  // Derive custom category names from DB
+  const customCategoryNames = useMemo(() =>
+    categorySettings.filter(s => s.is_custom).map(s => s.category_name),
+    [categorySettings]
   );
 
   // Combine default and custom categories
@@ -82,11 +143,11 @@ export const Inventory = () => {
     return [...DEFAULT_CATEGORIES, ...customCategoryNames];
   }, [customCategoryNames]);
 
-  // Get custom color for a category
-  const getCustomCategoryColor = useCallback((categoryName: string): string | undefined => {
-    const custom = customCategories.find(c => c.name === categoryName);
-    return custom?.color;
-  }, [customCategories]);
+  // Get color for a category from DB settings
+  const getCategoryDisplayColor = useCallback((categoryName: string): string | undefined => {
+    const setting = categorySettings.find(s => s.category_name === categoryName);
+    return setting?.color || undefined;
+  }, [categorySettings]);
 
   // Fetch category counts from product_groups table
   const fetchCategoryCounts = useCallback(async () => {
@@ -94,7 +155,6 @@ export const Inventory = () => {
     try {
       const counts = await getProductGroupCountsByCategory();
       
-      // Initialize main categories
       const countMap: Record<string, number> = {};
       MAIN_CATEGORIES.forEach(cat => {
         countMap[cat] = 0;
@@ -108,7 +168,6 @@ export const Inventory = () => {
           return;
         }
         
-        // Check if it matches any main category (case-insensitive)
         const matchedCategory = MAIN_CATEGORIES.find(
           cat => cat.toLowerCase() === category.toLowerCase()
         );
@@ -116,7 +175,6 @@ export const Inventory = () => {
         if (matchedCategory) {
           countMap[matchedCategory] += count;
         } else {
-          // Add as its own category
           countMap[category] = (countMap[category] || 0) + count;
         }
       });
@@ -140,14 +198,13 @@ export const Inventory = () => {
     fetchCategoryCounts();
   }, [fetchCategoryCounts]);
 
-  // Sort categories: main categories first in order, then others alphabetically
+  // Sort categories
   const sortedCategories = useMemo(() => {
     const mainCats = MAIN_CATEGORIES.map(cat => {
       const found = categoryCounts.find(c => c.category.toLowerCase() === cat.toLowerCase());
       return { category: cat, count: found?.count || 0 };
     });
 
-    // Find other categories not in main list
     const otherCats = categoryCounts
       .filter(c => !MAIN_CATEGORIES.some(m => m.toLowerCase() === c.category.toLowerCase()))
       .sort((a, b) => a.category.localeCompare(b.category));
@@ -155,10 +212,9 @@ export const Inventory = () => {
     return [...mainCats, ...otherCats];
   }, [categoryCounts, MAIN_CATEGORIES]);
 
-  const handleAddCategory = useCallback(() => {
+  const handleAddCategory = useCallback(async () => {
     if (!newCategoryName.trim()) return;
     
-    // Check if category already exists
     const exists = MAIN_CATEGORIES.some(
       cat => cat.toLowerCase() === newCategoryName.trim().toLowerCase()
     );
@@ -168,13 +224,20 @@ export const Inventory = () => {
       return;
     }
     
-    const updatedCategories = [...customCategories, { name: newCategoryName.trim() }];
-    setCustomCategories(updatedCategories);
-    localStorage.setItem('grosafe_custom_categories_v2', JSON.stringify(updatedCategories));
+    const { error } = await supabase
+      .from('category_settings')
+      .insert({ category_name: newCategoryName.trim(), is_custom: true });
+
+    if (error) {
+      toast.error('Erreur lors de l\'ajout de la catégorie');
+      return;
+    }
+
+    await fetchCategorySettings();
     setNewCategoryName('');
     setIsAddCategoryOpen(false);
     toast.success(`Catégorie "${newCategoryName.trim()}" ajoutée`);
-  }, [newCategoryName, customCategories, MAIN_CATEGORIES]);
+  }, [newCategoryName, MAIN_CATEGORIES, fetchCategorySettings]);
 
   const handleEditCategory = useCallback((categoryName: string) => {
     const categoryData = categoryCounts.find(c => c.category === categoryName);
@@ -188,25 +251,31 @@ export const Inventory = () => {
     const isCustom = customCategoryNames.includes(editingCategory);
     const oldName = editingCategory;
     
-    // Update custom category data
-    if (isCustom) {
-      const updatedCategories = customCategories.map(c => 
-        c.name === oldName ? { name: newName, color: newColor } : c
-      );
-      setCustomCategories(updatedCategories);
-      localStorage.setItem('grosafe_custom_categories_v2', JSON.stringify(updatedCategories));
-    } else {
-      // For default categories, we can only change the color (stored separately)
-      // We'll store color overrides for default categories
-      const colorOverrides = JSON.parse(localStorage.getItem('grosafe_category_colors') || '{}');
-      colorOverrides[editingCategory] = newColor;
-      localStorage.setItem('grosafe_category_colors', JSON.stringify(colorOverrides));
+    // Upsert the category setting in DB
+    const { error: settingsError } = await supabase
+      .from('category_settings')
+      .upsert({
+        category_name: isCustom && newName !== oldName ? newName : oldName,
+        color: newColor,
+        is_custom: isCustom,
+      }, { onConflict: 'category_name' });
+
+    if (settingsError) {
+      toast.error('Erreur lors de la sauvegarde');
+      return;
+    }
+
+    // If custom category was renamed, delete old row
+    if (isCustom && newName !== oldName) {
+      await supabase
+        .from('category_settings')
+        .delete()
+        .eq('category_name', oldName);
     }
     
     // If name changed and there are products, update them in the database
     if (newName !== oldName && editingCategoryCount > 0) {
       try {
-        // Update product_groups
         const { error: groupsError } = await supabase
           .from('product_groups')
           .update({ category: newName })
@@ -214,7 +283,6 @@ export const Inventory = () => {
         
         if (groupsError) throw groupsError;
         
-        // Update products
         const { error: productsError } = await supabase
           .from('products')
           .update({ category: newName })
@@ -232,13 +300,13 @@ export const Inventory = () => {
       toast.success('Catégorie mise à jour');
     }
     
+    await fetchCategorySettings();
     fetchCategoryCounts();
-  }, [editingCategory, editingCategoryCount, customCategories, customCategoryNames, fetchCategoryCounts]);
+  }, [editingCategory, editingCategoryCount, customCategoryNames, fetchCategoryCounts, fetchCategorySettings]);
 
   const handleDeleteCategory = useCallback(async () => {
     if (!editingCategory) return;
     
-    // Only allow deletion of custom categories with no products
     if (!customCategoryNames.includes(editingCategory)) {
       toast.error('Les catégories par défaut ne peuvent pas être supprimées');
       return;
@@ -249,18 +317,24 @@ export const Inventory = () => {
       return;
     }
     
-    const updatedCategories = customCategories.filter(c => c.name !== editingCategory);
-    setCustomCategories(updatedCategories);
-    localStorage.setItem('grosafe_custom_categories_v2', JSON.stringify(updatedCategories));
-    toast.success(`Catégorie "${editingCategory}" supprimée`);
-  }, [editingCategory, editingCategoryCount, customCategories, customCategoryNames]);
+    const { error } = await supabase
+      .from('category_settings')
+      .delete()
+      .eq('category_name', editingCategory);
 
-  // Direct delete handler from card button
+    if (error) {
+      toast.error('Erreur lors de la suppression');
+      return;
+    }
+
+    await fetchCategorySettings();
+    toast.success(`Catégorie "${editingCategory}" supprimée`);
+  }, [editingCategory, editingCategoryCount, customCategoryNames, fetchCategorySettings]);
+
   const handleDirectDeleteCategory = useCallback((categoryName: string) => {
     const categoryData = categoryCounts.find(c => c.category === categoryName);
     const count = categoryData?.count || 0;
     
-    // Only allow deletion of custom categories with no products
     if (!customCategoryNames.includes(categoryName)) {
       toast.error('Les catégories par défaut ne peuvent pas être supprimées');
       return;
@@ -271,21 +345,9 @@ export const Inventory = () => {
       return;
     }
     
-    // Open edit modal with delete confirmation
     setEditingCategory(categoryName);
     setEditingCategoryCount(count);
   }, [categoryCounts, customCategoryNames]);
-
-  // Get color for a category (custom or default)
-  const getCategoryDisplayColor = useCallback((categoryName: string): string | undefined => {
-    // Check custom category color
-    const customColor = getCustomCategoryColor(categoryName);
-    if (customColor) return customColor;
-    
-    // Check color overrides for default categories
-    const colorOverrides = JSON.parse(localStorage.getItem('grosafe_category_colors') || '{}');
-    return colorOverrides[categoryName];
-  }, [getCustomCategoryColor]);
 
   const totalProducts = useMemo(() => {
     return categoryCounts.reduce((sum, c) => sum + c.count, 0) + uncategorizedCount;
@@ -297,10 +359,9 @@ export const Inventory = () => {
 
   const handleBack = useCallback(() => {
     setSelectedCategory(null);
-    fetchCategoryCounts(); // Refresh counts when returning
+    fetchCategoryCounts();
   }, [fetchCategoryCounts]);
 
-  // Show product group view if a category is selected
   if (selectedCategory) {
     return <ProductGroupView category={selectedCategory} onBack={handleBack} />;
   }
@@ -359,7 +420,6 @@ export const Inventory = () => {
               );
             })}
             
-            {/* Uncategorized Card */}
             {uncategorizedCount > 0 && (
               <CategoryCard
                 name="Non catégorisé"
