@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      category_settings: {
+        Row: {
+          category_name: string
+          color: string | null
+          created_at: string
+          id: number
+          is_custom: boolean
+          updated_at: string
+        }
+        Insert: {
+          category_name: string
+          color?: string | null
+          created_at?: string
+          id?: number
+          is_custom?: boolean
+          updated_at?: string
+        }
+        Update: {
+          category_name?: string
+          color?: string | null
+          created_at?: string
+          id?: number
+          is_custom?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           created_at: string
