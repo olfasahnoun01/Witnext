@@ -17,6 +17,7 @@ const Fournisseurs = lazy(() => import('@/components/Fournisseurs').then(m => ({
 const Clients = lazy(() => import('@/components/Clients').then(m => ({ default: m.Clients })));
 
 const GestionDevis = lazy(() => import('@/components/GestionDevis').then(m => ({ default: m.GestionDevis })));
+const PhotoGallery = lazy(() => import('@/components/PhotoGallery').then(m => ({ default: m.PhotoGallery })));
 
 const tabTitles: Record<string, string> = {
   dashboard: 'Tableau de Bord',
@@ -27,6 +28,7 @@ const tabTitles: Record<string, string> = {
   transactions: 'Transactions',
   reports: 'Rapports & Documents',
   devis: 'Gestion Devis',
+  gallery: 'Galerie Photos',
   settings: 'Paramètres'
 };
 
@@ -83,6 +85,7 @@ const Index = () => {
         {activeTab === 'transactions' && <Transactions />}
         {activeTab === 'reports' && <Reports />}
         {activeTab === 'devis' && <GestionDevis />}
+        {activeTab === 'gallery' && <PhotoGallery />}
         {activeTab === 'settings' && <Settings />}
       </Suspense>
     );
