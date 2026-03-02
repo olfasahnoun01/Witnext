@@ -56,7 +56,7 @@ interface GalleryCategory {
 export const PhotoGallery = () => {
   const { isAdmin, isModerator } = useAuth();
   const { toast } = useToast();
-  const canEdit = isAdmin || isModerator;
+  const canEdit = true;
 
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [dbCategories, setDbCategories] = useState<GalleryCategory[]>([]);
