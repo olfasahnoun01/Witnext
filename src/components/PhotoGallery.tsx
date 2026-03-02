@@ -34,6 +34,8 @@ import {
   Eye,
   Edit,
   FolderOpen,
+  Settings2,
+  Tag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -46,7 +48,10 @@ interface GalleryItem {
   created_at: string;
 }
 
-const DEFAULT_CATEGORIES = ['Général', 'Produits', 'Projets', 'Installations', 'Autres'];
+interface GalleryCategory {
+  id: number;
+  name: string;
+}
 
 export const PhotoGallery = () => {
   const { isAdmin, isModerator } = useAuth();
@@ -54,9 +59,16 @@ export const PhotoGallery = () => {
   const canEdit = isAdmin || isModerator;
 
   const [items, setItems] = useState<GalleryItem[]>([]);
+  const [dbCategories, setDbCategories] = useState<GalleryCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+
+  // Category CRUD states
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [editingCategory, setEditingCategory] = useState<GalleryCategory | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState('');
 
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -72,6 +84,14 @@ export const PhotoGallery = () => {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchCategories = useCallback(async () => {
+    const { data } = await supabase
+      .from('gallery_categories')
+      .select('*')
+      .order('name');
+    if (data) setDbCategories(data);
+  }, []);
 
   const fetchItems = useCallback(async () => {
     const { data, error } = await supabase
@@ -91,18 +111,22 @@ export const PhotoGallery = () => {
 
   useEffect(() => {
     fetchItems();
+    fetchCategories();
 
     const channel = supabase
       .channel('gallery-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'gallery_items' }, () => {
         fetchItems();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gallery_categories' }, () => {
+        fetchCategories();
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [fetchItems]);
+  }, [fetchItems, fetchCategories]);
 
-  const categories = [...new Set([...DEFAULT_CATEGORIES, ...items.map(i => i.category)])];
+  const categories = dbCategories.map(c => c.name);
 
   const filtered = items.filter(item => {
     const matchesSearch = !searchQuery || 
@@ -117,6 +141,54 @@ export const PhotoGallery = () => {
     setFormCategory('Général');
     setFormDescription('');
     setFormPhotos([]);
+  };
+
+  // Category CRUD
+  const handleAddCategory = async () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    const { error } = await supabase.from('gallery_categories').insert({ name });
+    if (error) {
+      toast({ variant: 'destructive', title: 'Erreur', description: error.message });
+    } else {
+      setNewCategoryName('');
+      toast({ title: 'Catégorie ajoutée' });
+    }
+  };
+
+  const handleUpdateCategory = async () => {
+    if (!editingCategory || !editCategoryName.trim()) return;
+    const oldName = editingCategory.name;
+    const newName = editCategoryName.trim();
+    
+    const { error } = await supabase.from('gallery_categories').update({ name: newName }).eq('id', editingCategory.id);
+    if (error) {
+      toast({ variant: 'destructive', title: 'Erreur', description: error.message });
+      return;
+    }
+
+    // Update all gallery items with the old category name
+    if (oldName !== newName) {
+      await supabase.from('gallery_items').update({ category: newName }).eq('category', oldName);
+    }
+
+    setEditingCategory(null);
+    toast({ title: 'Catégorie modifiée' });
+  };
+
+  const handleDeleteCategory = async (cat: GalleryCategory) => {
+    const count = items.filter(i => i.category === cat.name).length;
+    if (count > 0) {
+      toast({ variant: 'destructive', title: 'Impossible', description: `${count} élément(s) utilisent cette catégorie` });
+      return;
+    }
+    if (!confirm(`Supprimer la catégorie "${cat.name}" ?`)) return;
+    const { error } = await supabase.from('gallery_categories').delete().eq('id', cat.id);
+    if (error) {
+      toast({ variant: 'destructive', title: 'Erreur', description: error.message });
+    } else {
+      toast({ title: 'Catégorie supprimée' });
+    }
   };
 
   const openAdd = () => {
@@ -254,10 +326,16 @@ export const PhotoGallery = () => {
         </div>
 
         {canEdit && (
-          <Button onClick={openAdd}>
-            <Plus className="w-4 h-4 mr-2" />
-            Ajouter
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowCategoryModal(true)}>
+              <Tag className="w-4 h-4 mr-2" />
+              Catégories
+            </Button>
+            <Button onClick={openAdd}>
+              <Plus className="w-4 h-4 mr-2" />
+              Ajouter
+            </Button>
+          </div>
         )}
       </div>
 
@@ -484,6 +562,76 @@ export const PhotoGallery = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Category Management Modal */}
+      <Dialog open={showCategoryModal} onOpenChange={setShowCategoryModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Gérer les Catégories</DialogTitle>
+            <DialogDescription>Ajoutez, modifiez ou supprimez les catégories de la galerie</DialogDescription>
+          </DialogHeader>
+
+          {/* Add new category */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="Nouvelle catégorie..."
+              value={newCategoryName}
+              onChange={e => setNewCategoryName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
+            />
+            <Button onClick={handleAddCategory} disabled={!newCategoryName.trim()}>
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {/* Category list */}
+          <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+            {dbCategories.map(cat => {
+              const itemCount = items.filter(i => i.category === cat.name).length;
+              return (
+                <div key={cat.id} className="flex items-center gap-2 p-2 rounded-lg border border-border bg-muted/30">
+                  {editingCategory?.id === cat.id ? (
+                    <>
+                      <Input
+                        value={editCategoryName}
+                        onChange={e => setEditCategoryName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleUpdateCategory()}
+                        className="flex-1 h-8"
+                        autoFocus
+                      />
+                      <Button size="sm" variant="outline" onClick={handleUpdateCategory}>OK</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingCategory(null)}>
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Tag className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="flex-1 text-sm font-medium text-foreground">{cat.name}</span>
+                      <Badge variant="secondary" className="text-xs">{itemCount}</Badge>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => { setEditingCategory(cat); setEditCategoryName(cat.name); }}
+                      >
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => handleDeleteCategory(cat)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
