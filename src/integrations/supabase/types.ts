@@ -215,6 +215,39 @@ export type Database = {
         }
         Relationships: []
       }
+      gallery_items: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: number
+          name: string
+          photos: Json
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: number
+          name: string
+          photos?: Json
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: number
+          name?: string
+          photos?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           client_description: string | null

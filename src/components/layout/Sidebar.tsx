@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Building2,
   Phone,
-  Users
+  Users,
+  ImageIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import grosafeLogo from '@/assets/grosafe-logo-new.png';
@@ -32,6 +33,7 @@ const navItems = [
   { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
   { id: 'reports', label: 'Rapports & Documents', icon: FileText },
   { id: 'devis', label: 'Gestion Devis', icon: ClipboardList },
+  { id: 'gallery', label: 'Galerie Photos', icon: ImageIcon },
   { id: 'settings', label: 'Paramètres', icon: Settings },
 ];
 
