@@ -398,7 +398,7 @@ export const PhotoGallery = () => {
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{item.description}</p>
                     )}
                   </div>
-                  
+                  <Badge variant="secondary" className="text-xs shrink-0">{item.category}</Badge>
                 </div>
 
                 {canEdit && (
