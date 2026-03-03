@@ -22,6 +22,19 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
   Plus,
   Trash2,
   Image as ImageIcon,
@@ -36,6 +49,8 @@ import {
   FolderOpen,
   Settings2,
   Tag,
+  Check,
+  ChevronsUpDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -70,7 +85,8 @@ export const PhotoGallery = () => {
   const [editingCategory, setEditingCategory] = useState<GalleryCategory | null>(null);
   const [editCategoryName, setEditCategoryName] = useState('');
 
-  // Modal states
+  const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
+  const [categorySearch, setCategorySearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<GalleryItem | null>(null);
   const [viewingItem, setViewingItem] = useState<GalleryItem | null>(null);
@@ -436,16 +452,51 @@ export const PhotoGallery = () => {
 
             <div>
               <Label>Catégorie</Label>
-              <Select value={formCategory} onValueChange={setFormCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map(c => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                    {formCategory || "Sélectionner une catégorie"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Rechercher ou taper une catégorie..." value={categorySearch} onValueChange={setCategorySearch} />
+                    <CommandList>
+                      <CommandEmpty>
+                        {categorySearch.trim() ? (
+                          <button
+                            className="w-full px-2 py-1.5 text-sm text-left hover:bg-accent rounded cursor-pointer"
+                            onClick={() => {
+                              setFormCategory(categorySearch.trim());
+                              setCategorySearch('');
+                              setCategoryPopoverOpen(false);
+                            }}
+                          >
+                            Utiliser "{categorySearch.trim()}"
+                          </button>
+                        ) : "Aucune catégorie trouvée"}
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {categories.map(c => (
+                          <CommandItem
+                            key={c}
+                            value={c}
+                            onSelect={() => {
+                              setFormCategory(c);
+                              setCategorySearch('');
+                              setCategoryPopoverOpen(false);
+                            }}
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", formCategory === c ? "opacity-100" : "opacity-0")} />
+                            {c}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div>
