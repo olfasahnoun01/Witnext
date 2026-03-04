@@ -635,10 +635,10 @@ export const PhotoGallery = () => {
                         key={i}
                         onClick={() => setViewingPhotoIndex(i)}
                         className={cn(
-                          "flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all shadow-lg bg-background",
+                          "flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all shadow-lg",
                           i === viewingPhotoIndex
-                            ? "border-background scale-110 shadow-xl"
-                            : "border-background/50 opacity-60 hover:opacity-90 hover:scale-105"
+                            ? "border-white scale-110 shadow-xl opacity-100"
+                            : "opacity-50 border-transparent hover:opacity-80 hover:scale-105"
                         )}
                       >
                         <img
