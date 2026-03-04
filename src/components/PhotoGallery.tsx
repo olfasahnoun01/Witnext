@@ -87,6 +87,8 @@ export const PhotoGallery = () => {
 
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
   const [categorySearch, setCategorySearch] = useState('');
+  const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
+  const [filterSearch, setFilterSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<GalleryItem | null>(null);
   const [viewingItem, setViewingItem] = useState<GalleryItem | null>(null);
@@ -328,17 +330,41 @@ export const PhotoGallery = () => {
               className="pl-9"
             />
           </div>
-          <Select value={filterCategory} onValueChange={setFilterCategory}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Catégorie" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Toutes les catégories</SelectItem>
-              {categories.map(c => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" role="combobox" className="w-48 justify-between font-normal">
+                {filterCategory === 'all' ? 'Toutes les catégories' : filterCategory}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Rechercher..." value={filterSearch} onValueChange={setFilterSearch} />
+                <CommandList>
+                  <CommandEmpty>Aucune catégorie</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      value="Toutes les catégories"
+                      onSelect={() => { setFilterCategory('all'); setFilterSearch(''); setFilterPopoverOpen(false); }}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", filterCategory === 'all' ? "opacity-100" : "opacity-0")} />
+                      Toutes les catégories
+                    </CommandItem>
+                    {categories.map(c => (
+                      <CommandItem
+                        key={c}
+                        value={c}
+                        onSelect={() => { setFilterCategory(c); setFilterSearch(''); setFilterPopoverOpen(false); }}
+                      >
+                        <Check className={cn("mr-2 h-4 w-4", filterCategory === c ? "opacity-100" : "opacity-0")} />
+                        {c}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {canEdit && (
