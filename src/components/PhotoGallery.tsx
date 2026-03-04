@@ -622,21 +622,33 @@ export const PhotoGallery = () => {
                 {viewingItem.description && (
                   <p className="text-background/70 text-sm">{viewingItem.description}</p>
                 )}
-                {viewingItem.photos.length > 1 && (
-                  <div className="flex gap-1.5 mt-2">
-                    {viewingItem.photos.map((_, i) => (
+              </div>
+
+              {/* Thumbnail strip */}
+              {viewingItem.photos.length > 1 && (
+                <div className="absolute bottom-20 left-0 right-0 px-4">
+                  <div className="flex gap-2 overflow-x-auto pb-2 justify-center scrollbar-thin">
+                    {viewingItem.photos.map((photo, i) => (
                       <button
                         key={i}
                         onClick={() => setViewingPhotoIndex(i)}
                         className={cn(
-                          "w-2 h-2 rounded-full transition-all",
-                          i === viewingPhotoIndex ? "bg-background w-4" : "bg-background/40"
+                          "flex-shrink-0 w-14 h-14 rounded-md overflow-hidden border-2 transition-all",
+                          i === viewingPhotoIndex
+                            ? "border-background opacity-100 scale-110"
+                            : "border-transparent opacity-50 hover:opacity-80"
                         )}
-                      />
+                      >
+                        <img
+                          src={photo}
+                          alt={`${viewingItem.name} ${i + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
