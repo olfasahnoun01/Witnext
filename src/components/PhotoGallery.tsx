@@ -628,17 +628,17 @@ export const PhotoGallery = () => {
 
               {/* Thumbnail strip - below the image */}
               {viewingItem.photos.length > 1 && (
-                <div className="px-4 py-3 bg-foreground/90 h-24">
-                  <div className="flex gap-2 overflow-x-auto h-full items-center justify-center scrollbar-thin">
+                <div className="px-4 py-3 h-24">
+                  <div className="flex gap-3 overflow-x-auto h-full items-center justify-center scrollbar-thin">
                     {viewingItem.photos.map((photo, i) => (
                       <button
                         key={i}
                         onClick={() => setViewingPhotoIndex(i)}
                         className={cn(
-                          "flex-shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-all",
+                          "flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all shadow-lg bg-background",
                           i === viewingPhotoIndex
-                            ? "border-background opacity-100 scale-110"
-                            : "border-transparent opacity-50 hover:opacity-80"
+                            ? "border-background scale-110 shadow-xl"
+                            : "border-background/50 opacity-60 hover:opacity-90 hover:scale-105"
                         )}
                       >
                         <img
