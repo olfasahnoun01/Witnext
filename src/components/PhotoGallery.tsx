@@ -589,45 +589,47 @@ export const PhotoGallery = () => {
             <DialogDescription>Visualisation des photos</DialogDescription>
           </DialogHeader>
           {viewingItem && (
-            <div className="relative">
-              <div className="flex items-center justify-center min-h-[60vh]">
-                <img
-                  src={viewingItem.photos[viewingPhotoIndex]}
-                  alt={viewingItem.name}
-                  className="max-w-full max-h-[80vh] object-contain"
-                />
-              </div>
+            <div className="flex flex-col">
+              <div className="relative">
+                <div className="flex items-center justify-center min-h-[60vh]">
+                  <img
+                    src={viewingItem.photos[viewingPhotoIndex]}
+                    alt={viewingItem.name}
+                    className="max-w-full max-h-[70vh] object-contain"
+                  />
+                </div>
 
-              {/* Navigation */}
-              {viewingItem.photos.length > 1 && (
-                <>
-                  <button
-                    onClick={() => setViewingPhotoIndex(i => (i - 1 + viewingItem.photos.length) % viewingItem.photos.length)}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/20 hover:bg-background/40 text-background transition-colors"
-                  >
-                    <ChevronLeft className="w-6 h-6" />
-                  </button>
-                  <button
-                    onClick={() => setViewingPhotoIndex(i => (i + 1) % viewingItem.photos.length)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/20 hover:bg-background/40 text-background transition-colors"
-                  >
-                    <ChevronRight className="w-6 h-6" />
-                  </button>
-                </>
-              )}
-
-              {/* Bottom info */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-foreground/80 to-transparent">
-                <h3 className="text-background font-semibold text-lg">{viewingItem.name}</h3>
-                {viewingItem.description && (
-                  <p className="text-background/70 text-sm">{viewingItem.description}</p>
+                {/* Navigation */}
+                {viewingItem.photos.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => setViewingPhotoIndex(i => (i - 1 + viewingItem.photos.length) % viewingItem.photos.length)}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/20 hover:bg-background/40 text-background transition-colors"
+                    >
+                      <ChevronLeft className="w-6 h-6" />
+                    </button>
+                    <button
+                      onClick={() => setViewingPhotoIndex(i => (i + 1) % viewingItem.photos.length)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/20 hover:bg-background/40 text-background transition-colors"
+                    >
+                      <ChevronRight className="w-6 h-6" />
+                    </button>
+                  </>
                 )}
+
+                {/* Bottom info */}
+                <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-foreground/80 to-transparent">
+                  <h3 className="text-background font-semibold text-lg">{viewingItem.name}</h3>
+                  {viewingItem.description && (
+                    <p className="text-background/70 text-sm">{viewingItem.description}</p>
+                  )}
+                </div>
               </div>
 
-              {/* Thumbnail strip */}
+              {/* Thumbnail strip - below the image */}
               {viewingItem.photos.length > 1 && (
-                <div className="absolute bottom-20 left-0 right-0 px-4">
-                  <div className="flex gap-2 overflow-x-auto pb-2 justify-center scrollbar-thin">
+                <div className="px-4 py-3 bg-foreground/90">
+                  <div className="flex gap-2 overflow-x-auto pb-1 justify-center scrollbar-thin">
                     {viewingItem.photos.map((photo, i) => (
                       <button
                         key={i}
