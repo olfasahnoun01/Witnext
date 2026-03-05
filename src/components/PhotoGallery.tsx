@@ -100,6 +100,7 @@ export const PhotoGallery = () => {
   const [formDescription, setFormDescription] = useState('');
   const [formPhotos, setFormPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -533,7 +534,36 @@ export const PhotoGallery = () => {
             {/* Photos */}
             <div>
               <Label>Photos</Label>
-              <div className="grid grid-cols-3 gap-2 mt-2">
+              <div
+                className={cn(
+                  "grid grid-cols-3 gap-2 mt-2 p-3 rounded-lg border-2 border-dashed transition-colors",
+                  dragOver ? "border-primary bg-primary/10" : "border-border"
+                )}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(false); }}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOver(false);
+                  const files = e.dataTransfer.files;
+                  if (!files || files.length === 0) return;
+                  const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+                  if (imageFiles.length === 0) return;
+                  setUploading(true);
+                  const newUrls: string[] = [];
+                  for (const file of imageFiles) {
+                    const ext = file.name.split('.').pop();
+                    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+                    const { error } = await supabase.storage.from('gallery-photos').upload(path, file, { upsert: true });
+                    if (!error) {
+                      const { data: urlData } = supabase.storage.from('gallery-photos').getPublicUrl(path);
+                      newUrls.push(urlData.publicUrl);
+                    }
+                  }
+                  setFormPhotos(prev => [...prev, ...newUrls]);
+                  setUploading(false);
+                }}
+              >
                 {formPhotos.map((url, i) => (
                   <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-border">
                     <img src={url} alt="" className="w-full h-full object-cover" />
@@ -548,7 +578,7 @@ export const PhotoGallery = () => {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  className="aspect-square rounded-lg border-2 border-dashed border-border hover:border-primary/50 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-primary transition-colors"
+                  className="aspect-square rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-primary transition-colors"
                 >
                   {uploading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -560,6 +590,7 @@ export const PhotoGallery = () => {
                   )}
                 </button>
               </div>
+              <p className="text-xs text-muted-foreground mt-1">Glissez-déposez vos photos ici ou cliquez pour en ajouter</p>
               <input
                 ref={fileInputRef}
                 type="file"
