@@ -689,7 +689,7 @@ export const PhotoGallery = () => {
 
       {/* Category Management Modal */}
       <Dialog open={showCategoryModal} onOpenChange={setShowCategoryModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>Gérer les Catégories</DialogTitle>
             <DialogDescription>Ajoutez, modifiez ou supprimez les catégories de la galerie</DialogDescription>
