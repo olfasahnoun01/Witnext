@@ -489,7 +489,7 @@ export const PhotoGallery = () => {
                 <PopoverContent className="w-full p-0 z-[9999]" align="start" side="bottom" avoidCollisions={false}>
                   <Command>
                     <CommandInput placeholder="Rechercher ou taper une catégorie..." value={categorySearch} onValueChange={setCategorySearch} />
-                    <CommandList className="max-h-[200px] overflow-y-auto">
+                    <CommandList className="max-h-[220px] overflow-y-auto overscroll-contain touch-pan-y" onWheel={(e) => e.stopPropagation()}>
                       <CommandEmpty>
                         {categorySearch.trim() ? (
                           <button
