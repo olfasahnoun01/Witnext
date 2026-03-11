@@ -88,6 +88,7 @@ export const PhotoGallery = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Category CRUD states
   const [showCategoryModal, setShowCategoryModal] = useState(false);
