@@ -413,7 +413,7 @@ export const PhotoGallery = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map(item => (
+          {paginatedItems.map(item => (
             <div
               key={item.id}
               className="group bg-card rounded-xl border border-border overflow-hidden hover:shadow-lg transition-all duration-200"
