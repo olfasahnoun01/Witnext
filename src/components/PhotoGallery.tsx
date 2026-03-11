@@ -166,6 +166,15 @@ export const PhotoGallery = () => {
     return matchesSearch && matchesCategory;
   });
 
+  // Pagination
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginatedItems = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterCategory]);
+
   const resetForm = () => {
     setFormName('');
     setFormCategory('Général');
