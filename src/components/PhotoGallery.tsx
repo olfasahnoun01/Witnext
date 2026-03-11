@@ -486,7 +486,7 @@ export const PhotoGallery = () => {
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-full p-0 max-h-[250px] overflow-y-auto" align="start" side="bottom" avoidCollisions={false}>
+                <PopoverContent className="w-full p-0" align="start">
                   <Command>
                     <CommandInput placeholder="Rechercher ou taper une catégorie..." value={categorySearch} onValueChange={setCategorySearch} />
                     <CommandList>
