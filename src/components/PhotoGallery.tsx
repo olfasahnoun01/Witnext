@@ -341,7 +341,7 @@ export const PhotoGallery = () => {
             <PopoverContent className="w-48 p-0" align="start">
               <Command>
                 <CommandInput placeholder="Rechercher..." value={filterSearch} onValueChange={setFilterSearch} />
-                <CommandList>
+                <CommandList className="max-h-[220px] overflow-y-auto overscroll-contain touch-pan-y" onWheel={(e) => e.stopPropagation()}>
                   <CommandEmpty>Aucune catégorie</CommandEmpty>
                   <CommandGroup>
                     <CommandItem
