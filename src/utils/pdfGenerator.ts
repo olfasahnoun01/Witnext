@@ -572,7 +572,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   });
 
   // Compute detailed totals using shared helper
-  const totals = computeDevisTotals(devis.items, isSortantTTC);
+  const totals = computeDevisTotals(devis.items, pricingIsTtc);
   const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
 
   const tableEndY = (doc as any).lastAutoTable?.finalY || 120;
