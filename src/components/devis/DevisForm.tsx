@@ -1061,6 +1061,12 @@ export const DevisForm = memo(({
                     {(() => {
                       const tvaRate = itemTva / 100;
                       const afterRemise = itemRemise > 0 ? itemPrixTtc * (1 - itemRemise / 100) : itemPrixTtc;
+                      if (devisType === 'sortant') {
+                        // Sortant: input is always HT
+                        const unitHT = afterRemise;
+                        const unitTTC = unitHT * (1 + tvaRate);
+                        return `${unitHT.toFixed(3)} HT — ${unitTTC.toFixed(3)} TTC`;
+                      }
                       if (isEntrant) {
                         const unitHT = afterRemise;
                         const unitTTC = unitHT * (1 + tvaRate);
