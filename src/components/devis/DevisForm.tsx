@@ -1212,9 +1212,11 @@ export const DevisForm = memo(({
                         <p className="text-sm text-muted-foreground">
                           {item.fournisseur && `${item.fournisseur} • `}
                           Qté: {item.quantity}
-                          {item.prix_achat != null && item.prix_achat > 0 && ` • Achat: ${item.prix_achat.toFixed(3)} TND`}
-                          {` • P.U: ${item.prix_ttc.toFixed(3)} TND`}
-                          {isTtc && ` • TVA: ${item.tva ?? 19}%`}
+                          {item.prix_achat != null && item.prix_achat > 0 && ` • Achat HT: ${item.prix_achat.toFixed(3)}`}
+                          {devisType === 'sortant' && item.prix_achat != null && item.prix_achat > 0 && ` (TTC: ${(item.prix_achat * (1 + (item.tva ?? 19) / 100)).toFixed(3)})`}
+                          {` • P.U HT: ${item.prix_ttc.toFixed(3)}`}
+                          {(devisType === 'sortant' || isTtc) && ` • TVA: ${item.tva ?? 19}%`}
+                          {devisType === 'sortant' && ` • P.U TTC: ${(item.prix_ttc * (1 + (item.tva ?? 19) / 100)).toFixed(3)}`}
                           {(() => {
                             const line = computeDevisLine(item, isSortantTTC);
                             const unitAfter = isSortantTTC ? line.unitAfterRemiseTTC : line.unitAfterRemiseHT;
