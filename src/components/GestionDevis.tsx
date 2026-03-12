@@ -114,6 +114,7 @@ export const GestionDevis = () => {
   const resetForm = useCallback(() => {
     setDevisType('sortant');
     clearFormFields();
+    setIsTtc(false); // sortant defaults to HT
     setEditingDevis(null);
     setShowEditDialog(false);
     generateNextNumber('sortant');
@@ -122,7 +123,7 @@ export const GestionDevis = () => {
   const handleTypeChange = useCallback((type: 'entrant' | 'sortant') => {
     setDevisType(type);
     clearFormFields();
-    
+    if (type === 'sortant') setIsTtc(false);
   }, [clearFormFields]);
 
   const saveDevis = useCallback(async () => {
