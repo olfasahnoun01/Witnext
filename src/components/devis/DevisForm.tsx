@@ -1089,18 +1089,12 @@ export const DevisForm = memo(({
                     {(() => {
                       const tvaRate = itemTva / 100;
                       const afterRemise = itemRemise > 0 ? itemPrixTtc * (1 - itemRemise / 100) : itemPrixTtc;
-                      if (isEntrant) {
-                        const unitHT = afterRemise;
-                        const unitTTC = unitHT * (1 + tvaRate);
-                        return isTtc
-                          ? `${unitHT.toFixed(3)} HT — ${unitTTC.toFixed(3)} TTC`
-                          : `${unitHT.toFixed(3)} HT`;
-                      }
-                      if (isTtc) {
-                        const unitHT = afterRemise / (1 + tvaRate);
-                        return `${unitHT.toFixed(3)} HT — ${afterRemise.toFixed(3)} TTC`;
-                      }
-                      return `${afterRemise.toFixed(3)} HT`;
+                      // For both entrant and sortant, prix_ttc stores HT
+                      const unitHT = afterRemise;
+                      const unitTTC = unitHT * (1 + tvaRate);
+                      return isTtc
+                        ? `${unitHT.toFixed(3)} HT — ${unitTTC.toFixed(3)} TTC`
+                        : `${unitHT.toFixed(3)} HT`;
                     })()}
                   </span>
                 </div>

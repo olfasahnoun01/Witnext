@@ -177,8 +177,8 @@ export const GestionDevis = () => {
 
   const updateDevis = useCallback(async () => {
     if (!editingDevis) return;
-    const isSortantTTC = isTtc;
-    const totals = computeDevisTotals(devisItems, isSortantTTC);
+    const pricingIsTtc = devisType === 'sortant' ? false : isTtc;
+    const totals = computeDevisTotals(devisItems, pricingIsTtc);
     const totalAmount = totals.totalTTC;
 
     const { error } = await supabase.from('devis').update({
