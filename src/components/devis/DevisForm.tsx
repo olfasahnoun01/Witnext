@@ -1162,7 +1162,7 @@ export const DevisForm = memo(({
                   {editingItemIdx === idx ? (
                     <div className="space-y-3">
                       <p className="font-medium text-foreground">{item.designation}</p>
-                      <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-2' : (isTtc ? 'grid-cols-3' : 'grid-cols-2')}`}>
+                      <div className={`grid gap-3 ${devisType === 'sortant' ? 'grid-cols-5' : (isTtc ? 'grid-cols-3' : 'grid-cols-2')}`}>
                         <div>
                           <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
                           <input type="number" min="1" value={editItemQty} onChange={e => setEditItemQty(parseInt(e.target.value) || 1)} className="form-input" />
@@ -1171,17 +1171,19 @@ export const DevisForm = memo(({
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
                             <input type="number" min="0" step="0.001" value={editItemPrixAchat || ''} onChange={e => setEditItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
+                            {editItemPrixAchat > 0 && <p className="text-[10px] text-muted-foreground mt-0.5">TTC: {(editItemPrixAchat * (1 + editItemTva / 100)).toFixed(3)}</p>}
                           </div>
                         )}
                         <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">P.U {isTtc ? 'TTC' : 'HT'}</label>
+                          <label className="text-xs text-muted-foreground mb-1 block">{devisType === 'sortant' ? 'Prix Vente HT' : `P.U ${isTtc ? 'HT' : 'HT'}`}</label>
                           <input type="number" min="0" step="0.001" value={editItemPrix || ''} onChange={e => setEditItemPrix(parseFloat(e.target.value) || 0)} className="form-input" />
+                          {devisType === 'sortant' && editItemPrix > 0 && <p className="text-[10px] text-muted-foreground mt-0.5">TTC: {(editItemPrix * (1 + editItemTva / 100)).toFixed(3)}</p>}
                         </div>
                         <div>
                           <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
                           <input type="number" min="0" max="100" step="0.1" value={editItemRemise || ''} onChange={e => setEditItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
                         </div>
-                         {isTtc && (
+                         {(devisType === 'sortant' || isTtc) && (
                            <div>
                              <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
                              <select value={String(editItemTva)} onChange={e => setEditItemTva(Number(e.target.value))} className="form-input">
