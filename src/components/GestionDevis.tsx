@@ -225,7 +225,7 @@ export const GestionDevis = () => {
     setThirdPartyPhone(d.third_party_phone || '');
     setNotes(d.notes || '');
     setDevisItems(d.items);
-    setIsTtc(d.type === 'entrant' ? true : d.is_ttc);
+    setIsTtc(d.is_ttc);
     setShowEditDialog(true);
   }, []);
 
