@@ -970,7 +970,7 @@ export const DevisForm = memo(({
                       </div>
                     )}
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Prix Vente {isEntrant ? 'HT' : (isTtc ? 'TTC' : 'HT')}</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">Prix Vente HT</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
                     {isEntrant && isTtc && (
@@ -997,6 +997,23 @@ export const DevisForm = memo(({
                        </div>
                      )}
                    </div>
+                   {/* Sortant TTC: show calculated TTC values */}
+                   {devisType === 'sortant' && isTtc && (itemPrixAchat > 0 || itemPrixTtc > 0) && (
+                     <div className="grid grid-cols-2 gap-3">
+                       {itemPrixAchat > 0 && (
+                         <div className="p-2 rounded-lg bg-muted/30 border border-border">
+                           <label className="text-xs text-muted-foreground mb-1 block">Prix Achat TTC (calculé)</label>
+                           <p className="text-sm font-medium text-foreground">{(itemPrixAchat * (1 + itemTva / 100)).toFixed(3)} TND</p>
+                         </div>
+                       )}
+                       {itemPrixTtc > 0 && (
+                         <div className="p-2 rounded-lg bg-muted/30 border border-border">
+                           <label className="text-xs text-muted-foreground mb-1 block">Prix Vente TTC (calculé)</label>
+                           <p className="text-sm font-medium text-foreground">{(itemPrixTtc * (1 + itemTva / 100)).toFixed(3)} TND</p>
+                         </div>
+                       )}
+                     </div>
+                   )}
                  </>
                ) : (
                 <>
@@ -1018,7 +1035,7 @@ export const DevisForm = memo(({
                       </div>
                     )}
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Prix Vente {isEntrant ? 'HT' : (isTtc ? 'TTC' : 'HT')}</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">Prix Vente HT</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
                     {isEntrant && isTtc && (
@@ -1045,6 +1062,23 @@ export const DevisForm = memo(({
                        </div>
                      )}
                    </div>
+                   {/* Sortant TTC: show calculated TTC values */}
+                   {devisType === 'sortant' && isTtc && (itemPrixAchat > 0 || itemPrixTtc > 0) && (
+                     <div className="grid grid-cols-2 gap-3">
+                       {itemPrixAchat > 0 && (
+                         <div className="p-2 rounded-lg bg-muted/30 border border-border">
+                           <label className="text-xs text-muted-foreground mb-1 block">Prix Achat TTC (calculé)</label>
+                           <p className="text-sm font-medium text-foreground">{(itemPrixAchat * (1 + itemTva / 100)).toFixed(3)} TND</p>
+                         </div>
+                       )}
+                       {itemPrixTtc > 0 && (
+                         <div className="p-2 rounded-lg bg-muted/30 border border-border">
+                           <label className="text-xs text-muted-foreground mb-1 block">Prix Vente TTC (calculé)</label>
+                           <p className="text-sm font-medium text-foreground">{(itemPrixTtc * (1 + itemTva / 100)).toFixed(3)} TND</p>
+                         </div>
+                       )}
+                     </div>
+                   )}
                  </>
                )}
 
