@@ -114,6 +114,7 @@ export const GestionDevis = () => {
   const resetForm = useCallback(() => {
     setDevisType('sortant');
     clearFormFields();
+    setIsTtc(false); // sortant defaults to HT
     setEditingDevis(null);
     setShowEditDialog(false);
     generateNextNumber('sortant');
