@@ -732,11 +732,10 @@ export const DevisForm = memo(({
     return productGroups.filter(g => g.name.toLowerCase().includes(q));
   }, [productGroups, groupSearch]);
 
-  const isSortantTTC = isTtc && devisType === 'sortant';
+  const isSortantTTC = isTtc;
   const devisTotals = useMemo(() => {
-    const flag = isTtc && devisType === 'sortant';
-    return computeDevisTotals(devisItems, flag);
-  }, [devisItems, isTtc, devisType]);
+    return computeDevisTotals(devisItems, isTtc);
+  }, [devisItems, isTtc]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyList = isEntrant ? fournisseurs : clients;
   const ThirdPartyIcon = isEntrant ? Building2 : Users;
