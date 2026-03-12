@@ -122,7 +122,7 @@ export const GestionDevis = () => {
   const handleTypeChange = useCallback((type: 'entrant' | 'sortant') => {
     setDevisType(type);
     clearFormFields();
-    if (type === 'entrant') setIsTtc(true);
+    
   }, [clearFormFields]);
 
   const saveDevis = useCallback(async () => {
