@@ -30,11 +30,11 @@ export function computeDevisLine(
   let unitHT: number, unitTTC: number;
 
   if (isSortantTTC) {
-    // Sortant + TTC: user entered TTC price
+    // TTC mode: user entered TTC price
     unitTTC = item.prix_ttc;
     unitHT = unitTTC / (1 + tvaRate);
   } else {
-    // Entrant or HT mode: user entered HT price
+    // HT mode: user entered HT price
     unitHT = item.prix_ttc;
     unitTTC = unitHT * (1 + tvaRate);
   }
