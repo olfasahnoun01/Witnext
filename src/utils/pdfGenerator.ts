@@ -516,12 +516,13 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   // Items table
   const isTTC = devis.is_ttc;
 
-  const isSortantTTC = isTTC;
+  // For sortant, prix_ttc always stores HT value
+  const pricingIsTtc = devis.type === 'sortant' ? false : isTTC;
 
   const tableData = devis.items.map((item, idx) => {
-    const line = computeDevisLine(item, isSortantTTC);
+    const line = computeDevisLine(item, pricingIsTtc);
     const sousTotal = isTTC ? line.lineTTC : line.lineHT;
-    const prixUnitDisplay = (isSortantTTC ? line.unitHT : item.prix_ttc).toFixed(3);
+    const prixUnitDisplay = item.prix_ttc.toFixed(3);
     return [
       (idx + 1).toString(),
       item.designation,
