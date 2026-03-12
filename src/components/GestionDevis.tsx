@@ -177,7 +177,7 @@ export const GestionDevis = () => {
 
   const updateDevis = useCallback(async () => {
     if (!editingDevis) return;
-    const isSortantTTC = isTtc && devisType === 'sortant';
+    const isSortantTTC = isTtc;
     const totals = computeDevisTotals(devisItems, isSortantTTC);
     const totalAmount = totals.totalTTC;
 
