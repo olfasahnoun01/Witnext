@@ -732,10 +732,12 @@ export const DevisForm = memo(({
     return productGroups.filter(g => g.name.toLowerCase().includes(q));
   }, [productGroups, groupSearch]);
 
-  const isSortantTTC = isTtc;
+  // For sortant, user always enters HT — isTtc only controls showing TTC columns
+  const pricingIsTtc = isEntrant ? isTtc : false;
+  const isSortantTTC = pricingIsTtc;
   const devisTotals = useMemo(() => {
-    return computeDevisTotals(devisItems, isTtc);
-  }, [devisItems, isTtc]);
+    return computeDevisTotals(devisItems, pricingIsTtc);
+  }, [devisItems, pricingIsTtc]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyList = isEntrant ? fournisseurs : clients;
   const ThirdPartyIcon = isEntrant ? Building2 : Users;
