@@ -217,8 +217,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     </td>
                     <td className="py-3 px-4 text-sm font-medium text-foreground">
                       {(() => {
-                        const isSortantTTC = d.is_ttc;
-                        const totals = computeDevisTotals(d.items, isSortantTTC);
+                        const pricingIsTtc = d.type === 'sortant' ? false : d.is_ttc;
+                        const totals = computeDevisTotals(d.items, pricingIsTtc);
                         const finalTotal = d.is_ttc ? totals.totalFinal : totals.totalFinalHT;
                         return finalTotal > 1 ? `${finalTotal.toFixed(3)} TND` : '-';
                       })()}
@@ -312,8 +312,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </thead>
                 <tbody>
                   {itemsDevis.items.map((item, idx) => {
-                    const isSortantTTC = itemsDevis.is_ttc;
-                    const line = computeDevisLine(item, isSortantTTC);
+                    const pricingIsTtc = itemsDevis.type === 'sortant' ? false : itemsDevis.is_ttc;
+                    const line = computeDevisLine(item, pricingIsTtc);
                     const sousTotal = itemsDevis.is_ttc ? line.lineTTC : line.lineHT;
                     return (
                       <tr key={idx} className="border-b border-border/50">
@@ -334,8 +334,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </tbody>
                 <tfoot>
                   {(() => {
-                    const isSortantTTC = itemsDevis.is_ttc;
-                    const totals = computeDevisTotals(itemsDevis.items, isSortantTTC);
+                    const pricingIsTtc = itemsDevis.type === 'sortant' ? false : itemsDevis.is_ttc;
+                    const totals = computeDevisTotals(itemsDevis.items, pricingIsTtc);
                     const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
                     const baseColSpan = itemsDevis.type === 'sortant' ? 7 : 6;
                     const colSpan = itemsDevis.is_ttc ? baseColSpan : baseColSpan - 1;
