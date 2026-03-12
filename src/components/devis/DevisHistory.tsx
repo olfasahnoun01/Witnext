@@ -312,8 +312,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </thead>
                 <tbody>
                   {itemsDevis.items.map((item, idx) => {
-                    const isSortantTTC = itemsDevis.is_ttc;
-                    const line = computeDevisLine(item, isSortantTTC);
+                    const pricingIsTtc = itemsDevis.type === 'sortant' ? false : itemsDevis.is_ttc;
+                    const line = computeDevisLine(item, pricingIsTtc);
                     const sousTotal = itemsDevis.is_ttc ? line.lineTTC : line.lineHT;
                     return (
                       <tr key={idx} className="border-b border-border/50">
