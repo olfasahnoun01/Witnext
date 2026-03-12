@@ -1232,8 +1232,10 @@ export const DevisForm = memo(({
                         <p className="text-sm text-muted-foreground">
                           {item.fournisseur && `${item.fournisseur} • `}
                           Qté: {item.quantity}
-                          {item.prix_achat != null && item.prix_achat > 0 && ` • Achat: ${item.prix_achat.toFixed(3)} TND`}
-                          {` • P.U: ${item.prix_ttc.toFixed(3)} TND`}
+                          {item.prix_achat != null && item.prix_achat > 0 && ` • Achat HT: ${item.prix_achat.toFixed(3)}`}
+                          {!isEntrant && isTtc && item.prix_achat != null && item.prix_achat > 0 && ` (TTC: ${(item.prix_achat * (1 + (item.tva ?? 19) / 100)).toFixed(3)})`}
+                          {` • P.U HT: ${item.prix_ttc.toFixed(3)}`}
+                          {!isEntrant && isTtc && ` (TTC: ${(item.prix_ttc * (1 + (item.tva ?? 19) / 100)).toFixed(3)})`}
                           {isTtc && ` • TVA: ${item.tva ?? 19}%`}
                           {(() => {
                             const line = computeDevisLine(item, isSortantTTC);
