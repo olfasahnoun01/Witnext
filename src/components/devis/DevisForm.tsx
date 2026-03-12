@@ -732,11 +732,10 @@ export const DevisForm = memo(({
     return productGroups.filter(g => g.name.toLowerCase().includes(q));
   }, [productGroups, groupSearch]);
 
-  const isSortantTTC = isTtc && devisType === 'sortant';
+  const isSortantTTC = isTtc;
   const devisTotals = useMemo(() => {
-    const flag = isTtc && devisType === 'sortant';
-    return computeDevisTotals(devisItems, flag);
-  }, [devisItems, isTtc, devisType]);
+    return computeDevisTotals(devisItems, isTtc);
+  }, [devisItems, isTtc]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyList = isEntrant ? fournisseurs : clients;
   const ThirdPartyIcon = isEntrant ? Building2 : Users;
@@ -788,8 +787,8 @@ export const DevisForm = memo(({
             </p>
           </div>
 
-          {/* TTC / HT Switch - only for sortant */}
-          {devisType === 'sortant' && (
+          {/* TTC / HT Switch */}
+          {(
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border">
               <div>
                 <p className="text-sm font-medium text-foreground">Mode de tarification</p>

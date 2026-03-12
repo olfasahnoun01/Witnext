@@ -4,8 +4,8 @@ import { DevisItem } from '@/types';
  * Centralized devis line pricing calculation.
  * 
  * KEY SEMANTIC DIFFERENCE:
- * - Entrant (or HT mode): item.prix_ttc = Prix U HT (base price before tax)
- * - Sortant + TTC mode:   item.prix_ttc = Prix U TTC (price INCLUDING tax)
+ * - HT mode (isTTC=false): item.prix_ttc = Prix U HT (base price before tax)
+ * - TTC mode (isTTC=true):  item.prix_ttc = Prix U TTC (price INCLUDING tax)
  */
 
 export interface DevisLinePricing {
@@ -30,11 +30,11 @@ export function computeDevisLine(
   let unitHT: number, unitTTC: number;
 
   if (isSortantTTC) {
-    // Sortant + TTC: user entered TTC price
+    // TTC mode: user entered TTC price
     unitTTC = item.prix_ttc;
     unitHT = unitTTC / (1 + tvaRate);
   } else {
-    // Entrant or HT mode: user entered HT price
+    // HT mode: user entered HT price
     unitHT = item.prix_ttc;
     unitTTC = unitHT * (1 + tvaRate);
   }

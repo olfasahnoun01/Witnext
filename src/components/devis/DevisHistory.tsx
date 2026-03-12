@@ -217,7 +217,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     </td>
                     <td className="py-3 px-4 text-sm font-medium text-foreground">
                       {(() => {
-                        const isSortantTTC = d.is_ttc && d.type === 'sortant';
+                        const isSortantTTC = d.is_ttc;
                         const totals = computeDevisTotals(d.items, isSortantTTC);
                         const finalTotal = d.is_ttc ? totals.totalFinal : totals.totalFinalHT;
                         return finalTotal > 1 ? `${finalTotal.toFixed(3)} TND` : '-';
@@ -312,7 +312,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </thead>
                 <tbody>
                   {itemsDevis.items.map((item, idx) => {
-                    const isSortantTTC = itemsDevis.is_ttc && itemsDevis.type === 'sortant';
+                    const isSortantTTC = itemsDevis.is_ttc;
                     const line = computeDevisLine(item, isSortantTTC);
                     const sousTotal = itemsDevis.is_ttc ? line.lineTTC : line.lineHT;
                     return (
@@ -334,7 +334,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </tbody>
                 <tfoot>
                   {(() => {
-                    const isSortantTTC = itemsDevis.is_ttc && itemsDevis.type === 'sortant';
+                    const isSortantTTC = itemsDevis.is_ttc;
                     const totals = computeDevisTotals(itemsDevis.items, isSortantTTC);
                     const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
                     const baseColSpan = itemsDevis.type === 'sortant' ? 7 : 6;
