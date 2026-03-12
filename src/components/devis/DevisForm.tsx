@@ -787,8 +787,8 @@ export const DevisForm = memo(({
             </p>
           </div>
 
-          {/* TTC / HT Switch */}
-          {(
+          {/* TTC / HT Switch - only for entrant */}
+          {devisType === 'entrant' && (
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border">
               <div>
                 <p className="text-sm font-medium text-foreground">Mode de tarification</p>
