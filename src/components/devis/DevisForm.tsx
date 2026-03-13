@@ -732,10 +732,11 @@ export const DevisForm = memo(({
     return productGroups.filter(g => g.name.toLowerCase().includes(q));
   }, [productGroups, groupSearch]);
 
-  const isSortantTTC = isTtc;
+  // For sortant, prix_ttc always stores HT — pass false to pricing engine
+  const isSortantTTC = devisType === 'sortant' ? false : isTtc;
   const devisTotals = useMemo(() => {
-    return computeDevisTotals(devisItems, isTtc);
-  }, [devisItems, isTtc]);
+    return computeDevisTotals(devisItems, devisType === 'sortant' ? false : isTtc);
+  }, [devisItems, isTtc, devisType]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyList = isEntrant ? fournisseurs : clients;
   const ThirdPartyIcon = isEntrant ? Building2 : Users;
