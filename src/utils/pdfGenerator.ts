@@ -516,7 +516,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   // Items table
   const isTTC = devis.is_ttc;
 
-  const isSortantTTC = isTTC;
+  const isSortantTTC = devis.type === 'sortant' ? false : isTTC;
 
   const tableData = devis.items.map((item, idx) => {
     const line = computeDevisLine(item, isSortantTTC);
