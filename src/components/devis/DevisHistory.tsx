@@ -312,7 +312,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </thead>
                 <tbody>
                   {itemsDevis.items.map((item, idx) => {
-                    const isSortantTTC = itemsDevis.is_ttc;
+                    const isSortantTTC = itemsDevis.type === 'sortant' ? false : itemsDevis.is_ttc;
                     const line = computeDevisLine(item, isSortantTTC);
                     const sousTotal = itemsDevis.is_ttc ? line.lineTTC : line.lineHT;
                     return (
