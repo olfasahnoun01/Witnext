@@ -1177,6 +1177,9 @@ export const DevisForm = memo(({
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
                             <input type="number" min="0" step="0.001" value={editItemPrixAchat || ''} onChange={e => setEditItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
+                            {isTtc && editItemPrixAchat > 0 && (
+                              <p className="text-xs text-muted-foreground mt-1">TTC: {(editItemPrixAchat * (1 + editItemTva / 100)).toFixed(3)}</p>
+                            )}
                           </div>
                         )}
                         <div>
