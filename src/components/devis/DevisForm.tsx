@@ -1074,8 +1074,9 @@ export const DevisForm = memo(({
                           : `${unitHT.toFixed(3)} HT`;
                       }
                       if (isTtc) {
-                        const unitHT = afterRemise / (1 + tvaRate);
-                        return `${unitHT.toFixed(3)} HT — ${afterRemise.toFixed(3)} TTC`;
+                        // For sortant, afterRemise is HT, calculate TTC
+                        const unitTTC = afterRemise * (1 + tvaRate);
+                        return `${afterRemise.toFixed(3)} HT — ${unitTTC.toFixed(3)} TTC`;
                       }
                       return `${afterRemise.toFixed(3)} HT`;
                     })()}
