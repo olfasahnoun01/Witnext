@@ -1011,7 +1011,7 @@ export const DevisForm = memo(({
                     <input type="text" value={itemFournisseur} onChange={e => setItemFournisseur(e.target.value)} className="form-input" placeholder="Fournisseur" />
                     <input type="text" value={itemDescription} onChange={e => setItemDescription(e.target.value)} className="form-input" placeholder="Description (opt.)" />
                   </div>
-                   <div className={`grid gap-3 ${devisType === 'sortant' ? (isTtc ? 'grid-cols-4' : 'grid-cols-3') : (isEntrant && isTtc ? 'grid-cols-4' : (isTtc ? 'grid-cols-3' : 'grid-cols-2'))}`}>
+                   <div className={`grid gap-3 ${devisType === 'sortant' ? (isTtc ? 'grid-cols-3' : 'grid-cols-3') : (isEntrant && isTtc ? 'grid-cols-4' : (isTtc ? 'grid-cols-3' : 'grid-cols-2'))}`}>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Quantité</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
@@ -1020,11 +1020,17 @@ export const DevisForm = memo(({
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
                         <input type="number" min="0" step="0.001" value={itemPrixAchat || ''} onChange={e => setItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
+                        {isTtc && itemPrixAchat > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1">TTC: {(itemPrixAchat * (1 + itemTva / 100)).toFixed(3)}</p>
+                        )}
                       </div>
                     )}
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Prix Vente {isEntrant ? 'HT' : (isTtc ? 'TTC' : 'HT')}</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">Prix Vente HT</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
+                      {!isEntrant && isTtc && itemPrixTtc > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">TTC: {(itemPrixTtc * (1 + itemTva / 100)).toFixed(3)}</p>
+                      )}
                     </div>
                     {isEntrant && isTtc && (
                       <div>
