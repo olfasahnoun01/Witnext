@@ -1180,8 +1180,11 @@ export const DevisForm = memo(({
                           </div>
                         )}
                         <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">P.U {isTtc ? 'TTC' : 'HT'}</label>
+                          <label className="text-xs text-muted-foreground mb-1 block">P.U HT</label>
                           <input type="number" min="0" step="0.001" value={editItemPrix || ''} onChange={e => setEditItemPrix(parseFloat(e.target.value) || 0)} className="form-input" />
+                          {devisType === 'sortant' && isTtc && editItemPrix > 0 && (
+                            <p className="text-xs text-muted-foreground mt-1">TTC: {(editItemPrix * (1 + (editItemTva) / 100)).toFixed(3)}</p>
+                          )}
                         </div>
                         <div>
                           <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>

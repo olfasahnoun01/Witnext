@@ -334,7 +334,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </tbody>
                 <tfoot>
                   {(() => {
-                    const isSortantTTC = itemsDevis.is_ttc;
+                    const isSortantTTC = itemsDevis.type === 'sortant' ? false : itemsDevis.is_ttc;
                     const totals = computeDevisTotals(itemsDevis.items, isSortantTTC);
                     const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
                     const baseColSpan = itemsDevis.type === 'sortant' ? 7 : 6;
