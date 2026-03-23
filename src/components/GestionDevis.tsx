@@ -138,7 +138,7 @@ export const GestionDevis = () => {
     }
     setIsSaving(true);
     try {
-      const isSortantTTC = devisType === 'sortant' ? false : isTtc;
+      const isSortantTTC = isTtc;
       const totals = computeDevisTotals(devisItems, isSortantTTC);
       const totalAmount = totals.totalTTC;
       const { data: { user } } = await supabase.auth.getUser();
@@ -177,7 +177,7 @@ export const GestionDevis = () => {
 
   const updateDevis = useCallback(async () => {
     if (!editingDevis) return;
-    const isSortantTTC = devisType === 'sortant' ? false : isTtc;
+    const isSortantTTC = isTtc;
     const totals = computeDevisTotals(devisItems, isSortantTTC);
     const totalAmount = totals.totalTTC;
 

@@ -516,14 +516,11 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   // Items table
   const isTTC = devis.is_ttc;
 
-  const isSortantTTC = devis.type === 'sortant' ? false : isTTC;
-
-  // For sortant TTC: prices are entered as HT, so sous-total should be HT too
-  const isSortantWithTTC = devis.type === 'sortant' && isTTC;
+  const isSortantTTC = isTTC;
 
   const tableData = devis.items.map((item, idx) => {
     const line = computeDevisLine(item, isSortantTTC);
-    const sousTotal = isSortantWithTTC ? line.lineHT : (isTTC ? line.lineTTC : line.lineHT);
+    const sousTotal = isTTC ? line.lineTTC : line.lineHT;
     const prixUnitDisplay = (isSortantTTC ? line.unitHT : item.prix_ttc).toFixed(3);
     return [
       (idx + 1).toString(),
@@ -536,10 +533,9 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     ];
   });
 
-  const sousTotalLabel = isSortantWithTTC ? 'Montant HT' : (isTTC ? 'Sous-total TTC' : 'Sous-total HT');
   const headRow = isTTC
-    ? ['#', 'Désignation', 'Prix U HT', 'Remise', 'TVA', 'Qté', sousTotalLabel]
-    : ['#', 'Désignation', 'Prix U HT', 'Remise', 'Qté', sousTotalLabel];
+    ? ['#', 'Désignation', 'Prix U HT', 'Remise', 'TVA', 'Qté', 'Sous-total TTC']
+    : ['#', 'Désignation', 'Prix U HT', 'Remise', 'Qté', 'Sous-total HT'];
 
   autoTable(doc, {
     startY: 96,
