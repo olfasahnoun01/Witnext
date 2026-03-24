@@ -732,10 +732,11 @@ export const DevisForm = memo(({
     return productGroups.filter(g => g.name.toLowerCase().includes(q));
   }, [productGroups, groupSearch]);
 
-  const isSortantTTC = isTtc;
+  // For sortant, prix_ttc always stores HT — pass false to pricing engine
+  const isSortantTTC = devisType === 'sortant' ? false : isTtc;
   const devisTotals = useMemo(() => {
-    return computeDevisTotals(devisItems, isTtc);
-  }, [devisItems, isTtc]);
+    return computeDevisTotals(devisItems, devisType === 'sortant' ? false : isTtc);
+  }, [devisItems, isTtc, devisType]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyList = isEntrant ? fournisseurs : clients;
   const ThirdPartyIcon = isEntrant ? Building2 : Users;
@@ -955,8 +956,8 @@ export const DevisForm = memo(({
                     </div>
                   )}
 
-                  {/* Quantity, Price & Remise */}
-                   <div className={`grid gap-3 ${devisType === 'sortant' ? (isTtc ? 'grid-cols-4' : 'grid-cols-3') : (isEntrant && isTtc ? 'grid-cols-4' : (isTtc ? 'grid-cols-3' : 'grid-cols-2'))}`}>
+                   {/* Quantity, Price & Remise */}
+                   <div className={`grid gap-3 ${devisType === 'sortant' ? (isTtc ? 'grid-cols-3' : 'grid-cols-3') : (isEntrant && isTtc ? 'grid-cols-4' : (isTtc ? 'grid-cols-3' : 'grid-cols-2'))}`}>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
@@ -965,11 +966,17 @@ export const DevisForm = memo(({
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
                         <input type="number" min="0" step="0.001" value={itemPrixAchat || ''} onChange={e => setItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
+                        {isTtc && itemPrixAchat > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1">TTC: {(itemPrixAchat * (1 + itemTva / 100)).toFixed(3)}</p>
+                        )}
                       </div>
                     )}
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Prix Vente {isEntrant ? 'HT' : (isTtc ? 'TTC' : 'HT')}</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">Prix Vente HT</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
+                      {!isEntrant && isTtc && itemPrixTtc > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">TTC: {(itemPrixTtc * (1 + itemTva / 100)).toFixed(3)}</p>
+                      )}
                     </div>
                     {isEntrant && isTtc && (
                       <div>
@@ -1004,7 +1011,7 @@ export const DevisForm = memo(({
                     <input type="text" value={itemFournisseur} onChange={e => setItemFournisseur(e.target.value)} className="form-input" placeholder="Fournisseur" />
                     <input type="text" value={itemDescription} onChange={e => setItemDescription(e.target.value)} className="form-input" placeholder="Description (opt.)" />
                   </div>
-                   <div className={`grid gap-3 ${devisType === 'sortant' ? (isTtc ? 'grid-cols-4' : 'grid-cols-3') : (isEntrant && isTtc ? 'grid-cols-4' : (isTtc ? 'grid-cols-3' : 'grid-cols-2'))}`}>
+                   <div className={`grid gap-3 ${devisType === 'sortant' ? (isTtc ? 'grid-cols-3' : 'grid-cols-3') : (isEntrant && isTtc ? 'grid-cols-4' : (isTtc ? 'grid-cols-3' : 'grid-cols-2'))}`}>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Quantité</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
@@ -1013,11 +1020,17 @@ export const DevisForm = memo(({
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
                         <input type="number" min="0" step="0.001" value={itemPrixAchat || ''} onChange={e => setItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
+                        {isTtc && itemPrixAchat > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1">TTC: {(itemPrixAchat * (1 + itemTva / 100)).toFixed(3)}</p>
+                        )}
                       </div>
                     )}
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Prix Vente {isEntrant ? 'HT' : (isTtc ? 'TTC' : 'HT')}</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">Prix Vente HT</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
+                      {!isEntrant && isTtc && itemPrixTtc > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">TTC: {(itemPrixTtc * (1 + itemTva / 100)).toFixed(3)}</p>
+                      )}
                     </div>
                     {isEntrant && isTtc && (
                       <div>
@@ -1061,8 +1074,9 @@ export const DevisForm = memo(({
                           : `${unitHT.toFixed(3)} HT`;
                       }
                       if (isTtc) {
-                        const unitHT = afterRemise / (1 + tvaRate);
-                        return `${unitHT.toFixed(3)} HT — ${afterRemise.toFixed(3)} TTC`;
+                        // For sortant, afterRemise is HT, calculate TTC
+                        const unitTTC = afterRemise * (1 + tvaRate);
+                        return `${afterRemise.toFixed(3)} HT — ${unitTTC.toFixed(3)} TTC`;
                       }
                       return `${afterRemise.toFixed(3)} HT`;
                     })()}
@@ -1163,11 +1177,17 @@ export const DevisForm = memo(({
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
                             <input type="number" min="0" step="0.001" value={editItemPrixAchat || ''} onChange={e => setEditItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
+                            {isTtc && editItemPrixAchat > 0 && (
+                              <p className="text-xs text-muted-foreground mt-1">TTC: {(editItemPrixAchat * (1 + editItemTva / 100)).toFixed(3)}</p>
+                            )}
                           </div>
                         )}
                         <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">P.U {isTtc ? 'TTC' : 'HT'}</label>
+                          <label className="text-xs text-muted-foreground mb-1 block">P.U HT</label>
                           <input type="number" min="0" step="0.001" value={editItemPrix || ''} onChange={e => setEditItemPrix(parseFloat(e.target.value) || 0)} className="form-input" />
+                          {devisType === 'sortant' && isTtc && editItemPrix > 0 && (
+                            <p className="text-xs text-muted-foreground mt-1">TTC: {(editItemPrix * (1 + (editItemTva) / 100)).toFixed(3)}</p>
+                          )}
                         </div>
                         <div>
                           <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
@@ -1196,8 +1216,10 @@ export const DevisForm = memo(({
                         <p className="text-sm text-muted-foreground">
                           {item.fournisseur && `${item.fournisseur} • `}
                           Qté: {item.quantity}
-                          {item.prix_achat != null && item.prix_achat > 0 && ` • Achat: ${item.prix_achat.toFixed(3)} TND`}
-                          {` • P.U: ${item.prix_ttc.toFixed(3)} TND`}
+                          {item.prix_achat != null && item.prix_achat > 0 && ` • Achat HT: ${item.prix_achat.toFixed(3)}`}
+                          {item.prix_achat != null && item.prix_achat > 0 && isTtc && !isEntrant && ` (TTC: ${(item.prix_achat * (1 + (item.tva ?? 19) / 100)).toFixed(3)})`}
+                          {` • P.U HT: ${item.prix_ttc.toFixed(3)}`}
+                          {isTtc && !isEntrant && ` (TTC: ${(item.prix_ttc * (1 + (item.tva ?? 19) / 100)).toFixed(3)})`}
                           {isTtc && ` • TVA: ${item.tva ?? 19}%`}
                           {(() => {
                             const line = computeDevisLine(item, isSortantTTC);
