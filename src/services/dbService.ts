@@ -35,17 +35,29 @@ const mapProduct = (p: any, includeImage = false): Product => ({
 
 // Products CRUD - lightweight (no images)
 export const getAllProducts = async (): Promise<Product[]> => {
-  const { data, error } = await supabase
-    .from('products')
-    .select(PRODUCT_COLUMNS_LIGHT)
-    .order('name');
+  const allData: any[] = [];
+  const PAGE_SIZE = 1000;
+  let from = 0;
   
-  if (error) {
-    console.error('Erreur lors de la récupération des produits:', error);
-    return [];
+  while (true) {
+    const { data, error } = await supabase
+      .from('products')
+      .select(PRODUCT_COLUMNS_LIGHT)
+      .order('name')
+      .range(from, from + PAGE_SIZE - 1);
+    
+    if (error) {
+      console.error('Erreur lors de la récupération des produits:', error);
+      break;
+    }
+    
+    allData.push(...data);
+    
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
   }
   
-  return data.map(p => mapProduct(p));
+  return allData.map(p => mapProduct(p));
 };
 
 // Full product with image - use only when displaying a single product
