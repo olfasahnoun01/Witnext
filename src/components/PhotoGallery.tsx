@@ -232,6 +232,9 @@ export const PhotoGallery = () => {
 
   const openAdd = () => {
     resetForm();
+    if (filterCategory && filterCategory !== 'all') {
+      setFormCategory(filterCategory);
+    }
     setEditingItem(null);
     setShowAddModal(true);
   };
