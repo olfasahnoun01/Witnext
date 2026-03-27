@@ -113,11 +113,16 @@ export const GestionDevis = () => {
 
   const resetForm = useCallback(() => {
     setDevisType('sortant');
-    clearFormFields();
+    clearFormFields(true);
     setEditingDevis(null);
     setShowEditDialog(false);
     generateNextNumber('sortant');
   }, [clearFormFields, generateNextNumber]);
+
+  const clearInputsOnly = useCallback(() => {
+    clearFormFields(false);
+    generateNextNumber(devisType);
+  }, [clearFormFields, generateNextNumber, devisType]);
 
   const handleTypeChange = useCallback((type: 'entrant' | 'sortant') => {
     setDevisType(type);
