@@ -288,7 +288,7 @@ export const GestionDevis = () => {
           setIsTtc={setIsTtc}
           onSave={saveDevis}
           onUpdate={updateDevis}
-          onCancel={resetForm}
+          onCancel={editingDevis ? resetForm : clearInputsOnly}
         />
       )}
 
