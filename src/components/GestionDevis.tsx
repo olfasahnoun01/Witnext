@@ -100,24 +100,29 @@ export const GestionDevis = () => {
     }
   }, [savedDevis, devisType, editingDevis, generateNextNumber]);
 
-  const clearFormFields = useCallback(() => {
+  const clearFormFields = useCallback((clearItems = true) => {
     setDevisDate(new Date().toISOString().split('T')[0]);
     setThirdPartyName('');
     setThirdPartyAddress('');
     setThirdPartyTaxId('');
     setThirdPartyPhone('');
     setNotes('');
-    setDevisItems([]);
+    if (clearItems) setDevisItems([]);
     setIsTtc(true);
   }, []);
 
   const resetForm = useCallback(() => {
     setDevisType('sortant');
-    clearFormFields();
+    clearFormFields(true);
     setEditingDevis(null);
     setShowEditDialog(false);
     generateNextNumber('sortant');
   }, [clearFormFields, generateNextNumber]);
+
+  const clearInputsOnly = useCallback(() => {
+    clearFormFields(false);
+    generateNextNumber(devisType);
+  }, [clearFormFields, generateNextNumber, devisType]);
 
   const handleTypeChange = useCallback((type: 'entrant' | 'sortant') => {
     setDevisType(type);
@@ -283,7 +288,7 @@ export const GestionDevis = () => {
           setIsTtc={setIsTtc}
           onSave={saveDevis}
           onUpdate={updateDevis}
-          onCancel={resetForm}
+          onCancel={editingDevis ? resetForm : clearInputsOnly}
         />
       )}
 
