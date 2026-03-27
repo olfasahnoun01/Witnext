@@ -100,14 +100,14 @@ export const GestionDevis = () => {
     }
   }, [savedDevis, devisType, editingDevis, generateNextNumber]);
 
-  const clearFormFields = useCallback(() => {
+  const clearFormFields = useCallback((clearItems = true) => {
     setDevisDate(new Date().toISOString().split('T')[0]);
     setThirdPartyName('');
     setThirdPartyAddress('');
     setThirdPartyTaxId('');
     setThirdPartyPhone('');
     setNotes('');
-    setDevisItems([]);
+    if (clearItems) setDevisItems([]);
     setIsTtc(true);
   }, []);
 
