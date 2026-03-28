@@ -1,5 +1,6 @@
 import { memo, useMemo, useState, useCallback } from 'react';
-import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter } from 'lucide-react';
+import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package } from 'lucide-react';
+import { EchantillonModal } from './EchantillonModal';
 import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
 import { computeDevisLine, computeDevisTotals } from '@/lib/devisPricing';
@@ -51,6 +52,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   const [searchTerm, setSearchTerm] = useState('');
   const [itemsDevis, setItemsDevis] = useState<Devis | null>(null);
   const [selectedFournisseur, setSelectedFournisseur] = useState('all');
+  const [echantillonDevis, setEchantillonDevis] = useState<{ id: number; number: string } | null>(null);
 
   // Extract unique fournisseurs from all devis items
   const allFournisseurs = useMemo(() => {
@@ -177,7 +179,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Mode</th>
-                
+                {/* Échantillon column only for sortant */}
+                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Échantillon</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">PDF</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
               </tr>
@@ -231,9 +234,21 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                       </span>
                     </td>
                     <td className="py-3 px-4">
+                      {d.type === 'sortant' ? (
+                        <button
+                          onClick={() => setEchantillonDevis({ id: d.id, number: d.devis_number })}
+                          className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                          title="Gérer les échantillons"
+                        >
+                          <Package className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => handlePreview(d)}
                           disabled={generating}
                           className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
                           title="Prévisualiser PDF"
@@ -438,6 +453,14 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Échantillon Modal */}
+      <EchantillonModal
+        devisId={echantillonDevis?.id ?? null}
+        devisNumber={echantillonDevis?.number ?? ''}
+        open={!!echantillonDevis}
+        onClose={() => setEchantillonDevis(null)}
+      />
     </>
   );
 });

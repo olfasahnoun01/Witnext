@@ -182,6 +182,44 @@ export type Database = {
         }
         Relationships: []
       }
+      echantillons: {
+        Row: {
+          created_at: string
+          devis_id: number
+          id: number
+          product_name: string
+          quantity: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          devis_id: number
+          id?: number
+          product_name: string
+          quantity?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          devis_id?: number
+          id?: number
+          product_name?: string
+          quantity?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "echantillons_devis_id_fkey"
+            columns: ["devis_id"]
+            isOneToOne: false
+            referencedRelation: "devis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fournisseurs: {
         Row: {
           created_at: string
