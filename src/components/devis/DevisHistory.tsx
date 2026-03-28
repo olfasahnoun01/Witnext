@@ -179,7 +179,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Mode</th>
-                
+                {/* Échantillon column only for sortant */}
+                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Échantillon</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">PDF</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
               </tr>
