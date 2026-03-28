@@ -1,5 +1,6 @@
 import { memo, useMemo, useState, useCallback } from 'react';
-import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter } from 'lucide-react';
+import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package } from 'lucide-react';
+import { EchantillonModal } from './EchantillonModal';
 import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
 import { computeDevisLine, computeDevisTotals } from '@/lib/devisPricing';
