@@ -453,6 +453,14 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Échantillon Modal */}
+      <EchantillonModal
+        devisId={echantillonDevis?.id ?? null}
+        devisNumber={echantillonDevis?.number ?? ''}
+        open={!!echantillonDevis}
+        onClose={() => setEchantillonDevis(null)}
+      />
     </>
   );
 });
