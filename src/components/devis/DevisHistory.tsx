@@ -234,7 +234,19 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-1">
+                      {d.type === 'sortant' ? (
+                        <button
+                          onClick={() => setEchantillonDevis({ id: d.id, number: d.devis_number })}
+                          className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                          title="Gérer les échantillons"
+                        >
+                          <Package className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
                         <button
                           onClick={() => handlePreview(d)}
                           disabled={generating}
