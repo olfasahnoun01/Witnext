@@ -261,10 +261,15 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                       {d.type === 'sortant' ? (
                         <button
                           onClick={() => setEchantillonDevis({ id: d.id, number: d.devis_number })}
-                          className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                          className="relative p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                           title="Gérer les échantillons"
                         >
                           <Package className="w-4 h-4" />
+                          {(echantillonCounts[d.id] || 0) > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-warning text-warning-foreground text-[10px] font-bold leading-none">
+                              {echantillonCounts[d.id]}
+                            </span>
+                          )}
                         </button>
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
