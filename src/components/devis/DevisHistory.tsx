@@ -1,8 +1,9 @@
-import { memo, useMemo, useState, useCallback } from 'react';
+import { memo, useMemo, useState, useCallback, useEffect } from 'react';
 import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package } from 'lucide-react';
 import { EchantillonModal } from './EchantillonModal';
 import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
 import { computeDevisLine, computeDevisTotals } from '@/lib/devisPricing';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
 import {
@@ -53,6 +54,29 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   const [itemsDevis, setItemsDevis] = useState<Devis | null>(null);
   const [selectedFournisseur, setSelectedFournisseur] = useState('all');
   const [echantillonDevis, setEchantillonDevis] = useState<{ id: number; number: string } | null>(null);
+  const [echantillonCounts, setEchantillonCounts] = useState<Record<number, number>>({});
+
+  // Fetch envoyé echantillon counts for all sortant devis
+  useEffect(() => {
+    const sortantIds = savedDevis.filter(d => d.type === 'sortant').map(d => d.id);
+    if (sortantIds.length === 0) return;
+
+    const fetchCounts = async () => {
+      const { data, error } = await supabase
+        .from('echantillons')
+        .select('devis_id, id')
+        .in('devis_id', sortantIds)
+        .eq('status', 'envoyé');
+      if (!error && data) {
+        const counts: Record<number, number> = {};
+        data.forEach((r: any) => {
+          counts[r.devis_id] = (counts[r.devis_id] || 0) + 1;
+        });
+        setEchantillonCounts(counts);
+      }
+    };
+    fetchCounts();
+  }, [savedDevis, echantillonDevis]);
 
   // Extract unique fournisseurs from all devis items
   const allFournisseurs = useMemo(() => {
@@ -237,10 +261,15 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                       {d.type === 'sortant' ? (
                         <button
                           onClick={() => setEchantillonDevis({ id: d.id, number: d.devis_number })}
-                          className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                          className="relative p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                           title="Gérer les échantillons"
                         >
                           <Package className="w-4 h-4" />
+                          {(echantillonCounts[d.id] || 0) > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-warning text-warning-foreground text-[10px] font-bold leading-none">
+                              {echantillonCounts[d.id]}
+                            </span>
+                          )}
                         </button>
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
