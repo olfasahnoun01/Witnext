@@ -54,6 +54,29 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   const [itemsDevis, setItemsDevis] = useState<Devis | null>(null);
   const [selectedFournisseur, setSelectedFournisseur] = useState('all');
   const [echantillonDevis, setEchantillonDevis] = useState<{ id: number; number: string } | null>(null);
+  const [echantillonCounts, setEchantillonCounts] = useState<Record<number, number>>({});
+
+  // Fetch envoyé echantillon counts for all sortant devis
+  useEffect(() => {
+    const sortantIds = savedDevis.filter(d => d.type === 'sortant').map(d => d.id);
+    if (sortantIds.length === 0) return;
+
+    const fetchCounts = async () => {
+      const { data, error } = await supabase
+        .from('echantillons')
+        .select('devis_id, id')
+        .in('devis_id', sortantIds)
+        .eq('status', 'envoyé');
+      if (!error && data) {
+        const counts: Record<number, number> = {};
+        data.forEach((r: any) => {
+          counts[r.devis_id] = (counts[r.devis_id] || 0) + 1;
+        });
+        setEchantillonCounts(counts);
+      }
+    };
+    fetchCounts();
+  }, [savedDevis, echantillonDevis]);
 
   // Extract unique fournisseurs from all devis items
   const allFournisseurs = useMemo(() => {
