@@ -1,8 +1,9 @@
-import { memo, useMemo, useState, useCallback } from 'react';
+import { memo, useMemo, useState, useCallback, useEffect } from 'react';
 import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package } from 'lucide-react';
 import { EchantillonModal } from './EchantillonModal';
 import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
 import { computeDevisLine, computeDevisTotals } from '@/lib/devisPricing';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
 import {
