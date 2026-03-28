@@ -52,6 +52,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   const [searchTerm, setSearchTerm] = useState('');
   const [itemsDevis, setItemsDevis] = useState<Devis | null>(null);
   const [selectedFournisseur, setSelectedFournisseur] = useState('all');
+  const [echantillonDevis, setEchantillonDevis] = useState<{ id: number; number: string } | null>(null);
 
   // Extract unique fournisseurs from all devis items
   const allFournisseurs = useMemo(() => {
