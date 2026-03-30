@@ -205,8 +205,9 @@ export const DevisForm = memo(({
       const priceHt = product.price || 0;
       setItemPrixTtc(priceHt);
     } else {
-      // For sortant: prix de vente stays empty, only prix d'achat is pre-filled
-      setItemPrixTtc(0);
+      // For sortant: pre-fill prix de vente HT from DB price (which is HT)
+      const priceHt = product.prix_ttc || product.price || 0;
+      setItemPrixTtc(priceHt);
     }
     setItemRemise(product.remise || 0);
     setItemQuantity(1);
