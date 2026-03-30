@@ -516,7 +516,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   // Items table
   const isTTC = devis.is_ttc;
 
-  const isSortantTTC = devis.type === 'sortant' ? false : isTTC;
+  const isSortantTTC = false; // All prices are HT — always treat as HT
 
   // For sortant TTC: prices are entered as HT, so sous-total should be HT too
   const isSortantWithTTC = devis.type === 'sortant' && isTTC;
