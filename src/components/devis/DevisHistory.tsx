@@ -342,14 +342,14 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     <th className="text-left py-2 px-3 font-medium text-muted-foreground">#</th>
                     <th className="text-left py-2 px-3 font-medium text-muted-foreground">Désignation</th>
                     <th className="text-left py-2 px-3 font-medium text-muted-foreground">Fournisseur</th>
-                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Prix U Vente</th>
+                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">P.U HT</th>
                     {itemsDevis.type === 'sortant' && (
                       <th className="text-right py-2 px-3 font-medium text-muted-foreground">Prix Achat</th>
                     )}
                     <th className="text-right py-2 px-3 font-medium text-muted-foreground">Remise</th>
-                    {itemsDevis.is_ttc && <th className="text-center py-2 px-3 font-medium text-muted-foreground">TVA</th>}
+                    <th className="text-center py-2 px-3 font-medium text-muted-foreground">TVA</th>
                     <th className="text-right py-2 px-3 font-medium text-muted-foreground">Qté</th>
-                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Sous-total</th>
+                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Sous-total TTC</th>
                   </tr>
                 </thead>
                 <tbody>
