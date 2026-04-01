@@ -374,11 +374,9 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </tbody>
                 <tfoot>
                   {(() => {
-                    const isSortantTTC = itemsDevis.type === 'sortant' ? false : itemsDevis.is_ttc;
-                    const totals = computeDevisTotals(itemsDevis.items, isSortantTTC);
+                    const totals = computeDevisTotals(itemsDevis.items, false);
                     const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
-                    const baseColSpan = itemsDevis.type === 'sortant' ? 7 : 6;
-                    const colSpan = itemsDevis.is_ttc ? baseColSpan : baseColSpan - 1;
+                    const colSpan = itemsDevis.type === 'sortant' ? 7 : 6;
                     return (
                       <>
                         <tr className="border-t-2 border-border">
@@ -398,20 +396,16 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                           <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Net HT</td>
                           <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalNet.toFixed(3)} TND</td>
                         </tr>
-                        {itemsDevis.is_ttc && (
-                          <>
-                            <tr>
-                              <td colSpan={colSpan} />
-                              <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">TVA</td>
-                              <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalTVA.toFixed(3)} TND</td>
-                            </tr>
-                            <tr>
-                              <td colSpan={colSpan} />
-                              <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Total TTC</td>
-                              <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalTTC.toFixed(3)} TND</td>
-                            </tr>
-                          </>
-                        )}
+                        <tr>
+                          <td colSpan={colSpan} />
+                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">TVA</td>
+                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalTVA.toFixed(3)} TND</td>
+                        </tr>
+                        <tr>
+                          <td colSpan={colSpan} />
+                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Total TTC</td>
+                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalTTC.toFixed(3)} TND</td>
+                        </tr>
                         <tr>
                           <td colSpan={colSpan} />
                           <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Timbre fiscal</td>
@@ -419,8 +413,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                         </tr>
                         <tr className="border-t border-border">
                           <td colSpan={colSpan} />
-                          <td className="py-2 px-3 text-right font-semibold text-foreground whitespace-nowrap">{itemsDevis.is_ttc ? 'Total TTC' : 'Total HT'}</td>
-                          <td className="py-2 px-3 text-right font-bold text-primary whitespace-nowrap">{(itemsDevis.is_ttc ? totalTTC + 1 : totalNet + 1).toFixed(3)} TND</td>
+                          <td className="py-2 px-3 text-right font-semibold text-foreground whitespace-nowrap">Total TTC</td>
+                          <td className="py-2 px-3 text-right font-bold text-primary whitespace-nowrap">{(totalTTC + 1).toFixed(3)} TND</td>
                         </tr>
                       </>
                     );
