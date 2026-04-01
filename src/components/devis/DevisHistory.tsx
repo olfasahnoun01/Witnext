@@ -354,22 +354,20 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </thead>
                 <tbody>
                   {itemsDevis.items.map((item, idx) => {
-                    const isSortantTTC = itemsDevis.type === 'sortant' ? false : itemsDevis.is_ttc;
-                    const line = computeDevisLine(item, isSortantTTC);
-                    const sousTotal = itemsDevis.is_ttc ? line.lineTTC : line.lineHT;
+                    const line = computeDevisLine(item, false);
                     return (
                       <tr key={idx} className="border-b border-border/50">
                         <td className="py-2 px-3 text-muted-foreground">{idx + 1}</td>
                         <td className="py-2 px-3 text-foreground font-medium">{item.designation}</td>
                         <td className="py-2 px-3 text-muted-foreground">{item.fournisseur || '-'}</td>
-                        <td className="py-2 px-3 text-right text-foreground">{item.prix_ttc.toFixed(3)} TND</td>
+                        <td className="py-2 px-3 text-right text-foreground">{line.unitHT.toFixed(3)} TND</td>
                         {itemsDevis.type === 'sortant' && (
                           <td className="py-2 px-3 text-right text-muted-foreground">{item.prix_achat != null && item.prix_achat > 0 ? `${item.prix_achat.toFixed(3)} TND` : '-'}</td>
                         )}
                         <td className="py-2 px-3 text-right text-muted-foreground">{item.remise > 0 ? `${item.remise}%` : '-'}</td>
-                        {itemsDevis.is_ttc && <td className="py-2 px-3 text-center text-muted-foreground">{(item as any).tva ?? 19}%</td>}
+                        <td className="py-2 px-3 text-center text-muted-foreground">{(item as any).tva ?? 19}%</td>
                         <td className="py-2 px-3 text-right text-foreground">{item.quantity}</td>
-                        <td className="py-2 px-3 text-right font-medium text-foreground">{sousTotal.toFixed(3)} TND</td>
+                        <td className="py-2 px-3 text-right font-medium text-foreground">{line.lineTTC.toFixed(3)} TND</td>
                       </tr>
                     );
                   })}
