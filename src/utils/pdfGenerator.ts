@@ -44,16 +44,20 @@ const getLogoBase64 = (): Promise<string> => {
   });
 };
 
-export const generateInventoryPDF = (products: Product[]) => {
+export const generateInventoryPDF = (products: Product[], fournisseurFilter?: string) => {
   const doc = new jsPDF();
   
+  const title = fournisseurFilter
+    ? `Inventaire — ${fournisseurFilter}`
+    : 'Liste Inventaire Complet';
+
   doc.setFontSize(20);
   doc.setTextColor(30, 58, 95);
   doc.text('GROSAFE ÉQUIPEMENT', 14, 22);
   
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
-  doc.text('Liste Inventaire Complet', 14, 32);
+  doc.text(title, 14, 32);
   
   doc.setFontSize(10);
   doc.setTextColor(100, 100, 100);
