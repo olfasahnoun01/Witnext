@@ -16,13 +16,13 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
 
   const fournisseurs = useMemo(() => {
     const names = new Set<string>();
-    products.forEach(p => { if (p.fournisseur) names.add(p.fournisseur.trim()); });
-    return Array.from(names).sort((a, b) => a.localeCompare(b, 'fr'));
+    products.forEach(p => { if (p.fournisseur) names.add(p.fournisseur); });
+    return Array.from(names).sort();
   }, [products]);
 
   const filteredProducts = useMemo(() => {
     if (!selectedFournisseur) return [];
-    return products.filter(p => p.fournisseur?.trim() === selectedFournisseur);
+    return products.filter(p => p.fournisseur === selectedFournisseur);
   }, [products, selectedFournisseur]);
 
   const filteredValue = filteredProducts.reduce((s, p) => s + p.price * p.quantity, 0);
