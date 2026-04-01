@@ -244,10 +244,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     </td>
                     <td className="py-3 px-4 text-sm font-medium text-foreground">
                       {(() => {
-                        const isSortantTTC = d.type === 'sortant' ? false : d.is_ttc;
-                        const totals = computeDevisTotals(d.items, isSortantTTC);
-                        const finalTotal = d.is_ttc ? totals.totalFinal : totals.totalFinalHT;
-                        return finalTotal > 1 ? `${finalTotal.toFixed(3)} TND` : '-';
+                        const totals = computeDevisTotals(d.items, false);
+                        return totals.totalFinal > 1 ? `${totals.totalFinal.toFixed(3)} TND` : '-';
                       })()}
                     </td>
                     <td className="py-3 px-4">
@@ -344,45 +342,41 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     <th className="text-left py-2 px-3 font-medium text-muted-foreground">#</th>
                     <th className="text-left py-2 px-3 font-medium text-muted-foreground">Désignation</th>
                     <th className="text-left py-2 px-3 font-medium text-muted-foreground">Fournisseur</th>
-                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Prix U Vente</th>
+                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">P.U HT</th>
                     {itemsDevis.type === 'sortant' && (
                       <th className="text-right py-2 px-3 font-medium text-muted-foreground">Prix Achat</th>
                     )}
                     <th className="text-right py-2 px-3 font-medium text-muted-foreground">Remise</th>
-                    {itemsDevis.is_ttc && <th className="text-center py-2 px-3 font-medium text-muted-foreground">TVA</th>}
+                    <th className="text-center py-2 px-3 font-medium text-muted-foreground">TVA</th>
                     <th className="text-right py-2 px-3 font-medium text-muted-foreground">Qté</th>
-                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Sous-total</th>
+                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Sous-total TTC</th>
                   </tr>
                 </thead>
                 <tbody>
                   {itemsDevis.items.map((item, idx) => {
-                    const isSortantTTC = itemsDevis.type === 'sortant' ? false : itemsDevis.is_ttc;
-                    const line = computeDevisLine(item, isSortantTTC);
-                    const sousTotal = itemsDevis.is_ttc ? line.lineTTC : line.lineHT;
+                    const line = computeDevisLine(item, false);
                     return (
                       <tr key={idx} className="border-b border-border/50">
                         <td className="py-2 px-3 text-muted-foreground">{idx + 1}</td>
                         <td className="py-2 px-3 text-foreground font-medium">{item.designation}</td>
                         <td className="py-2 px-3 text-muted-foreground">{item.fournisseur || '-'}</td>
-                        <td className="py-2 px-3 text-right text-foreground">{item.prix_ttc.toFixed(3)} TND</td>
+                        <td className="py-2 px-3 text-right text-foreground">{line.unitHT.toFixed(3)} TND</td>
                         {itemsDevis.type === 'sortant' && (
                           <td className="py-2 px-3 text-right text-muted-foreground">{item.prix_achat != null && item.prix_achat > 0 ? `${item.prix_achat.toFixed(3)} TND` : '-'}</td>
                         )}
                         <td className="py-2 px-3 text-right text-muted-foreground">{item.remise > 0 ? `${item.remise}%` : '-'}</td>
-                        {itemsDevis.is_ttc && <td className="py-2 px-3 text-center text-muted-foreground">{(item as any).tva ?? 19}%</td>}
+                        <td className="py-2 px-3 text-center text-muted-foreground">{(item as any).tva ?? 19}%</td>
                         <td className="py-2 px-3 text-right text-foreground">{item.quantity}</td>
-                        <td className="py-2 px-3 text-right font-medium text-foreground">{sousTotal.toFixed(3)} TND</td>
+                        <td className="py-2 px-3 text-right font-medium text-foreground">{line.lineTTC.toFixed(3)} TND</td>
                       </tr>
                     );
                   })}
                 </tbody>
                 <tfoot>
                   {(() => {
-                    const isSortantTTC = itemsDevis.type === 'sortant' ? false : itemsDevis.is_ttc;
-                    const totals = computeDevisTotals(itemsDevis.items, isSortantTTC);
+                    const totals = computeDevisTotals(itemsDevis.items, false);
                     const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
-                    const baseColSpan = itemsDevis.type === 'sortant' ? 7 : 6;
-                    const colSpan = itemsDevis.is_ttc ? baseColSpan : baseColSpan - 1;
+                    const colSpan = itemsDevis.type === 'sortant' ? 7 : 6;
                     return (
                       <>
                         <tr className="border-t-2 border-border">
@@ -402,20 +396,16 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                           <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Net HT</td>
                           <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalNet.toFixed(3)} TND</td>
                         </tr>
-                        {itemsDevis.is_ttc && (
-                          <>
-                            <tr>
-                              <td colSpan={colSpan} />
-                              <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">TVA</td>
-                              <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalTVA.toFixed(3)} TND</td>
-                            </tr>
-                            <tr>
-                              <td colSpan={colSpan} />
-                              <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Total TTC</td>
-                              <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalTTC.toFixed(3)} TND</td>
-                            </tr>
-                          </>
-                        )}
+                        <tr>
+                          <td colSpan={colSpan} />
+                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">TVA</td>
+                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalTVA.toFixed(3)} TND</td>
+                        </tr>
+                        <tr>
+                          <td colSpan={colSpan} />
+                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Total TTC</td>
+                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalTTC.toFixed(3)} TND</td>
+                        </tr>
                         <tr>
                           <td colSpan={colSpan} />
                           <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Timbre fiscal</td>
@@ -423,8 +413,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                         </tr>
                         <tr className="border-t border-border">
                           <td colSpan={colSpan} />
-                          <td className="py-2 px-3 text-right font-semibold text-foreground whitespace-nowrap">{itemsDevis.is_ttc ? 'Total TTC' : 'Total HT'}</td>
-                          <td className="py-2 px-3 text-right font-bold text-primary whitespace-nowrap">{(itemsDevis.is_ttc ? totalTTC + 1 : totalNet + 1).toFixed(3)} TND</td>
+                          <td className="py-2 px-3 text-right font-semibold text-foreground whitespace-nowrap">Total TTC</td>
+                          <td className="py-2 px-3 text-right font-bold text-primary whitespace-nowrap">{(totalTTC + 1).toFixed(3)} TND</td>
                         </tr>
                       </>
                     );
