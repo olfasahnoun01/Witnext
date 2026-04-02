@@ -92,6 +92,7 @@ export const ProductTable = memo(({ products, onEdit, onDelete, isLoading }: Pro
                 <TableCell className="text-muted-foreground">{product.fournisseur || '-'}</TableCell>
                 <TableCell className="text-right font-medium">{product.quantity}</TableCell>
                 <TableCell className="text-right font-medium">{product.price.toFixed(3)}</TableCell>
+                <TableCell className="text-right font-medium">{(product.price * 1.19).toFixed(3)}</TableCell>
                 <TableCell>
                   <span className={`status-badge ${statusInfo.class}`}>
                     {statusInfo.label}
