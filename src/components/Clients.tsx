@@ -109,6 +109,11 @@ export const Clients = memo(() => {
       return;
     }
 
+    if (!selectedCity) {
+      toast.error('La ville est requise');
+      return;
+    }
+
     // Build location string: "Exact Address, City, Governorate" or parts thereof
     let locationParts: string[] = [];
     if (exactLocation.trim()) locationParts.push(exactLocation.trim());
