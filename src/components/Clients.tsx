@@ -312,31 +312,34 @@ export const Clients = memo(() => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="matricule">Matricule Fiscale</Label>
+                    <Label htmlFor="matricule">Matricule Fiscale *</Label>
                     <Input
                       id="matricule"
                       value={matriculeFiscale}
                       onChange={(e) => setMatriculeFiscale(e.target.value)}
                       placeholder="Ex: 1234567/A/B/C/000"
+                      required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Téléphone / Fix</Label>
+                    <Label htmlFor="phone">Téléphone / Fix *</Label>
                     <Input
                       id="phone"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="Ex: +216 XX XXX XXX"
+                      required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">Email *</Label>
                     <Input
                       id="email"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Ex: contact@societe.tn"
+                      required
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
