@@ -109,6 +109,11 @@ export const Fournisseurs = memo(() => {
       return;
     }
 
+    if (!selectedCity) {
+      toast.error('La ville est requise');
+      return;
+    }
+
     const locationValue = selectedCity && selectedGovernorate 
       ? `${selectedCity}, ${selectedGovernorate}` 
       : null;
