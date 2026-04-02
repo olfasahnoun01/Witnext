@@ -108,6 +108,26 @@ export const Clients = memo(() => {
       toast.error('Le nom du client est requis');
       return;
     }
+    if (!matriculeFiscale.trim()) {
+      toast.error('Le matricule fiscale est requis');
+      return;
+    }
+    if (!phone.trim()) {
+      toast.error('Le téléphone est requis');
+      return;
+    }
+    if (!email.trim()) {
+      toast.error('L\'email est requis');
+      return;
+    }
+    if (!selectedGovernorate) {
+      toast.error('Le gouvernorat est requis');
+      return;
+    }
+    if (!exactLocation.trim()) {
+      toast.error('L\'adresse exacte est requise');
+      return;
+    }
 
     // Build location string: "Exact Address, City, Governorate" or parts thereof
     let locationParts: string[] = [];
