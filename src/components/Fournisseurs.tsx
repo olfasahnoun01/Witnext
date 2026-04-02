@@ -362,7 +362,7 @@ export const Fournisseurs = memo(() => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Ville</Label>
+                      <Label>Ville *</Label>
                       <Select 
                         value={selectedCity} 
                         onValueChange={setSelectedCity}
