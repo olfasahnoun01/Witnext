@@ -104,8 +104,8 @@ export const Clients = memo(() => {
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!nom.trim()) {
-      toast.error('Le nom du client est requis');
+    if (!nom.trim() || !matriculeFiscale.trim() || !phone.trim() || !email.trim() || !selectedGovernorate || !selectedCity) {
+      toast.error('Tous les champs sont requis');
       return;
     }
 
@@ -114,13 +114,13 @@ export const Clients = memo(() => {
     if (exactLocation.trim()) locationParts.push(exactLocation.trim());
     if (selectedCity) locationParts.push(selectedCity);
     if (selectedGovernorate) locationParts.push(selectedGovernorate);
-    const locationValue = locationParts.length > 0 ? locationParts.join(', ') : null;
+    const locationValue = locationParts.join(', ');
 
     const clientData = {
       nom: nom.trim(),
-      matricule_fiscale: matriculeFiscale.trim() || null,
-      phone: phone.trim() || null,
-      email: email.trim() || null,
+      matricule_fiscale: matriculeFiscale.trim(),
+      phone: phone.trim(),
+      email: email.trim(),
       location: locationValue
     };
 
@@ -312,36 +312,39 @@ export const Clients = memo(() => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="matricule">Matricule Fiscale</Label>
+                    <Label htmlFor="matricule">Matricule Fiscale *</Label>
                     <Input
                       id="matricule"
                       value={matriculeFiscale}
                       onChange={(e) => setMatriculeFiscale(e.target.value)}
                       placeholder="Ex: 1234567/A/B/C/000"
+                      required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Téléphone / Fix</Label>
+                    <Label htmlFor="phone">Téléphone / Fix *</Label>
                     <Input
                       id="phone"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="Ex: +216 XX XXX XXX"
+                      required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">Email *</Label>
                     <Input
                       id="email"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Ex: contact@societe.tn"
+                      required
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label>Gouvernorat</Label>
+                      <Label>Gouvernorat *</Label>
                       <Select 
                         value={selectedGovernorate} 
                         onValueChange={(val) => {
@@ -362,7 +365,7 @@ export const Clients = memo(() => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Ville</Label>
+                      <Label>Ville *</Label>
                       <Select 
                         value={selectedCity} 
                         onValueChange={setSelectedCity}
