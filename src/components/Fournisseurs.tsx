@@ -109,6 +109,11 @@ export const Fournisseurs = memo(() => {
       return;
     }
 
+    if (!selectedCity) {
+      toast.error('La ville est requise');
+      return;
+    }
+
     const locationValue = selectedCity && selectedGovernorate 
       ? `${selectedCity}, ${selectedGovernorate}` 
       : null;
@@ -357,7 +362,7 @@ export const Fournisseurs = memo(() => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Ville</Label>
+                      <Label>Ville *</Label>
                       <Select 
                         value={selectedCity} 
                         onValueChange={setSelectedCity}
