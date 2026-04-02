@@ -300,12 +300,13 @@ export const Fournisseurs = memo(() => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="matricule">Matricule Fiscale</Label>
+                    <Label htmlFor="matricule">Matricule Fiscale *</Label>
                     <Input
                       id="matricule"
                       value={matriculeFiscale}
                       onChange={(e) => setMatriculeFiscale(e.target.value)}
                       placeholder="Ex: 1234567/A/B/C/000"
+                      required
                     />
                   </div>
                   <div className="space-y-2">
