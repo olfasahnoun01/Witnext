@@ -58,7 +58,8 @@ export const ProductTable = memo(({ products, onEdit, onDelete, isLoading }: Pro
             <TableHead>Couleur</TableHead>
             <TableHead>Fournisseur</TableHead>
             <TableHead className="text-right">Quantité</TableHead>
-            <TableHead className="text-right">Prix (TND)</TableHead>
+            <TableHead className="text-right">Prix HT</TableHead>
+            <TableHead className="text-right">Prix TTC</TableHead>
             <TableHead>Statut</TableHead>
             <TableHead className="w-[100px]">Actions</TableHead>
           </TableRow>
