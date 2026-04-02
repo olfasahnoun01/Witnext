@@ -336,7 +336,7 @@ export const Fournisseurs = memo(() => {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label>Gouvernorat</Label>
+                      <Label>Gouvernorat *</Label>
                       <Select 
                         value={selectedGovernorate} 
                         onValueChange={(val) => {
