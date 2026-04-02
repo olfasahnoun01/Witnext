@@ -104,20 +104,18 @@ export const Fournisseurs = memo(() => {
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!nom.trim() || !specialite) {
-      toast.error('Le nom et la spécialité sont requis');
+    if (!nom.trim() || !matriculeFiscale.trim() || !specialite || !phone.trim() || !selectedGovernorate || !selectedCity) {
+      toast.error('Tous les champs sont requis');
       return;
     }
 
-    const locationValue = selectedCity && selectedGovernorate 
-      ? `${selectedCity}, ${selectedGovernorate}` 
-      : null;
+    const locationValue = `${selectedCity}, ${selectedGovernorate}`;
 
     const fournisseurData = {
       nom: nom.trim(),
-      matricule_fiscale: matriculeFiscale.trim() || null,
+      matricule_fiscale: matriculeFiscale.trim(),
       specialite,
-      phone: phone.trim() || null,
+      phone: phone.trim(),
       location: locationValue
     };
 
