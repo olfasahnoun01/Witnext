@@ -325,12 +325,13 @@ export const Fournisseurs = memo(() => {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Téléphone</Label>
+                    <Label htmlFor="phone">Téléphone *</Label>
                     <Input
                       id="phone"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="Ex: +216 XX XXX XXX"
+                      required
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
