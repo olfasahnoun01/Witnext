@@ -45,7 +45,7 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
 
   const filteredProducts = useMemo(() => {
     if (!selectedFournisseur) return [];
-    return products.filter(p => p.fournisseur === selectedFournisseur);
+    return products.filter(p => p.fournisseur?.trim().toUpperCase() === selectedFournisseur.trim().toUpperCase());
   }, [products, selectedFournisseur]);
 
   const filteredValue = filteredProducts.reduce((s, p) => s + p.price * p.quantity, 0);
