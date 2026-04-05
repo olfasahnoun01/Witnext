@@ -634,7 +634,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                   <div className="grid gap-2">
                     <Label>Prix TTC (calculé)</Label>
                     <div className="h-10 px-3 py-2 rounded-md border border-input bg-muted/50 text-sm font-medium text-primary flex items-center">
-                      {(formData.price * (1 - formData.remise / 100)).toFixed(3)} TND
+                      {(formData.price * (1 - formData.remise / 100) * 1.19).toFixed(3)} TND
                     </div>
                   </div>
                 </div>
