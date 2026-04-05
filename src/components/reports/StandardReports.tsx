@@ -31,14 +31,21 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
   const [isExportingDocuments, setIsExportingDocuments] = useState(false);
 
   const fournisseurs = useMemo(() => {
-    const names = new Set<string>();
-    products.forEach(p => { if (p.fournisseur) names.add(p.fournisseur); });
-    return Array.from(names).sort();
+    const namesMap = new Map<string, string>();
+    products.forEach(p => {
+      if (p.fournisseur) {
+        const key = p.fournisseur.trim().toUpperCase();
+        if (!namesMap.has(key)) {
+          namesMap.set(key, p.fournisseur.trim());
+        }
+      }
+    });
+    return Array.from(namesMap.values()).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
   }, [products]);
 
   const filteredProducts = useMemo(() => {
     if (!selectedFournisseur) return [];
-    return products.filter(p => p.fournisseur === selectedFournisseur);
+    return products.filter(p => p.fournisseur?.trim().toUpperCase() === selectedFournisseur.trim().toUpperCase());
   }, [products, selectedFournisseur]);
 
   const filteredValue = filteredProducts.reduce((s, p) => s + p.price * p.quantity, 0);
