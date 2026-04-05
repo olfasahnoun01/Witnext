@@ -12,6 +12,76 @@ interface StandardReportsProps {
   lowStockProducts: Product[];
 }
 
+interface SupplierOption {
+  value: string;
+  label: string;
+  aliases: string[];
+}
+
+const normalizeSupplierName = (name: string) =>
+  name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const getLevenshteinDistance = (source: string, target: string) => {
+  if (source === target) return 0;
+  if (!source.length) return target.length;
+  if (!target.length) return source.length;
+
+  const matrix = Array.from({ length: source.length + 1 }, () =>
+    Array(target.length + 1).fill(0)
+  );
+
+  for (let row = 0; row <= source.length; row += 1) {
+    matrix[row][0] = row;
+  }
+
+  for (let column = 0; column <= target.length; column += 1) {
+    matrix[0][column] = column;
+  }
+
+  for (let row = 1; row <= source.length; row += 1) {
+    for (let column = 1; column <= target.length; column += 1) {
+      const substitutionCost = source[row - 1] === target[column - 1] ? 0 : 1;
+
+      matrix[row][column] = Math.min(
+        matrix[row - 1][column] + 1,
+        matrix[row][column - 1] + 1,
+        matrix[row - 1][column - 1] + substitutionCost
+      );
+    }
+  }
+
+  return matrix[source.length][target.length];
+};
+
+const areSupplierNamesEquivalent = (left: string, right: string) => {
+  const normalizedLeft = normalizeSupplierName(left);
+  const normalizedRight = normalizeSupplierName(right);
+
+  if (!normalizedLeft || !normalizedRight) return false;
+  if (normalizedLeft === normalizedRight) return true;
+
+  const compactLeft = normalizedLeft.replace(/\s+/g, '');
+  const compactRight = normalizedRight.replace(/\s+/g, '');
+
+  if (compactLeft === compactRight) return true;
+
+  const sameFirstWord = normalizedLeft.split(' ')[0] === normalizedRight.split(' ')[0];
+  const samePrefix = compactLeft.slice(0, 5) === compactRight.slice(0, 5);
+
+  if (!sameFirstWord && !samePrefix) return false;
+
+  const maxLength = Math.max(compactLeft.length, compactRight.length);
+  const distanceThreshold = Math.max(2, Math.ceil(maxLength * 0.15));
+
+  return getLevenshteinDistance(compactLeft, compactRight) <= distanceThreshold;
+};
+
 const downloadJSON = (data: any, filename: string) => {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -30,23 +100,65 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
   const [isExportingTransactions, setIsExportingTransactions] = useState(false);
   const [isExportingDocuments, setIsExportingDocuments] = useState(false);
 
-  const fournisseurs = useMemo(() => {
-    const namesMap = new Map<string, string>();
-    products.forEach(p => {
-      if (p.fournisseur) {
-        const key = p.fournisseur.trim().toUpperCase();
-        if (!namesMap.has(key)) {
-          namesMap.set(key, p.fournisseur.trim());
+  const supplierOptions = useMemo(() => {
+    const groups: Array<{ value: string; label: string; aliases: Set<string> }> = [];
+
+    products.forEach(({ fournisseur }) => {
+      const supplierName = fournisseur?.trim();
+      if (!supplierName) return;
+
+      const normalizedName = normalizeSupplierName(supplierName);
+      const existingGroup = groups.find(group =>
+        Array.from(group.aliases).some(alias => areSupplierNamesEquivalent(alias, normalizedName))
+      );
+
+      if (existingGroup) {
+        existingGroup.aliases.add(normalizedName);
+
+        if (
+          supplierName.length > existingGroup.label.length ||
+          (supplierName.length === existingGroup.label.length &&
+            supplierName.localeCompare(existingGroup.label, 'fr', { sensitivity: 'base' }) < 0)
+        ) {
+          existingGroup.label = supplierName;
         }
+
+        return;
       }
+
+      groups.push({
+        value: normalizedName,
+        label: supplierName,
+        aliases: new Set([normalizedName]),
+      });
     });
-    return Array.from(namesMap.values()).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+
+    return groups
+      .map<SupplierOption>(group => ({
+        value: group.value,
+        label: group.label,
+        aliases: Array.from(group.aliases),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' }));
   }, [products]);
 
+  const selectedSupplierOption = useMemo(
+    () => supplierOptions.find(option => option.value === selectedFournisseur) ?? null,
+    [supplierOptions, selectedFournisseur]
+  );
+
   const filteredProducts = useMemo(() => {
-    if (!selectedFournisseur) return [];
-    return products.filter(p => p.fournisseur?.trim().toUpperCase() === selectedFournisseur.trim().toUpperCase());
-  }, [products, selectedFournisseur]);
+    if (!selectedSupplierOption) return [];
+
+    const aliases = new Set(selectedSupplierOption.aliases);
+
+    return products.filter(product => {
+      const supplierName = product.fournisseur?.trim();
+      if (!supplierName) return false;
+
+      return aliases.has(normalizeSupplierName(supplierName));
+    });
+  }, [products, selectedSupplierOption]);
 
   const filteredValue = filteredProducts.reduce((s, p) => s + p.price * p.quantity, 0);
 
@@ -153,20 +265,20 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
                   <SelectValue placeholder="Choisir un fournisseur" />
                 </SelectTrigger>
                 <SelectContent>
-                  {fournisseurs.map(f => (
-                    <SelectItem key={f} value={f}>{f}</SelectItem>
+                  {supplierOptions.map(option => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {selectedFournisseur && (
+              {selectedSupplierOption && (
                 <p className="text-xs text-muted-foreground mt-2">
                   {filteredProducts.length} produits • Valeur: {filteredValue.toFixed(3)} TND
                 </p>
               )}
               <Button
-                onClick={() => generateInventoryPDF(filteredProducts, selectedFournisseur)}
+                onClick={() => generateInventoryPDF(filteredProducts, selectedSupplierOption?.label)}
                 className="mt-4"
-                disabled={!selectedFournisseur || filteredProducts.length === 0}
+                disabled={!selectedSupplierOption || filteredProducts.length === 0}
               >
                 <Download className="w-4 h-4 mr-2" />
                 Télécharger PDF
