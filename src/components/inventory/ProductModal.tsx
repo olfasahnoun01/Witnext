@@ -222,7 +222,7 @@ export const ProductModal = memo(({
             <div>
               <label className="form-label">Prix TTC (calculé)</label>
               <div className="h-10 px-3 rounded-lg bg-muted/50 border border-border text-primary font-medium flex items-center">
-                {(formData.price * (1 - formData.remise / 100)).toFixed(3)} TND
+                {(formData.price * (1 - formData.remise / 100) * 1.19).toFixed(3)} TND
               </div>
             </div>
 
