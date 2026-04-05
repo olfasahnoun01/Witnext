@@ -511,7 +511,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                     <TableCell className="text-right font-medium">{variant.quantity}</TableCell>
                     <TableCell className="text-right">{variant.price.toFixed(3)} TND</TableCell>
                     <TableCell className="text-right">{variant.remise ? `${variant.remise}%` : '-'}</TableCell>
-                    <TableCell className="text-right font-medium text-primary">{variant.prix_ttc?.toFixed(3) || variant.price.toFixed(3)} TND</TableCell>
+                    <TableCell className="text-right font-medium text-primary">{(variant.price * (1 - (variant.remise || 0) / 100) * 1.19).toFixed(3)} TND</TableCell>
                     <TableCell>
                       <Badge className={`${style.bg} ${style.text} border-0`}>{style.label}</Badge>
                     </TableCell>
