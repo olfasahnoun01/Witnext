@@ -295,6 +295,11 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2">
+                        {onConvertToBC && (
+                          <button onClick={() => onConvertToBC(d)} className="p-1.5 rounded hover:bg-success/10 text-muted-foreground hover:text-success transition-colors" title="Convertir en BC">
+                            <FileText className="w-4 h-4" />
+                          </button>
+                        )}
                         {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && canEdit && (
                           <button onClick={() => onEdit(d)} className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors" title="Modifier">
                             <Edit className="w-4 h-4" />
