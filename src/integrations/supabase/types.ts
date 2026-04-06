@@ -14,6 +14,74 @@ export type Database = {
   }
   public: {
     Tables: {
+      bons_commande: {
+        Row: {
+          bc_date: string
+          bc_number: string
+          created_at: string
+          created_by: string | null
+          devis_id: number | null
+          id: number
+          is_ttc: boolean
+          items: Json
+          notes: string | null
+          status: string
+          third_party_address: string | null
+          third_party_name: string | null
+          third_party_phone: string | null
+          third_party_tax_id: string | null
+          total_amount: number | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          bc_date?: string
+          bc_number: string
+          created_at?: string
+          created_by?: string | null
+          devis_id?: number | null
+          id?: number
+          is_ttc?: boolean
+          items?: Json
+          notes?: string | null
+          status?: string
+          third_party_address?: string | null
+          third_party_name?: string | null
+          third_party_phone?: string | null
+          third_party_tax_id?: string | null
+          total_amount?: number | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          bc_date?: string
+          bc_number?: string
+          created_at?: string
+          created_by?: string | null
+          devis_id?: number | null
+          id?: number
+          is_ttc?: boolean
+          items?: Json
+          notes?: string | null
+          status?: string
+          third_party_address?: string | null
+          third_party_name?: string | null
+          third_party_phone?: string | null
+          third_party_tax_id?: string | null
+          total_amount?: number | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bons_commande_devis_id_fkey"
+            columns: ["devis_id"]
+            isOneToOne: false
+            referencedRelation: "devis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       category_settings: {
         Row: {
           category_name: string
