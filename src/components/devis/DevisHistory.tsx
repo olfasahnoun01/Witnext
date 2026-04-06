@@ -147,7 +147,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   if (savedDevis.length === 0) {
     return (
       <div className="bg-card rounded-xl border border-border p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-6">Historique des Devis</h3>
+        <h3 className="text-lg font-semibold text-foreground mb-6">Mes Devis</h3>
         <div className="text-center py-12">
           <History className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <p className="text-sm text-muted-foreground">Aucun devis dans l'historique.</p>
