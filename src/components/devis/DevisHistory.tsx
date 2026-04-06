@@ -25,6 +25,7 @@ interface DevisHistoryProps {
   isAdminOrMod: boolean;
   onEdit: (d: Devis) => void;
   onDelete: (d: Devis) => void;
+  onConvertToBC?: (d: Devis) => void;
 }
 
 const ITEMS_PER_PAGE = 10;
