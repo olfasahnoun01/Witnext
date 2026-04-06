@@ -45,7 +45,7 @@ const toDevisPDFData = (d: Devis): DevisPDFData => ({
   is_ttc: d.is_ttc,
 });
 
-export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete }: DevisHistoryProps) => {
+export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBC }: DevisHistoryProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<Devis | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
