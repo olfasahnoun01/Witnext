@@ -124,3 +124,26 @@ export interface Devis {
   created_at: string;
   updated_at: string;
 }
+
+// Bon de Commande types
+export interface BonCommande {
+  id: number;
+  bc_number: string;
+  bc_date: string;
+  devis_id: number | null;
+  type: 'entrant' | 'sortant';
+  third_party_name: string | null;
+  third_party_address: string | null;
+  third_party_tax_id: string | null;
+  third_party_phone: string | null;
+  items: DevisItem[];
+  total_amount: number;
+  notes: string | null;
+  status: string;
+  is_ttc: boolean;
+  created_by: string | null;
+  creator_name?: string | null;
+  devis_number?: string | null;
+  created_at: string;
+  updated_at: string;
+}

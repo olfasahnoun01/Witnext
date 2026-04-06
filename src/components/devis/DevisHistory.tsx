@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, useCallback, useEffect } from 'react';
-import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package } from 'lucide-react';
+import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText } from 'lucide-react';
 import { EchantillonModal } from './EchantillonModal';
 import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
@@ -25,6 +25,7 @@ interface DevisHistoryProps {
   isAdminOrMod: boolean;
   onEdit: (d: Devis) => void;
   onDelete: (d: Devis) => void;
+  onConvertToBC?: (d: Devis) => void;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -44,7 +45,7 @@ const toDevisPDFData = (d: Devis): DevisPDFData => ({
   is_ttc: d.is_ttc,
 });
 
-export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete }: DevisHistoryProps) => {
+export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBC }: DevisHistoryProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<Devis | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -146,7 +147,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   if (savedDevis.length === 0) {
     return (
       <div className="bg-card rounded-xl border border-border p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-6">Historique des Devis</h3>
+        <h3 className="text-lg font-semibold text-foreground mb-6">Mes Devis</h3>
         <div className="text-center py-12">
           <History className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <p className="text-sm text-muted-foreground">Aucun devis dans l'historique.</p>
@@ -159,7 +160,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     <>
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
-          <h3 className="text-lg font-semibold text-foreground">Historique des Devis</h3>
+          <h3 className="text-lg font-semibold text-foreground">Mes Devis</h3>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -294,6 +295,11 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2">
+                        {onConvertToBC && (
+                          <button onClick={() => onConvertToBC(d)} className="p-1.5 rounded hover:bg-success/10 text-muted-foreground hover:text-success transition-colors" title="Convertir en BC">
+                            <FileText className="w-4 h-4" />
+                          </button>
+                        )}
                         {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && canEdit && (
                           <button onClick={() => onEdit(d)} className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors" title="Modifier">
                             <Edit className="w-4 h-4" />
