@@ -160,7 +160,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     <>
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
-          <h3 className="text-lg font-semibold text-foreground">Historique des Devis</h3>
+          <h3 className="text-lg font-semibold text-foreground">Mes Devis</h3>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
