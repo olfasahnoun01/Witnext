@@ -2,20 +2,22 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { FileText, History, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Devis, DevisItem } from '@/types';
+import { Devis, DevisItem, BonCommande } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { computeDevisTotals } from '@/lib/devisPricing';
 import { DevisForm } from './devis/DevisForm';
 import { DevisHistory } from './devis/DevisHistory';
+import { BonCommandeList } from './devis/BonCommandeList';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 
 export const GestionDevis = () => {
   const { isAdmin, isModerator, user } = useAuth();
-  const canEdit = true; // All users can edit/delete (restricted by RLS)
-  const [activeSection, setActiveSection] = useState<'form' | 'history'>('form');
+  const canEdit = true;
+  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc'>('form');
   const [savedDevis, setSavedDevis] = useState<Devis[]>([]);
+  const [bonsCommande, setBonsCommande] = useState<BonCommande[]>([]);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingDevis, setEditingDevis] = useState<Devis | null>(null);
   const devisNumberRef = useRef('');
@@ -40,7 +42,6 @@ export const GestionDevis = () => {
       .order('created_at', { ascending: false });
 
     if (!error && data) {
-      // Fetch creator names from profiles
       const creatorIds = [...new Set(data.map(d => d.created_by).filter(Boolean))] as string[];
       let profilesMap: Record<string, string> = {};
       if (creatorIds.length > 0) {
@@ -77,9 +78,64 @@ export const GestionDevis = () => {
     }
   }, []);
 
-  useEffect(() => { loadDevis(); }, [loadDevis]);
+  const loadBonsCommande = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('bons_commande')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-  // Keep ref in sync
+    if (!error && data) {
+      const creatorIds = [...new Set(data.map(d => d.created_by).filter(Boolean))] as string[];
+      let profilesMap: Record<string, string> = {};
+      if (creatorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, email')
+          .in('user_id', creatorIds);
+        if (profiles) {
+          profiles.forEach(p => {
+            profilesMap[p.user_id] = p.full_name || p.email || 'Inconnu';
+          });
+        }
+      }
+
+      // Get devis numbers for references
+      const devisIds = [...new Set(data.map(d => d.devis_id).filter(Boolean))] as number[];
+      let devisMap: Record<number, string> = {};
+      if (devisIds.length > 0) {
+        const { data: devisData } = await supabase
+          .from('devis')
+          .select('id, devis_number')
+          .in('id', devisIds);
+        if (devisData) {
+          devisData.forEach(d => { devisMap[d.id] = d.devis_number; });
+        }
+      }
+
+      setBonsCommande(data.map(d => {
+        let parsedItems: DevisItem[] = [];
+        if (d.items) {
+          if (typeof d.items === 'string') {
+            try { parsedItems = JSON.parse(d.items); } catch { parsedItems = []; }
+          } else if (Array.isArray(d.items)) {
+            parsedItems = d.items as unknown as DevisItem[];
+          }
+        }
+        return {
+          ...d,
+          type: d.type as 'entrant' | 'sortant',
+          items: parsedItems,
+          total_amount: Number(d.total_amount) || 0,
+          is_ttc: d.is_ttc ?? true,
+          creator_name: d.created_by ? (profilesMap[d.created_by] || null) : null,
+          devis_number: d.devis_id ? (devisMap[d.devis_id] || null) : null,
+        };
+      }));
+    }
+  }, []);
+
+  useEffect(() => { loadDevis(); loadBonsCommande(); }, [loadDevis, loadBonsCommande]);
+
   useEffect(() => { devisNumberRef.current = devisNumber; }, [devisNumber]);
 
   const generateNextNumber = useCallback((type: 'entrant' | 'sortant') => {
@@ -93,7 +149,6 @@ export const GestionDevis = () => {
     setDevisNumber(`${prefix}-${(maxNum + 1).toString().padStart(2, '0')}`);
   }, [savedDevis]);
 
-  // Generate number when savedDevis load or type changes
   useEffect(() => {
     if (!editingDevis) {
       generateNextNumber(devisType);
@@ -127,7 +182,6 @@ export const GestionDevis = () => {
   const handleTypeChange = useCallback((type: 'entrant' | 'sortant') => {
     setDevisType(type);
     clearFormFields();
-    
   }, [clearFormFields]);
 
   const saveDevis = useCallback(async () => {
@@ -143,7 +197,6 @@ export const GestionDevis = () => {
     }
     setIsSaving(true);
     try {
-      // All prices are HT — always pass false
       const totals = computeDevisTotals(devisItems, false);
       const totalAmount = totals.totalTTC;
       const { data: { user } } = await supabase.auth.getUser();
@@ -178,11 +231,10 @@ export const GestionDevis = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, loadDevis, resetForm, generateNextNumber]);
+  }, [isSaving, devisType, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, loadDevis, clearFormFields, generateNextNumber]);
 
   const updateDevis = useCallback(async () => {
     if (!editingDevis) return;
-    // All prices are HT — always pass false
     const totals = computeDevisTotals(devisItems, false);
     const totalAmount = totals.totalTTC;
 
@@ -218,6 +270,61 @@ export const GestionDevis = () => {
       loadDevis();
     }
   }, [loadDevis]);
+
+  const convertToBC = useCallback(async (devis: Devis) => {
+    try {
+      // Generate next BC number
+      const prefix = devis.type === 'entrant' ? 'BCE' : 'BCS';
+      const bcsOfType = bonsCommande.filter(bc => bc.type === devis.type);
+      let maxNum = 0;
+      bcsOfType.forEach(bc => {
+        const match = bc.bc_number.match(new RegExp(`^${prefix}-(\\d+)$`));
+        if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10));
+      });
+      const bcNumber = `${prefix}-${(maxNum + 1).toString().padStart(2, '0')}`;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const totals = computeDevisTotals(devis.items, false);
+
+      const { error } = await supabase.from('bons_commande').insert({
+        bc_number: bcNumber,
+        bc_date: new Date().toISOString().split('T')[0],
+        devis_id: devis.id,
+        type: devis.type,
+        third_party_name: devis.third_party_name,
+        third_party_address: devis.third_party_address,
+        third_party_tax_id: devis.third_party_tax_id,
+        third_party_phone: devis.third_party_phone,
+        items: JSON.parse(JSON.stringify(devis.items)),
+        total_amount: totals.totalTTC,
+        notes: devis.notes,
+        is_ttc: devis.is_ttc,
+        created_by: user?.id,
+      } as any);
+
+      if (error) {
+        toast.error('Erreur lors de la conversion en BC');
+        console.error(error);
+      } else {
+        toast.success(`Devis ${devis.devis_number} converti en BC ${bcNumber}`);
+        await loadBonsCommande();
+        setActiveSection('bc');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Erreur lors de la conversion');
+    }
+  }, [bonsCommande, loadBonsCommande]);
+
+  const deleteBC = useCallback(async (bc: BonCommande) => {
+    const { error } = await supabase.from('bons_commande').delete().eq('id', bc.id);
+    if (error) {
+      toast.error('Erreur lors de la suppression');
+    } else {
+      toast.success('Bon de commande supprimé');
+      loadBonsCommande();
+    }
+  }, [loadBonsCommande]);
 
   const startEdit = useCallback((d: Devis) => {
     setEditingDevis(d);
@@ -258,7 +365,18 @@ export const GestionDevis = () => {
           }`}
         >
           <History className="w-4 h-4" />
-          Historique ({savedDevis.length})
+          Mes Devis ({savedDevis.length})
+        </button>
+        <button
+          onClick={() => setActiveSection('bc')}
+          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+            activeSection === 'bc'
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          Mes BC ({bonsCommande.length})
         </button>
       </div>
 
@@ -300,6 +418,16 @@ export const GestionDevis = () => {
           isAdminOrMod={isAdmin || isModerator}
           onEdit={startEdit}
           onDelete={deleteDevis}
+          onConvertToBC={convertToBC}
+        />
+      )}
+
+      {activeSection === 'bc' && (
+        <BonCommandeList
+          bonsCommande={bonsCommande}
+          currentUserId={user?.id || null}
+          isAdminOrMod={isAdmin || isModerator}
+          onDelete={deleteBC}
         />
       )}
 
