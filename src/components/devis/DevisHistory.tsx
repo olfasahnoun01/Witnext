@@ -277,6 +277,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1">
                         <button
+                          onClick={() => handlePreview(d)}
                           disabled={generating}
                           className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
                           title="Prévisualiser PDF"
