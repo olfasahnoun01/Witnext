@@ -12,12 +12,34 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 
+const parseDevisRow = (d: any, profilesMap: Record<string, string>, sourceDevisMap?: Record<number, string>): Devis => {
+  let parsedItems: DevisItem[] = [];
+  if (d.items) {
+    if (typeof d.items === 'string') {
+      try { parsedItems = JSON.parse(d.items); } catch { parsedItems = []; }
+    } else if (Array.isArray(d.items)) {
+      parsedItems = d.items as unknown as DevisItem[];
+    }
+  }
+  return {
+    ...d,
+    type: d.type as 'entrant' | 'sortant',
+    status: d.status as 'brouillon' | 'envoyé' | 'accepté' | 'refusé',
+    items: parsedItems,
+    total_amount: Number(d.total_amount) || 0,
+    is_ttc: d.is_ttc ?? true,
+    is_bc: d.is_bc ?? false,
+    source_devis_id: d.source_devis_id ?? null,
+    creator_name: d.created_by ? (profilesMap[d.created_by] || null) : null,
+    source_devis_number: d.source_devis_id && sourceDevisMap ? (sourceDevisMap[d.source_devis_id] || null) : null,
+  };
+};
+
 export const GestionDevis = () => {
   const { isAdmin, isModerator, user } = useAuth();
   const canEdit = true;
   const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc'>('form');
-  const [savedDevis, setSavedDevis] = useState<Devis[]>([]);
-  const [bonsCommande, setBonsCommande] = useState<BonCommande[]>([]);
+  const [allDevis, setAllDevis] = useState<Devis[]>([]);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingDevis, setEditingDevis] = useState<Devis | null>(null);
   const devisNumberRef = useRef('');
@@ -35,7 +57,11 @@ export const GestionDevis = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isTtc, setIsTtc] = useState(true);
 
-  const loadDevis = useCallback(async () => {
+  // Derived lists
+  const savedDevis = useMemo(() => allDevis.filter(d => !d.is_bc), [allDevis]);
+  const bonsCommande = useMemo(() => allDevis.filter(d => d.is_bc), [allDevis]);
+
+  const loadAll = useCallback(async () => {
     const { data, error } = await supabase
       .from('devis')
       .select('*')
@@ -56,104 +82,44 @@ export const GestionDevis = () => {
         }
       }
 
-      setSavedDevis(data.map(d => {
-        let parsedItems: DevisItem[] = [];
-        if (d.items) {
-          if (typeof d.items === 'string') {
-            try { parsedItems = JSON.parse(d.items); } catch { parsedItems = []; }
-          } else if (Array.isArray(d.items)) {
-            parsedItems = d.items as unknown as DevisItem[];
+      // Build source devis number map for BCs
+      const sourceIds = [...new Set(data.filter(d => (d as any).source_devis_id).map(d => (d as any).source_devis_id))] as number[];
+      let sourceDevisMap: Record<number, string> = {};
+      if (sourceIds.length > 0) {
+        data.forEach(d => {
+          if (sourceIds.includes(d.id)) {
+            sourceDevisMap[d.id] = d.devis_number;
           }
-        }
-        return {
-          ...d,
-          type: d.type as 'entrant' | 'sortant',
-          status: d.status as 'brouillon' | 'envoyé' | 'accepté' | 'refusé',
-          items: parsedItems,
-          total_amount: Number(d.total_amount) || 0,
-          is_ttc: (d as any).is_ttc ?? true,
-          creator_name: d.created_by ? (profilesMap[d.created_by] || null) : null,
-        };
-      }));
+        });
+      }
+
+      setAllDevis(data.map(d => parseDevisRow(d, profilesMap, sourceDevisMap)));
     }
   }, []);
 
-  const loadBonsCommande = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('bons_commande')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (!error && data) {
-      const creatorIds = [...new Set(data.map(d => d.created_by).filter(Boolean))] as string[];
-      let profilesMap: Record<string, string> = {};
-      if (creatorIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name, email')
-          .in('user_id', creatorIds);
-        if (profiles) {
-          profiles.forEach(p => {
-            profilesMap[p.user_id] = p.full_name || p.email || 'Inconnu';
-          });
-        }
-      }
-
-      // Get devis numbers for references
-      const devisIds = [...new Set(data.map(d => d.devis_id).filter(Boolean))] as number[];
-      let devisMap: Record<number, string> = {};
-      if (devisIds.length > 0) {
-        const { data: devisData } = await supabase
-          .from('devis')
-          .select('id, devis_number')
-          .in('id', devisIds);
-        if (devisData) {
-          devisData.forEach(d => { devisMap[d.id] = d.devis_number; });
-        }
-      }
-
-      setBonsCommande(data.map(d => {
-        let parsedItems: DevisItem[] = [];
-        if (d.items) {
-          if (typeof d.items === 'string') {
-            try { parsedItems = JSON.parse(d.items); } catch { parsedItems = []; }
-          } else if (Array.isArray(d.items)) {
-            parsedItems = d.items as unknown as DevisItem[];
-          }
-        }
-        return {
-          ...d,
-          type: d.type as 'entrant' | 'sortant',
-          items: parsedItems,
-          total_amount: Number(d.total_amount) || 0,
-          is_ttc: d.is_ttc ?? true,
-          creator_name: d.created_by ? (profilesMap[d.created_by] || null) : null,
-          devis_number: d.devis_id ? (devisMap[d.devis_id] || null) : null,
-        };
-      }));
-    }
-  }, []);
-
-  useEffect(() => { loadDevis(); loadBonsCommande(); }, [loadDevis, loadBonsCommande]);
+  useEffect(() => { loadAll(); }, [loadAll]);
 
   useEffect(() => { devisNumberRef.current = devisNumber; }, [devisNumber]);
 
-  const generateNextNumber = useCallback((type: 'entrant' | 'sortant') => {
-    const prefix = type === 'entrant' ? 'DE' : 'DS';
-    const docsOfType = savedDevis.filter(d => d.type === type);
+  const generateNextNumber = useCallback((type: 'entrant' | 'sortant', isBC = false) => {
+    const prefix = isBC
+      ? (type === 'entrant' ? 'BCE' : 'BCS')
+      : (type === 'entrant' ? 'DE' : 'DS');
+    const list = isBC ? bonsCommande : savedDevis;
+    const docsOfType = list.filter(d => d.type === type);
     let maxNum = 0;
     docsOfType.forEach(d => {
       const match = d.devis_number.match(new RegExp(`^${prefix}-(\\d+)$`));
       if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10));
     });
-    setDevisNumber(`${prefix}-${(maxNum + 1).toString().padStart(2, '0')}`);
-  }, [savedDevis]);
+    return `${prefix}-${(maxNum + 1).toString().padStart(2, '0')}`;
+  }, [savedDevis, bonsCommande]);
 
   useEffect(() => {
     if (!editingDevis) {
-      generateNextNumber(devisType);
+      setDevisNumber(generateNextNumber(devisType));
     }
-  }, [savedDevis, devisType, editingDevis, generateNextNumber]);
+  }, [allDevis, devisType, editingDevis, generateNextNumber]);
 
   const clearFormFields = useCallback((clearItems = true) => {
     setDevisDate(new Date().toISOString().split('T')[0]);
@@ -171,12 +137,12 @@ export const GestionDevis = () => {
     clearFormFields(true);
     setEditingDevis(null);
     setShowEditDialog(false);
-    generateNextNumber('sortant');
+    setDevisNumber(generateNextNumber('sortant'));
   }, [clearFormFields, generateNextNumber]);
 
   const clearInputsOnly = useCallback(() => {
     clearFormFields(false);
-    generateNextNumber(devisType);
+    setDevisNumber(generateNextNumber(devisType));
   }, [clearFormFields, generateNextNumber, devisType]);
 
   const handleTypeChange = useCallback((type: 'entrant' | 'sortant') => {
@@ -214,6 +180,7 @@ export const GestionDevis = () => {
         notes: notes || null,
         created_by: user?.id,
         is_ttc: isTtc,
+        is_bc: false,
       } as any);
 
       if (error) {
@@ -221,9 +188,8 @@ export const GestionDevis = () => {
         console.error(error);
       } else {
         toast.success('Devis sauvegardé');
-        await loadDevis();
+        await loadAll();
         clearFormFields();
-        generateNextNumber(devisType);
       }
     } catch (err) {
       console.error(err);
@@ -231,7 +197,7 @@ export const GestionDevis = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, devisType, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, loadDevis, clearFormFields, generateNextNumber]);
+  }, [isSaving, devisType, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, loadAll, clearFormFields]);
 
   const updateDevis = useCallback(async () => {
     if (!editingDevis) return;
@@ -257,39 +223,30 @@ export const GestionDevis = () => {
     } else {
       toast.success('Devis mis à jour');
       resetForm();
-      loadDevis();
+      loadAll();
     }
-  }, [editingDevis, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, loadDevis, resetForm]);
+  }, [editingDevis, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, loadAll, resetForm]);
 
   const deleteDevis = useCallback(async (devis: Devis) => {
     const { error } = await supabase.from('devis').delete().eq('id', devis.id);
     if (error) {
       toast.error('Erreur lors de la suppression');
     } else {
-      toast.success('Devis supprimé');
-      loadDevis();
+      toast.success(devis.is_bc ? 'Bon de commande supprimé' : 'Devis supprimé');
+      loadAll();
     }
-  }, [loadDevis]);
+  }, [loadAll]);
 
   const convertToBC = useCallback(async (devis: Devis) => {
     try {
-      // Generate next BC number
-      const prefix = devis.type === 'entrant' ? 'BCE' : 'BCS';
-      const bcsOfType = bonsCommande.filter(bc => bc.type === devis.type);
-      let maxNum = 0;
-      bcsOfType.forEach(bc => {
-        const match = bc.bc_number.match(new RegExp(`^${prefix}-(\\d+)$`));
-        if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10));
-      });
-      const bcNumber = `${prefix}-${(maxNum + 1).toString().padStart(2, '0')}`;
-
+      const bcNumber = generateNextNumber(devis.type, true);
       const { data: { user } } = await supabase.auth.getUser();
       const totals = computeDevisTotals(devis.items, false);
 
-      const { error } = await supabase.from('bons_commande').insert({
-        bc_number: bcNumber,
-        bc_date: new Date().toISOString().split('T')[0],
-        devis_id: devis.id,
+      const { error } = await supabase.from('devis').insert({
+        devis_number: bcNumber,
+        devis_date: new Date().toISOString().split('T')[0],
+        source_devis_id: devis.id,
         type: devis.type,
         third_party_name: devis.third_party_name,
         third_party_address: devis.third_party_address,
@@ -299,7 +256,9 @@ export const GestionDevis = () => {
         total_amount: totals.totalTTC,
         notes: devis.notes,
         is_ttc: devis.is_ttc,
+        is_bc: true,
         created_by: user?.id,
+        status: 'confirmé',
       } as any);
 
       if (error) {
@@ -307,24 +266,14 @@ export const GestionDevis = () => {
         console.error(error);
       } else {
         toast.success(`Devis ${devis.devis_number} converti en BC ${bcNumber}`);
-        await loadBonsCommande();
+        await loadAll();
         setActiveSection('bc');
       }
     } catch (err) {
       console.error(err);
       toast.error('Erreur lors de la conversion');
     }
-  }, [bonsCommande, loadBonsCommande]);
-
-  const deleteBC = useCallback(async (bc: BonCommande) => {
-    const { error } = await supabase.from('bons_commande').delete().eq('id', bc.id);
-    if (error) {
-      toast.error('Erreur lors de la suppression');
-    } else {
-      toast.success('Bon de commande supprimé');
-      loadBonsCommande();
-    }
-  }, [loadBonsCommande]);
+  }, [generateNextNumber, loadAll]);
 
   const startEdit = useCallback((d: Devis) => {
     setEditingDevis(d);
@@ -427,7 +376,7 @@ export const GestionDevis = () => {
           bonsCommande={bonsCommande}
           currentUserId={user?.id || null}
           isAdminOrMod={isAdmin || isModerator}
-          onDelete={deleteBC}
+          onDelete={deleteDevis}
         />
       )}
 
