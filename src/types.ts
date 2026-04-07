@@ -119,31 +119,14 @@ export interface Devis {
   notes: string | null;
   status: 'brouillon' | 'envoyé' | 'accepté' | 'refusé';
   is_ttc: boolean;
+  is_bc: boolean;
+  source_devis_id: number | null;
   created_by: string | null;
   creator_name?: string | null;
+  source_devis_number?: string | null;
   created_at: string;
   updated_at: string;
 }
 
-// Bon de Commande types
-export interface BonCommande {
-  id: number;
-  bc_number: string;
-  bc_date: string;
-  devis_id: number | null;
-  type: 'entrant' | 'sortant';
-  third_party_name: string | null;
-  third_party_address: string | null;
-  third_party_tax_id: string | null;
-  third_party_phone: string | null;
-  items: DevisItem[];
-  total_amount: number;
-  notes: string | null;
-  status: string;
-  is_ttc: boolean;
-  created_by: string | null;
-  creator_name?: string | null;
-  devis_number?: string | null;
-  created_at: string;
-  updated_at: string;
-}
+// BonCommande is just a Devis with is_bc = true
+export type BonCommande = Devis;
