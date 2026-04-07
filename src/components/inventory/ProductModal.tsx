@@ -193,7 +193,7 @@ export const ProductModal = memo(({
             </div>
 
             <div>
-              <label className="form-label">Prix (TND)</label>
+              <label className="form-label">Prix HT</label>
               <input
                 type="number"
                 step="0.001"

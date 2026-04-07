@@ -115,7 +115,7 @@ export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInput
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Prix (TND)</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">Prix HT</label>
                   <Input
                     type="number"
                     step="0.001"
@@ -140,7 +140,7 @@ export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInput
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Prix HT</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">Montant HT</label>
                   <div className="h-9 px-3 rounded-md bg-muted border border-border text-primary font-medium flex items-center text-sm">
                     {item.prix_ttc.toFixed(3)} DT
                   </div>

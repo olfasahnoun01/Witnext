@@ -618,7 +618,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                       onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value) || 0 }))} />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="price">Prix (TND)</Label>
+                    <Label htmlFor="price">Prix HT</Label>
                     <Input id="price" type="number" min="0" step="0.001" value={formData.price}
                       onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))} />
                   </div>
