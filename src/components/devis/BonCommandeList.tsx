@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, useCallback } from 'react';
-import { FileText, Trash2, Download, Eye, Loader2, Search, X, Filter } from 'lucide-react';
+import { FileText, Trash2, Download, Eye, Loader2, Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { BonCommande } from '@/types';
 import { computeDevisTotals } from '@/lib/devisPricing';
@@ -33,7 +33,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
     if (!searchTerm.trim()) return bonsCommande;
     const term = searchTerm.toLowerCase().trim();
     return bonsCommande.filter(bc =>
-      bc.bc_number.toLowerCase().includes(term) ||
+      bc.devis_number.toLowerCase().includes(term) ||
       bc.third_party_name?.toLowerCase().includes(term) ||
       bc.items.some(item => item.designation.toLowerCase().includes(term))
     );
@@ -47,8 +47,8 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
   const totalPages = Math.ceil(filteredBC.length / ITEMS_PER_PAGE);
 
   const toBCPDFData = (bc: BonCommande): DevisPDFData => ({
-    devis_number: bc.bc_number,
-    devis_date: bc.bc_date,
+    devis_number: bc.devis_number,
+    devis_date: bc.devis_date,
     type: bc.type,
     third_party_name: bc.third_party_name,
     third_party_address: bc.third_party_address,
@@ -64,7 +64,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
     setIsGenerating(bc.id);
     try {
       const url = await getDevisPDFBlobUrl(toBCPDFData(bc));
-      setPreviewTitle(`BC ${bc.bc_number}`);
+      setPreviewTitle(`BC ${bc.devis_number}`);
       setPreviewUrl(url);
     } finally {
       setIsGenerating(null);
@@ -151,10 +151,10 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                         {bc.type === 'entrant' ? '📥 Entrant' : '📤 Sortant'}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-sm font-medium text-foreground">{bc.bc_number}</td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground">{bc.devis_number || '-'}</td>
+                    <td className="py-3 px-4 text-sm font-medium text-foreground">{bc.devis_number}</td>
+                    <td className="py-3 px-4 text-sm text-muted-foreground">{bc.source_devis_number || '-'}</td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">
-                      {new Date(bc.bc_date).toLocaleDateString('fr-FR')}
+                      {new Date(bc.devis_date).toLocaleDateString('fr-FR')}
                     </td>
                     <td className="py-3 px-4 text-sm text-foreground">{bc.third_party_name || '-'}</td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">{bc.creator_name || '-'}</td>
@@ -222,7 +222,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer ce bon de commande ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Le BC {deleteConfirm?.bc_number} sera supprimé définitivement.
+              Le BC {deleteConfirm?.devis_number} sera supprimé définitivement.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
