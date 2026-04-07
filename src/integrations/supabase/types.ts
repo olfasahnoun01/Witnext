@@ -149,9 +149,11 @@ export type Database = {
           devis_date: string
           devis_number: string
           id: number
+          is_bc: boolean
           is_ttc: boolean
           items: Json
           notes: string | null
+          source_devis_id: number | null
           status: string
           third_party_address: string | null
           third_party_name: string | null
@@ -167,9 +169,11 @@ export type Database = {
           devis_date?: string
           devis_number: string
           id?: number
+          is_bc?: boolean
           is_ttc?: boolean
           items?: Json
           notes?: string | null
+          source_devis_id?: number | null
           status?: string
           third_party_address?: string | null
           third_party_name?: string | null
@@ -185,9 +189,11 @@ export type Database = {
           devis_date?: string
           devis_number?: string
           id?: number
+          is_bc?: boolean
           is_ttc?: boolean
           items?: Json
           notes?: string | null
+          source_devis_id?: number | null
           status?: string
           third_party_address?: string | null
           third_party_name?: string | null
@@ -197,7 +203,15 @@ export type Database = {
           type?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "devis_source_devis_id_fkey"
+            columns: ["source_devis_id"]
+            isOneToOne: false
+            referencedRelation: "devis"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       documents: {
         Row: {
