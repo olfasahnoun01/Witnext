@@ -83,8 +83,11 @@ export const generateInventoryPDF = (products: Product[], fournisseurFilter?: st
   
   sortedCategories.forEach((category, catIndex) => {
     const categoryProducts = productsByCategory[category];
-    const categoryTotal = categoryProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
-    grandTotal += categoryTotal;
+    const categoryTotalNet = categoryProducts.reduce((sum, p) => {
+      const netHT = p.price * (1 - (p.remise || 0) / 100);
+      return sum + netHT * p.quantity;
+    }, 0);
+    grandTotal += categoryTotalNet;
     
     // Check if we need a new page
     if (startY > 250) {
@@ -98,23 +101,38 @@ export const generateInventoryPDF = (products: Product[], fournisseurFilter?: st
     doc.setTextColor(30, 58, 95);
     doc.text(`${category} (${categoryProducts.length} articles)`, 14, startY);
     
-    const tableData = categoryProducts.map(p => [
-      p.sku,
-      p.name,
-      p.size || '-',
-      p.fournisseur || '-',
-      p.quantity.toString(),
-      `${p.price.toFixed(3)} TND`,
-      `${(p.price * p.quantity).toFixed(3)} TND`
-    ]);
+    const tableData = categoryProducts.map(p => {
+      const netHT = p.price * (1 - (p.remise || 0) / 100);
+      const total = netHT * p.quantity;
+      return [
+        p.sku,
+        p.name,
+        p.size || '-',
+        p.fournisseur || '-',
+        p.quantity.toString(),
+        p.remise > 0 ? `${p.remise}%` : '-',
+        `${netHT.toFixed(3)} TND`,
+        `${total.toFixed(3)} TND`
+      ];
+    });
     
     autoTable(doc, {
       startY: startY + 4,
-      head: [['Code', 'Désignation', 'Taille', 'Fournisseur', 'Qté', 'Prix Unit.', 'Total']],
+      head: [['Code', 'Désignation', 'Taille', 'Fournisseur', 'Qté', 'Remise', 'Net HT', 'Total']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [30, 58, 95], fontSize: 8 },
       styles: { fontSize: 8 },
+      columnStyles: {
+        0: { cellWidth: 18 }, // Code
+        1: { cellWidth: 'auto' }, // Désignation
+        2: { cellWidth: 15 }, // Taille
+        3: { cellWidth: 25 }, // Fournisseur
+        4: { cellWidth: 10, halign: 'center' }, // Qté
+        5: { cellWidth: 15, halign: 'center' }, // Remise
+        6: { cellWidth: 22, halign: 'right' }, // Net HT
+        7: { cellWidth: 22, halign: 'right' }  // Total
+      },
       margin: { left: 14, right: 14 }
     });
     
@@ -123,7 +141,7 @@ export const generateInventoryPDF = (products: Product[], fournisseurFilter?: st
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(100, 100, 100);
-    doc.text(`Sous-total ${category}: ${categoryTotal.toFixed(3)} TND`, 14, tableEndY + 6);
+    doc.text(`Sous-total ${category} (Net): ${categoryTotalNet.toFixed(3)} TND`, 14, tableEndY + 6);
     
     startY = tableEndY + 14;
   });
@@ -141,7 +159,7 @@ export const generateInventoryPDF = (products: Product[], fournisseurFilter?: st
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 58, 95);
-  doc.text(`Valeur Totale Inventaire: ${grandTotal.toFixed(3)} TND`, 14, startY + 10);
+  doc.text(`Valeur Totale Inventaire (Net HT): ${grandTotal.toFixed(3)} TND`, 14, startY + 10);
   
   doc.setFontSize(10);
   doc.setTextColor(100, 100, 100);

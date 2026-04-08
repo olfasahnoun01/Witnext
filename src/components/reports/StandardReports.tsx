@@ -95,7 +95,7 @@ const downloadJSON = (data: any, filename: string) => {
 };
 
 export const StandardReports = memo(({ products, lowStockProducts }: StandardReportsProps) => {
-  const totalValue = products.reduce((s, p) => s + p.price * p.quantity, 0);
+  const totalValue = products.reduce((s, p) => s + p.price * (1 - (p.remise || 0) / 100) * p.quantity, 0);
   const [selectedFournisseur, setSelectedFournisseur] = useState<string>('');
   const [isExportingTransactions, setIsExportingTransactions] = useState(false);
   const [isExportingDocuments, setIsExportingDocuments] = useState(false);
@@ -160,7 +160,7 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
     });
   }, [products, selectedSupplierOption]);
 
-  const filteredValue = filteredProducts.reduce((s, p) => s + p.price * p.quantity, 0);
+  const filteredValue = filteredProducts.reduce((s, p) => s + p.price * (1 - (p.remise || 0) / 100) * p.quantity, 0);
 
   const exportInventoryJSON = () => {
     const date = new Date().toISOString().split('T')[0];
@@ -239,7 +239,7 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
                 Génère un rapport PDF contenant tous les produits avec leurs quantités et valeurs.
               </p>
               <p className="text-xs text-muted-foreground mt-2">
-                {products.length} produits • Valeur: {totalValue.toFixed(3)} TND
+                {products.length} produits • Valeur (Net): {totalValue.toFixed(3)} TND
               </p>
               <Button onClick={() => generateInventoryPDF(products)} className="mt-4">
                 <Download className="w-4 h-4 mr-2" />
@@ -272,7 +272,7 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
               </Select>
               {selectedSupplierOption && (
                 <p className="text-xs text-muted-foreground mt-2">
-                  {filteredProducts.length} produits • Valeur: {filteredValue.toFixed(3)} TND
+                  {filteredProducts.length} produits • Valeur (Net): {filteredValue.toFixed(3)} TND
                 </p>
               )}
               <Button
