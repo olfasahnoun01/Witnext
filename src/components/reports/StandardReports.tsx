@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from 'react';
-import { FileText, Download, AlertTriangle, Filter, FileJson } from 'lucide-react';
+import { FileText, Download, AlertTriangle, Filter, FileJson, LayoutGrid } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Product } from '@/types';
@@ -97,6 +97,7 @@ const downloadJSON = (data: any, filename: string) => {
 export const StandardReports = memo(({ products, lowStockProducts }: StandardReportsProps) => {
   const totalValue = products.reduce((s, p) => s + p.price * (1 - (p.remise || 0) / 100) * p.quantity, 0);
   const [selectedFournisseur, setSelectedFournisseur] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [isExportingTransactions, setIsExportingTransactions] = useState(false);
   const [isExportingDocuments, setIsExportingDocuments] = useState(false);
 
@@ -141,6 +142,11 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
       }))
       .sort((a, b) => a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' }));
   }, [products]);
+  
+  const categoryOptions = useMemo(() => {
+    const cats = [...new Set(products.map(p => p.category || 'Non catégorisé'))];
+    return cats.sort((a, b) => a.localeCompare(b, 'fr'));
+  }, [products]);
 
   const selectedSupplierOption = useMemo(
     () => supplierOptions.find(option => option.value === selectedFournisseur) ?? null,
@@ -161,6 +167,13 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
   }, [products, selectedSupplierOption]);
 
   const filteredValue = filteredProducts.reduce((s, p) => s + p.price * (1 - (p.remise || 0) / 100) * p.quantity, 0);
+
+  const filteredByCategoryProducts = useMemo(() => {
+    if (!selectedCategory) return [];
+    return products.filter(p => (p.category || 'Non catégorisé') === selectedCategory);
+  }, [products, selectedCategory]);
+
+  const categoryValue = filteredByCategoryProducts.reduce((s, p) => s + p.price * (1 - (p.remise || 0) / 100) * p.quantity, 0);
 
   const exportInventoryJSON = () => {
     const date = new Date().toISOString().split('T')[0];
@@ -279,6 +292,44 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
                 onClick={() => generateInventoryPDF(filteredProducts, selectedSupplierOption?.label)}
                 className="mt-4"
                 disabled={!selectedSupplierOption || filteredProducts.length === 0}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Télécharger PDF
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Inventory by Category */}
+        <div className="bg-card rounded-xl border border-border p-6">
+          <div className="flex items-start gap-4">
+            <div className="p-3 rounded-xl bg-blue-500/10">
+              <LayoutGrid className="w-8 h-8 text-blue-500" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-foreground">Inventaire par Catégorie</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Génère un rapport PDF filtré par une catégorie spécifique.
+              </p>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="mt-3">
+                  <SelectValue placeholder="Choisir une catégorie" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoryOptions.map(cat => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedCategory && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  {filteredByCategoryProducts.length} produits • {categoryValue.toFixed(3)} TND
+                </p>
+              )}
+              <Button
+                onClick={() => generateInventoryPDF(filteredByCategoryProducts, selectedCategory)}
+                className="mt-4"
+                disabled={!selectedCategory || filteredByCategoryProducts.length === 0}
               >
                 <Download className="w-4 h-4 mr-2" />
                 Télécharger PDF

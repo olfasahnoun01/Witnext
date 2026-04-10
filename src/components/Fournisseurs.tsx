@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Search, Building2, Phone, MapPin, FileText } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Building2, Phone, MapPin, FileText, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { SPECIALITES } from '@/constants/fournisseurs';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
@@ -44,6 +44,12 @@ interface Fournisseur {
 }
 
 const ITEMS_PER_PAGE = 15;
+
+const isFournisseurIncomplete = (f: Fournisseur) => {
+  return !f.matricule_fiscale?.trim() || 
+         !f.phone?.trim() || 
+         !f.location?.trim();
+};
 
 export const Fournisseurs = memo(() => {
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
@@ -104,8 +110,8 @@ export const Fournisseurs = memo(() => {
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!nom.trim() || !matriculeFiscale.trim() || !specialite || !phone.trim() || !selectedGovernorate || !selectedCity) {
-      toast.error('Tous les champs sont requis');
+    if (!nom.trim()) {
+      toast.error('Le nom du fournisseur est requis');
       return;
     }
 
@@ -300,17 +306,16 @@ export const Fournisseurs = memo(() => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="matricule">Matricule Fiscale *</Label>
+                    <Label htmlFor="matricule">Matricule Fiscale</Label>
                     <Input
                       id="matricule"
                       value={matriculeFiscale}
                       onChange={(e) => setMatriculeFiscale(e.target.value)}
                       placeholder="Ex: 1234567/A/B/C/000"
-                      required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="specialite">Spécialité *</Label>
+                    <Label htmlFor="specialite">Spécialité</Label>
                     <Select value={specialite} onValueChange={setSpecialite}>
                       <SelectTrigger>
                         <SelectValue placeholder="Sélectionner une spécialité" />
@@ -325,18 +330,17 @@ export const Fournisseurs = memo(() => {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Téléphone *</Label>
+                    <Label htmlFor="phone">Téléphone</Label>
                     <Input
                       id="phone"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="Ex: +216 XX XXX XXX"
-                      required
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label>Gouvernorat *</Label>
+                      <Label>Gouvernorat</Label>
                       <Select 
                         value={selectedGovernorate} 
                         onValueChange={(val) => {
@@ -357,7 +361,7 @@ export const Fournisseurs = memo(() => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Ville *</Label>
+                      <Label>Ville</Label>
                       <Select 
                         value={selectedCity} 
                         onValueChange={setSelectedCity}
@@ -473,7 +477,18 @@ export const Fournisseurs = memo(() => {
                           ) : '-'}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
+                          <div className="flex justify-end gap-2 items-center">
+                            {isFournisseurIncomplete(fournisseur) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 gap-1.5 text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100 hover:text-amber-700 transition-colors"
+                                onClick={() => handleEdit(fournisseur)}
+                              >
+                                <AlertCircle className="w-3.5 h-3.5" />
+                                Compléter
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"

@@ -44,11 +44,11 @@ const getLogoBase64 = (): Promise<string> => {
   });
 };
 
-export const generateInventoryPDF = (products: Product[], fournisseurFilter?: string) => {
+export const generateInventoryPDF = (products: Product[], filterName?: string) => {
   const doc = new jsPDF();
   
-  const title = fournisseurFilter
-    ? `Inventaire — ${fournisseurFilter}`
+  const title = filterName
+    ? `Inventaire — ${filterName}`
     : 'Liste Inventaire Complet';
 
   doc.setFontSize(20);

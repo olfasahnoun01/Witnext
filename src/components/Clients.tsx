@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Search, Users, Phone, MapPin, Mail } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Users, Phone, MapPin, Mail, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -43,6 +43,13 @@ interface Client {
 }
 
 const ITEMS_PER_PAGE = 15;
+
+const isClientIncomplete = (client: Client) => {
+  return !client.matricule_fiscale?.trim() || 
+         !client.phone?.trim() || 
+         !client.email?.trim() || 
+         !client.location?.trim();
+};
 
 export const Clients = memo(() => {
   const [clients, setClients] = useState<Client[]>([]);
@@ -104,8 +111,8 @@ export const Clients = memo(() => {
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!nom.trim() || !matriculeFiscale.trim() || !phone.trim() || !email.trim() || !selectedGovernorate || !selectedCity) {
-      toast.error('Tous les champs sont requis');
+    if (!nom.trim()) {
+      toast.error('Le nom du client est requis');
       return;
     }
 
@@ -312,39 +319,36 @@ export const Clients = memo(() => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="matricule">Matricule Fiscale *</Label>
+                    <Label htmlFor="matricule">Matricule Fiscale</Label>
                     <Input
                       id="matricule"
                       value={matriculeFiscale}
                       onChange={(e) => setMatriculeFiscale(e.target.value)}
                       placeholder="Ex: 1234567/A/B/C/000"
-                      required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Téléphone / Fix *</Label>
+                    <Label htmlFor="phone">Téléphone / Fix</Label>
                     <Input
                       id="phone"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="Ex: +216 XX XXX XXX"
-                      required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
+                    <Label htmlFor="email">Email</Label>
                     <Input
                       id="email"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Ex: contact@societe.tn"
-                      required
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label>Gouvernorat *</Label>
+                      <Label>Gouvernorat</Label>
                       <Select 
                         value={selectedGovernorate} 
                         onValueChange={(val) => {
@@ -365,7 +369,7 @@ export const Clients = memo(() => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Ville *</Label>
+                      <Label>Ville</Label>
                       <Select 
                         value={selectedCity} 
                         onValueChange={setSelectedCity}
@@ -480,7 +484,18 @@ export const Clients = memo(() => {
                           ) : '-'}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-end gap-2 items-center">
+                            {isClientIncomplete(client) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 gap-1.5 text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100 hover:text-amber-700 transition-colors"
+                                onClick={() => handleEdit(client)}
+                              >
+                                <AlertCircle className="w-3.5 h-3.5" />
+                                Compléter
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
