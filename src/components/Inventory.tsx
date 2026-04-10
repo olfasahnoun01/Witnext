@@ -112,6 +112,15 @@ export const Inventory = () => {
     }
   }, []);
 
+  // Handle deep linking from DevisHelper
+  useEffect(() => {
+    const targetCategory = localStorage.getItem('grosafe_inventory_category');
+    if (targetCategory) {
+      setSelectedCategory(targetCategory);
+      localStorage.removeItem('grosafe_inventory_category');
+    }
+  }, []);
+
   useEffect(() => {
     const init = async () => {
       await migrateLocalStorage();

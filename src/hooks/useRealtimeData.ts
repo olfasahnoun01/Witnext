@@ -64,8 +64,9 @@ export const useRealtimeData = ({ tables, onDataChange, showToast = true }: UseR
     }, 1000);
 
     const channels = tableList.map((table) => {
+      // Use a stable channel name to avoid multiple connections for the same table
       const channel = supabase
-        .channel(`realtime-${table}-${Date.now()}`)
+        .channel(`table-db-changes-${table}`)
         .on(
           'postgres_changes',
           {
@@ -76,12 +77,11 @@ export const useRealtimeData = ({ tables, onDataChange, showToast = true }: UseR
           handleChange
         )
         .subscribe((status, err) => {
-          console.log(`Realtime subscription status for ${table}:`, status);
           if (err) {
             console.error(`Realtime subscription error for ${table}:`, err);
           }
           if (status === 'SUBSCRIBED') {
-            console.log(`✅ Successfully subscribed to ${table} changes`);
+            console.log(`✅ Subscribed to ${table} changes`);
           }
         });
 

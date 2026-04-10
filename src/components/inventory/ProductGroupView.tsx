@@ -56,6 +56,15 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
   const [fournisseurs, setFournisseurs] = useState<string[]>([]);
   const [selectedFournisseur, setSelectedFournisseur] = useState<string>('');
   const [fournisseurOpen, setFournisseurOpen] = useState(false);
+  
+  // Handle deep linking search from DevisHelper
+  useEffect(() => {
+    const targetSearch = localStorage.getItem('grosafe_inventory_search');
+    if (targetSearch) {
+      setSearchQuery(targetSearch);
+      localStorage.removeItem('grosafe_inventory_search');
+    }
+  }, []);
 
   const fetchGroups = useCallback(async () => {
     setIsLoading(true);

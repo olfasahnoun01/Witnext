@@ -56,6 +56,7 @@ interface ProductGroupModalProps {
   onClose: () => void;
   onSuccess: () => void;
   defaultCategory?: string;
+  defaultName?: string;
   editingGroup?: ProductGroup | null;
 }
 
@@ -73,6 +74,7 @@ export const ProductGroupModal = ({
   onClose,
   onSuccess,
   defaultCategory,
+  defaultName,
   editingGroup,
 }: ProductGroupModalProps) => {
   const [formData, setFormData] = useState<ProductGroupFormData>(emptyFormData);
@@ -150,6 +152,7 @@ export const ProductGroupModal = ({
         setVariants([]);
         setFormData({
           ...emptyFormData,
+          name: defaultName || '',
           category: defaultCategory || '',
         });
       }

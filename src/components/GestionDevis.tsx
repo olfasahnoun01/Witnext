@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { FileText, History, Plus } from 'lucide-react';
+import { FileText, History, Plus, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Devis, DevisItem, BonCommande } from '@/types';
@@ -8,6 +8,7 @@ import { computeDevisTotals } from '@/lib/devisPricing';
 import { DevisForm } from './devis/DevisForm';
 import { DevisHistory } from './devis/DevisHistory';
 import { BonCommandeList } from './devis/BonCommandeList';
+import { DevisHelper } from './devis/DevisHelper';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -35,10 +36,14 @@ const parseDevisRow = (d: any, profilesMap: Record<string, string>, sourceDevisM
   };
 };
 
-export const GestionDevis = () => {
+interface GestionDevisProps {
+  onTabChange?: (tab: string) => void;
+}
+
+export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
   const { isAdmin, isModerator, user } = useAuth();
   const canEdit = true;
-  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc'>('form');
+  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'helper'>('form');
   const [allDevis, setAllDevis] = useState<Devis[]>([]);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingDevis, setEditingDevis] = useState<Devis | null>(null);
@@ -327,6 +332,17 @@ export const GestionDevis = () => {
           <FileText className="w-4 h-4" />
           Mes BC ({bonsCommande.length})
         </button>
+        <button
+          onClick={() => setActiveSection('helper')}
+          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+            activeSection === 'helper'
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Search className="w-4 h-4" />
+          Devis Helper
+        </button>
       </div>
 
       {activeSection === 'form' && devisNumber && (
@@ -378,6 +394,10 @@ export const GestionDevis = () => {
           isAdminOrMod={isAdmin || isModerator}
           onDelete={deleteDevis}
         />
+      )}
+
+      {activeSection === 'helper' && (
+        <DevisHelper onTabChange={onTabChange} />
       )}
 
       {/* Edit Devis Dialog */}

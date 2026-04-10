@@ -19,92 +19,53 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
   const { user, isAdmin, isModerator } = useAuth();
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  const [hasPermission, setHasPermission] = useState(true);
 
   // Determine user role string
   const userRole = isAdmin ? 'admin' : isModerator ? 'moderator' : 'user';
 
-  // Update presence in database - errors are silently logged, never thrown
-  // Strategy: Try UPDATE first (works if record exists), then INSERT if no rows updated
+  // Update presence in database - errors are silently handled
   const updatePresence = useCallback(async (isOnline: boolean) => {
-    if (!user) return;
-
-    try {
-      // Verify session is still valid before attempting update
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        // Session expired, don't attempt update
-        return;
-      }
-
-      // Try UPDATE first - this works because users can update their own presence
-      const { data: updateData, error: updateError } = await supabase
-        .from('user_presence')
-        .update({
-          email: user.email,
-          role: userRole,
-          last_seen: new Date().toISOString(),
-          is_online: isOnline
-        })
-        .eq('user_id', user.id)
-        .select('id');
-
-      // If update succeeded with a result, we're done
-      if (!updateError && updateData && updateData.length > 0) {
-        return;
-      }
-
-      // If update returned no rows (record doesn't exist), try INSERT
-      if (!updateError && (!updateData || updateData.length === 0)) {
-        const { error: insertError } = await supabase
-          .from('user_presence')
-          .insert({
-            user_id: user.id,
-            email: user.email,
-            role: userRole,
-            last_seen: new Date().toISOString(),
-            is_online: isOnline
-          });
-
-        if (insertError) {
-          // Conflict means another request already inserted - that's fine
-          if (insertError.code === '23505') {
-            // Record was inserted by another request, try update again
-            await supabase
-              .from('user_presence')
-              .update({
-                email: user.email,
-                role: userRole,
-                last_seen: new Date().toISOString(),
-                is_online: isOnline
-              })
-              .eq('user_id', user.id);
-          } else if (insertError.code !== '42501') {
-            console.warn('Presence insert failed (ignored):', insertError.message);
-          }
-        }
-        return;
-      }
-
-      // Log update errors only if they're not RLS related
-      if (updateError && updateError.code !== '42501') {
-        console.warn('Presence update failed (ignored):', updateError.message);
-      }
-    } catch (err) {
-      // Silently catch all errors - presence is non-critical functionality
-      console.warn('Presence update error (ignored):', err);
-    }
-  }, [user, userRole]);
-
-  // Fetch online users (admin and moderator) - errors are silently logged
-  const fetchOnlineUsers = useCallback(async () => {
-    if (!user || (!isAdmin && !isModerator)) return;
+    if (!user || !hasPermission) return;
 
     try {
       // Verify session is still valid
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      // Get users who were online in the last 2 minutes
+      // Use atomic upsert to avoid 409 Conflict errors
+      const { error } = await supabase
+        .from('user_presence')
+        .upsert({
+          user_id: user.id,
+          email: user.email,
+          role: userRole,
+          last_seen: new Date().toISOString(),
+          is_online: isOnline
+        }, { onConflict: 'user_id' });
+
+      if (error) {
+        // Circuit breaker: if we get a permission error, stop trying
+        if ((error as any).status === 403 || error.code === '42501') {
+          console.log('Presence feature silenced: insufficient permissions for user_presence table.');
+          setHasPermission(false);
+          return;
+        }
+        console.warn('Presence update failed (ignored):', error.message);
+      }
+    } catch (err) {
+      console.warn('Presence update error (ignored):', err);
+    }
+  }, [user, userRole, hasPermission]);
+
+  // Fetch online users (admin and moderator)
+  const fetchOnlineUsers = useCallback(async () => {
+    if (!user || (!isAdmin && !isModerator) || !hasPermission) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
       const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
       
       const { data, error } = await supabase
@@ -115,48 +76,31 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         .order('last_seen', { ascending: false });
 
       if (error) {
-        console.warn('Fetching online users failed (ignored):', error.message);
+        if ((error as any).status === 403 || error.code === '42501') {
+          setHasPermission(false);
+          return;
+        }
+        console.warn('Fetching online users failed:', error.message);
         return;
       }
       
       setOnlineUsers(data || []);
     } catch (err) {
-      console.warn('Error fetching online users (ignored):', err);
+      console.warn('Error fetching online users:', err);
     }
-  }, [user, isAdmin, isModerator]);
+  }, [user, isAdmin, isModerator, hasPermission]);
 
   // Set up heartbeat
   useEffect(() => {
-    if (!user) return;
+    if (!user || !hasPermission) return;
 
     // Initial presence update
-    updatePresence(true);
+    const timer = setTimeout(() => updatePresence(true), 100);
 
     // Heartbeat
     heartbeatRef.current = setInterval(() => {
       updatePresence(true);
     }, heartbeatInterval);
-
-    // Handle window close/unload - mark as offline
-    const handleBeforeUnload = () => {
-      // Use sendBeacon for reliable offline update
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      
-      if (supabaseUrl && supabaseKey) {
-        const payload = JSON.stringify({
-          is_online: false,
-          last_seen: new Date().toISOString()
-        });
-        
-        // Use sendBeacon with proper headers
-        const blob = new Blob([payload], { type: 'application/json' });
-        navigator.sendBeacon?.(
-          `${supabaseUrl}/rest/v1/user_presence?user_id=eq.${user.id}`,
-          blob
-        );
-      }
-    };
 
     // Handle visibility change
     const handleVisibilityChange = () => {
@@ -167,22 +111,22 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
       }
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
+      clearTimeout(timer);
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current);
       }
-      updatePresence(false);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Attempt to mark as offline on unmount
+      if (hasPermission) updatePresence(false);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [user, userRole, heartbeatInterval, updatePresence]);
+  }, [user, heartbeatInterval, updatePresence, hasPermission]);
 
   // Subscribe to presence changes (admin and moderator)
   useEffect(() => {
-    if (!user || (!isAdmin && !isModerator)) return;
+    if (!user || (!isAdmin && !isModerator) || !hasPermission) return;
 
     // Initial fetch
     fetchOnlineUsers();
@@ -210,7 +154,7 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
     };
-  }, [user, isAdmin, isModerator, fetchOnlineUsers]);
+  }, [user, isAdmin, isModerator, fetchOnlineUsers, hasPermission]);
 
   return {
     onlineUsers,

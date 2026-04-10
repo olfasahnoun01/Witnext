@@ -84,7 +84,7 @@ const Index = () => {
         {activeTab === 'comparison' && <SupplierComparison />}
         {activeTab === 'transactions' && <Transactions />}
         {activeTab === 'reports' && <Reports />}
-        {activeTab === 'devis' && <GestionDevis />}
+        {activeTab === 'devis' && <GestionDevis onTabChange={handleTabChange} />}
         {activeTab === 'gallery' && <PhotoGallery />}
         {activeTab === 'settings' && <Settings />}
       </Suspense>

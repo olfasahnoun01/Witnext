@@ -552,6 +552,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       item.designation,
       `${prixUnitDisplay} TND`,
       item.remise > 0 ? `${item.remise}%` : '-',
+      `${line.unitAfterRemiseHT.toFixed(3)} TND`,
       ...(isTTC ? [`${item.tva ?? 19}%`] : []),
       item.quantity.toString(),
       `${sousTotal.toFixed(3)} TND`,
@@ -560,8 +561,8 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
   const sousTotalLabel = 'Montant HT';
   const headRow = isTTC
-    ? ['#', 'Désignation', 'Prix U HT', 'Remise', 'TVA', 'Qté', sousTotalLabel]
-    : ['#', 'Désignation', 'Prix U HT', 'Remise', 'Qté', sousTotalLabel];
+    ? ['#', 'Désignation', 'Prix U HT', 'Remise', 'Net U HT', 'TVA', 'Qté', sousTotalLabel]
+    : ['#', 'Désignation', 'Prix U HT', 'Remise', 'Net U HT', 'Qté', sousTotalLabel];
 
   autoTable(doc, {
     startY: 96,
@@ -577,20 +578,22 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     styles: { fontSize: 9, cellPadding: 4 },
     rowPageBreak: 'avoid',
     columnStyles: isTTC ? {
-      0: { cellWidth: 12, halign: 'center' },
+      0: { cellWidth: 10, halign: 'center' },
       1: { cellWidth: 'auto' },
       2: { halign: 'right' },
       3: { halign: 'center' },
-      4: { halign: 'center' },
+      4: { halign: 'right' },
       5: { halign: 'center' },
-      6: { halign: 'right' },
+      6: { halign: 'center' },
+      7: { halign: 'right' },
     } : {
       0: { cellWidth: 12, halign: 'center' },
       1: { cellWidth: 'auto' },
       2: { halign: 'right' },
       3: { halign: 'center' },
-      4: { halign: 'center' },
-      5: { halign: 'right' },
+      4: { halign: 'right' },
+      5: { halign: 'center' },
+      6: { halign: 'right' },
     },
     alternateRowStyles: { fillColor: [245, 247, 250] },
     margin: { left: 14, right: 14 }
