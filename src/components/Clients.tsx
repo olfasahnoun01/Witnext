@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,10 +26,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Search, Users, Phone, MapPin, Mail, AlertCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Users, Phone, MapPin, Mail, AlertCircle, Upload, Eye, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Client {
   id: number;
@@ -38,6 +39,7 @@ interface Client {
   location: string | null;
   phone: string | null;
   email: string | null;
+  patente_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -52,6 +54,9 @@ const isClientIncomplete = (client: Client) => {
 };
 
 export const Clients = memo(() => {
+  const { isAdmin, isModerator } = useAuth();
+  const canDelete = isAdmin || isModerator;
+  
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -66,6 +71,11 @@ export const Clients = memo(() => {
   const [selectedGovernorate, setSelectedGovernorate] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [exactLocation, setExactLocation] = useState('');
+  const [patenteUrl, setPatenteUrl] = useState<string | null>(null); // Stores path in DB
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null); // Stores signed URL for UI
+  const [isUploading, setIsUploading] = useState(false);
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -98,6 +108,8 @@ export const Clients = memo(() => {
     setSelectedGovernorate('');
     setSelectedCity('');
     setExactLocation('');
+    setPatenteUrl(null);
+    setPreviewUrl(null);
     setEditingClient(null);
   }, []);
 
@@ -107,6 +119,82 @@ export const Clients = memo(() => {
       ? TUNISIA_LOCATIONS.find(r => r.governorate === selectedGovernorate)?.cities || []
       : [];
   }, [selectedGovernorate]);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Le fichier est trop volumineux (max 5Mo)');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+      const filePath = `client_patentes/${fileName}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('patentes_client')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Now we store the path, not the public URL
+      setPatenteUrl(filePath);
+      toast.success('Patente téléchargée');
+    } catch (error) {
+      console.error('Error uploading patente:', error);
+      toast.error('Erreur lors du téléchargement');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleViewPatente = async (path: string) => {
+    if (!path) return;
+    
+    // Support legacy full URLs if any
+    if (path.startsWith('http')) {
+      window.open(path, '_blank');
+      return;
+    }
+
+    setIsGeneratingLink(true);
+    try {
+      const { data, error } = await supabase.storage
+        .from('patentes_client')
+        .createSignedUrl(path, 60); // Link valid for 60 seconds
+
+      if (error) throw error;
+      if (data) {
+        window.open(data.signedUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Error creating signed URL:', error);
+      toast.error('Impossible d\'ouvrir le document');
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  };
+
+  // Resolve path to preview URL for the modal
+  useEffect(() => {
+    const fetchPreview = async () => {
+      if (patenteUrl && !patenteUrl.startsWith('http')) {
+        const { data, error } = await supabase.storage
+          .from('patentes_client')
+          .createSignedUrl(patenteUrl, 3600);
+        if (!error && data) {
+          setPreviewUrl(data.signedUrl);
+        }
+      } else {
+        setPreviewUrl(patenteUrl);
+      }
+    };
+    if (patenteUrl) fetchPreview();
+    else setPreviewUrl(null);
+  }, [patenteUrl]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,7 +216,8 @@ export const Clients = memo(() => {
       matricule_fiscale: matriculeFiscale.trim(),
       phone: phone.trim(),
       email: email.trim(),
-      location: locationValue
+      location: locationValue,
+      patente_url: patenteUrl
     };
 
     if (editingClient) {
@@ -169,6 +258,7 @@ export const Clients = memo(() => {
     setMatriculeFiscale(client.matricule_fiscale || '');
     setPhone(client.phone || '');
     setEmail(client.email || '');
+    setPatenteUrl(client.patente_url);
     
     // Parse location back to exact address, city, and governorate
     if (client.location) {
@@ -397,6 +487,64 @@ export const Clients = memo(() => {
                       placeholder="Ex: Rue Ibn Khaldoun, N°15, Zone Industrielle..."
                     />
                   </div>
+
+                  {/* Patente Upload */}
+                  <div className="space-y-2 pt-2 border-t mt-4">
+                    <Label>Document Patente</Label>
+                    <div className="flex items-center gap-4">
+                      {patenteUrl ? (
+                        <div className="relative group w-20 h-20 rounded-lg border overflow-hidden">
+                          {previewUrl ? (
+                            <img src={previewUrl} alt="Patente preview" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-muted flex items-center justify-center">
+                              <FileText className="w-6 h-6 text-muted-foreground animate-pulse" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="text-white hover:text-destructive"
+                              onClick={() => {
+                                setPatenteUrl(null);
+                                setPreviewUrl(null);
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-20 h-20 border-dashed"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploading}
+                        >
+                          {isUploading ? (
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
+                          ) : (
+                            <Upload className="w-6 h-6 text-muted-foreground" />
+                          )}
+                        </Button>
+                      )}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleFileChange}
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Upload Patente</p>
+                        <p className="text-xs text-muted-foreground">JPG, PNG (max 5Mo)</p>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="outline" onClick={() => {
                       setDialogOpen(false);
@@ -449,6 +597,7 @@ export const Clients = memo(() => {
                       <TableHead>Téléphone</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Localisation</TableHead>
+                      <TableHead>Patente</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -483,6 +632,22 @@ export const Clients = memo(() => {
                             </span>
                           ) : '-'}
                         </TableCell>
+                        <TableCell>
+                          {client.patente_url ? (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="h-8 gap-1.5"
+                              disabled={isGeneratingLink}
+                              onClick={() => handleViewPatente(client.patente_url!)}
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              Voir
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">Aucune</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2 items-center">
                             {isClientIncomplete(client) && (
@@ -503,14 +668,16 @@ export const Clients = memo(() => {
                             >
                               <Pencil className="w-4 h-4" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDelete(client.id)}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            {canDelete && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDelete(client.id)}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
