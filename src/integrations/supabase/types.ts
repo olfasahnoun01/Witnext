@@ -117,6 +117,7 @@ export type Database = {
           location: string | null
           matricule_fiscale: string | null
           nom: string
+          patente_url: string | null
           phone: string | null
           updated_at: string
         }
@@ -127,6 +128,7 @@ export type Database = {
           location?: string | null
           matricule_fiscale?: string | null
           nom: string
+          patente_url?: string | null
           phone?: string | null
           updated_at?: string
         }
@@ -137,6 +139,7 @@ export type Database = {
           location?: string | null
           matricule_fiscale?: string | null
           nom?: string
+          patente_url?: string | null
           phone?: string | null
           updated_at?: string
         }
