@@ -75,6 +75,7 @@ export const Clients = memo(() => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null); // Stores signed URL for UI
   const [isUploading, setIsUploading] = useState(false);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [storageError, setStorageError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Filter state
@@ -130,21 +131,43 @@ export const Clients = memo(() => {
     }
 
     setIsUploading(true);
+    setStorageError(null);
     try {
       const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
       const filePath = `client_patentes/${fileName}`;
       
-      const { error: uploadError } = await supabase.storage
+      let { error: uploadError } = await supabase.storage
         .from('patentes_client')
         .upload(filePath, file);
+
+      // Self-healing attempt: if bucket is missing, try to create it
+      if (uploadError && (uploadError as any).status === 400 || (uploadError as any).message?.includes('not found')) {
+        console.log("Attempting to create missing bucket 'patentes_client'...");
+        const { error: createError } = await supabase.storage.createBucket('patentes_client', { public: false });
+        
+        if (!createError) {
+          // Retry upload if creation succeeded
+          const { error: retryError } = await supabase.storage
+            .from('patentes_client')
+            .upload(filePath, file);
+          uploadError = retryError;
+        } else {
+          // If creation failed (permissions), set storage error to show help UI
+          setStorageError('BUCKET_NOT_FOUND');
+          throw uploadError;
+        }
+      }
 
       if (uploadError) throw uploadError;
 
       // Now we store the path, not the public URL
       setPatenteUrl(filePath);
       toast.success('Patente téléchargée');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading patente:', error);
+      if (error.message?.includes('not found') || error.status === 400) {
+        setStorageError('BUCKET_NOT_FOUND');
+      }
       toast.error('Erreur lors du téléchargement');
     } finally {
       setIsUploading(false);
@@ -489,8 +512,38 @@ export const Clients = memo(() => {
                   </div>
 
                   {/* Patente Upload */}
-                  <div className="space-y-2 pt-2 border-t mt-4">
-                    <Label>Document Patente</Label>
+                  <div className="space-y-4 pt-4 border-t mt-4">
+                    <Label className="text-base font-semibold">Document Patente</Label>
+                    
+                    {storageError === 'BUCKET_NOT_FOUND' && (
+                      <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 space-y-3">
+                        <div className="flex items-start gap-2 text-amber-800">
+                          <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
+                          <div className="text-sm">
+                            <p className="font-bold">Configuration du stockage requise</p>
+                            <p>Le dossier "patentes_client" n'existe pas dans votre projet Supabase.</p>
+                          </div>
+                        </div>
+                        <div className="bg-white p-2 rounded border font-mono text-xs overflow-x-auto">
+                          {`INSERT INTO storage.buckets (id, name, public) VALUES ('patentes_client', 'patentes_client', false);`}
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full gap-2 border-amber-300 text-amber-800 hover:bg-amber-100"
+                          onClick={() => {
+                            const sql = "INSERT INTO storage.buckets (id, name, public) VALUES ('patentes_client', 'patentes_client', false);\n\nCREATE POLICY \"Lecture sécurisée patentes\" ON storage.objects FOR SELECT USING (bucket_id = 'patentes_client' AND auth.uid() IS NOT NULL);\n\nCREATE POLICY \"Upload patentes\" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'patentes_client' AND auth.uid() IS NOT NULL);";
+                            navigator.clipboard.writeText(sql);
+                            toast.success('SQL copié ! Collez-le dans l\'Editeur SQL de Supabase.');
+                            window.open('https://supabase.com/dashboard/project/lptoakdzyuhkfvslgpsw/sql/new', '_blank');
+                          }}
+                        >
+                          Copier le SQL et ouvrir Supabase
+                        </Button>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-4">
                       {patenteUrl ? (
                         <div className="relative group w-20 h-20 rounded-lg border overflow-hidden">
