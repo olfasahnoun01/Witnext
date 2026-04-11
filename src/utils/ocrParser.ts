@@ -17,7 +17,7 @@ export const extractItemsFromImage = async (
     const data = result?.data;
     
     // Fallback to splitting text if lines property is missing
-    const lines = data?.lines || (data?.text ? data.text.split('\n').map(t => ({ text: t })) : []);
+    const lines = (data as any)?.lines || (data?.text ? data.text.split('\n').map((t: string) => ({ text: t })) : []);
     
     const items: string[] = [];
     
