@@ -45,6 +45,7 @@ const toDevisPDFData = (d: Devis): DevisPDFData => ({
   notes: d.notes,
   is_ttc: d.is_ttc,
   is_bc: d.is_bc,
+  is_ba: d.is_ba,
 });
 
 export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBC, onAdd }: DevisHistoryProps) => {

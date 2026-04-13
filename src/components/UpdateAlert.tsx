@@ -23,14 +23,14 @@ export const UpdateAlert = () => {
     const checkVersion = async () => {
       try {
         const { data, error } = await supabase
-          .from('app_config')
+          .from('app_config' as any)
           .select('value')
           .eq('key', 'update_alert_version')
           .single();
 
         if (error) throw error;
         
-        const currentVersion = data?.value || '1.0.0';
+        const currentVersion = (data as any)?.value || '1.0.0';
         setDbVersion(currentVersion);
 
         const hiddenVersion = localStorage.getItem("lastHiddenUpdateVersion");

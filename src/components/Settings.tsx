@@ -94,7 +94,7 @@ export const Settings = () => {
     try {
       const newVersion = `v${Date.now()}`;
       const { error } = await supabase
-        .from('app_config')
+        .from('app_config' as any)
         .update({ value: newVersion, updated_at: new Date().toISOString() })
         .eq('key', 'update_alert_version');
 
