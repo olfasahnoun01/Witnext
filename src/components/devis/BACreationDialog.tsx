@@ -1,0 +1,329 @@
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { Devis, DevisItem, Product } from '@/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import { Plus, Trash2, Search, FileSignature, AlertCircle } from 'lucide-react';
+import { computeDevisTotals, computeDevisLine } from '@/lib/devisPricing';
+import { supabase } from '@/integrations/supabase/client';
+import { useDebounce } from '@/hooks/useDebounce';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { toast } from 'sonner';
+
+interface BACreationDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  sourceBC: Devis | null;
+  onConfirm: (items: DevisItem[]) => void;
+}
+
+export const BACreationDialog = ({
+  open,
+  onOpenChange,
+  sourceBC,
+  onConfirm,
+}: BACreationDialogProps) => {
+  const [items, setItems] = useState<DevisItem[]>([]);
+  const [productSearch, setProductSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const debouncedSearch = useDebounce(productSearch, 300);
+
+  // Initialize items when BC is provided
+  useEffect(() => {
+    if (sourceBC && open) {
+      setItems(JSON.parse(JSON.stringify(sourceBC.items)));
+    }
+  }, [sourceBC, open]);
+
+  // Search existing products
+  useEffect(() => {
+    if (!debouncedSearch.trim()) { setSearchResults([]); return; }
+    const search = async () => {
+      setIsSearching(true);
+      const { data } = await supabase
+        .from('products')
+        .select('id, name, sku, category, fournisseur, size, color, price, prix_ttc, remise, quantity, product_group_id')
+        .ilike('name', `${debouncedSearch}%`)
+        .limit(8);
+
+      setSearchResults((data || []).map(p => ({
+        ...p,
+        image: null,
+        fiche_technique_url: null,
+        fournisseur: p.fournisseur || '',
+        size: p.size || '',
+        remise: p.remise || 0,
+        prix_ttc: p.prix_ttc || p.price * (1 - (p.remise || 0) / 100),
+        color: p.color || null,
+        min_stock: 0,
+      })));
+      setIsSearching(false);
+    };
+    search();
+  }, [debouncedSearch]);
+
+  const addItemFromProduct = useCallback((product: Product) => {
+    setItems(prev => [...prev, {
+      designation: product.name,
+      fournisseur: product.fournisseur || '',
+      prix_ttc: product.price || 0,
+      remise: product.remise || 0,
+      quantity: 1,
+      description: `${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`,
+      tva: 19,
+      ...(sourceBC?.type === 'sortant' ? { prix_achat: product.price || 0 } : {}),
+    }]);
+    setProductSearch('');
+    setSearchResults([]);
+    toast.success('Article ajouté');
+  }, [sourceBC]);
+
+  const removeItem = useCallback((idx: number) => {
+    setItems(prev => prev.filter((_, i) => i !== idx));
+  }, []);
+
+  const updateItemQty = useCallback((idx: number, qty: number) => {
+    setItems(prev => prev.map((item, i) => i === idx ? { ...item, quantity: Math.max(1, qty) } : item));
+  }, []);
+
+  const updateItemPrice = useCallback((idx: number, price: number) => {
+    setItems(prev => prev.map((item, i) => i === idx ? { ...item, prix_ttc: Math.max(0, price) } : item));
+  }, []);
+
+  const updateItemRemise = useCallback((idx: number, remise: number) => {
+    setItems(prev => prev.map((item, i) => i === idx ? { ...item, remise: Math.min(100, Math.max(0, remise)) } : item));
+  }, []);
+
+  const updateItemAchat = useCallback((idx: number, price: number) => {
+    setItems(prev => prev.map((item, i) => i === idx ? { ...item, prix_achat: Math.max(0, price) } : item));
+  }, []);
+
+  const updateItemTva = useCallback((idx: number, tva: number) => {
+    setItems(prev => prev.map((item, i) => i === idx ? { ...item, tva } : item));
+  }, []);
+
+  const totals = useMemo(() => {
+    return computeDevisTotals(items, false);
+  }, [items]);
+
+  if (!sourceBC) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileSignature className="w-5 h-5 text-primary" />
+            Révision du Bon d'Achat pour {sourceBC.devis_number}
+          </DialogTitle>
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-900/30 p-2 rounded-md flex items-center gap-2 mt-2">
+            <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <p className="text-xs text-blue-700 dark:text-blue-400">
+              Le Bon d'Achat est un document de validation. Il <strong>n'impacte pas le stock</strong>.
+            </p>
+          </div>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto py-4 space-y-6 scrollbar-thin">
+          {/* Add Item Search */}
+          <div className="relative">
+            <Label className="mb-2 block">Ajouter un article supplémentaire</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher un article..."
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            
+            {searchResults.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="max-h-60 overflow-y-auto">
+                  {searchResults.map((product) => (
+                    <button
+                      key={product.id}
+                      onClick={() => addItemFromProduct(product)}
+                      className="w-full text-left p-3 hover:bg-muted transition-colors flex items-center justify-between border-b last:border-0"
+                    >
+                      <div>
+                        <p className="font-medium text-sm">{product.name}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{product.sku}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-primary">{product.price.toFixed(3)} TND</p>
+                        <p className="text-[10px] text-muted-foreground">{product.category}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {isSearching && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+              </div>
+            )}
+          </div>
+
+          {/* Items Table */}
+          <div className="border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow>
+                  <TableHead className="w-[70px] px-2 text-center">Qté</TableHead>
+                  <TableHead className="w-[200px]">Désignation</TableHead>
+                  {sourceBC.type === 'sortant' && (
+                    <TableHead className="text-right w-[110px]">Prix Achat HT</TableHead>
+                  )}
+                  <TableHead className="text-right w-[110px]">Prix Vente HT</TableHead>
+                  <TableHead className="text-center w-[80px]">Remise %</TableHead>
+                  <TableHead className="text-center w-[90px]">TVA %</TableHead>
+                  <TableHead className="text-right w-[110px]">Vente TTC</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      Aucun article dans ce Bon d'Achat
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  items.map((item, idx) => {
+                    const pricing = computeDevisLine(item, false);
+                    return (
+                      <TableRow key={idx}>
+                        <TableCell className="px-2">
+                          <Input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => updateItemQty(idx, parseInt(e.target.value) || 1)}
+                            className="h-8 text-center px-1"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <p className="font-medium text-xs line-clamp-1" title={item.designation}>{item.designation}</p>
+                          <p className="text-[9px] text-muted-foreground line-clamp-1">{item.description || '-'}</p>
+                        </TableCell>
+                        {sourceBC.type === 'sortant' && (
+                          <TableCell className="text-right px-1">
+                            <Input
+                              type="number"
+                              step="0.001"
+                              value={item.prix_achat || 0}
+                              onChange={(e) => updateItemAchat(idx, parseFloat(e.target.value) || 0)}
+                              className="h-8 text-right w-full"
+                            />
+                          </TableCell>
+                        )}
+                        <TableCell className="text-right px-1">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            value={item.prix_ttc}
+                            onChange={(e) => updateItemPrice(idx, parseFloat(e.target.value) || 0)}
+                            className="h-8 text-right w-full"
+                          />
+                        </TableCell>
+                        <TableCell className="px-1">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={item.remise}
+                            onChange={(e) => updateItemRemise(idx, parseFloat(e.target.value) || 0)}
+                            className="h-8 text-center px-1"
+                          />
+                        </TableCell>
+                        <TableCell className="px-1">
+                          <Select
+                            value={(item.tva ?? 19).toString()}
+                            onValueChange={(v) => updateItemTva(idx, parseInt(v))}
+                          >
+                            <SelectTrigger className="h-8 text-xs px-2">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="19">19%</SelectItem>
+                              <SelectItem value="13">13%</SelectItem>
+                              <SelectItem value="7">7%</SelectItem>
+                              <SelectItem value="0">0%</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-xs">
+                          {pricing.unitAfterRemiseTTC.toFixed(3)}
+                        </TableCell>
+                        <TableCell className="px-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => removeItem(idx)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Totals Summary */}
+          <div className="flex justify-end pr-4">
+            <div className="w-64 space-y-2 bg-muted/30 p-4 rounded-xl border border-border">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Total HT</span>
+                <span className="font-medium">{totals.totalHT.toFixed(3)} TND</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Remise</span>
+                <span className="font-medium text-destructive">-{totals.totalRemise.toFixed(3)} TND</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">TVA</span>
+                <span className="font-medium">{totals.totalTVA.toFixed(3)} TND</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Timbre Fiscal</span>
+                <span className="font-medium">1.000 TND</span>
+              </div>
+              <div className="pt-2 border-t border-border flex justify-between font-bold text-primary">
+                <span>TOTAL TTC</span>
+                <span>{totals.totalFinal.toFixed(3)} TND</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="border-t pt-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
+          <Button 
+            onClick={() => onConfirm(items)} 
+            disabled={items.length === 0}
+            className="gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Confirmer et Créer le BA
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};

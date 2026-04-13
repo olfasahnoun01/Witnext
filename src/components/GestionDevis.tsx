@@ -8,10 +8,14 @@ import { computeDevisTotals } from '@/lib/devisPricing';
 import { DevisForm } from './devis/DevisForm';
 import { DevisHistory } from './devis/DevisHistory';
 import { BonCommandeList } from './devis/BonCommandeList';
+import { BonAchatList } from './devis/BonAchatList';
 import { DevisHelper } from './devis/DevisHelper';
+import { BCCreationDialog } from './devis/BCCreationDialog';
+import { BACreationDialog } from './devis/BACreationDialog';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import { FileSignature } from 'lucide-react';
 
 const parseDevisRow = (d: any, profilesMap: Record<string, string>, sourceDevisMap?: Record<number, string>): Devis => {
   let parsedItems: DevisItem[] = [];
@@ -28,8 +32,8 @@ const parseDevisRow = (d: any, profilesMap: Record<string, string>, sourceDevisM
     status: d.status as 'brouillon' | 'envoyé' | 'accepté' | 'refusé',
     items: parsedItems,
     total_amount: Number(d.total_amount) || 0,
-    is_ttc: d.is_ttc ?? true,
     is_bc: d.is_bc ?? false,
+    is_ba: d.is_ba ?? false,
     source_devis_id: d.source_devis_id ?? null,
     creator_name: d.created_by ? (profilesMap[d.created_by] || null) : null,
     source_devis_number: d.source_devis_id && sourceDevisMap ? (sourceDevisMap[d.source_devis_id] || null) : null,
@@ -43,10 +47,15 @@ interface GestionDevisProps {
 export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
   const { isAdmin, isModerator, user } = useAuth();
   const canEdit = true;
-  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'helper'>('form');
+  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'ba' | 'helper'>('form');
   const [allDevis, setAllDevis] = useState<Devis[]>([]);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingDevis, setEditingDevis] = useState<Devis | null>(null);
+  const [isBCReviewOpen, setIsBCReviewOpen] = useState(false);
+  const [isBAReviewOpen, setIsBAReviewOpen] = useState(false);
+  const [devisToConvert, setDevisToConvert] = useState<Devis | null>(null);
+  const [bcToConvert, setBcToConvert] = useState<Devis | null>(null);
+  const [docType, setDocType] = useState<'devis' | 'bc' | 'ba'>('devis');
   const devisNumberRef = useRef('');
 
   // Form state
@@ -63,8 +72,9 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
   const [isTtc, setIsTtc] = useState(true);
 
   // Derived lists
-  const savedDevis = useMemo(() => allDevis.filter(d => !d.is_bc), [allDevis]);
+  const savedDevis = useMemo(() => allDevis.filter(d => !d.is_bc && !d.is_ba), [allDevis]);
   const bonsCommande = useMemo(() => allDevis.filter(d => d.is_bc), [allDevis]);
+  const bonsAchat = useMemo(() => allDevis.filter(d => d.is_ba), [allDevis]);
 
   const loadAll = useCallback(async () => {
     const { data, error } = await supabase
@@ -106,11 +116,14 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
 
   useEffect(() => { devisNumberRef.current = devisNumber; }, [devisNumber]);
 
-  const generateNextNumber = useCallback((type: 'entrant' | 'sortant', isBC = false) => {
-    const prefix = isBC
-      ? (type === 'entrant' ? 'BCE' : 'BCS')
-      : (type === 'entrant' ? 'DE' : 'DS');
-    const list = isBC ? bonsCommande : savedDevis;
+  const generateNextNumber = useCallback((type: 'entrant' | 'sortant', mode: 'devis' | 'bc' | 'ba' = 'devis') => {
+    const prefix = mode === 'ba'
+      ? (type === 'entrant' ? 'BAE' : 'BAS')
+      : mode === 'bc'
+        ? (type === 'entrant' ? 'BCE' : 'BCS')
+        : (type === 'entrant' ? 'DE' : 'DS');
+    
+    const list = mode === 'ba' ? bonsAchat : (mode === 'bc' ? bonsCommande : savedDevis);
     const docsOfType = list.filter(d => d.type === type);
     let maxNum = 0;
     docsOfType.forEach(d => {
@@ -118,13 +131,13 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
       if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10));
     });
     return `${prefix}-${(maxNum + 1).toString().padStart(2, '0')}`;
-  }, [savedDevis, bonsCommande]);
+  }, [savedDevis, bonsCommande, bonsAchat]);
 
   useEffect(() => {
     if (!editingDevis) {
-      setDevisNumber(generateNextNumber(devisType));
+      setDevisNumber(generateNextNumber(devisType, docType));
     }
-  }, [allDevis, devisType, editingDevis, generateNextNumber]);
+  }, [allDevis, devisType, docType, editingDevis, generateNextNumber]);
 
   const clearFormFields = useCallback((clearItems = true) => {
     setDevisDate(new Date().toISOString().split('T')[0]);
@@ -139,16 +152,17 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
 
   const resetForm = useCallback(() => {
     setDevisType('sortant');
+    setDocType('devis');
     clearFormFields(true);
     setEditingDevis(null);
     setShowEditDialog(false);
-    setDevisNumber(generateNextNumber('sortant'));
+    setDevisNumber(generateNextNumber('sortant', 'devis'));
   }, [clearFormFields, generateNextNumber]);
 
   const clearInputsOnly = useCallback(() => {
     clearFormFields(false);
-    setDevisNumber(generateNextNumber(devisType));
-  }, [clearFormFields, generateNextNumber, devisType]);
+    setDevisNumber(generateNextNumber(devisType, docType));
+  }, [clearFormFields, generateNextNumber, devisType, docType]);
 
   const handleTypeChange = useCallback((type: 'entrant' | 'sortant') => {
     setDevisType(type);
@@ -185,7 +199,8 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
         notes: notes || null,
         created_by: user?.id,
         is_ttc: isTtc,
-        is_bc: false,
+        is_bc: docType === 'bc',
+        is_ba: docType === 'ba',
       } as any);
 
       if (error) {
@@ -221,6 +236,8 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
       total_amount: totalAmount,
       notes: notes || null,
       is_ttc: isTtc,
+      is_bc: docType === 'bc',
+      is_ba: docType === 'ba',
     } as any).eq('id', editingDevis.id);
 
     if (error) {
@@ -237,52 +254,113 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
     if (error) {
       toast.error('Erreur lors de la suppression');
     } else {
-      toast.success(devis.is_bc ? 'Bon de commande supprimé' : 'Devis supprimé');
+      let msg = 'Devis supprimé';
+      if (devis.is_bc) msg = 'Bon de commande supprimé';
+      if (devis.is_ba) msg = 'Bon d\'achat supprimé';
+      toast.success(msg);
       loadAll();
     }
   }, [loadAll]);
 
-  const convertToBC = useCallback(async (devis: Devis) => {
+  const convertToBC = useCallback((devis: Devis) => {
+    setDevisToConvert(devis);
+    setIsBCReviewOpen(true);
+  }, []);
+
+  const handleConfirmBC = useCallback(async (modifiedItems: DevisItem[]) => {
+    if (!devisToConvert) return;
+    
     try {
-      const bcNumber = generateNextNumber(devis.type, true);
+      const bcNumber = generateNextNumber(devisToConvert.type, 'bc');
       const { data: { user } } = await supabase.auth.getUser();
-      const totals = computeDevisTotals(devis.items, false);
+      const totals = computeDevisTotals(modifiedItems, false);
 
       const { error } = await supabase.from('devis').insert({
         devis_number: bcNumber,
         devis_date: new Date().toISOString().split('T')[0],
-        source_devis_id: devis.id,
-        type: devis.type,
-        third_party_name: devis.third_party_name,
-        third_party_address: devis.third_party_address,
-        third_party_tax_id: devis.third_party_tax_id,
-        third_party_phone: devis.third_party_phone,
-        items: JSON.parse(JSON.stringify(devis.items)),
+        source_devis_id: devisToConvert.id,
+        type: devisToConvert.type,
+        third_party_name: devisToConvert.third_party_name,
+        third_party_address: devisToConvert.third_party_address,
+        third_party_tax_id: devisToConvert.third_party_tax_id,
+        third_party_phone: devisToConvert.third_party_phone,
+        items: JSON.parse(JSON.stringify(modifiedItems)),
         total_amount: totals.totalTTC,
-        notes: devis.notes,
-        is_ttc: devis.is_ttc,
+        notes: devisToConvert.notes,
+        is_ttc: devisToConvert.is_ttc,
         is_bc: true,
         created_by: user?.id,
         status: 'confirmé',
       } as any);
 
       if (error) {
-        toast.error('Erreur lors de la conversion en BC');
+        toast.error('Erreur lors de la création du BC');
         console.error(error);
       } else {
-        toast.success(`Devis ${devis.devis_number} converti en BC ${bcNumber}`);
+        toast.success(`BC ${bcNumber} créé avec succès`);
+        setIsBCReviewOpen(false);
+        setDevisToConvert(null);
         await loadAll();
         setActiveSection('bc');
       }
     } catch (err) {
       console.error(err);
-      toast.error('Erreur lors de la conversion');
+      toast.error('Erreur lors de la création');
     }
-  }, [generateNextNumber, loadAll]);
+  }, [devisToConvert, generateNextNumber, loadAll]);
+
+  const convertToBA = useCallback((bc: Devis) => {
+    setBcToConvert(bc);
+    setIsBAReviewOpen(true);
+  }, []);
+
+  const handleConfirmBA = useCallback(async (modifiedItems: DevisItem[]) => {
+    if (!bcToConvert) return;
+    
+    try {
+      const baNumber = generateNextNumber(bcToConvert.type, 'ba');
+      const { data: { user } } = await supabase.auth.getUser();
+      const totals = computeDevisTotals(modifiedItems, false);
+
+      const { error } = await supabase.from('devis').insert({
+        devis_number: baNumber,
+        devis_date: new Date().toISOString().split('T')[0],
+        source_devis_id: bcToConvert.id,
+        type: bcToConvert.type,
+        third_party_name: bcToConvert.third_party_name,
+        third_party_address: bcToConvert.third_party_address,
+        third_party_tax_id: bcToConvert.third_party_tax_id,
+        third_party_phone: bcToConvert.third_party_phone,
+        items: JSON.parse(JSON.stringify(modifiedItems)),
+        total_amount: totals.totalTTC,
+        notes: bcToConvert.notes,
+        is_ttc: bcToConvert.is_ttc,
+        is_bc: false,
+        is_ba: true,
+        created_by: user?.id,
+        status: 'confirmé',
+      } as any);
+
+      if (error) {
+        toast.error('Erreur lors de la création du BA');
+        console.error(error);
+      } else {
+        toast.success(`BA ${baNumber} créé avec succès`);
+        setIsBAReviewOpen(false);
+        setBcToConvert(null);
+        await loadAll();
+        setActiveSection('ba');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Erreur lors de la création');
+    }
+  }, [bcToConvert, generateNextNumber, loadAll]);
 
   const startEdit = useCallback((d: Devis) => {
     setEditingDevis(d);
     setDevisType(d.type);
+    setDocType(d.is_ba ? 'ba' : (d.is_bc ? 'bc' : 'devis'));
     setDevisNumber(d.devis_number);
     setDevisDate(d.devis_date);
     setThirdPartyName(d.third_party_name || '');
@@ -294,6 +372,12 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
     setIsTtc(d.is_ttc);
     setShowEditDialog(true);
   }, []);
+
+  const handleAddNew = useCallback((mode: 'devis' | 'bc' | 'ba') => {
+    resetForm();
+    setDocType(mode);
+    setActiveSection('form');
+  }, [resetForm]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -308,7 +392,7 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
           }`}
         >
           <Plus className="w-4 h-4" />
-          {editingDevis ? 'Modifier Devis' : 'Nouveau Devis'}
+          {editingDevis ? 'Modifier Document' : 'CRÉER DOCUMENT'}
         </button>
         <button
           onClick={() => setActiveSection('history')}
@@ -319,7 +403,7 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
           }`}
         >
           <History className="w-4 h-4" />
-          Mes Devis ({savedDevis.length})
+          Liste Devis ({savedDevis.length})
         </button>
         <button
           onClick={() => setActiveSection('bc')}
@@ -330,7 +414,18 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
           }`}
         >
           <FileText className="w-4 h-4" />
-          Mes BC ({bonsCommande.length})
+          Liste BC ({bonsCommande.length})
+        </button>
+        <button
+          onClick={() => setActiveSection('ba')}
+          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+            activeSection === 'ba'
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <FileSignature className="w-4 h-4" />
+          Liste BA ({bonsAchat.length})
         </button>
         <button
           onClick={() => setActiveSection('helper')}
@@ -359,6 +454,8 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
           editingDevis={editingDevis}
           isSaving={isSaving}
           isTtc={isTtc}
+          docType={docType}
+          setDocType={setDocType}
           setDevisType={handleTypeChange}
           setDevisNumber={setDevisNumber}
           setDevisDate={setDevisDate}
@@ -384,6 +481,7 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
           onEdit={startEdit}
           onDelete={deleteDevis}
           onConvertToBC={convertToBC}
+          onAdd={() => handleAddNew('devis')}
         />
       )}
 
@@ -392,7 +490,21 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
           bonsCommande={bonsCommande}
           currentUserId={user?.id || null}
           isAdminOrMod={isAdmin || isModerator}
+          onEdit={startEdit}
           onDelete={deleteDevis}
+          onConvertToBA={convertToBA}
+          onAdd={() => handleAddNew('bc')}
+        />
+      )}
+
+      {activeSection === 'ba' && (
+        <BonAchatList
+          bonsAchat={bonsAchat}
+          currentUserId={user?.id || null}
+          isAdminOrMod={isAdmin || isModerator}
+          onEdit={startEdit}
+          onDelete={deleteDevis}
+          onAdd={() => handleAddNew('ba')}
         />
       )}
 
@@ -421,6 +533,8 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
                 editingDevis={editingDevis}
                 isSaving={isSaving}
                 isTtc={isTtc}
+                docType={docType}
+                setDocType={setDocType}
                 setDevisType={handleTypeChange}
                 setDevisNumber={setDevisNumber}
                 setDevisDate={setDevisDate}
@@ -439,6 +553,20 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <BCCreationDialog
+        open={isBCReviewOpen}
+        onOpenChange={setIsBCReviewOpen}
+        sourceDevis={devisToConvert}
+        onConfirm={handleConfirmBC}
+      />
+
+      <BACreationDialog
+        open={isBAReviewOpen}
+        onOpenChange={setIsBAReviewOpen}
+        sourceBC={bcToConvert}
+        onConfirm={handleConfirmBA}
+      />
     </div>
   );
 };

@@ -120,6 +120,7 @@ export interface Devis {
   status: 'brouillon' | 'envoyé' | 'accepté' | 'refusé';
   is_ttc: boolean;
   is_bc: boolean;
+  is_ba: boolean;
   source_devis_id: number | null;
   created_by: string | null;
   creator_name?: string | null;

@@ -71,6 +71,8 @@ interface DevisFormProps {
   onSave: () => void;
   onUpdate: () => void;
   onCancel: () => void;
+  docType: 'devis' | 'bc' | 'ba';
+  setDocType: (t: 'devis' | 'bc' | 'ba') => void;
 }
 
 export const DevisForm = memo(({
@@ -81,6 +83,7 @@ export const DevisForm = memo(({
   setThirdPartyName, setThirdPartyAddress, setThirdPartyTaxId, setThirdPartyPhone,
   setNotes, setDevisItems, setIsTtc,
   onSave, onUpdate, onCancel,
+  docType, setDocType,
 }: DevisFormProps) => {
   const isEntrant = devisType === 'entrant';
 
@@ -287,19 +290,23 @@ export const DevisForm = memo(({
 
   const addItem = useCallback(() => {
     if (!itemDesignation.trim()) { toast.error('Nom d\'article requis'); return; }
-    const tvaRate = itemTva / 100;
-    // For entrant: user enters HT, store as TTC (HT * (1 + tva))
-    const finalPrixTtc = itemPrixTtc;
-    setDevisItems(prev => [...prev, {
-      designation: itemDesignation.trim(),
+    
+    const designations = itemDesignation.split(',').map(d => d.trim()).filter(d => d !== '');
+    if (designations.length === 0) return;
+
+    const newItems = designations.map(name => ({
+      designation: name,
       fournisseur: itemFournisseur.trim(),
-      prix_ttc: finalPrixTtc,
+      prix_ttc: itemPrixTtc,
       remise: itemRemise,
       quantity: itemQuantity,
       description: itemDescription.trim() || undefined,
       tva: itemTva,
       ...(devisType === 'sortant' && itemPrixAchat > 0 ? { prix_achat: itemPrixAchat } : {}),
-    }]);
+    }));
+
+    setDevisItems(prev => [...prev, ...newItems]);
+    
     setItemDesignation('');
     setItemFournisseur('');
     setItemPrixTtc(0);
@@ -751,16 +758,56 @@ export const DevisForm = memo(({
         <div className="bg-card rounded-xl border border-border p-6 space-y-6 lg:overflow-y-auto">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-foreground">
-              {editingDevis ? 'Modifier Devis' : 'Nouveau Devis'}
+              {editingDevis 
+                ? `Modifier ${docType === 'ba' ? "Bon d'Achat" : docType === 'bc' ? 'Bon de Commande' : 'Devis'}` 
+                : `Nouveau ${docType === 'ba' ? "Bon d'Achat" : docType === 'bc' ? 'Bon de Commande' : 'Devis'}`}
             </h3>
             {editingDevis && (
               <Button variant="outline" size="sm" onClick={onCancel}>Annuler</Button>
             )}
           </div>
 
+          {/* Document Mode Selector - Only if not editing (optional) */}
+          {!editingDevis && (
+            <div>
+              <label className="form-label">Mode du Document</label>
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  onClick={() => setDocType('devis')}
+                  className={`p-2.5 rounded-lg border-2 text-xs font-semibold transition-all ${docType === 'devis'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:border-muted-foreground'
+                    }`}
+                >
+                  📄 Devis
+                </button>
+                <button
+                  onClick={() => setDocType('bc')}
+                  className={`p-2.5 rounded-lg border-2 text-xs font-semibold transition-all ${docType === 'bc'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:border-muted-foreground'
+                    }`}
+                >
+                  🛒 Bon de Commande
+                </button>
+                <button
+                  onClick={() => setDocType('ba')}
+                  className={`p-2.5 rounded-lg border-2 text-xs font-semibold transition-all ${docType === 'ba'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:border-muted-foreground'
+                    }`}
+                >
+                  📝 Bon d'Achat
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Type */}
           <div>
-            <label className="form-label">Type de Devis</label>
+            <label className="form-label">
+              Flux du {docType === 'ba' ? "Bon d'Achat" : docType === 'bc' ? 'Bon de Commande' : 'Devis'}
+            </label>
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => setDevisType('entrant')}
@@ -778,13 +825,21 @@ export const DevisForm = memo(({
                     : 'border-border text-muted-foreground hover:border-muted-foreground'
                   }`}
               >
-                📤 Devis Sortant
+                {docType === 'devis' ? '📤 Devis Sortant' : docType === 'bc' ? '📤 BC Sortant' : '📤 BA Sortant'}
               </button>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
               {isEntrant
-                ? '⬇️ Un fournisseur nous envoie un devis (nous sommes le récepteur)'
-                : '⬆️ Nous envoyons un devis à un client'}
+                ? docType === 'ba' 
+                  ? '⬇️ Nous recevons un Bon d\'Achat d\'un fournisseur'
+                  : docType === 'bc'
+                    ? '⬇️ Un fournisseur nous envoie sa commande'
+                    : '⬇️ Un fournisseur nous envoie un devis (nous sommes le récepteur)'
+                : docType === 'ba'
+                  ? '⬆️ Nous envoyons un Bon d\'Achat à un client'
+                  : docType === 'bc'
+                    ? '⬆️ Nous envoyons une commande à un client'
+                    : '⬆️ Nous envoyons un devis à un client'}
             </p>
           </div>
 

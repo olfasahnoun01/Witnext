@@ -35,6 +35,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 interface Fournisseur {
   id: number;
+  code: string;
   nom: string;
   matricule_fiscale: string | null;
   specialite: string;
@@ -49,7 +50,8 @@ const ITEMS_PER_PAGE = 15;
 const isFournisseurIncomplete = (f: Fournisseur) => {
   return !f.matricule_fiscale?.trim() || 
          !f.phone?.trim() || 
-         !f.location?.trim();
+         !f.location?.trim() ||
+         !f.code?.trim();
 };
 
 export const Fournisseurs = memo(() => {
@@ -64,6 +66,7 @@ export const Fournisseurs = memo(() => {
   
   // Form state
   const [nom, setNom] = useState('');
+  const [code, setCode] = useState('');
   const [matriculeFiscale, setMatriculeFiscale] = useState('');
   const [specialite, setSpecialite] = useState('');
   const [phone, setPhone] = useState('');
@@ -85,7 +88,7 @@ export const Fournisseurs = memo(() => {
       toast.error('Erreur lors du chargement des fournisseurs');
       console.error(error);
     } else {
-      setFournisseurs(data || []);
+      setFournisseurs((data as any) || []);
     }
     setLoading(false);
   }, []);
@@ -96,6 +99,7 @@ export const Fournisseurs = memo(() => {
 
   const resetForm = useCallback(() => {
     setNom('');
+    setCode('');
     setMatriculeFiscale('');
     setSpecialite('');
     setPhone('');
@@ -119,7 +123,9 @@ export const Fournisseurs = memo(() => {
       return;
     }
 
-    const locationValue = `${selectedCity}, ${selectedGovernorate}`;
+    // Build location string defensively
+    const locationParts = [selectedCity, selectedGovernorate].filter(Boolean);
+    const locationValue = locationParts.length > 0 ? locationParts.join(', ') : null;
 
     const fournisseurData = {
       nom: nom.trim(),
@@ -164,6 +170,7 @@ export const Fournisseurs = memo(() => {
   const handleEdit = useCallback((fournisseur: Fournisseur) => {
     setEditingFournisseur(fournisseur);
     setNom(fournisseur.nom);
+    setCode(fournisseur.code || '');
     setMatriculeFiscale(fournisseur.matricule_fiscale || '');
     setSpecialite(fournisseur.specialite);
     setPhone(fournisseur.phone || '');
@@ -209,7 +216,8 @@ export const Fournisseurs = memo(() => {
         f.nom.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         f.matricule_fiscale?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         f.phone?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-        f.location?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
+        f.location?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        f.code?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
       
       const matchesSpecialite = filterSpecialite === 'all' || f.specialite === filterSpecialite;
       
@@ -300,12 +308,12 @@ export const Fournisseurs = memo(() => {
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="nom">Nom (Société) *</Label>
+                    <Label htmlFor="nom">Nom Fournisseur *</Label>
                     <Input
                       id="nom"
                       value={nom}
                       onChange={(e) => setNom(e.target.value)}
-                      placeholder="Nom du fournisseur"
+                      placeholder="Nom de la société"
                       required
                     />
                   </div>
@@ -406,7 +414,7 @@ export const Fournisseurs = memo(() => {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Rechercher par nom, matricule, téléphone, localisation..."
+                placeholder="Rechercher par nom, code, matricule, téléphone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -444,6 +452,7 @@ export const Fournisseurs = memo(() => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
+                      <TableHead className="w-[100px]">Code</TableHead>
                       <TableHead>Nom (Société)</TableHead>
                       <TableHead>Matricule Fiscale</TableHead>
                       <TableHead>Spécialité</TableHead>
@@ -455,6 +464,9 @@ export const Fournisseurs = memo(() => {
                   <TableBody>
                     {paginatedFournisseurs.map((fournisseur) => (
                       <TableRow key={fournisseur.id}>
+                        <TableHead className="font-mono text-xs font-bold text-muted-foreground whitespace-nowrap">
+                          {fournisseur.code}
+                        </TableHead>
                         <TableCell className="font-medium">{fournisseur.nom}</TableCell>
                         <TableCell className="font-mono text-sm">
                           {fournisseur.matricule_fiscale || '-'}

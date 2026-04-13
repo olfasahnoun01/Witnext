@@ -7,19 +7,21 @@ interface CompressionOptions {
   maxWidth?: number;
   maxHeight?: number;
   quality?: number;
+  format?: 'image/jpeg' | 'image/webp' | 'image/png';
 }
 
 const DEFAULT_OPTIONS: CompressionOptions = {
-  maxWidth: 800,
-  maxHeight: 800,
-  quality: 1.0,
+  maxWidth: 2048,
+  maxHeight: 2048,
+  quality: 0.95,
+  format: 'image/webp',
 };
 
 /**
  * Compress an image file
  * @param file - The image file to compress
  * @param options - Compression options
- * @returns Promise<string> - Base64 encoded JPEG image
+ * @returns Promise<string> - Base64 encoded image
  */
 export async function compressImage(
   file: File,
@@ -61,7 +63,7 @@ export async function compressImage(
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, width, height);
 
-        const compressedBase64 = canvas.toDataURL('image/jpeg', 1.0);
+        const compressedBase64 = canvas.toDataURL(opts.format!, opts.quality);
         resolve(compressedBase64);
       };
 
@@ -123,7 +125,7 @@ export async function compressBase64Image(
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, width, height);
 
-      const compressedBase64 = canvas.toDataURL('image/jpeg', 1.0);
+      const compressedBase64 = canvas.toDataURL(opts.format!, opts.quality);
       resolve(compressedBase64);
     };
 
@@ -136,42 +138,46 @@ export async function compressBase64Image(
 }
 
 /**
- * Convert any file (image or PDF) to a JPEG Blob for storage upload.
- * PDFs are rendered (first page) then converted to JPEG.
+ * Convert any file (image or PDF) to a compressed Blob for storage upload.
+ * Default format is WebP at 95% quality.
  */
-export async function convertImageFileToJpeg(
+export async function convertFileToWebp(
   file: File,
   options: CompressionOptions = {}
 ): Promise<{ blob: Blob; ext: string }> {
-  const opts = { ...DEFAULT_OPTIONS, ...options, maxWidth: 5000, maxHeight: 5000 };
+  const opts = { ...DEFAULT_OPTIONS, ...options };
 
   if (file.type === 'application/pdf') {
-    return convertPdfToJpeg(file, opts);
+    return convertPdfToWebp(file, opts as any);
   }
 
-  return convertImageBlobToJpeg(file, opts);
+  return convertImageBlobToWebp(file, opts as any);
 }
 
-/** Keep old name as alias for backward compatibility */
-export const convertImageFileToWebp = convertImageFileToJpeg;
+/** Backward compatibility aliases */
+export const convertImageFileToWebp = convertFileToWebp;
+export const convertImageFileToJpeg = convertFileToWebp;
 
-/** Render first page of a PDF to a JPEG blob */
-async function convertPdfToJpeg(
+/** Render first page of a PDF to a WebP blob */
+async function convertPdfToWebp(
   file: File,
   opts: CompressionOptions & { maxWidth: number; maxHeight: number }
 ): Promise<{ blob: Blob; ext: string }> {
-  const blobs = await convertPdfAllPagesToJpeg(file, opts);
+  const blobs = await convertPdfAllPagesToWebp(file, opts);
   return blobs[0];
 }
 
+/** Render first page of a PDF to a JPEG blob (Alias) */
+export const convertPdfToJpeg = convertPdfToWebp;
+
 /**
- * Convert ALL pages of a PDF to JPEG blobs.
+ * Convert ALL pages of a PDF to WebP blobs.
  */
-export async function convertPdfAllPagesToJpeg(
+export async function convertPdfAllPagesToWebp(
   file: File,
   options: CompressionOptions = {}
 ): Promise<{ blob: Blob; ext: string }[]> {
-  const opts = { maxWidth: 5000, maxHeight: 5000, quality: 1.0, ...options };
+  const opts = { maxWidth: 2048, maxHeight: 2048, quality: 0.95, format: 'image/webp', ...options };
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
     'pdfjs-dist/build/pdf.worker.mjs',
@@ -220,26 +226,26 @@ export async function convertPdfAllPagesToJpeg(
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         (b) => {
-          if (!b) { reject(new Error('JPEG conversion failed')); return; }
+          if (!b) { reject(new Error('WebP conversion failed')); return; }
           resolve(b);
         },
-        'image/jpeg',
-        1.0
+        opts.format!,
+        opts.quality
       );
     });
-    results.push({ blob, ext: 'jpeg' });
+    results.push({ blob, ext: opts.format === 'image/webp' ? 'webp' : 'jpeg' });
   }
 
   return results;
 }
 
-/** Keep old name as alias for backward compatibility */
-export const convertPdfAllPagesToWebp = convertPdfAllPagesToJpeg;
+/** Alias for backward compatibility */
+export const convertPdfAllPagesToJpeg = convertPdfAllPagesToWebp;
 
-/** Convert an image file/blob to JPEG */
-function convertImageBlobToJpeg(
+/** Convert an image file/blob to WebP */
+function convertImageBlobToWebp(
   file: Blob,
-  opts: CompressionOptions & { maxWidth: number; maxHeight: number }
+  opts: CompressionOptions & { maxWidth: number; maxHeight: number; quality: number; format: string }
 ): Promise<{ blob: Blob; ext: string }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -270,11 +276,11 @@ function convertImageBlobToJpeg(
 
         canvas.toBlob(
           (blob) => {
-            if (!blob) { reject(new Error('JPEG conversion failed')); return; }
-            resolve({ blob, ext: 'jpeg' });
+            if (!blob) { reject(new Error('WebP conversion failed')); return; }
+            resolve({ blob, ext: opts.format === 'image/webp' ? 'webp' : 'jpeg' });
           },
-          'image/jpeg',
-          1.0
+          opts.format!,
+          opts.quality
         );
       };
       img.onerror = () => reject(new Error('Failed to load image'));

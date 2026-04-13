@@ -257,6 +257,11 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   doc.setTextColor(30, 58, 95);
   doc.text('GROSAFE ÉQUIPEMENT', 60, 20);
   
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 100, 100);
+  doc.text('RIB : 03 700 019 0115 008703 50', 60, 26);
+  
   // Horizontal line under header
   doc.setDrawColor(199, 62, 62);
   doc.setLineWidth(1);
@@ -370,7 +375,8 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
     },
     alternateRowStyles: {
       fillColor: [245, 247, 250]
-    }
+    },
+    margin: { left: 14, right: 14, bottom: 30 }
   });
   
   // Add total for documents with price
@@ -398,7 +404,7 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   doc.text(`Signature et cachet ${thirdPartyLabel}`, pageWidth - 92, finalY + 23);
   
   // Footer section
-  const footerY = pageHeight - 25;
+  const footerY = pageHeight - 10;
   
   doc.setDrawColor(199, 62, 62);
   doc.setLineWidth(0.5);
@@ -415,6 +421,7 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   doc.text('Email : contact@grosafe.net', 14, footerY + 10);
   doc.text('Tel : +216 22219219 ; +216 27277777', pageWidth / 2, footerY + 10, { align: 'center' });
   doc.text('Code TVA : 1752965/M/A/M', pageWidth - 14, footerY + 10, { align: 'right' });
+  
   
   if (options?.returnBlob) {
     return doc;
@@ -467,6 +474,8 @@ export interface DevisPDFData {
   total_amount: number;
   notes: string | null;
   is_ttc: boolean;
+  is_bc: boolean;
+  is_ba: boolean;
 }
 
 const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
@@ -488,13 +497,22 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   doc.setTextColor(100, 100, 100);
   doc.text('Sécurité & Équipement Professionnel', pageWidth - 14, 20, { align: 'right' });
 
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 58, 95);
+  doc.text('RIB : 03 700 019 0115 008703 50', pageWidth - 14, 27, { align: 'right' });
+
   // Blue separator
   doc.setDrawColor(30, 58, 95);
   doc.setLineWidth(1);
   doc.line(14, 32, pageWidth - 14, 32);
 
   // Title
-  const title = devis.type === 'sortant' ? 'OFFRE DE PRIX' : 'DEMANDE DE PRIX';
+  const title = devis.is_ba
+    ? "BON D'ACHAT"
+    : devis.is_bc 
+      ? 'BON DE COMMANDE' 
+      : (devis.type === 'sortant' ? 'OFFRE DE PRIX' : 'DEMANDE DE PRIX');
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 58, 95);
@@ -596,7 +614,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       6: { halign: 'right' },
     },
     alternateRowStyles: { fillColor: [245, 247, 250] },
-    margin: { left: 14, right: 14 }
+    margin: { left: 14, right: 14, bottom: 35 }
   });
 
   // Compute detailed totals using shared helper
@@ -625,58 +643,55 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     [isTTC ? 'Total TTC' : 'Total HT', `${(isTTC ? totalFinal : totalFinalHT).toFixed(3)} TND`],
   );
 
-  autoTable(doc, {
-    startY: tableEndY + 6,
-    margin: { left: pageWidth - 110 },
-    tableWidth: 96,
-    head: [],
-    body: totalsRows,
-    theme: 'plain',
-    styles: {
-      fontSize: 9,
-      cellPadding: { top: 3, bottom: 3, left: 5, right: 5 },
-      textColor: [40, 40, 40],
-    },
-    columnStyles: {
-      0: { halign: 'left', cellWidth: 40 },
-      1: { halign: 'right' },
-    },
-    didParseCell: (data) => {
-      const isLastRow = data.row.index === totalsRows.length - 1;
-      if (isLastRow) {
-        data.cell.styles.fillColor = [30, 58, 95];
-        data.cell.styles.textColor = [255, 255, 255];
-        data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.fontSize = 11;
-        data.cell.styles.cellPadding = { top: 4, bottom: 4, left: 5, right: 5 };
-      } else if (data.row.index % 2 === 0) {
-        data.cell.styles.fillColor = [248, 249, 252];
-      } else {
-        data.cell.styles.fillColor = [255, 255, 255];
-      }
-      // Bold for Net HT and final total rows
-      const label = String(totalsRows[data.row.index]?.[0] || '');
-      if (label === 'Net HT' || label === 'Total TTC' || label === 'Total HT') {
-        data.cell.styles.fontStyle = 'bold';
-      }
-    },
-    didDrawCell: (data) => {
-      const isLastRow = data.row.index === totalsRows.length - 1;
-      if (!isLastRow) {
-        doc.setDrawColor(200, 200, 200);
-        doc.setLineWidth(0.3);
-        const y = data.cell.y + data.cell.height;
-        if (data.column.index === 0) {
-          doc.line(data.cell.x, y, data.cell.x + data.cell.width, y);
-        } else {
-          doc.line(data.cell.x, y, data.cell.x + data.cell.width, y);
-        }
-      }
-    },
+  // Manual drawing of totals to guarantee right alignment
+  let ty = tableEndY + 12;
+  const tableWidth = 96;
+  const startX = pageWidth - tableWidth - 14;
+
+  // Calculate total height to check for page break
+  const totalTotalsHeight = (totalsRows.length - 1) * 8 + 10 + 12; // 12 is the margin top
+  
+  if (ty + totalTotalsHeight > pageHeight - 30) {
+    doc.addPage();
+    ty = 25; // Reset to top of new page
+  }
+
+  totalsRows.forEach((row, i) => {
+    const isLast = i === totalsRows.length - 1;
+    const label = String(row[0]);
+    const val = String(row[1]);
+    const rowHeight = isLast ? 10 : 8;
+    
+    // Background
+    if (isLast) {
+      doc.setFillColor(30, 58, 95);
+      doc.rect(startX, ty - 6, tableWidth, rowHeight, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+    } else {
+      if (i % 2 === 0) doc.setFillColor(248, 249, 252);
+      else doc.setFillColor(255, 255, 255);
+      doc.rect(startX, ty - 6, tableWidth, rowHeight, 'F');
+      doc.setTextColor(40, 40, 40);
+      doc.setFont('helvetica', label === 'Net HT' || label === 'Total TTC' || label === 'Total HT' ? 'bold' : 'normal');
+      doc.setFontSize(9);
+      
+      // Border bottom
+      doc.setDrawColor(230, 230, 230);
+      doc.setLineWidth(0.1);
+      doc.line(startX, ty - 6 + rowHeight, startX + tableWidth, ty - 6 + rowHeight);
+    }
+    
+    // Text
+    doc.text(label, startX + 5, ty);
+    doc.text(val, startX + tableWidth - 5, ty, { align: 'right' });
+    
+    ty += rowHeight;
   });
 
   // Footer
-  const footerY = pageHeight - 25;
+  const footerY = pageHeight - 10;
   doc.setDrawColor(199, 62, 62);
   doc.setLineWidth(0.5);
   doc.line(14, footerY - 10, pageWidth - 14, footerY - 10);
@@ -690,6 +705,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 100, 100);
   doc.text('Cette offre est valable 30 jours à compter de la date d\'émission.', pageWidth / 2, footerY + 2, { align: 'center' });
+
 
   return doc;
 };

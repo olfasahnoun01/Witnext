@@ -111,6 +111,7 @@ export type Database = {
       }
       clients: {
         Row: {
+          code: string | null
           created_at: string
           email: string | null
           id: number
@@ -119,9 +120,11 @@ export type Database = {
           nom: string
           patente_url: string | null
           phone: string | null
+          registre_commerce_url: string | null
           updated_at: string
         }
         Insert: {
+          code?: string | null
           created_at?: string
           email?: string | null
           id?: number
@@ -130,9 +133,11 @@ export type Database = {
           nom: string
           patente_url?: string | null
           phone?: string | null
+          registre_commerce_url?: string | null
           updated_at?: string
         }
         Update: {
+          code?: string | null
           created_at?: string
           email?: string | null
           id?: number
@@ -141,6 +146,7 @@ export type Database = {
           nom?: string
           patente_url?: string | null
           phone?: string | null
+          registre_commerce_url?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -307,32 +313,38 @@ export type Database = {
       }
       fournisseurs: {
         Row: {
+          code: string | null
           created_at: string
           id: number
           location: string | null
           matricule_fiscale: string | null
           nom: string
           phone: string | null
+          registre_commerce_url: string | null
           specialite: string
           updated_at: string
         }
         Insert: {
+          code?: string | null
           created_at?: string
           id?: number
           location?: string | null
           matricule_fiscale?: string | null
           nom: string
           phone?: string | null
+          registre_commerce_url?: string | null
           specialite: string
           updated_at?: string
         }
         Update: {
+          code?: string | null
           created_at?: string
           id?: number
           location?: string | null
           matricule_fiscale?: string | null
           nom?: string
           phone?: string | null
+          registre_commerce_url?: string | null
           specialite?: string
           updated_at?: string
         }

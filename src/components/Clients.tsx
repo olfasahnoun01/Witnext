@@ -31,15 +31,18 @@ import { toast } from 'sonner';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useAuth } from '@/hooks/useAuth';
+import { convertFileToWebp } from '@/lib/imageCompression';
 
 interface Client {
   id: number;
+  code: string;
   nom: string;
   matricule_fiscale: string | null;
   location: string | null;
   phone: string | null;
   email: string | null;
   patente_url?: string | null;
+  registre_commerce_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -50,7 +53,8 @@ const isClientIncomplete = (client: Client) => {
   return !client.matricule_fiscale?.trim() || 
          !client.phone?.trim() || 
          !client.email?.trim() || 
-         !client.location?.trim();
+         !client.location?.trim() ||
+         !client.code?.trim();
 };
 
 export const Clients = memo(() => {
@@ -65,6 +69,7 @@ export const Clients = memo(() => {
   
   // Form state
   const [nom, setNom] = useState('');
+  const [code, setCode] = useState('');
   const [matriculeFiscale, setMatriculeFiscale] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -72,11 +77,16 @@ export const Clients = memo(() => {
   const [selectedCity, setSelectedCity] = useState('');
   const [exactLocation, setExactLocation] = useState('');
   const [patenteUrl, setPatenteUrl] = useState<string | null>(null); // Stores path in DB
+  const [rcUrl, setRcUrl] = useState<string | null>(null); // Stores path in DB
   const [previewUrl, setPreviewUrl] = useState<string | null>(null); // Stores signed URL for UI
+  const [rcPreviewUrl, setRcPreviewUrl] = useState<string | null>(null); // Stores signed URL for UI
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingRC, setIsUploadingRC] = useState(false);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
+  const [storageErrorRC, setStorageErrorRC] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const rcFileInputRef = useRef<HTMLInputElement>(null);
   
   // Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -92,7 +102,7 @@ export const Clients = memo(() => {
       toast.error('Erreur lors du chargement des clients');
       console.error(error);
     } else {
-      setClients(data || []);
+      setClients((data as any) || []);
     }
     setLoading(false);
   }, []);
@@ -103,6 +113,7 @@ export const Clients = memo(() => {
 
   const resetForm = useCallback(() => {
     setNom('');
+    setCode('');
     setMatriculeFiscale('');
     setPhone('');
     setEmail('');
@@ -110,8 +121,12 @@ export const Clients = memo(() => {
     setSelectedCity('');
     setExactLocation('');
     setPatenteUrl(null);
+    setRcUrl(null);
     setPreviewUrl(null);
+    setRcPreviewUrl(null);
     setEditingClient(null);
+    setStorageError(null);
+    setStorageErrorRC(null);
   }, []);
 
   // Get cities for selected governorate
@@ -133,15 +148,18 @@ export const Clients = memo(() => {
     setIsUploading(true);
     setStorageError(null);
     try {
-      const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+      // Step 1: Convert to WebP (95% quality)
+      const { blob, ext } = await convertFileToWebp(file, { quality: 0.95 });
+      
+      const fileName = `${Date.now()}_${file.name.split('.')[0].replace(/\s+/g, '_')}.${ext}`;
       const filePath = `client_patentes/${fileName}`;
       
       let { error: uploadError } = await supabase.storage
         .from('patentes_client')
-        .upload(filePath, file);
+        .upload(filePath, blob);
 
       // Self-healing attempt: if bucket is missing, try to create it
-      if (uploadError && (uploadError as any).status === 400 || (uploadError as any).message?.includes('not found')) {
+      if (uploadError && ((uploadError as any).status === 400 || (uploadError as any).message?.includes('not found'))) {
         console.log("Attempting to create missing bucket 'patentes_client'...");
         const { error: createError } = await supabase.storage.createBucket('patentes_client', { public: false });
         
@@ -149,7 +167,7 @@ export const Clients = memo(() => {
           // Retry upload if creation succeeded
           const { error: retryError } = await supabase.storage
             .from('patentes_client')
-            .upload(filePath, file);
+            .upload(filePath, blob);
           uploadError = retryError;
         } else {
           // If creation failed (permissions), set storage error to show help UI
@@ -174,7 +192,60 @@ export const Clients = memo(() => {
     }
   };
 
-  const handleViewPatente = async (path: string) => {
+  const handleRCFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Le fichier est trop volumineux (max 5Mo)');
+      return;
+    }
+
+    setIsUploadingRC(true);
+    setStorageErrorRC(null);
+    try {
+      // Step 1: Convert to WebP (95% quality)
+      const { blob, ext } = await convertFileToWebp(file, { quality: 0.95 });
+      
+      const fileName = `${Date.now()}_RC_${file.name.split('.')[0].replace(/\s+/g, '_')}.${ext}`;
+      const filePath = `registre_commerce/${fileName}`;
+      
+      let { error: uploadError } = await supabase.storage
+        .from('registre_commerce_client')
+        .upload(filePath, blob);
+
+      // Self-healing attempt: if bucket is missing, try to create it
+      if (uploadError && ((uploadError as any).status === 400 || (uploadError as any).message?.includes('not found'))) {
+        console.log("Attempting to create missing bucket 'registre_commerce_client'...");
+        const { error: createError } = await supabase.storage.createBucket('registre_commerce_client', { public: false });
+        
+        if (!createError) {
+          const { error: retryError } = await supabase.storage
+            .from('registre_commerce_client')
+            .upload(filePath, blob);
+          uploadError = retryError;
+        } else {
+          setStorageErrorRC('BUCKET_NOT_FOUND');
+          throw uploadError;
+        }
+      }
+
+      if (uploadError) throw uploadError;
+
+      setRcUrl(filePath);
+      toast.success('Registre de Commerce téléchargé');
+    } catch (error: any) {
+      console.error('Error uploading RC:', error);
+      if (error.message?.includes('not found') || error.status === 400) {
+        setStorageErrorRC('BUCKET_NOT_FOUND');
+      }
+      toast.error('Erreur lors du téléchargement');
+    } finally {
+      setIsUploadingRC(false);
+    }
+  };
+
+  const handleViewDocument = async (path: string, bucket: string = 'patentes_client') => {
     if (!path) return;
     
     // Support legacy full URLs if any
@@ -186,7 +257,7 @@ export const Clients = memo(() => {
     setIsGeneratingLink(true);
     try {
       const { data, error } = await supabase.storage
-        .from('patentes_client')
+        .from(bucket)
         .createSignedUrl(path, 60); // Link valid for 60 seconds
 
       if (error) throw error;
@@ -194,16 +265,17 @@ export const Clients = memo(() => {
         window.open(data.signedUrl, '_blank');
       }
     } catch (error) {
-      console.error('Error creating signed URL:', error);
+      console.error(`Error creating signed URL for ${bucket}:`, error);
       toast.error('Impossible d\'ouvrir le document');
     } finally {
       setIsGeneratingLink(false);
     }
   };
 
-  // Resolve path to preview URL for the modal
+  // Resolve paths to preview URLs for the modal
   useEffect(() => {
-    const fetchPreview = async () => {
+    const fetchPreviews = async () => {
+      // Patente Preview
       if (patenteUrl && !patenteUrl.startsWith('http')) {
         const { data, error } = await supabase.storage
           .from('patentes_client')
@@ -214,10 +286,22 @@ export const Clients = memo(() => {
       } else {
         setPreviewUrl(patenteUrl);
       }
+
+      // RC Preview
+      if (rcUrl && !rcUrl.startsWith('http')) {
+        const { data, error } = await supabase.storage
+          .from('registre_commerce_client')
+          .createSignedUrl(rcUrl, 3600);
+        if (!error && data) {
+          setRcPreviewUrl(data.signedUrl);
+        }
+      } else {
+        setRcPreviewUrl(rcUrl);
+      }
     };
-    if (patenteUrl) fetchPreview();
-    else setPreviewUrl(null);
-  }, [patenteUrl]);
+    
+    fetchPreviews();
+  }, [patenteUrl, rcUrl]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -227,12 +311,9 @@ export const Clients = memo(() => {
       return;
     }
 
-    // Build location string: "Exact Address, City, Governorate" or parts thereof
-    let locationParts: string[] = [];
-    if (exactLocation.trim()) locationParts.push(exactLocation.trim());
-    if (selectedCity) locationParts.push(selectedCity);
-    if (selectedGovernorate) locationParts.push(selectedGovernorate);
-    const locationValue = locationParts.join(', ');
+    // Build location string defensively
+    const locationParts = [exactLocation.trim(), selectedCity, selectedGovernorate].filter(Boolean);
+    const locationValue = locationParts.length > 0 ? locationParts.join(', ') : null;
 
     const clientData = {
       nom: nom.trim(),
@@ -240,7 +321,8 @@ export const Clients = memo(() => {
       phone: phone.trim(),
       email: email.trim(),
       location: locationValue,
-      patente_url: patenteUrl
+      patente_url: patenteUrl,
+      registre_commerce_url: rcUrl
     };
 
     if (editingClient) {
@@ -273,15 +355,17 @@ export const Clients = memo(() => {
         loadClients();
       }
     }
-  }, [nom, selectedCity, selectedGovernorate, exactLocation, matriculeFiscale, phone, email, editingClient, resetForm, loadClients]);
+  }, [nom, selectedCity, selectedGovernorate, exactLocation, matriculeFiscale, phone, email, patenteUrl, rcUrl, editingClient, resetForm, loadClients]);
 
   const handleEdit = useCallback((client: Client) => {
     setEditingClient(client);
     setNom(client.nom);
+    setCode(client.code || '');
     setMatriculeFiscale(client.matricule_fiscale || '');
     setPhone(client.phone || '');
     setEmail(client.email || '');
     setPatenteUrl(client.patente_url);
+    setRcUrl(client.registre_commerce_url);
     
     // Parse location back to exact address, city, and governorate
     if (client.location) {
@@ -414,7 +498,7 @@ export const Clients = memo(() => {
                   Ajouter Client
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
                     {editingClient ? 'Modifier le Client' : 'Nouveau Client'}
@@ -432,7 +516,7 @@ export const Clients = memo(() => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="matricule">Matricule Fiscale</Label>
+                    <Label htmlFor="matricule">Matricule Fiscale *</Label>
                     <Input
                       id="matricule"
                       value={matriculeFiscale}
@@ -441,7 +525,7 @@ export const Clients = memo(() => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Téléphone / Fix</Label>
+                    <Label htmlFor="phone">Téléphone / Fix *</Label>
                     <Input
                       id="phone"
                       value={phone}
@@ -450,7 +534,7 @@ export const Clients = memo(() => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">Email *</Label>
                     <Input
                       id="email"
                       type="email"
@@ -461,7 +545,7 @@ export const Clients = memo(() => {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label>Gouvernorat</Label>
+                      <Label>Gouvernorat *</Label>
                       <Select 
                         value={selectedGovernorate} 
                         onValueChange={(val) => {
@@ -482,7 +566,7 @@ export const Clients = memo(() => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Ville</Label>
+                      <Label>Ville *</Label>
                       <Select 
                         value={selectedCity} 
                         onValueChange={setSelectedCity}
@@ -502,7 +586,7 @@ export const Clients = memo(() => {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="exactLocation">Adresse Exacte</Label>
+                    <Label htmlFor="exactLocation">Adresse Exacte *</Label>
                     <Input
                       id="exactLocation"
                       value={exactLocation}
@@ -596,6 +680,91 @@ export const Clients = memo(() => {
                         <p className="text-xs text-muted-foreground">JPG, PNG (max 5Mo)</p>
                       </div>
                     </div>
+
+                    {/* Registre de Commerce Upload */}
+                    <Label className="text-base font-semibold pt-4 border-t block">Registre de Commerce</Label>
+                    
+                    {storageErrorRC === 'BUCKET_NOT_FOUND' && (
+                      <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 space-y-3">
+                        <div className="flex items-start gap-2 text-amber-800">
+                          <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
+                          <div className="text-sm">
+                            <p className="font-bold">Configuration du stockage requise (RC)</p>
+                            <p>Le dossier "registre_commerce_client" n'existe pas.</p>
+                          </div>
+                        </div>
+                        <div className="bg-white p-2 rounded border font-mono text-xs overflow-x-auto">
+                          {`INSERT INTO storage.buckets (id, name, public) VALUES ('registre_commerce_client', 'registre_commerce_client', false);`}
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full gap-2 border-amber-300 text-amber-800 hover:bg-amber-100"
+                          onClick={() => {
+                            const sql = "INSERT INTO storage.buckets (id, name, public) VALUES ('registre_commerce_client', 'registre_commerce_client', false);\n\nCREATE POLICY \"Lecture sécurisée RC\" ON storage.objects FOR SELECT USING (bucket_id = 'registre_commerce_client' AND auth.uid() IS NOT NULL);\n\nCREATE POLICY \"Upload RC\" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'registre_commerce_client' AND auth.uid() IS NOT NULL);";
+                            navigator.clipboard.writeText(sql);
+                            toast.success('SQL copié !');
+                            window.open('https://supabase.com/dashboard/project/lptoakdzyuhkfvslgpsw/sql/new', '_blank');
+                          }}
+                        >
+                          Copier le SQL et ouvrir Supabase
+                        </Button>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-4">
+                      {rcUrl ? (
+                        <div className="relative group w-20 h-20 rounded-lg border overflow-hidden">
+                          {rcPreviewUrl ? (
+                            <img src={rcPreviewUrl} alt="RC preview" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-muted flex items-center justify-center">
+                              <FileText className="w-6 h-6 text-muted-foreground animate-pulse" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="text-white hover:text-destructive"
+                              onClick={() => {
+                                setRcUrl(null);
+                                setRcPreviewUrl(null);
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-20 h-20 border-dashed"
+                          onClick={() => rcFileInputRef.current?.click()}
+                          disabled={isUploadingRC}
+                        >
+                          {isUploadingRC ? (
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
+                          ) : (
+                            <Upload className="w-6 h-6 text-muted-foreground" />
+                          )}
+                        </Button>
+                      )}
+                      <input
+                        ref={rcFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleRCFileChange}
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Upload Registre de Commerce</p>
+                        <p className="text-xs text-muted-foreground">JPG, PNG (max 5Mo)</p>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex justify-end gap-2 pt-4">
@@ -645,45 +814,37 @@ export const Clients = memo(() => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead>Nom Client</TableHead>
+                      <TableHead className="w-[100px]">Code</TableHead>
+                      <TableHead>Nom (Société)</TableHead>
                       <TableHead>Matricule Fiscale</TableHead>
                       <TableHead>Téléphone</TableHead>
-                      <TableHead>Email</TableHead>
                       <TableHead>Localisation</TableHead>
                       <TableHead>Patente</TableHead>
+                      <TableHead>R.C.</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedClients.map((client) => (
                       <TableRow key={client.id}>
-                        <TableCell className="font-medium">{client.nom}</TableCell>
-                        <TableCell className="font-mono text-sm">
+                        <TableCell className="font-mono text-xs font-bold text-muted-foreground whitespace-nowrap">
+                          {client.code}
+                        </TableCell>
+                        <TableCell className="font-medium text-primary">{client.nom}</TableCell>
+                        <TableCell className="font-mono text-xs">
                           {client.matricule_fiscale || '-'}
                         </TableCell>
                         <TableCell>
-                          {client.phone ? (
-                            <span className="flex items-center gap-1">
-                              <Phone className="w-3 h-3" />
-                              {client.phone}
-                            </span>
-                          ) : '-'}
+                          <span className="flex items-center gap-1.5 text-xs">
+                            <Phone className="w-3.5 h-3.5 text-muted-foreground" />
+                            {client.phone || '-'}
+                          </span>
                         </TableCell>
                         <TableCell>
-                          {client.email ? (
-                            <span className="flex items-center gap-1">
-                              <Mail className="w-3 h-3" />
-                              {client.email}
-                            </span>
-                          ) : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {client.location ? (
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              {client.location}
-                            </span>
-                          ) : '-'}
+                          <span className="flex items-center gap-1.5 text-xs">
+                            <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                            {client.location || '-'}
+                          </span>
                         </TableCell>
                         <TableCell>
                           {client.patente_url ? (
@@ -692,13 +853,29 @@ export const Clients = memo(() => {
                               size="sm" 
                               className="h-8 gap-1.5"
                               disabled={isGeneratingLink}
-                              onClick={() => handleViewPatente(client.patente_url!)}
+                              onClick={() => handleViewDocument(client.patente_url!, 'patentes_client')}
                             >
                               <FileText className="w-3.5 h-3.5" />
                               Voir
                             </Button>
                           ) : (
                             <span className="text-xs text-muted-foreground italic">Aucune</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {client.registre_commerce_url ? (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="h-8 gap-1.5"
+                              disabled={isGeneratingLink}
+                              onClick={() => handleViewDocument(client.registre_commerce_url!, 'registre_commerce_client')}
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              Voir
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">Aucun</span>
                           )}
                         </TableCell>
                         <TableCell className="text-right">

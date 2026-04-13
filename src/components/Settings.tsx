@@ -12,6 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { UserManagement } from './UserManagement';
 import { APP_VERSION, BUILD_DATE_FORMATTED } from '@/lib/version';
+import { supabase } from '@/integrations/supabase/client';
+import { Megaphone } from 'lucide-react';
 
 export const Settings = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -19,6 +21,7 @@ export const Settings = () => {
   const { isAdmin } = useAuth();
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -83,6 +86,33 @@ export const Settings = () => {
     
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const publishUpdateVersion = async () => {
+    setIsPublishing(true);
+    try {
+      const newVersion = `v${Date.now()}`;
+      const { error } = await supabase
+        .from('app_config')
+        .update({ value: newVersion, updated_at: new Date().toISOString() })
+        .eq('key', 'update_alert_version');
+
+      if (error) throw error;
+
+      toast({
+        title: "Version publiée",
+        description: "Tous les utilisateurs verront le rappel de mise à jour au prochain chargement."
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Impossible de publier la nouvelle version"
+      });
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -158,6 +188,35 @@ export const Settings = () => {
           </div>
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="bg-card rounded-xl border border-border p-6 border-l-4 border-l-primary">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-3 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Megaphone className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">Notifications de Mise à jour</h2>
+              <p className="text-sm text-muted-foreground">Forcer l'apparition du rappel d'actualisation (CTRL+F5) pour tous les utilisateurs</p>
+            </div>
+          </div>
+
+          <div className="bg-muted/50 p-4 rounded-lg flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Déclencher un rappel global</p>
+              <p className="text-xs text-muted-foreground">À utiliser après une mise à jour importante du code pour s'assurer que tout le monde recharge son cache.</p>
+            </div>
+            <Button 
+              onClick={publishUpdateVersion}
+              disabled={isPublishing}
+              className="whitespace-nowrap shadow-lg shadow-primary/20"
+            >
+              <Megaphone className="w-4 h-4 mr-2" />
+              {isPublishing ? 'Publication...' : 'Publier une nouvelle version'}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Storage Info */}
       <div className="bg-card rounded-xl border border-border p-6">

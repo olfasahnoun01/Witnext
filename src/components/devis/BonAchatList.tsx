@@ -1,8 +1,8 @@
 import { memo, useMemo, useState, useCallback } from 'react';
-import { FileText, Trash2, Download, Eye, Loader2, Search, X, FilePlus, Plus, Edit, Pencil } from 'lucide-react';
+import { FileSignature, Trash2, Download, Eye, Loader2, Search, X, Plus, Edit, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { BonCommande } from '@/types';
+import { Devis } from '@/types';
 import { computeDevisTotals } from '@/lib/devisPricing';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
 import {
@@ -13,74 +13,73 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 
-interface BonCommandeListProps {
-  bonsCommande: BonCommande[];
+interface BonAchatListProps {
+  bonsAchat: Devis[];
   currentUserId: string | null;
   isAdminOrMod: boolean;
-  onEdit: (bc: BonCommande) => void;
-  onDelete: (bc: BonCommande) => void;
-  onConvertToBA: (bc: BonCommande) => void;
+  onDelete: (ba: Devis) => void;
   onAdd: () => void;
+  onEdit: (ba: Devis) => void;
 }
 
 const ITEMS_PER_PAGE = 10;
 
-export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBA, onAdd }: BonCommandeListProps) => {
+export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDelete, onAdd, onEdit }: BonAchatListProps) => {
   const [currentPage, setCurrentPage] = useState(1);
-  const [deleteConfirm, setDeleteConfirm] = useState<BonCommande | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Devis | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState('');
   const [isGenerating, setIsGenerating] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredBC = useMemo(() => {
-    if (!searchTerm.trim()) return bonsCommande;
+  const filteredBA = useMemo(() => {
+    if (!searchTerm.trim()) return bonsAchat;
     const term = searchTerm.toLowerCase().trim();
-    return bonsCommande.filter(bc =>
-      bc.devis_number.toLowerCase().includes(term) ||
-      bc.third_party_name?.toLowerCase().includes(term) ||
-      bc.items.some(item => item.designation.toLowerCase().includes(term))
+    return bonsAchat.filter(ba =>
+      ba.devis_number.toLowerCase().includes(term) ||
+      ba.third_party_name?.toLowerCase().includes(term) ||
+      ba.items.some(item => item.designation.toLowerCase().includes(term))
     );
-  }, [bonsCommande, searchTerm]);
+  }, [bonsAchat, searchTerm]);
 
-  const paginatedBC = useMemo(() => {
+  const paginatedBA = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredBC.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredBC, currentPage]);
+    return filteredBA.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredBA, currentPage]);
 
-  const totalPages = Math.ceil(filteredBC.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(filteredBA.length / ITEMS_PER_PAGE);
 
-  const toBCPDFData = (bc: BonCommande): DevisPDFData => ({
-    devis_number: bc.devis_number,
-    devis_date: bc.devis_date,
-    type: bc.type,
-    third_party_name: bc.third_party_name,
-    third_party_address: bc.third_party_address,
-    third_party_tax_id: bc.third_party_tax_id,
-    third_party_phone: bc.third_party_phone,
-    items: bc.items,
-    total_amount: bc.total_amount,
-    notes: bc.notes,
-    is_ttc: bc.is_ttc,
-    is_bc: bc.is_bc,
-    is_ba: bc.is_ba || false,
+  const toBAPDFData = (ba: Devis): DevisPDFData => ({
+    devis_number: ba.devis_number,
+    devis_date: ba.devis_date,
+    type: ba.type,
+    third_party_name: ba.third_party_name,
+    third_party_address: ba.third_party_address,
+    third_party_tax_id: ba.third_party_tax_id,
+    third_party_phone: ba.third_party_phone,
+    items: ba.items,
+    total_amount: ba.total_amount,
+    notes: ba.notes,
+    is_ttc: ba.is_ttc,
+    is_bc: ba.is_bc,
+    is_ba: ba.is_ba,
   });
 
-  const handlePreview = useCallback(async (bc: BonCommande) => {
-    setIsGenerating(bc.id);
+  const handlePreview = useCallback(async (ba: Devis) => {
+    setIsGenerating(ba.id);
     try {
-      const url = await getDevisPDFBlobUrl(toBCPDFData(bc));
-      setPreviewTitle(`BC ${bc.devis_number}`);
+      const url = await getDevisPDFBlobUrl(toBAPDFData(ba));
+      setPreviewTitle(`BA ${ba.devis_number}`);
       setPreviewUrl(url);
     } finally {
       setIsGenerating(null);
     }
   }, []);
 
-  const handleDownload = useCallback(async (bc: BonCommande) => {
-    setIsGenerating(bc.id);
+  const handleDownload = useCallback(async (ba: Devis) => {
+    setIsGenerating(ba.id);
     try {
-      await downloadDevisPDF(toBCPDFData(bc));
+      await downloadDevisPDF(toBAPDFData(ba));
     } finally {
       setIsGenerating(null);
     }
@@ -92,13 +91,13 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
     setPreviewTitle('');
   }, [previewUrl]);
 
-  if (bonsCommande.length === 0) {
+  if (bonsAchat.length === 0) {
     return (
       <div className="bg-card rounded-xl border border-border p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-6">Mes Bons de Commande</h3>
+        <h3 className="text-lg font-semibold text-foreground mb-6">Mes Bons d'Achat</h3>
         <div className="text-center py-12">
-          <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-          <p className="text-sm text-muted-foreground">Aucun bon de commande. Convertissez un devis depuis l'onglet "Mes Devis".</p>
+          <FileSignature className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+          <p className="text-sm text-muted-foreground">Aucun bon d'achat. Convertissez un bon de commande depuis l'onglet "Mes BC".</p>
         </div>
       </div>
     );
@@ -109,10 +108,10 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-4">
-            <h3 className="text-lg font-semibold text-foreground">Mes Bons de Commande</h3>
+            <h3 className="text-lg font-semibold text-foreground">Mes Bons d'Achat</h3>
             <Button onClick={onAdd} size="sm" className="h-8 gap-2">
               <Plus className="w-4 h-4" />
-              Ajouter BC
+              Ajouter BA
             </Button>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -130,7 +129,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                 </button>
               )}
             </div>
-            <span className="text-sm text-muted-foreground whitespace-nowrap">{filteredBC.length} BC</span>
+            <span className="text-sm text-muted-foreground whitespace-nowrap">{filteredBA.length} BA</span>
           </div>
         </div>
 
@@ -139,8 +138,8 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Type</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">N° BC</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Devis Source</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">N° BA</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">BC Source</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Tiers</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Créé par</th>
@@ -151,38 +150,38 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
               </tr>
             </thead>
             <tbody>
-              {paginatedBC.map(bc => {
-                const totalQty = bc.items.reduce((s, i) => s + i.quantity, 0);
-                const generating = isGenerating === bc.id;
+              {paginatedBA.map(ba => {
+                const totalQty = ba.items.reduce((s, i) => s + i.quantity, 0);
+                const generating = isGenerating === ba.id;
                 return (
-                  <tr key={bc.id} className="border-b border-border/50 hover:bg-muted/30">
+                  <tr key={ba.id} className="border-b border-border/50 hover:bg-muted/30">
                     <td className="py-3 px-4">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        bc.type === 'entrant' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
+                        ba.type === 'entrant' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
                       }`}>
-                        {bc.type === 'entrant' ? '📥 Entrant' : '📤 Sortant'}
+                        {ba.type === 'entrant' ? '📥 Entrant' : '📤 Sortant'}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-sm font-medium text-foreground">{bc.devis_number}</td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground">{bc.source_devis_number || '-'}</td>
+                    <td className="py-3 px-4 text-sm font-medium text-foreground">{ba.devis_number}</td>
+                    <td className="py-3 px-4 text-sm text-muted-foreground">{ba.source_devis_number || '-'}</td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">
-                      {new Date(bc.devis_date).toLocaleDateString('fr-FR')}
+                      {new Date(ba.devis_date).toLocaleDateString('fr-FR')}
                     </td>
-                    <td className="py-3 px-4 text-sm text-foreground">{bc.third_party_name || '-'}</td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground">{bc.creator_name || '-'}</td>
+                    <td className="py-3 px-4 text-sm text-foreground">{ba.third_party_name || '-'}</td>
+                    <td className="py-3 px-4 text-sm text-muted-foreground">{ba.creator_name || '-'}</td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">
-                      {bc.items.length} articles ({totalQty} unités)
+                      {ba.items.length} articles ({totalQty} unités)
                     </td>
                     <td className="py-3 px-4 text-sm font-medium text-foreground">
                       {(() => {
-                        const totals = computeDevisTotals(bc.items, false);
+                        const totals = computeDevisTotals(ba.items, false);
                         return totals.totalFinal > 1 ? `${totals.totalFinal.toFixed(3)} TND` : '-';
                       })()}
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => handlePreview(bc)}
+                          onClick={() => handlePreview(ba)}
                           disabled={generating}
                           className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
                           title="Prévisualiser PDF"
@@ -190,7 +189,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                           {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
                         </button>
                         <button
-                          onClick={() => handleDownload(bc)}
+                          onClick={() => handleDownload(ba)}
                           disabled={generating}
                           className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
                           title="Télécharger PDF"
@@ -202,7 +201,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => onEdit(bc)}
+                          onClick={() => onEdit(ba)}
                           className="flex items-center gap-1 px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                           title="Modifier"
                         >
@@ -210,15 +209,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                           <span className="text-xs font-medium">Modif</span>
                         </button>
                         <button
-                          onClick={() => onConvertToBA(bc)}
-                          className="flex items-center gap-1 px-2 py-1 rounded bg-success/10 text-success hover:bg-success/20 transition-colors"
-                          title="Créer BA"
-                        >
-                          <FilePlus className="w-3.5 h-3.5" />
-                          <span className="text-xs font-medium">BA</span>
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirm(bc)}
+                          onClick={() => setDeleteConfirm(ba)}
                           className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                           title="Supprimer"
                         >
@@ -252,9 +243,9 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
       <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce bon de commande ?</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer ce bon d'achat ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Le BC {deleteConfirm?.devis_number} sera supprimé définitivement.
+              Le BA {deleteConfirm?.devis_number} sera supprimé définitivement.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -274,7 +265,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
             <DialogTitle>{previewTitle}</DialogTitle>
           </DialogHeader>
           {previewUrl && (
-            <iframe src={previewUrl} className="w-full h-[75vh] border rounded" title="Aperçu BC" />
+            <iframe src={previewUrl} className="w-full h-[75vh] border rounded" title="Aperçu BA" />
           )}
         </DialogContent>
       </Dialog>
@@ -282,4 +273,4 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
   );
 });
 
-BonCommandeList.displayName = 'BonCommandeList';
+BonAchatList.displayName = 'BonAchatList';

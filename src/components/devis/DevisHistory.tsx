@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, useCallback, useEffect } from 'react';
-import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText } from 'lucide-react';
+import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus } from 'lucide-react';
 import { EchantillonModal } from './EchantillonModal';
 import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
@@ -26,6 +26,7 @@ interface DevisHistoryProps {
   onEdit: (d: Devis) => void;
   onDelete: (d: Devis) => void;
   onConvertToBC?: (d: Devis) => void;
+  onAdd: () => void;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -43,9 +44,10 @@ const toDevisPDFData = (d: Devis): DevisPDFData => ({
   total_amount: d.total_amount,
   notes: d.notes,
   is_ttc: d.is_ttc,
+  is_bc: d.is_bc,
 });
 
-export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBC }: DevisHistoryProps) => {
+export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBC, onAdd }: DevisHistoryProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<Devis | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -160,7 +162,13 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     <>
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
-          <h3 className="text-lg font-semibold text-foreground">Mes Devis</h3>
+          <div className="flex items-center gap-4">
+            <h3 className="text-lg font-semibold text-foreground">Mes Devis</h3>
+            <Button onClick={onAdd} size="sm" className="h-8 gap-2">
+              <Plus className="w-4 h-4" />
+              Ajouter Devis
+            </Button>
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
