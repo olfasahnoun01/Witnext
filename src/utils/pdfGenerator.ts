@@ -346,7 +346,8 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   
   const emptyRow = showPrice ? ['', '', '', '', '', ''] : ['', '', '', ''];
   
-  const table = autoTable(doc, {
+  let officialTableEndY = 150;
+  autoTable(doc, {
     startY: 135,
     head: tableHead,
     body: tableData.length > 0 ? tableData : [emptyRow],
@@ -377,21 +378,23 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
     alternateRowStyles: {
       fillColor: [245, 247, 250]
     },
-    margin: { left: 14, right: 14, bottom: 30 }
+    margin: { left: 14, right: 14, bottom: 30 },
+    didDrawPage: (data) => {
+      officialTableEndY = data.cursor?.y || officialTableEndY;
+    }
   });
   
   // Add total for documents with price
   if (showPrice && docItems.length > 0) {
     const grandTotal = docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
-    const tableY = table.finalY || 150;
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 58, 95);
-    doc.text(`Total Général : ${grandTotal.toFixed(3)} TND`, pageWidth - 14, tableY + 8, { align: 'right' });
+    doc.text(`Total Général : ${grandTotal.toFixed(3)} TND`, pageWidth - 14, officialTableEndY + 8, { align: 'right' });
   }
   
   // Signature boxes
-  const finalY = Math.max(table.finalY || 150, 180);
+  const finalY = Math.max(officialTableEndY, 180);
   
   doc.setDrawColor(30, 58, 95);
   doc.setLineWidth(0.5);
@@ -583,7 +586,8 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     ? ['#', 'Désignation', 'Prix U HT', 'Remise', 'Net U HT', 'TVA', 'Qté', sousTotalLabel]
     : ['#', 'Désignation', 'Prix U HT', 'Remise', 'Net U HT', 'Qté', sousTotalLabel];
 
-  const table = autoTable(doc, {
+  let devisTableEndY = 120;
+  autoTable(doc, {
     startY: 96,
     head: [headRow],
     body: tableData.length > 0 ? tableData : [headRow.map(() => '')],
@@ -615,14 +619,17 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       6: { halign: 'right' },
     },
     alternateRowStyles: { fillColor: [245, 247, 250] },
-    margin: { left: 14, right: 14, bottom: 35 }
+    margin: { left: 14, right: 14, bottom: 35 },
+    didDrawPage: (data) => {
+      devisTableEndY = data.cursor?.y || devisTableEndY;
+    }
   });
 
   // Compute detailed totals using shared helper
   const totals = computeDevisTotals(devis.items, isSortantTTC);
   const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
 
-  const tableEndY = table.finalY || 120;
+  const tableEndY = devisTableEndY;
   const totalFinal = totalTTC + 1;
   const totalFinalHT = totalNet + 1;
 
