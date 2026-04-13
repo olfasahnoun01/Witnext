@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { autoTable } from 'jspdf-autotable';
 import { Product, DocumentItem } from '@/types';
 import { computeDevisLine, computeDevisTotals } from '@/lib/devisPricing';
 import grosafeLogo from '@/assets/grosafe-logo.webp';
@@ -116,7 +116,7 @@ export const generateInventoryPDF = (products: Product[], filterName?: string) =
       ];
     });
     
-    autoTable(doc, {
+    const table = autoTable(doc, {
       startY: startY + 4,
       head: [['Code', 'Désignation', 'Taille', 'Fournisseur', 'Qté', 'Remise', 'Net HT', 'Total']],
       body: tableData,
@@ -137,7 +137,7 @@ export const generateInventoryPDF = (products: Product[], filterName?: string) =
     });
     
     // Category subtotal
-    const tableEndY = (doc as any).lastAutoTable.finalY || startY + 20;
+    const tableEndY = table.finalY || startY + 20;
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(100, 100, 100);
@@ -345,7 +345,7 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   
   const emptyRow = showPrice ? ['', '', '', '', '', ''] : ['', '', '', ''];
   
-  autoTable(doc, {
+  const table = autoTable(doc, {
     startY: 135,
     head: tableHead,
     body: tableData.length > 0 ? tableData : [emptyRow],
@@ -382,7 +382,7 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   // Add total for documents with price
   if (showPrice && docItems.length > 0) {
     const grandTotal = docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
-    const tableY = (doc as any).lastAutoTable?.finalY || 150;
+    const tableY = table.finalY || 150;
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 58, 95);
@@ -390,7 +390,7 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   }
   
   // Signature boxes
-  const finalY = Math.max((doc as any).lastAutoTable?.finalY || 150, 180);
+  const finalY = Math.max(table.finalY || 150, 180);
   
   doc.setDrawColor(30, 58, 95);
   doc.setLineWidth(0.5);
@@ -582,7 +582,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     ? ['#', 'Désignation', 'Prix U HT', 'Remise', 'Net U HT', 'TVA', 'Qté', sousTotalLabel]
     : ['#', 'Désignation', 'Prix U HT', 'Remise', 'Net U HT', 'Qté', sousTotalLabel];
 
-  autoTable(doc, {
+  const table = autoTable(doc, {
     startY: 96,
     head: [headRow],
     body: tableData.length > 0 ? tableData : [headRow.map(() => '')],
@@ -621,7 +621,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   const totals = computeDevisTotals(devis.items, isSortantTTC);
   const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
 
-  const tableEndY = (doc as any).lastAutoTable?.finalY || 120;
+  const tableEndY = table.finalY || 120;
   const totalFinal = totalTTC + 1;
   const totalFinalHT = totalNet + 1;
 
