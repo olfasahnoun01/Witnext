@@ -1,10 +1,1 @@
-project_id = "lptoakdzyuhkfvslgpsw"
-
-[functions.setup-admin]
-verify_jwt = false
-
-[functions.gemini-chat]
-verify_jwt = false
-
-[functions.manage-users]
-verify_jwt = false
+project_id = "zfnhihbttwmrldcbaige"

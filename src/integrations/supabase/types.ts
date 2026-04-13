@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -111,7 +111,6 @@ export type Database = {
       }
       clients: {
         Row: {
-          code: string | null
           created_at: string
           email: string | null
           id: number
@@ -120,11 +119,9 @@ export type Database = {
           nom: string
           patente_url: string | null
           phone: string | null
-          registre_commerce_url: string | null
           updated_at: string
         }
         Insert: {
-          code?: string | null
           created_at?: string
           email?: string | null
           id?: number
@@ -133,11 +130,9 @@ export type Database = {
           nom: string
           patente_url?: string | null
           phone?: string | null
-          registre_commerce_url?: string | null
           updated_at?: string
         }
         Update: {
-          code?: string | null
           created_at?: string
           email?: string | null
           id?: number
@@ -146,7 +141,6 @@ export type Database = {
           nom?: string
           patente_url?: string | null
           phone?: string | null
-          registre_commerce_url?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -313,38 +307,32 @@ export type Database = {
       }
       fournisseurs: {
         Row: {
-          code: string | null
           created_at: string
           id: number
           location: string | null
           matricule_fiscale: string | null
           nom: string
           phone: string | null
-          registre_commerce_url: string | null
           specialite: string
           updated_at: string
         }
         Insert: {
-          code?: string | null
           created_at?: string
           id?: number
           location?: string | null
           matricule_fiscale?: string | null
           nom: string
           phone?: string | null
-          registre_commerce_url?: string | null
           specialite: string
           updated_at?: string
         }
         Update: {
-          code?: string | null
           created_at?: string
           id?: number
           location?: string | null
           matricule_fiscale?: string | null
           nom?: string
           phone?: string | null
-          registre_commerce_url?: string | null
           specialite?: string
           updated_at?: string
         }
