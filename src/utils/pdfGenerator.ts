@@ -116,7 +116,8 @@ export const generateInventoryPDF = (products: Product[], filterName?: string) =
       ];
     });
     
-    const table = autoTable(doc, {
+    let tableEndY = startY + 20;
+    autoTable(doc, {
       startY: startY + 4,
       head: [['Code', 'Désignation', 'Taille', 'Fournisseur', 'Qté', 'Remise', 'Net HT', 'Total']],
       body: tableData,
@@ -124,20 +125,20 @@ export const generateInventoryPDF = (products: Product[], filterName?: string) =
       headStyles: { fillColor: [30, 58, 95], fontSize: 8 },
       styles: { fontSize: 8 },
       columnStyles: {
-        0: { cellWidth: 18 }, // Code
-        1: { cellWidth: 'auto' }, // Désignation
-        2: { cellWidth: 15 }, // Taille
-        3: { cellWidth: 25 }, // Fournisseur
-        4: { cellWidth: 10, halign: 'center' }, // Qté
-        5: { cellWidth: 15, halign: 'center' }, // Remise
-        6: { cellWidth: 22, halign: 'right' }, // Net HT
-        7: { cellWidth: 22, halign: 'right' }  // Total
+        0: { cellWidth: 18 },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 15 },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 10, halign: 'center' },
+        5: { cellWidth: 15, halign: 'center' },
+        6: { cellWidth: 22, halign: 'right' },
+        7: { cellWidth: 22, halign: 'right' }
       },
-      margin: { left: 14, right: 14 }
+      margin: { left: 14, right: 14 },
+      didDrawPage: (data) => {
+        tableEndY = data.cursor?.y || tableEndY;
+      }
     });
-    
-    // Category subtotal
-    const tableEndY = table.finalY || startY + 20;
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(100, 100, 100);
