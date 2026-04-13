@@ -119,6 +119,7 @@ export type Database = {
           nom: string
           patente_url: string | null
           phone: string | null
+          registre_commerce_url: string | null
           updated_at: string
         }
         Insert: {
@@ -130,6 +131,7 @@ export type Database = {
           nom: string
           patente_url?: string | null
           phone?: string | null
+          registre_commerce_url?: string | null
           updated_at?: string
         }
         Update: {
@@ -141,6 +143,7 @@ export type Database = {
           nom?: string
           patente_url?: string | null
           phone?: string | null
+          registre_commerce_url?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -152,6 +155,7 @@ export type Database = {
           devis_date: string
           devis_number: string
           id: number
+          is_ba: boolean
           is_bc: boolean
           is_ttc: boolean
           items: Json
@@ -172,6 +176,7 @@ export type Database = {
           devis_date?: string
           devis_number: string
           id?: number
+          is_ba?: boolean
           is_bc?: boolean
           is_ttc?: boolean
           items?: Json
@@ -192,6 +197,7 @@ export type Database = {
           devis_date?: string
           devis_number?: string
           id?: number
+          is_ba?: boolean
           is_bc?: boolean
           is_ttc?: boolean
           items?: Json
