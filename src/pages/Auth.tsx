@@ -72,11 +72,19 @@ export default function Auth() {
 
         if (error) throw error;
         
-        toast({
-          title: 'Inscription réussie ! 🎉',
-          description: 'Vous pouvez maintenant vous connecter.',
-        });
-        setIsSignUp(false);
+        if (data.session) {
+          toast({
+            title: 'Bienvenue ! 🎉',
+            description: 'Votre compte a été créé et vous êtes maintenant connecté.',
+          });
+          navigate('/', { replace: true });
+        } else {
+          toast({
+            title: 'Inscription réussie ! 🎉',
+            description: 'Vous pouvez maintenant vous connecter.',
+          });
+          setIsSignUp(false);
+        }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
@@ -84,11 +92,18 @@ export default function Auth() {
         });
 
         if (error) {
+          console.error("Auth error:", error);
           if (error.message.includes('Invalid login credentials')) {
             toast({
               variant: 'destructive',
               title: 'Erreur de connexion',
               description: 'Email ou mot de passe incorrect',
+            });
+          } else if (error.message.includes('Email not confirmed')) {
+            toast({
+              variant: 'destructive',
+              title: 'Email non confirmé',
+              description: 'Veuillez vérifier vos e-mails ou désactiver la confirmation dans Supabase.',
             });
           } else {
             toast({
@@ -106,7 +121,7 @@ export default function Auth() {
             .from('profiles')
             .select('full_name')
             .eq('user_id', data.user.id)
-            .single();
+            .maybeSingle();
 
           const userName = profileData?.full_name || data.user.email?.split('@')[0] || 'utilisateur';
           
@@ -117,6 +132,7 @@ export default function Auth() {
         }
       }
     } catch (error: any) {
+      console.error("Auth Exception:", error);
       toast({
         variant: 'destructive',
         title: 'Erreur',
