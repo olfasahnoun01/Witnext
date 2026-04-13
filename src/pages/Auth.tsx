@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Mail, Lock, LogIn, AlertCircle, RefreshCw, Plus } from 'lucide-react';
+import { Loader2, Mail, Lock, LogIn, AlertCircle, RefreshCw } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import grosafeLogo from '@/assets/grosafe-logo-new.png';
@@ -52,84 +52,54 @@ export default function Auth() {
     window.location.href = '/auth';
   };
 
-  const [isSignUp, setIsSignUp] = useState(false);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: email.split('@')[0],
-            }
-          }
-        });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-        if (error) throw error;
-        
-        if (data.session) {
+      if (error) {
+        console.error("Auth error:", error);
+        if (error.message.includes('Invalid login credentials')) {
           toast({
-            title: 'Bienvenue ! 🎉',
-            description: 'Votre compte a été créé et vous êtes maintenant connecté.',
+            variant: 'destructive',
+            title: 'Erreur de connexion',
+            description: 'Email ou mot de passe incorrect',
           });
-          navigate('/', { replace: true });
+        } else if (error.message.includes('Email not confirmed')) {
+          toast({
+            variant: 'destructive',
+            title: 'Email non confirmé',
+            description: 'Veuillez vérifier vos e-mails ou contacter l\'administrateur.',
+          });
         } else {
           toast({
-            title: 'Inscription réussie ! 🎉',
-            description: 'Vous pouvez maintenant vous connecter.',
+            variant: 'destructive',
+            title: 'Erreur',
+            description: error.message,
           });
-          setIsSignUp(false);
         }
-      } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+        return;
+      }
+
+      // Fetch user profile for personalized welcome message
+      if (data.user) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', data.user.id)
+          .maybeSingle();
+
+        const userName = profileData?.full_name || data.user.email?.split('@')[0] || 'utilisateur';
+        
+        toast({
+          title: `Bienvenue, ${userName} ! 👋`,
+          description: 'Connexion réussie. Ravi de vous revoir sur Grosafe Gestion.',
         });
-
-        if (error) {
-          console.error("Auth error:", error);
-          if (error.message.includes('Invalid login credentials')) {
-            toast({
-              variant: 'destructive',
-              title: 'Erreur de connexion',
-              description: 'Email ou mot de passe incorrect',
-            });
-          } else if (error.message.includes('Email not confirmed')) {
-            toast({
-              variant: 'destructive',
-              title: 'Email non confirmé',
-              description: 'Veuillez vérifier vos e-mails ou désactiver la confirmation dans Supabase.',
-            });
-          } else {
-            toast({
-              variant: 'destructive',
-              title: 'Erreur',
-              description: error.message,
-            });
-          }
-          return;
-        }
-
-        // Fetch user profile for personalized welcome message
-        if (data.user) {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('full_name')
-            .eq('user_id', data.user.id)
-            .maybeSingle();
-
-          const userName = profileData?.full_name || data.user.email?.split('@')[0] || 'utilisateur';
-          
-          toast({
-            title: `Bienvenue, ${userName} ! 👋`,
-            description: 'Connexion réussie. Ravi de vous revoir sur Grosafe Gestion.',
-          });
-        }
       }
     } catch (error: any) {
       console.error("Auth Exception:", error);
@@ -190,9 +160,9 @@ export default function Auth() {
         {/* Auth Card */}
         <div className="bg-card rounded-2xl border border-border shadow-xl p-8 transition-all">
           <div className="flex items-center justify-center gap-2 mb-6 text-center">
-            {isSignUp ? <AlertCircle className="w-5 h-5 text-primary" /> : <LogIn className="w-5 h-5 text-primary" />}
+            <LogIn className="w-5 h-5 text-primary" />
             <h2 className="text-xl font-bold tracking-tight text-foreground">
-              {isSignUp ? "Créer un compte" : "Connexion"}
+              Connexion
             </h2>
           </div>
 
@@ -214,7 +184,7 @@ export default function Auth() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password text-sm font-medium">Mot de passe</Label>
+              <Label htmlFor="password" className="text-sm font-medium">Mot de passe</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -234,28 +204,16 @@ export default function Auth() {
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {isSignUp ? "Création..." : "Connexion..."}
+                  Connexion...
                 </>
               ) : (
                 <>
-                  {isSignUp ? <Plus className="w-4 h-4 mr-2" /> : <LogIn className="w-4 h-4 mr-2" />}
-                  {isSignUp ? "S'inscrire" : "Se connecter"}
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Se connecter
                 </>
               )}
             </Button>
           </form>
-
-          <div className="mt-6 pt-6 border-t border-border">
-            <Button 
-              variant="ghost" 
-              className="w-full text-xs text-muted-foreground hover:text-primary transition-colors"
-              onClick={() => setIsSignUp(!isSignUp)}
-            >
-              {isSignUp 
-                ? "Déjà un compte ? Connectez-vous" 
-                : "Première fois ? Créez un compte temporaire"}
-            </Button>
-          </div>
         </div>
 
         {/* Footer */}
