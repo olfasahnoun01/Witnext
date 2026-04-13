@@ -22,7 +22,8 @@ export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInput
         .order('nom');
       
       if (!error && data) {
-        setExistingFournisseurs(data.map(f => f.nom));
+        const uniqueNames = Array.from(new Set(data.map(f => f.nom).filter(Boolean)));
+        setExistingFournisseurs(uniqueNames);
       }
     };
     

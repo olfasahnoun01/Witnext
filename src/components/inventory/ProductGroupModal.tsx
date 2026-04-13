@@ -15,6 +15,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
@@ -359,7 +360,11 @@ export const ProductGroupModal = ({
       onClose();
     } catch (error: any) {
       console.error('Error saving product group:', error);
-      toast.error(error.message || 'Erreur lors de l\'enregistrement');
+      if (error.code === '23505') {
+        toast.error('Cet article (nom + catégorie) existe déjà dans la base de données');
+      } else {
+        toast.error(error.message || 'Erreur lors de l\'enregistrement');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -376,6 +381,9 @@ export const ProductGroupModal = ({
               step === 1 ? 'Créer un Nouvel Article — Étape 1/2' : 'Ajouter des Variantes — Étape 2/2'
             )}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Gérez les détails de l'article, les fournisseurs et les variantes.
+          </DialogDescription>
         </DialogHeader>
 
         {step === 1 && (

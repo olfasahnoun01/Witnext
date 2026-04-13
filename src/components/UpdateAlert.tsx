@@ -26,7 +26,7 @@ export const UpdateAlert = () => {
           .from('app_config' as any)
           .select('value')
           .eq('key', 'update_alert_version')
-          .single();
+          .maybeSingle();
 
         if (error) throw error;
         
@@ -63,21 +63,23 @@ export const UpdateAlert = () => {
             <RefreshCw className="w-5 h-5" />
             <AlertDialogTitle className="text-xl">Mise à jour importante</AlertDialogTitle>
           </div>
-          <AlertDialogDescription className="text-base text-foreground space-y-4">
-            <p>
-              Pour garantir que vous utilisez toujours la version la plus récente avec toutes les corrections et nouveautés :
-            </p>
-            <div className="p-4 bg-muted rounded-xl border-2 border-primary/20 flex flex-col items-center justify-center gap-3">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Combinaison Recommandée</p>
-              <div className="flex items-center gap-3 font-mono text-xl font-bold">
-                <span className="bg-background border-2 border-primary/50 text-primary px-3 py-1.5 rounded-lg shadow-sm">CTRL</span>
-                <span className="text-muted-foreground">+</span>
-                <span className="bg-background border-2 border-primary/50 text-primary px-3 py-1.5 rounded-lg shadow-sm">F5</span>
+          <AlertDialogDescription asChild className="text-base text-foreground space-y-4">
+            <div>
+              <p>
+                Pour garantir que vous utilisez toujours la version la plus récente avec toutes les corrections et nouveautés :
+              </p>
+              <div className="p-4 bg-muted rounded-xl border-2 border-primary/20 flex flex-col items-center justify-center gap-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Combinaison Recommandée</p>
+                <div className="flex items-center gap-3 font-mono text-xl font-bold">
+                  <span className="bg-background border-2 border-primary/50 text-primary px-3 py-1.5 rounded-lg shadow-sm">CTRL</span>
+                  <span className="text-muted-foreground">+</span>
+                  <span className="bg-background border-2 border-primary/50 text-primary px-3 py-1.5 rounded-lg shadow-sm">F5</span>
+                </div>
               </div>
+              <p className="text-sm italic text-muted-foreground text-center">
+                Cette action recharge proprement le cache du navigateur.
+              </p>
             </div>
-            <p className="text-sm italic text-muted-foreground text-center">
-              Cette action recharge proprement le cache du navigateur.
-            </p>
           </AlertDialogDescription>
         </AlertDialogHeader>
         

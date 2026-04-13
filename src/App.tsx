@@ -24,6 +24,16 @@ const queryClient = new QueryClient({
 
 // Protected Route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { session, isLoading } = useAuth();
+
+  if (isLoading) {
+    return null; // Or a loading spinner
+  }
+
+  if (!session) {
+    return <Navigate to="/auth" replace />;
+  }
+
   return <>{children}</>;
 };
 

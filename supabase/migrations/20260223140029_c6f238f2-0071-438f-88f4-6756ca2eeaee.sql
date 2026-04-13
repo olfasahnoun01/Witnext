@@ -1,1 +1,0 @@
-ALTER TABLE public.products ADD COLUMN IF NOT EXISTS fiche_technique_url TEXT DEFAULT NULL;

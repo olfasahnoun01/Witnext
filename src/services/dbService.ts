@@ -505,15 +505,34 @@ const insertTableData = async (
 ): Promise<void> => {
   for (const item of items) {
     try {
-      const insertData = stripId ? (() => { const { id, ...rest } = item; return rest; })() : { ...item };
+      // Create a clean copy of the data
+      let insertData = { ...item };
       
-      const { error } = await (supabase
+      // Strip internal database ID if requested
+      if (stripId) {
+        delete (insertData as any).id;
+      }
+      
+      // IMPORTANT: Strip user-referencing fields for non-user-management tables.
+      // These UUIDs from the old project won't exist in the new project and cause 23503 errors.
+      if (tableName !== 'profiles' && tableName !== 'user_roles') {
+        delete (insertData as any).created_by;
+        delete (insertData as any).user_id;
+        delete (insertData as any).updated_by;
+      }
+      
+      // Strip generated columns (PostgreSQL does not allow inserting into these)
+      delete (insertData as any).prix_ttc;
+      
+      const { error } = await supabase
         .from(tableName as any)
-        .insert(insertData as any) as any);
+        .insert(insertData as any);
       
       if (error) {
         if (error.code === '23505') {
           console.log(`Duplicate entry skipped in ${tableName}`);
+        } else if (error.code === '23503') {
+          console.warn(`Foreign key violation in ${tableName} (likely legacy user reference), skipping item.`);
         } else {
           console.error(`Error inserting into ${tableName}:`, error);
         }
@@ -626,33 +645,33 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
     await supabase.from('clients').delete().gte('id', 0);
     await supabase.from('fournisseurs').delete().gte('id', 0);
 
-    // Insert in correct order
+    // Insert in correct order (preserving original IDs to maintain foreign key links)
     onProgress?.('Importation des clients...');
-    await insertTableData('clients', clients);
+    await insertTableData('clients', clients, false);
 
     onProgress?.('Importation des fournisseurs...');
-    await insertTableData('fournisseurs', fournisseurs);
+    await insertTableData('fournisseurs', fournisseurs, false);
 
     onProgress?.('Importation des documents...');
-    await insertTableData('documents', documents);
+    await insertTableData('documents', documents, false);
 
     onProgress?.('Importation des devis...');
-    await insertTableData('devis', devis);
+    await insertTableData('devis', devis, false);
 
     onProgress?.('Importation des commandes...');
-    await insertTableData('orders', orders);
+    await insertTableData('orders', orders, false);
 
     onProgress?.('Importation des groupes de produits...');
-    await insertTableData('product_groups', product_groups);
+    await insertTableData('product_groups', product_groups, false);
 
     onProgress?.('Importation des produits...');
-    await insertTableData('products', products);
+    await insertTableData('products', products, false);
 
     onProgress?.('Importation des fournisseurs de groupes...');
-    await insertTableData('product_group_fournisseurs', product_group_fournisseurs);
+    await insertTableData('product_group_fournisseurs', product_group_fournisseurs, false);
 
     onProgress?.('Importation des transactions...');
-    await insertTableData('transactions', transactions);
+    await insertTableData('transactions', transactions, false);
 
     // Import user-related data (profiles, roles, presence, chat)
     if (profiles.length > 0) {

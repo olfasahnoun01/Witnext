@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Search, Building2, Phone, MapPin, FileText, AlertCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Building2, Phone, MapPin, FileText, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { SPECIALITES } from '@/constants/fournisseurs';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
@@ -63,6 +63,8 @@ export const Fournisseurs = memo(() => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFournisseur, setEditingFournisseur] = useState<Fournisseur | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortColumn, setSortColumn] = useState<'code' | 'nom'>('nom');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   // Form state
   const [nom, setNom] = useState('');
@@ -209,9 +211,9 @@ export const Fournisseurs = memo(() => {
   // Debounce search query for performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  // Filter fournisseurs - memoized with debounced search
+  // Filter and Sort fournisseurs - memoized with debounced search
   const filteredFournisseurs = useMemo(() => {
-    return fournisseurs.filter(f => {
+    let result = fournisseurs.filter(f => {
       const matchesSearch = debouncedSearchQuery === '' || 
         f.nom.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         f.matricule_fiscale?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
@@ -223,7 +225,19 @@ export const Fournisseurs = memo(() => {
       
       return matchesSearch && matchesSpecialite;
     });
-  }, [fournisseurs, debouncedSearchQuery, filterSpecialite]);
+
+    // Apply sorting
+    result.sort((a, b) => {
+      const valA = (a[sortColumn] || '').toLowerCase();
+      const valB = (b[sortColumn] || '').toLowerCase();
+      
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return result;
+  }, [fournisseurs, debouncedSearchQuery, filterSpecialite, sortColumn, sortDirection]);
 
   // Paginated results
   const paginatedFournisseurs = useMemo(() => {
@@ -452,8 +466,44 @@ export const Fournisseurs = memo(() => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="w-[100px]">Code</TableHead>
-                      <TableHead>Nom (Société)</TableHead>
+                      <TableHead 
+                        className="w-[120px] cursor-pointer hover:text-primary transition-colors"
+                        onClick={() => {
+                          if (sortColumn === 'code') {
+                            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setSortColumn('code');
+                            setSortDirection('asc');
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-1">
+                          Code
+                          {sortColumn === 'code' && (
+                            sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                          )}
+                          {sortColumn !== 'code' && <ArrowUpDown className="w-3 h-3 opacity-30" />}
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:text-primary transition-colors"
+                        onClick={() => {
+                          if (sortColumn === 'nom') {
+                            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setSortColumn('nom');
+                            setSortDirection('asc');
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-1">
+                          Nom (Société)
+                          {sortColumn === 'nom' && (
+                            sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                          )}
+                          {sortColumn !== 'nom' && <ArrowUpDown className="w-3 h-3 opacity-30" />}
+                        </div>
+                      </TableHead>
                       <TableHead>Matricule Fiscale</TableHead>
                       <TableHead>Spécialité</TableHead>
                       <TableHead>Téléphone</TableHead>

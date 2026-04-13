@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Search, Users, Phone, MapPin, Mail, AlertCircle, Upload, Eye, FileText } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Users, Phone, MapPin, Mail, AlertCircle, Upload, Eye, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -66,6 +66,8 @@ export const Clients = memo(() => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortColumn, setSortColumn] = useState<'code' | 'nom'>('nom');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   // Form state
   const [nom, setNom] = useState('');
@@ -414,19 +416,32 @@ export const Clients = memo(() => {
   // Debounce search query for performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  // Filter clients - memoized with debounced search
+  // Filter and Sort clients - memoized with debounced search
   const filteredClients = useMemo(() => {
-    return clients.filter(c => {
+    let result = clients.filter(c => {
       const matchesSearch = debouncedSearchQuery === '' || 
         c.nom.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         c.matricule_fiscale?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         c.phone?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         c.email?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-        c.location?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
+        c.location?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        c.code?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
       
       return matchesSearch;
     });
-  }, [clients, debouncedSearchQuery]);
+
+    // Apply sorting
+    result.sort((a, b) => {
+      const valA = (a[sortColumn] || '').toLowerCase();
+      const valB = (b[sortColumn] || '').toLowerCase();
+      
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return result;
+  }, [clients, debouncedSearchQuery, sortColumn, sortDirection]);
 
   // Paginated results
   const paginatedClients = useMemo(() => {
@@ -814,8 +829,44 @@ export const Clients = memo(() => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="w-[100px]">Code</TableHead>
-                      <TableHead>Nom (Société)</TableHead>
+                      <TableHead 
+                        className="w-[120px] cursor-pointer hover:text-primary transition-colors"
+                        onClick={() => {
+                          if (sortColumn === 'code') {
+                            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setSortColumn('code');
+                            setSortDirection('asc');
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-1">
+                          Code
+                          {sortColumn === 'code' && (
+                            sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                          )}
+                          {sortColumn !== 'code' && <ArrowUpDown className="w-3 h-3 opacity-30" />}
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:text-primary transition-colors"
+                        onClick={() => {
+                          if (sortColumn === 'nom') {
+                            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setSortColumn('nom');
+                            setSortDirection('asc');
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-1">
+                          Nom (Société)
+                          {sortColumn === 'nom' && (
+                            sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                          )}
+                          {sortColumn !== 'nom' && <ArrowUpDown className="w-3 h-3 opacity-30" />}
+                        </div>
+                      </TableHead>
                       <TableHead>Matricule Fiscale</TableHead>
                       <TableHead>Téléphone</TableHead>
                       <TableHead>Localisation</TableHead>
