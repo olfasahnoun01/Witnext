@@ -526,16 +526,26 @@ const insertTableData = async (
       // will cause "Foreign Key Violation (23503)" because those users don't exist yet.
       // We force these to the CURRENT user doing the import so the data is valid.
       if (currentUserId) {
-        if ('created_by' in insertData) (insertData as any).created_by = currentUserId;
-        if ('user_id' in insertData) (insertData as any).user_id = currentUserId;
-        if ('updated_by' in insertData) (insertData as any).updated_by = currentUserId;
-        
-        // Profiles special handling: The primary key IS user_id. 
+        const originalUserId = (insertData as any).user_id;
+
+        // Profiles special handling: 
         // We only import the CURRENT user's profile to avoid conflicts with non-existent auth users.
-        if (tableName === 'profiles' && (insertData as any).user_id !== currentUserId) {
+        if (tableName === 'profiles' && originalUserId && originalUserId !== currentUserId) {
           console.log('Skipping non-current user profile to prevent auth violation');
           continue;
         }
+
+        // User Roles special handling:
+        // We only import the CURRENT user's roles to avoid unique constraint violations
+        if (tableName === 'user_roles' && originalUserId && originalUserId !== currentUserId) {
+          console.log('Skipping non-current user role to prevent auth violation');
+          continue;
+        }
+        
+        // Force ownership to CURRENT user for all other tables/records to avoid FK or RLS violations
+        if ('created_by' in insertData) (insertData as any).created_by = currentUserId;
+        if ('user_id' in insertData) (insertData as any).user_id = currentUserId;
+        if ('updated_by' in insertData) (insertData as any).updated_by = currentUserId;
       }
       
       // Use upsert for EVERYTHING during import to prevent 409 Conflict errors
