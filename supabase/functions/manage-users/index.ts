@@ -164,6 +164,7 @@ Deno.serve(async (req: Request) => {
 
       case 'create': {
         const { email, password, full_name, role } = params
+        console.log('Starting user creation for:', email)
 
         if (!email || !validateEmail(email)) {
           return new Response(JSON.stringify({ error: 'Format d\'email invalide' }), {
@@ -179,6 +180,7 @@ Deno.serve(async (req: Request) => {
           })
         }
 
+        // 1. Create the Auth User
         const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
           email: email.trim(),
           password,
@@ -187,6 +189,7 @@ Deno.serve(async (req: Request) => {
         })
 
         if (createError) {
+          console.error('Auth creation failed:', createError.message)
           return new Response(JSON.stringify({ error: mapErrorToUserMessage(createError) }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -194,28 +197,29 @@ Deno.serve(async (req: Request) => {
         }
 
         if (newUser.user) {
-          const { error: profileError } = await supabaseAdmin.from('profiles').insert({
-            user_id: newUser.user.id,
+          const userId = newUser.user.id
+          console.log('Auth user created:', userId)
+
+          // 2. Upsert the Profile (handles existing profiles with same email)
+          const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
+            user_id: userId,
             email: email.trim(),
             full_name: full_name?.trim() || null
-          })
+          }, { onConflict: 'user_id' })
 
           if (profileError) {
-            console.error('Error creating profile:', profileError.code)
-          } else {
-            console.log('Profile created for user:', newUser.user.id)
+            console.error('Profile upsert error:', profileError.code, profileError.message)
           }
 
+          // 3. Upsert the Role
           const userRole = role || 'user'
-          const { error: roleError } = await supabaseAdmin.from('user_roles').insert({
-            user_id: newUser.user.id,
+          const { error: roleError } = await supabaseAdmin.from('user_roles').upsert({
+            user_id: userId,
             role: userRole
-          })
+          }, { onConflict: 'user_id,role' })
 
           if (roleError) {
-            console.error('Error assigning role:', roleError.code)
-          } else {
-            console.log('Role assigned:', userRole, 'for user:', newUser.user.id)
+            console.error('Role assignment error:', roleError.code, roleError.message)
           }
         }
 

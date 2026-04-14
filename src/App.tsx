@@ -91,26 +91,6 @@ const App = () => {
         disableTransitionOnChange={false}
         storageKey="grosafe-theme"
       >
-        <TooltipProvider>
-          {/* Emergency Reset Button */}
-          <button
-            onClick={handleHardReset}
-            style={{
-              position: 'fixed',
-              bottom: '20px',
-              right: '20px',
-              zIndex: 9999,
-              background: '#ef4444',
-              color: 'white',
-              padding: '10px 15px',
-              borderRadius: '8px',
-              fontWeight: 'bold',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-            }}
-          >
-            FIX AUTH & RESET
-          </button>
-          
           <UpdateAlert />
           <Toaster />
           <Sonner />
