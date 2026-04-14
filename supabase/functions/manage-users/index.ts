@@ -119,7 +119,7 @@ Deno.serve(async (req: Request) => {
           project_url: supabaseUrl
         }
       }), {
-        status: 401,
+        status: 200, // Temporairement 200 pour voir le debug dans Lovable
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
