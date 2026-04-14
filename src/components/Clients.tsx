@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Search, Users, Phone, MapPin, Mail, AlertCircle, Upload, Eye, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Users, Phone, MapPin, Mail, AlertCircle, Upload, Eye, FileText, ArrowUpDown, ArrowUp, ArrowDown, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -54,7 +54,9 @@ const isClientIncomplete = (client: Client) => {
          !client.phone?.trim() || 
          !client.email?.trim() || 
          !client.location?.trim() ||
-         !client.code?.trim();
+         !client.code?.trim() ||
+         !client.patente_url ||
+         !client.registre_commerce_url;
 };
 
 export const Clients = memo(() => {
@@ -87,6 +89,9 @@ export const Clients = memo(() => {
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [storageErrorRC, setStorageErrorRC] = useState<string | null>(null);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [selectedDocUrl, setSelectedDocUrl] = useState<string | null>(null);
+  const [selectedDocTitle, setSelectedDocTitle] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const rcFileInputRef = useRef<HTMLInputElement>(null);
   
@@ -264,7 +269,9 @@ export const Clients = memo(() => {
 
       if (error) throw error;
       if (data) {
-        window.open(data.signedUrl, '_blank');
+        setSelectedDocUrl(data.signedUrl);
+        setSelectedDocTitle(bucket === 'patentes_client' ? 'Patente' : 'Registre de Commerce');
+        setPreviewModalOpen(true);
       }
     } catch (error) {
       console.error(`Error creating signed URL for ${bucket}:`, error);
@@ -997,6 +1004,42 @@ export const Clients = memo(() => {
           )}
         </CardContent>
       </Card>
+
+      {/* Document Preview Modal */}
+      <Dialog open={previewModalOpen} onOpenChange={setPreviewModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-6">
+          <DialogHeader className="flex-row items-center justify-between space-y-0 pb-4 pr-6">
+            <DialogTitle>Aperçu du Document : {selectedDocTitle}</DialogTitle>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2"
+              onClick={() => {
+                if (!selectedDocUrl) return;
+                const link = document.createElement('a');
+                link.href = selectedDocUrl;
+                link.download = `${selectedDocTitle.replace(/\s+/g, '_')}_${Date.now()}.webp`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                toast.success('Téléchargement lancé');
+              }}
+            >
+              <Download className="w-4 h-4" />
+              Télécharger
+            </Button>
+          </DialogHeader>
+          <div className="flex-1 w-full overflow-auto bg-muted/30 rounded-lg flex items-center justify-center min-h-[400px]">
+            {selectedDocUrl && (
+              <img 
+                src={selectedDocUrl} 
+                alt="Document preview" 
+                className="max-w-full max-h-full object-contain shadow-sm rounded border bg-white" 
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 });
