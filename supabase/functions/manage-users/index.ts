@@ -84,7 +84,9 @@ function decodeJwtPayload(token: string): any {
   }
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
 
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -168,12 +170,12 @@ Deno.serve(async (req) => {
           .from('user_roles')
           .select('user_id, role')
 
-        const usersWithRoles = users.users.map(user => ({
+        const usersWithRoles = users.users.map((user: any) => ({
           id: user.id,
           email: user.email,
           full_name: user.user_metadata?.full_name || '',
           created_at: user.created_at,
-          role: roles?.find(r => r.user_id === user.id)?.role || 'user'
+          role: roles?.find((r: any) => r.user_id === user.id)?.role || 'user'
         }))
 
         return new Response(JSON.stringify({ users: usersWithRoles }), {
