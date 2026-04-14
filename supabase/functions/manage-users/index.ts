@@ -83,9 +83,16 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      console.log('No authorization header')
-      return new Response(JSON.stringify({ error: 'Non autorisé' }), {
+    if (!authHeader || authHeader === 'Bearer undefined' || authHeader === 'Bearer null') {
+      console.log('Missing or invalid authorization header:', authHeader)
+      return new Response(JSON.stringify({ 
+        error: 'Token d\'authentification manquant',
+        debug: {
+          header_present: !!authHeader,
+          header_value: authHeader,
+          project_url: supabaseUrl
+        }
+      }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -100,7 +107,18 @@ Deno.serve(async (req: Request) => {
 
     if (authError || !user) {
       console.error('Auth verification failed:', authError?.message)
-      return new Response(JSON.stringify({ error: 'Session invalide ou expirée' }), {
+      const tokenSnippet = authHeader.length > 20 
+        ? `${authHeader.substring(0, 15)}...${authHeader.substring(authHeader.length - 10)}`
+        : 'too short';
+        
+      return new Response(JSON.stringify({ 
+        error: 'Session invalide ou expirée',
+        debug: {
+          auth_error: authError?.message,
+          token_snippet: tokenSnippet,
+          project_url: supabaseUrl
+        }
+      }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })

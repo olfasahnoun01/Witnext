@@ -57,6 +57,12 @@ export const UserManagement = () => {
     setIsLoading(true);
     try {
       const token = await getAuthToken();
+      console.log('Attempting to call manage-users function...', { hasToken: !!token });
+      
+      if (!token) {
+        throw new Error('Aucune session active trouvée. Veuillez vous reconnecter.');
+      }
+
       const response = await supabase.functions.invoke('manage-users', {
         body: { action: 'list' },
         headers: { Authorization: `Bearer ${token}` }
