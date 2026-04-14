@@ -141,6 +141,8 @@ export const DevisForm = memo(({
   const [variantSize, setVariantSize] = useState('');
   const [variantColor, setVariantColor] = useState('');
   const [variantQuantity, setVariantQuantity] = useState(0);
+  const [variantPrice, setVariantPrice] = useState(0);
+  const [variantRemise, setVariantRemise] = useState(0);
   const [isCreatingVariant, setIsCreatingVariant] = useState(false);
   const [groupSearch, setGroupSearch] = useState('');
   const [groupPopoverOpen, setGroupPopoverOpen] = useState(false);
@@ -654,8 +656,8 @@ export const DevisForm = memo(({
         size: variantSize || undefined,
         color: variantColor || undefined,
         quantity: variantQuantity,
-        price: 0,
-        remise: 0,
+        price: variantPrice || 0,
+        remise: variantRemise || 0,
       });
       if (!result.success) {
         toast.error(result.error || 'Erreur création variante');
@@ -727,6 +729,8 @@ export const DevisForm = memo(({
         setVariantSize('');
         setVariantColor('');
         setVariantQuantity(0);
+        setVariantPrice(0);
+        setVariantRemise(0);
         setGroupSearch('');
         setVariantFicheFiles([]);
       }

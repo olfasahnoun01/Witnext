@@ -48,6 +48,8 @@ interface VariantDraft {
   size: string;
   color: string;
   quantity: number;
+  price: number;
+  remise: number;
   fiche_technique_file?: File | null;
   fiche_technique_url?: string | null;
 }
@@ -211,19 +213,36 @@ export const ProductGroupModal = ({
     // Add one empty variant by default if none
     if (variants.length === 0) {
       const baseSku = formData.base_sku || '';
-      setVariants([{ sku: `${baseSku}-1`, size: '', color: '', quantity: 0 }]);
+      // Default price from first supplier if available
+      const defaultPrice = formData.fournisseurs.length > 0 ? formData.fournisseurs[0].prix_ttc : 0;
+      setVariants([{ 
+        sku: `${baseSku}-1`, 
+        size: '', 
+        color: '', 
+        quantity: 0,
+        price: defaultPrice,
+        remise: 0 
+      }]);
     }
     setStep(2);
-  }, [validateStep1, variants.length, formData.base_sku]);
+  }, [validateStep1, variants.length, formData.base_sku, formData.fournisseurs]);
 
   // Add variant row
   const addVariantRow = useCallback(() => {
     setVariants(prev => {
       const nextIndex = prev.length + 1;
       const baseSku = formData.base_sku || '';
-      return [...prev, { sku: `${baseSku}-${nextIndex}`, size: '', color: '', quantity: 0 }];
+      const defaultPrice = formData.fournisseurs.length > 0 ? formData.fournisseurs[0].prix_ttc : 0;
+      return [...prev, { 
+        sku: `${baseSku}-${nextIndex}`, 
+        size: '', 
+        color: '', 
+        quantity: 0,
+        price: defaultPrice,
+        remise: 0 
+      }];
     });
-  }, [formData.base_sku]);
+  }, [formData.base_sku, formData.fournisseurs]);
 
   // Remove variant row
   const removeVariantRow = useCallback((index: number) => {
@@ -321,8 +340,8 @@ export const ProductGroupModal = ({
             size: v.size || undefined,
             color: v.color || undefined,
             quantity: v.quantity,
-            price: 0,
-            remise: 0,
+            price: v.price || 0,
+            remise: v.remise || 0,
           });
           if (!result.success) {
             console.error(`Failed to create variant ${v.sku}:`, result.error);
@@ -504,44 +523,66 @@ export const ProductGroupModal = ({
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
-                    <div className="grid grid-cols-4 gap-2">
-                      <div className="grid gap-1">
-                        <Label className="text-xs">Code Article *</Label>
+                    <div className="grid grid-cols-6 gap-2">
+                      <div className="grid gap-1 col-span-1">
+                        <Label className="text-xs">Code *</Label>
                         <Input
                           value={v.sku}
                           onChange={(e) => updateVariant(idx, 'sku', e.target.value)}
                           placeholder="SKU"
-                          className="h-8 text-sm"
+                          className="h-8 text-xs px-2"
                         />
                       </div>
-                      <div className="grid gap-1">
+                      <div className="grid gap-1 col-span-1">
                         <Label className="text-xs">Taille</Label>
                         <Input
                           list="variant-sizes"
                           value={v.size}
                           onChange={(e) => updateVariant(idx, 'size', e.target.value)}
                           placeholder="Taille"
-                          className="h-8 text-sm"
+                          className="h-8 text-xs px-2"
                         />
                       </div>
-                      <div className="grid gap-1">
-                        <Label className="text-xs">Couleur</Label>
+                      <div className="grid gap-1 col-span-1">
+                        <Label className="text-xs">Coul.</Label>
                         <Input
                           list="variant-colors"
                           value={v.color}
                           onChange={(e) => updateVariant(idx, 'color', e.target.value)}
-                          placeholder="Couleur"
-                          className="h-8 text-sm"
+                          placeholder="Coul."
+                          className="h-8 text-xs px-2"
                         />
                       </div>
-                      <div className="grid gap-1">
-                        <Label className="text-xs">Quantité</Label>
+                      <div className="grid gap-1 col-span-1">
+                        <Label className="text-xs">Qté</Label>
                         <Input
                           type="number"
                           min="0"
                           value={v.quantity}
                           onChange={(e) => updateVariant(idx, 'quantity', parseInt(e.target.value) || 0)}
-                          className="h-8 text-sm"
+                          className="h-8 text-xs px-2"
+                        />
+                      </div>
+                      <div className="grid gap-1 col-span-1">
+                        <Label className="text-xs">Prix HT</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          value={v.price}
+                          onChange={(e) => updateVariant(idx, 'price', parseFloat(e.target.value) || 0)}
+                          className="h-8 text-xs px-2"
+                        />
+                      </div>
+                      <div className="grid gap-1 col-span-1">
+                        <Label className="text-xs">Rem.%</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={v.remise}
+                          onChange={(e) => updateVariant(idx, 'remise', parseFloat(e.target.value) || 0)}
+                          className="h-8 text-xs px-2"
                         />
                       </div>
                     </div>

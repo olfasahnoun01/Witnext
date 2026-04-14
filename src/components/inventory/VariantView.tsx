@@ -129,10 +129,13 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         fiche_urls: parseFicheUrls(variant.fiche_technique_url)
       });
     } else {
-      setEditingVariant(null);
+      // Find primary supplier price to use as default
+      const defaultPrice = freshFournisseurs.length > 0 ? freshFournisseurs[0].prix_ttc : 0;
+      
       setFormData({
         ...emptyFormData,
-        sku: `${group.base_sku || 'NEW'}-${variants.length + 1}`
+        sku: `${group.base_sku || 'NEW'}-${variants.length + 1}`,
+        price: defaultPrice
       });
     }
     setIsModalOpen(true);
