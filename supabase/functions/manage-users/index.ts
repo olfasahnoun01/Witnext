@@ -69,21 +69,6 @@ function validatePassword(password: string): boolean {
   return !!password && password.length >= 6 && password.length <= 128;
 }
 
-// Decode JWT payload without verification (verification is done by Supabase)
-function decodeJwtPayload(token: string): any {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) {
-      return null;
-    }
-    const payload = parts[1];
-    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
-    return JSON.parse(decoded);
-  } catch {
-    return null;
-  }
-}
-
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);
@@ -94,10 +79,11 @@ Deno.serve(async (req: Request) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
+    if (!authHeader) {
       console.log('No authorization header')
       return new Response(JSON.stringify({ error: 'Non autorisé' }), {
         status: 401,
@@ -105,30 +91,23 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const token = authHeader.replace('Bearer ', '')
-    
-    // Decode JWT to get user ID
-    const payload = decodeJwtPayload(token)
-    if (!payload || !payload.sub) {
-      console.error('Invalid JWT payload')
-      return new Response(JSON.stringify({ error: 'Non autorisé' }), {
+    // Create a regular client to verify the user's token
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    })
+
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
+
+    if (authError || !user) {
+      console.error('Auth verification failed:', authError?.message)
+      return new Response(JSON.stringify({ error: 'Session invalide ou expirée' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // Check if token is expired
-    const now = Math.floor(Date.now() / 1000)
-    if (payload.exp && payload.exp < now) {
-      console.error('Token expired')
-      return new Response(JSON.stringify({ error: 'Session expirée' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    const requestingUserId = payload.sub as string
-    console.log('Authenticated user from JWT:', requestingUserId, payload.email)
+    const requestingUserId = user.id
+    console.log('Authenticated user:', requestingUserId, user.email)
 
     // Create admin client for user management
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
