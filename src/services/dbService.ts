@@ -515,16 +515,22 @@ const insertTableData = async (
       
       // IMPORTANT: Strip user-referencing fields for non-user-management tables.
       // These UUIDs from the old project won't exist in the new project and cause 23503 errors.
-      if (tableName !== 'profiles' && tableName !== 'user_roles' && tableName !== 'team_chat_messages') {
+      const isChat = tableName === 'team_chat_messages';
+      const isDocument = tableName === 'documents';
+      
+      if (tableName !== 'profiles' && tableName !== 'user_roles' && !isChat && !isDocument) {
         delete (insertData as any).created_by;
         delete (insertData as any).user_id;
         delete (insertData as any).updated_by;
       }
       
-      // For chat messages, we must ensure a valid user_id exists for RLS policies
-      if (tableName === 'team_chat_messages' && !(insertData as any).user_id) {
+      // For ownership-restricted tables, ensure a valid ID exists so RLS doesn't block the insert
+      if (isChat || isDocument) {
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) (insertData as any).user_id = user.id;
+        if (user) {
+          if (isChat) (insertData as any).user_id = user.id;
+          if (isDocument) (insertData as any).created_by = user.id;
+        }
       }
       
       // Strip generated columns (PostgreSQL does not allow inserting into these)
