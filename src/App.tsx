@@ -57,6 +57,7 @@ const AppRoutes = () => {
 
 const App = () => {
   useEffect(() => {
+    console.log("DEBUG: App started. If you don't see this, the code isn't syncing!");
     const handleRejection = (event: PromiseRejectionEvent) => {
       const msg = String(event.reason?.message || event.reason || "");
       if (msg.includes("Failed to fetch dynamically imported module") || msg.includes("dynamically imported module")) {
@@ -69,6 +70,18 @@ const App = () => {
     return () => window.removeEventListener("unhandledrejection", handleRejection);
   }, []);
 
+  const handleHardReset = () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    // Clear cookies
+    document.cookie.split(";").forEach((c) => {
+      document.cookie = c
+        .replace(/^ +/, "")
+        .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+    });
+    window.location.href = "/auth";
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider
@@ -79,6 +92,25 @@ const App = () => {
         storageKey="grosafe-theme"
       >
         <TooltipProvider>
+          {/* Emergency Reset Button */}
+          <button
+            onClick={handleHardReset}
+            style={{
+              position: 'fixed',
+              bottom: '20px',
+              right: '20px',
+              zIndex: 9999,
+              background: '#ef4444',
+              color: 'white',
+              padding: '10px 15px',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+            }}
+          >
+            FIX AUTH & RESET
+          </button>
+          
           <UpdateAlert />
           <Toaster />
           <Sonner />
