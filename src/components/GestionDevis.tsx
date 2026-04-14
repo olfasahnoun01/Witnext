@@ -8,7 +8,6 @@ import { computeDevisTotals } from '@/lib/devisPricing';
 import { DevisForm } from './devis/DevisForm';
 import { DevisHistory } from './devis/DevisHistory';
 import { BonCommandeList } from './devis/BonCommandeList';
-import { BonAchatList } from './devis/BonAchatList';
 import { DevisHelper } from './devis/DevisHelper';
 import { BCCreationDialog } from './devis/BCCreationDialog';
 import { BACreationDialog } from './devis/BACreationDialog';
@@ -42,12 +41,14 @@ const parseDevisRow = (d: any, profilesMap: Record<string, string>, sourceDevisM
 
 interface GestionDevisProps {
   onTabChange?: (tab: string) => void;
+  initialSection?: 'form' | 'history' | 'bc' | 'ba' | 'helper';
+  initialDocType?: 'devis' | 'bc' | 'ba';
 }
 
-export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
+export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocType = 'devis' }: GestionDevisProps) => {
   const { isAdmin, isModerator, user } = useAuth();
   const canEdit = true;
-  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'ba' | 'helper'>('form');
+  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'ba' | 'helper'>(initialSection);
   const [allDevis, setAllDevis] = useState<Devis[]>([]);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingDevis, setEditingDevis] = useState<Devis | null>(null);
@@ -55,7 +56,7 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
   const [isBAReviewOpen, setIsBAReviewOpen] = useState(false);
   const [devisToConvert, setDevisToConvert] = useState<Devis | null>(null);
   const [bcToConvert, setBcToConvert] = useState<Devis | null>(null);
-  const [docType, setDocType] = useState<'devis' | 'bc' | 'ba'>('devis');
+  const [docType, setDocType] = useState<'devis' | 'bc' | 'ba'>(initialDocType);
   const devisNumberRef = useRef('');
 
   // Form state
@@ -113,6 +114,12 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // Update active section and doc type if props change
+  useEffect(() => {
+    if (initialSection) setActiveSection(initialSection);
+    if (initialDocType) setDocType(initialDocType);
+  }, [initialSection, initialDocType]);
 
   useEffect(() => { devisNumberRef.current = devisNumber; }, [devisNumber]);
 
@@ -417,17 +424,6 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
           Liste BC ({bonsCommande.length})
         </button>
         <button
-          onClick={() => setActiveSection('ba')}
-          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-            activeSection === 'ba'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <FileSignature className="w-4 h-4" />
-          Liste BA ({bonsAchat.length})
-        </button>
-        <button
           onClick={() => setActiveSection('helper')}
           className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
             activeSection === 'helper'
@@ -494,17 +490,6 @@ export const GestionDevis = ({ onTabChange }: GestionDevisProps) => {
           onDelete={deleteDevis}
           onConvertToBA={convertToBA}
           onAdd={() => handleAddNew('bc')}
-        />
-      )}
-
-      {activeSection === 'ba' && (
-        <BonAchatList
-          bonsAchat={bonsAchat}
-          currentUserId={user?.id || null}
-          isAdminOrMod={isAdmin || isModerator}
-          onEdit={startEdit}
-          onDelete={deleteDevis}
-          onAdd={() => handleAddNew('ba')}
         />
       )}
 

@@ -21,8 +21,9 @@ import {
 interface ExtractedItem {
   id: string;
   description: string;
-  status: 'searching' | 'found' | 'not_found' | 'uploaded' | 'missing_fiche';
+  status: 'searching' | 'found' | 'not_found' | 'uploaded' | 'missing_fiche' | 'mapped';
   product_id?: number;
+  mapping_id?: string;
   product_name?: string;
   category?: string;
   sku?: string;
@@ -47,6 +48,10 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
   // Modal d'ajout à l'inventaire
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [productNameForModal, setProductNameForModal] = useState('');
+  
+  // Preview Modal state
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [selectedPreviewDoc, setSelectedPreviewDoc] = useState<{ url: string, title: string } | null>(null);
 
   // Persistance localStorage
   useEffect(() => {
@@ -84,49 +89,64 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
   const checkMatches = useCallback(async (descriptions: string[]) => {
     setIsProcessing(true);
     try {
-      const initialItems: ExtractedItem[] = descriptions.map((desc, idx) => ({
-        id: `idx-${idx}`,
-        description: desc,
-        status: 'searching',
-      }));
-
-      const { data: dbProducts, error } = await supabase
+      // 1. Fetch matching products directly from DB
+      const { data: dbProducts, error: prodError } = await supabase
         .from('products')
-        .select('id, name, sku, category, fiche_technique_url');
+        .select('id, name, sku, category, fiche_technique_url')
+        .in('name', descriptions);
 
-      if (error) throw error;
+      if (prodError) throw prodError;
 
-      const updatedItems = initialItems.map(item => {
-        const descLower = item.description.toLowerCase();
-        
-        let match = dbProducts?.find(p => 
-          descLower.includes(p.name.toLowerCase()) || 
-          p.name.toLowerCase().includes(descLower) ||
-          descLower.includes(p.sku.toLowerCase())
-        );
+      // 2. Fetch matching learning translations
+      const { data: mappings, error: mapError } = await supabase
+        .from('devis_helper_mappings')
+        .select('id, extracted_name, fiche_technique_url')
+        .in('extracted_name', descriptions);
 
-        if (match) {
+      if (mapError) {
+        console.warn('Mapping table issues:', mapError);
+      }
+
+      const updatedItems = descriptions.map((desc, idx) => {
+        const item: ExtractedItem = {
+          id: `idx-${idx}`,
+          description: desc,
+          status: 'searching',
+        };
+
+        // Try to find in DB results
+        const productMatch = dbProducts?.find(p => p.name === desc);
+        if (productMatch) {
           return {
             ...item,
-            status: match.fiche_technique_url ? 'found' : 'missing_fiche',
-            product_id: match.id,
-            product_name: match.name,
-            category: match.category,
-            sku: match.sku,
-            fiche_technique_url: match.fiche_technique_url
-          } as ExtractedItem;
+            status: productMatch.fiche_technique_url ? 'found' : 'missing_fiche',
+            product_id: productMatch.id,
+            product_name: productMatch.name,
+            category: productMatch.category,
+            sku: productMatch.sku,
+            fiche_technique_url: productMatch.fiche_technique_url
+          };
         }
 
-        return {
-          ...item,
-          status: 'not_found'
-        } as ExtractedItem;
+        // Try to find in Mappings results
+        const mappingMatch = mappings?.find(m => m.extracted_name === desc);
+        if (mappingMatch) {
+          return {
+            ...item,
+            status: 'mapped',
+            mapping_id: mappingMatch.id,
+            product_name: mappingMatch.extracted_name,
+            fiche_technique_url: mappingMatch.fiche_technique_url
+          };
+        }
+
+        return { ...item, status: 'not_found' };
       });
 
       setItems(updatedItems);
     } catch (err) {
       console.error(err);
-      toast.error('Erreur lors de la vérification dans l\'inventaire');
+      toast.error('Erreur de synchronisation avec l\'inventaire');
     }
     setIsProcessing(false);
     setOcrProgress(0);
@@ -186,9 +206,13 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
   }, []);
 
   const uploadFicheTechnique = useCallback(async (item: ExtractedItem, file: File) => {
-    if (!item.product_id) return;
-    
-    const fileExt = file.name.split('.').pop();
+    // Only PDFs allowed as per user request
+    if (file.type !== 'application/pdf') {
+      toast.error('Seuls les fichiers PDF sont acceptés.');
+      return;
+    }
+
+    const fileExt = 'pdf';
     const fileName = `${Math.random()}.${fileExt}`;
     const filePath = `fiches/${fileName}`;
 
@@ -205,23 +229,36 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
       }
 
       const { data } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
+      const publicUrl = data.publicUrl;
 
-      const { error: rpcError } = await supabase.rpc('update_product_fiche_technique', {
-        _product_id: item.product_id,
-        _fiche_technique_url: data.publicUrl
-      });
+      if (item.product_id) {
+        // Case: Existing product in inventory
+        const { error: rpcError } = await supabase.rpc('update_product_fiche_technique', {
+          _product_id: item.product_id,
+          _fiche_technique_url: publicUrl
+        });
+        if (rpcError) throw rpcError;
+        
+        setItems(prev => prev.map(p => 
+          p.id === item.id ? { ...p, status: 'found', fiche_technique_url: publicUrl } : p
+        ));
+      } else if (item.status === 'not_found' || item.status === 'mapped') {
+        // Case: Learning Mode (Mapping)
+        const { error: mapError } = await supabase
+          .from('devis_helper_mappings')
+          .upsert({
+            extracted_name: item.description,
+            fiche_technique_url: publicUrl
+          });
+        
+        if (mapError) throw mapError;
 
-      if (rpcError) {
-        console.error('RPC update error:', rpcError);
-        throw rpcError;
+        setItems(prev => prev.map(p => 
+          p.id === item.id ? { ...p, status: 'mapped', fiche_technique_url: publicUrl } : p
+        ));
       }
 
-      toast.success('Fiche technique mise à jour !', { id: `upload-${item.id}` });
-      
-      setItems(prev => prev.map(p => 
-        p.id === item.id ? { ...p, status: 'found', fiche_technique_url: data.publicUrl } : p
-      ));
-
+      toast.success('Fiche technique enregistrée !', { id: `upload-${item.id}` });
     } catch (err) {
       console.error(err);
       toast.error('Erreur lors du téléversement', { id: `upload-${item.id}` });
@@ -465,7 +502,7 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
                 key={item.id} 
                 className={`p-4 rounded-lg border flex items-center justify-between gap-4 transition-colors ${
                   item.status === 'not_found' ? 'bg-red-500/5 border-red-500/20' :
-                  item.status === 'found' ? 'bg-green-500/5 border-green-500/20' :
+                  (item.status === 'found' || item.status === 'mapped') ? 'bg-green-500/5 border-green-500/20' :
                   'bg-yellow-500/5 border-yellow-500/20'
                 }`}
               >
@@ -490,23 +527,52 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
                   )}
 
                   {item.status === 'not_found' && (
-                    <Button size="sm" variant="secondary" className="h-8 gap-1" onClick={() => openAddModal(item.description)}>
-                      <Plus className="w-3.5 h-3.5" />
-                      Ajouter
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-500/10 px-2 py-1 rounded uppercase tracking-wider">
+                        <X className="w-3 h-3" />
+                        N'existe pas
+                      </span>
+                      <label className="cursor-pointer bg-accent text-accent-foreground hover:bg-accent/90 px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 shadow-sm">
+                        <LinkIcon className="w-3.5 h-3.5" />
+                        Associer PDF
+                        <input 
+                          type="file" 
+                          accept="application/pdf" 
+                          className="hidden" 
+                          onChange={(e) => {
+                            if(e.target.files && e.target.files[0]) {
+                              uploadFicheTechnique(item, e.target.files[0]);
+                            }
+                          }}
+                        />
+                      </label>
+                      <Button size="sm" variant="outline" className="h-8 gap-1 opacity-50 hover:opacity-100" onClick={() => openAddModal(item.description)}>
+                        <Plus className="w-3.5 h-3.5" />
+                        Inventaire
+                      </Button>
+                    </div>
                   )}
 
-                  {item.status === 'found' && (
+                  {(item.status === 'found' || item.status === 'mapped') && (
                     <div className="flex items-center gap-2">
-                      <span className="flex items-center gap-1 text-sm font-medium text-green-600 bg-green-500/10 px-2 py-1 rounded">
+                      <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-500/10 px-2 py-1 rounded uppercase tracking-wider">
                         <Check className="w-4 h-4" />
-                        Dispo
+                        {item.status === 'mapped' ? 'Mémoire' : 'Existe'}
                       </span>
                       {item.fiche_technique_url && (
                         <div className="flex items-center gap-1 border-l border-border pl-2 border-dashed ml-1">
                           {parseUrls(item.fiche_technique_url).map((url, i) => (
                             <div key={i} className="flex gap-1">
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-primary hover:bg-primary/10" onClick={() => window.open(url, '_blank')} title="Voir">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 w-8 p-0 text-primary hover:bg-primary/10" 
+                                onClick={() => {
+                                  setSelectedPreviewDoc({ url, title: item.product_name || item.description });
+                                  setPreviewOpen(true);
+                                }} 
+                                title="Voir"
+                              >
                                 <Eye className="w-3.5 h-3.5" />
                               </Button>
                               <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-primary hover:bg-primary/10" onClick={() => handleDownloadFiche(url)} title="Télécharger">
@@ -523,11 +589,16 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
                   )}
 
                   {item.status === 'missing_fiche' && (
-                    <label className="cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90 px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
-                      Ajouter Fiche
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-500/10 px-2 py-1 rounded uppercase tracking-wider">
+                        <AlertCircle className="w-4 h-4" />
+                        Sans Fiche
+                      </span>
+                      <label className="cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90 px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+                        Ajouter Fiche
                       <input 
                         type="file" 
-                        accept="application/pdf,image/*" 
+                        accept="application/pdf" 
                         className="hidden" 
                         onChange={(e) => {
                           if(e.target.files && e.target.files[0]) {
@@ -536,7 +607,8 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
                         }}
                       />
                     </label>
-                  )}
+                  </div>
+                )}
                 </div>
               </div>
             ))}
@@ -545,6 +617,51 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
       )}
 
       <ProductGroupModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSuccess={handleProductAdded} defaultName={productNameForModal} />
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden bg-background">
+          <DialogHeader className="p-4 border-b flex flex-row items-center justify-between space-y-0">
+            <DialogTitle className="truncate pr-8 flex items-center gap-2">
+              <FileIcon className="w-5 h-5 text-primary" />
+               Aperçu: {selectedPreviewDoc?.title}
+            </DialogTitle>
+            <div className="flex gap-2">
+              <Button 
+                variant="primary" 
+                size="sm" 
+                className="gap-2 font-bold shadow-lg"
+                onClick={() => selectedPreviewDoc && handleDownloadFiche(selectedPreviewDoc.url)}
+              >
+                <DownloadCloud className="w-4 h-4" />
+                TELECHARGER LA FICHE
+              </Button>
+            </div>
+          </DialogHeader>
+          <div className="flex-1 bg-muted/20 relative">
+            {selectedPreviewDoc?.url ? (
+              selectedPreviewDoc.url.toLowerCase().endsWith('.pdf') || selectedPreviewDoc.url.includes('/fiches/') ? (
+                <iframe 
+                  src={`${selectedPreviewDoc.url}#toolbar=0`} 
+                  className="w-full h-full border-none"
+                  title="Document Preview"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center p-4">
+                  <img 
+                    src={selectedPreviewDoc.url} 
+                    alt="Preview" 
+                    className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
+                  />
+                </div>
+              )
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!itemToReplace} onOpenChange={(open) => !open && setItemToReplace(null)}>
         <AlertDialogContent>
@@ -567,7 +684,7 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
         type="file"
         ref={replaceFileInputRef}
         className="hidden"
-        accept="application/pdf,image/*"
+        accept="application/pdf"
         onChange={(e) => {
           console.log('Replace input onChange triggered');
           if (e.target.files?.[0] && activeReplaceItem) {

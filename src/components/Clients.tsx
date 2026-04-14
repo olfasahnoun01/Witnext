@@ -90,6 +90,8 @@ export const Clients = memo(() => {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [storageErrorRC, setStorageErrorRC] = useState<string | null>(null);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [selectedDocPath, setSelectedDocPath] = useState<string | null>(null);
+  const [selectedDocBucket, setSelectedDocBucket] = useState('');
   const [selectedDocUrl, setSelectedDocUrl] = useState<string | null>(null);
   const [selectedDocTitle, setSelectedDocTitle] = useState('');
   const [isDownloadingDoc, setIsDownloadingDoc] = useState(false);
@@ -270,6 +272,8 @@ export const Clients = memo(() => {
 
       if (error) throw error;
       if (data) {
+        setSelectedDocPath(path);
+        setSelectedDocBucket(bucket);
         setSelectedDocUrl(data.signedUrl);
         setSelectedDocTitle(bucket === 'patentes_client' ? 'Patente' : 'Registre de Commerce');
         setPreviewModalOpen(true);
@@ -1017,25 +1021,38 @@ export const Clients = memo(() => {
               className="gap-2"
               disabled={isDownloadingDoc}
               onClick={async () => {
-                if (!selectedDocUrl) return;
+                if (!selectedDocPath || !selectedDocBucket) return;
                 setIsDownloadingDoc(true);
                 try {
-                  const response = await fetch(selectedDocUrl);
-                  const blob = await response.blob();
+                  // Method 1: Use Supabase storage.download which returns a blob directly
+                  const { data: blob, error } = await supabase.storage
+                    .from(selectedDocBucket)
+                    .download(selectedDocPath);
+                  
+                  if (error) throw error;
+                  if (!blob) throw new Error('No blob data received');
+
+                  // Method 2: Create a local object URL from the blob
                   const blobUrl = window.URL.createObjectURL(blob);
                   
+                  // Method 3: Trigger download with extension-preserving filename
+                  const extension = selectedDocPath.split('.').pop() || 'webp';
                   const link = document.createElement('a');
                   link.href = blobUrl;
-                  link.download = `${selectedDocTitle.replace(/\s+/g, '_')}_${Date.now()}.webp`;
+                  link.download = `${selectedDocTitle.replace(/\s+/g, '_')}_${Date.now()}.${extension}`;
                   document.body.appendChild(link);
                   link.click();
-                  document.body.removeChild(link);
-                  window.URL.revokeObjectURL(blobUrl);
+                  
+                  // Clean up
+                  setTimeout(() => {
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(blobUrl);
+                  }, 100);
                   
                   toast.success('Téléchargement réussi');
-                } catch (error) {
+                } catch (error: any) {
                   console.error('Download error:', error);
-                  toast.error('Erreur lors du téléchargement');
+                  toast.error(`Erreur: ${error.message || 'Impossible de télécharger'}`);
                 } finally {
                   setIsDownloadingDoc(false);
                 }

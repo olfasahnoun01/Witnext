@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload, FileText, Eye, Download, X, Images, FileDown } from 'lucide-react';
+import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload, FileText, Eye, Download, X, FileDown, DownloadCloud, FileIcon, Loader2 } from 'lucide-react';
 import { ProductGroup, Product, StockStatus } from '@/types';
 import { getVariantsByGroupId, createVariant } from '@/services/productGroupService';
 import { updateProduct, deleteProduct } from '@/services/dbService';
@@ -169,11 +169,10 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     }
   }, []);
 
-  const uploadBlobToStorage = useCallback(async (blob: Blob): Promise<string> => {
-    const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.jpeg`;
+  const uploadBlobToStorage = useCallback(async (blob: Blob, fileName: string): Promise<string> => {
     const filePath = `fiches/${fileName}`;
     const { error: uploadError } = await supabase.storage.from('fiches-techniques').upload(filePath, blob, {
-      contentType: 'image/jpeg',
+      upsert: true
     });
     if (uploadError) throw uploadError;
     const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(filePath);
@@ -200,22 +199,12 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
       const newUrls: string[] = [];
 
       for (const file of fileArray) {
-        if (file.type === 'application/pdf') {
-          // Convert ALL pages to separate JPEG images
-          const { convertPdfAllPagesToJpeg } = await import('@/lib/imageCompression');
-          const pages = await convertPdfAllPagesToJpeg(file, { maxWidth: 5000, maxHeight: 5000, quality: 1.0 });
-          toast.info(`PDF "${file.name}": ${pages.length} page(s) détectée(s), conversion en cours...`);
-          for (const page of pages) {
-            const url = await uploadBlobToStorage(page.blob);
-            newUrls.push(url);
-          }
-        } else {
-          // Single image
-          const { convertImageFileToJpeg } = await import('@/lib/imageCompression');
-          const { blob } = await convertImageFileToJpeg(file);
-          const url = await uploadBlobToStorage(blob);
-          newUrls.push(url);
-        }
+        const timestamp = Date.now();
+        const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+        const fileName = `fiche_${timestamp}_${safeName}`;
+        
+        const url = await uploadBlobToStorage(file, fileName);
+        newUrls.push(url);
       }
 
       const updatedUrls = [...formData.fiche_urls, ...newUrls];
@@ -332,9 +321,10 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     }
   }, [fetchVariants]);
 
-  const openPreview = useCallback((urls: string[], startIndex = 0) => {
-    setPreviewFicheUrls(urls);
-    setPreviewFicheIndex(startIndex);
+  const [previewData, setPreviewData] = useState<{ urls: string[], index: number, title: string } | null>(null);
+
+  const openPreview = useCallback((urls: string[], index = 0, title: string) => {
+    setPreviewData({ urls, index, title });
   }, []);
 
   const downloadFichesAsPdf = useCallback(async (variant: Product) => {
@@ -524,8 +514,8 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                       {ficheUrls.length > 0 ? (
                         <div className="flex items-center gap-1">
                           <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1"
-                            title="Prévisualiser" onClick={() => openPreview(ficheUrls)}>
-                            <Images className="w-3.5 h-3.5" />
+                            title="Prévisualiser" onClick={() => openPreview(ficheUrls, 0, variant.sku)}>
+                            <FileText className="w-3.5 h-3.5" />
                             <span>{ficheUrls.length}</span>
                           </Button>
                           <Button variant="ghost" size="sm" className="h-7 px-2 text-xs"
@@ -662,13 +652,14 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                 <div className="grid grid-cols-3 gap-2">
                   {formData.fiche_urls.map((url, idx) => (
                     <div key={idx} className="relative group rounded-lg border border-border overflow-hidden bg-muted/30">
-                      <img src={url} alt={`Fiche ${idx + 1}`}
-                        className="w-full h-24 object-cover cursor-pointer"
-                        onClick={() => openPreview(formData.fiche_urls, idx)} />
+                      <img src={url.toLowerCase().endsWith('.pdf') ? 'https://upload.wikimedia.org/wikipedia/commons/8/87/PDF_file_icon.svg' : url} 
+                        alt={`Fiche ${idx + 1}`}
+                        className="w-full h-24 object-cover cursor-pointer bg-white"
+                        onClick={() => openPreview(formData.fiche_urls, idx, formData.sku || 'Fiche Technique')} />
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
                         <Button type="button" variant="ghost" size="sm"
                           className="h-7 w-7 p-0 text-white hover:text-white hover:bg-white/20"
-                          onClick={() => openPreview(formData.fiche_urls, idx)}>
+                          onClick={() => openPreview(formData.fiche_urls, idx, formData.sku || 'Fiche Technique')}>
                           <Eye className="w-4 h-4" />
                         </Button>
                         <Button type="button" variant="ghost" size="sm"
@@ -705,59 +696,88 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         </DialogContent>
       </Dialog>
 
-      {/* Fiche technique gallery preview dialog */}
-      <Dialog open={previewFicheUrls.length > 0} onOpenChange={() => setPreviewFicheUrls([])}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>
-              Fiche Technique {previewFicheUrls.length > 1 && `(${previewFicheIndex + 1}/${previewFicheUrls.length})`}
+      <Dialog open={!!previewData} onOpenChange={(open) => !open && setPreviewData(null)}>
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden bg-background">
+          <DialogHeader className="p-4 border-b flex flex-row items-center justify-between space-y-0">
+            <DialogTitle className="truncate pr-8 flex items-center gap-2">
+              <FileIcon className="w-5 h-5 text-primary" />
+               Aperçu: {previewData?.title} {previewData && previewData.urls.length > 1 && `(${previewData.index + 1}/${previewData.urls.length})`}
             </DialogTitle>
+            <div className="flex gap-2">
+              <Button 
+                variant="primary" 
+                size="sm" 
+                className="gap-2 font-bold shadow-lg"
+                onClick={() => {
+                  if (!previewData) return;
+                  const url = previewData.urls[previewData.index];
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = `fiche_${previewData.title}_${previewData.index + 1}`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+              >
+                <DownloadCloud className="w-4 h-4" />
+                TELECHARGER
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setPreviewData(null)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           </DialogHeader>
-          {previewFicheUrls.length > 0 && (
-            <div className="flex-1 overflow-auto min-h-0">
-              <div className="overflow-auto max-h-[70vh]">
-                <img src={previewFicheUrls[previewFicheIndex]}
-                  alt={`Fiche technique ${previewFicheIndex + 1}`}
-                  className="w-full h-auto rounded-md" />
-              </div>
 
-              {/* Navigation + download */}
-              <div className="flex items-center justify-between mt-3">
-                <div className="flex gap-2">
-                  {previewFicheUrls.length > 1 && (
-                    <>
-                      <Button variant="outline" size="sm" disabled={previewFicheIndex === 0}
-                        onClick={() => setPreviewFicheIndex(i => i - 1)}>
-                        ← Précédent
-                      </Button>
-                      <Button variant="outline" size="sm" disabled={previewFicheIndex === previewFicheUrls.length - 1}
-                        onClick={() => setPreviewFicheIndex(i => i + 1)}>
-                        Suivant →
-                      </Button>
-                    </>
-                  )}
-                </div>
-                <a href={previewFicheUrls[previewFicheIndex]} download target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Download className="w-4 h-4" /> Télécharger
-                  </Button>
-                </a>
-              </div>
-
-              {/* Thumbnails */}
-              {previewFicheUrls.length > 1 && (
-                <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
-                  {previewFicheUrls.map((url, idx) => (
-                    <img key={idx} src={url} alt={`Page ${idx + 1}`}
-                      className={`w-16 h-16 object-cover rounded cursor-pointer border-2 flex-shrink-0 ${
-                        idx === previewFicheIndex ? 'border-primary' : 'border-transparent opacity-60 hover:opacity-100'
-                      }`}
-                      onClick={() => setPreviewFicheIndex(idx)} />
-                  ))}
+          <div className="flex-1 bg-muted/20 relative overflow-hidden flex flex-col">
+            <div className="flex-1 relative">
+              {previewData?.urls[previewData.index] ? (
+                previewData.urls[previewData.index].toLowerCase().endsWith('.pdf') || previewData.urls[previewData.index].includes('/fiches/') ? (
+                  <iframe 
+                    src={`${previewData.urls[previewData.index]}#toolbar=0`} 
+                    className="w-full h-full border-none"
+                    title="Document Preview"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center p-4">
+                    <img 
+                      src={previewData.urls[previewData.index]} 
+                      alt="Preview" 
+                      className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
+                    />
+                  </div>
+                )
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                 </div>
               )}
             </div>
-          )}
+
+            {/* Navigation footer if multiple */}
+            {previewData && previewData.urls.length > 1 && (
+              <div className="p-3 border-t bg-background flex items-center justify-center gap-4">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={previewData.index === 0}
+                  onClick={() => setPreviewData(prev => prev ? { ...prev, index: prev.index - 1 } : null)}
+                >
+                  ← Précédent
+                </Button>
+                <span className="text-sm font-medium">
+                  Page {previewData.index + 1} / {previewData.urls.length}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={previewData.index === previewData.urls.length - 1}
+                  onClick={() => setPreviewData(prev => prev ? { ...prev, index: prev.index + 1 } : null)}
+                >
+                  Suivant →
+                </Button>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

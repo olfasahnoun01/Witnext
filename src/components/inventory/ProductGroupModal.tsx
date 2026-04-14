@@ -356,15 +356,16 @@ export const ProductGroupModal = ({
           }
           // Upload fiche technique if provided
           if (v.fiche_technique_file && result.id) {
-            const { convertImageFileToJpeg } = await import('@/lib/imageCompression');
-            const { blob, ext } = await convertImageFileToJpeg(v.fiche_technique_file);
-            const filePath = `fiches/fiche_${result.id}_${Date.now()}.${ext}`;
+            const timestamp = Date.now();
+            const safeName = v.fiche_technique_file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+            const filePath = `fiches/fiche_var_${result.id}_${timestamp}_${safeName}`;
+            
             const { error: uploadError } = await supabase.storage
               .from('fiches-techniques')
-              .upload(filePath, blob, {
-                upsert: true,
-                contentType: 'image/jpeg',
+              .upload(filePath, v.fiche_technique_file, {
+                upsert: true
               });
+              
             if (!uploadError) {
               const { data: urlData } = supabase.storage
                 .from('fiches-techniques')
@@ -597,15 +598,14 @@ export const ProductGroupModal = ({
                     <div className="flex items-center gap-2">
                       <input
                         type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
+                        accept=".pdf"
                         className="hidden"
                         id={`variant-fiche-${idx}`}
                         onChange={(e) => {
                           const file = e.target.files?.[0] || null;
                           if (file) {
-                            const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
-                            if (!allowedTypes.includes(file.type)) {
-                              toast.error('Format non supporté. Utilisez PDF, JPG ou PNG.');
+                            if (file.type !== 'application/pdf') {
+                              toast.error('Format non supporté. Utilisez uniquement des fichiers PDF.');
                               return;
                             }
                             if (file.size > 10 * 1024 * 1024) {
