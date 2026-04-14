@@ -527,15 +527,6 @@ const insertTableData = async (
         delete (insertData as any).updated_by;
       }
       
-      // For ownership-restricted tables, ensure a valid ID exists so RLS doesn't block the insert
-      if (isChat || isDocument || isProfile || isRole) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          if (isChat || isProfile || isRole) (insertData as any).user_id = user.id;
-          if (isDocument) (insertData as any).created_by = user.id;
-        }
-      }
-      
       // Strip generated columns (PostgreSQL does not allow inserting into these)
       delete (insertData as any).prix_ttc;
       
