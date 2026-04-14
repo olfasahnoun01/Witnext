@@ -285,16 +285,29 @@ export const UserManagement = () => {
               {/* Debug Identity Banner */}
               <div className="mt-2 p-2 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
                 <p><strong>Configured Project:</strong> rnujsdxbkndvppjqjkdu</p>
-                <p><strong>Actual Token Ref:</strong> {(() => {
-                  try {
-                    const token = localStorage.getItem('sb-rnujsdxbkndvppjqjkdu-auth-token');
-                    if (!token) return 'No token in storage';
-                    const payload = JSON.parse(atob(JSON.parse(token).access_token.split('.')[1]));
-                    return payload.ref || 'Missing ref in payload';
-                  } catch (e) {
-                    return 'Error decoding token';
-                  }
-                })()}</p>
+                <div className="mt-1 font-mono text-[10px] break-all">
+                  <strong>Token Payload:</strong> {(() => {
+                    try {
+                      const token = localStorage.getItem('sb-rnujsdxbkndvppjqjkdu-auth-token');
+                      if (!token) return 'No token for this project ID in storage';
+                      const payload = JSON.parse(atob(JSON.parse(token).access_token.split('.')[1]));
+                      // Remove sensitive fields for safety but keep the ref, sub, etc.
+                      const { sub, email, ref, aud, role } = payload;
+                      return JSON.stringify({ sub, email, ref, aud, role });
+                    } catch (e) {
+                      try {
+                        // Try fallback to any Supabase token
+                        const keys = Object.keys(localStorage).filter(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+                        if (keys.length > 0) {
+                          const token = localStorage.getItem(keys[0]);
+                          const payload = JSON.parse(atob(JSON.parse(token!).access_token.split('.')[1]));
+                          return `REF MATCH ERROR: Found token for ${keys[0]} instead. Payload: ${JSON.stringify(payload)}`;
+                        }
+                      } catch (e2) {}
+                      return 'Error decoding token';
+                    }
+                  })()}
+                </div>
               </div>
             </div>
           </div>
