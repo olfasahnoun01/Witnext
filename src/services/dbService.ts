@@ -560,6 +560,10 @@ const insertTableData = async (
       let upsertOptions: any = {};
       if (tableName === 'profiles') upsertOptions.onConflict = 'user_id';
       if (tableName === 'user_roles') upsertOptions.onConflict = 'user_id,role';
+      if (tableName === 'product_groups') upsertOptions.onConflict = 'name,category';
+      if (tableName === 'product_group_fournisseurs') upsertOptions.onConflict = 'product_group_id,fournisseur_name';
+      if (tableName === 'category_settings') upsertOptions.onConflict = 'category_name';
+      if (tableName === 'user_presence') upsertOptions.onConflict = 'user_id';
       
       // Use upsert for EVERYTHING during import to prevent 409 Conflict errors
       const { error } = await supabase
