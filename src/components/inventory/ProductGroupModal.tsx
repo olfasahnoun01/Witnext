@@ -213,15 +213,18 @@ export const ProductGroupModal = ({
     // Add one empty variant by default if none
     if (variants.length === 0) {
       const baseSku = formData.base_sku || '';
-      // Default price from first supplier if available
-      const defaultPrice = formData.fournisseurs.length > 0 ? formData.fournisseurs[0].prix_ttc : 0;
+      // Inherit base price and remise from first supplier if available
+      const firstFourn = formData.fournisseurs.length > 0 ? formData.fournisseurs[0] : null;
+      const defaultPrice = firstFourn ? firstFourn.prix : 0;
+      const defaultRemise = firstFourn ? firstFourn.remise : 0;
+      
       setVariants([{ 
         sku: `${baseSku}-1`, 
         size: '', 
         color: '', 
         quantity: 0,
         price: defaultPrice,
-        remise: 0 
+        remise: defaultRemise 
       }]);
     }
     setStep(2);
@@ -232,14 +235,18 @@ export const ProductGroupModal = ({
     setVariants(prev => {
       const nextIndex = prev.length + 1;
       const baseSku = formData.base_sku || '';
-      const defaultPrice = formData.fournisseurs.length > 0 ? formData.fournisseurs[0].prix_ttc : 0;
+      // Inherit base price and remise from first supplier if available
+      const firstFourn = formData.fournisseurs.length > 0 ? formData.fournisseurs[0] : null;
+      const defaultPrice = firstFourn ? firstFourn.prix : 0;
+      const defaultRemise = firstFourn ? firstFourn.remise : 0;
+      
       return [...prev, { 
         sku: `${baseSku}-${nextIndex}`, 
         size: '', 
         color: '', 
         quantity: 0,
         price: defaultPrice,
-        remise: 0 
+        remise: defaultRemise 
       }];
     });
   }, [formData.base_sku, formData.fournisseurs]);
