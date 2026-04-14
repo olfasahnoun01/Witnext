@@ -92,6 +92,7 @@ export const Clients = memo(() => {
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [selectedDocUrl, setSelectedDocUrl] = useState<string | null>(null);
   const [selectedDocTitle, setSelectedDocTitle] = useState('');
+  const [isDownloadingDoc, setIsDownloadingDoc] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const rcFileInputRef = useRef<HTMLInputElement>(null);
   
@@ -1014,18 +1015,37 @@ export const Clients = memo(() => {
               variant="outline" 
               size="sm" 
               className="gap-2"
-              onClick={() => {
+              disabled={isDownloadingDoc}
+              onClick={async () => {
                 if (!selectedDocUrl) return;
-                const link = document.createElement('a');
-                link.href = selectedDocUrl;
-                link.download = `${selectedDocTitle.replace(/\s+/g, '_')}_${Date.now()}.webp`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                toast.success('Téléchargement lancé');
+                setIsDownloadingDoc(true);
+                try {
+                  const response = await fetch(selectedDocUrl);
+                  const blob = await response.blob();
+                  const blobUrl = window.URL.createObjectURL(blob);
+                  
+                  const link = document.createElement('a');
+                  link.href = blobUrl;
+                  link.download = `${selectedDocTitle.replace(/\s+/g, '_')}_${Date.now()}.webp`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(blobUrl);
+                  
+                  toast.success('Téléchargement réussi');
+                } catch (error) {
+                  console.error('Download error:', error);
+                  toast.error('Erreur lors du téléchargement');
+                } finally {
+                  setIsDownloadingDoc(false);
+                }
               }}
             >
-              <Download className="w-4 h-4" />
+              {isDownloadingDoc ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
               Télécharger
             </Button>
           </DialogHeader>
