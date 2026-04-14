@@ -513,22 +513,25 @@ const insertTableData = async (
         delete (insertData as any).id;
       }
       
-      // IMPORTANT: Strip user-referencing fields for non-user-management tables.
-      // These UUIDs from the old project won't exist in the new project and cause 23503 errors.
+      // For certain tables, we use upsert to avoid 409 Conflict errors
+      const isProfile = tableName === 'profiles';
+      const isRole = tableName === 'user_roles';
       const isChat = tableName === 'team_chat_messages';
       const isDocument = tableName === 'documents';
       
-      if (tableName !== 'profiles' && tableName !== 'user_roles' && !isChat && !isDocument) {
+      // IMPORTANT: Strip user-referencing fields for non-user-management tables.
+      // These UUIDs from the old project won't exist in the new project and cause 23503 errors.
+      if (!isProfile && !isRole && !isChat && !isDocument) {
         delete (insertData as any).created_by;
         delete (insertData as any).user_id;
         delete (insertData as any).updated_by;
       }
       
       // For ownership-restricted tables, ensure a valid ID exists so RLS doesn't block the insert
-      if (isChat || isDocument) {
+      if (isChat || isDocument || isProfile || isRole) {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          if (isChat) (insertData as any).user_id = user.id;
+          if (isChat || isProfile || isRole) (insertData as any).user_id = user.id;
           if (isDocument) (insertData as any).created_by = user.id;
         }
       }
@@ -536,9 +539,12 @@ const insertTableData = async (
       // Strip generated columns (PostgreSQL does not allow inserting into these)
       delete (insertData as any).prix_ttc;
       
-      const { error } = await supabase
-        .from(tableName as any)
-        .insert(insertData as any);
+      // Use upsert for profiles and roles to prevent 409 Conflict errors
+      const query = isProfile || isRole
+        ? supabase.from(tableName as any).upsert(insertData as any)
+        : supabase.from(tableName as any).insert(insertData as any);
+      
+      const { error } = await query;
       
       if (error) {
         if (error.code === '23505') {
