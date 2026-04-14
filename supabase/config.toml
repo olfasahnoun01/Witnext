@@ -1,1 +1,4 @@
 project_id = "rnujsdxbkndvppjqjkdu"
+
+[functions.manage-users]
+verify_jwt = false

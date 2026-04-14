@@ -522,6 +522,14 @@ const insertTableData = async (
       delete (insertData as any).prix_ttc;
       
       // IMPORTANT Fix for Migration: Handle User Ownership
+      let currentUserId: string | null = null;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        currentUserId = user?.id || null;
+      } catch (e) {
+        console.warn('Could not get current user, proceeding without ownership override');
+      }
+
       // If we are migrating to a new project, the original user IDs (created_by, user_id) 
       // will cause "Foreign Key Violation (23503)" because those users don't exist yet.
       // We force these to the CURRENT user doing the import so the data is valid.
@@ -548,10 +556,15 @@ const insertTableData = async (
         if ('updated_by' in insertData) (insertData as any).updated_by = currentUserId;
       }
       
+      // Select the correct conflict target for each table to avoid 409 errors
+      let upsertOptions: any = {};
+      if (tableName === 'profiles') upsertOptions.onConflict = 'user_id';
+      if (tableName === 'user_roles') upsertOptions.onConflict = 'user_id,role';
+      
       // Use upsert for EVERYTHING during import to prevent 409 Conflict errors
       const { error } = await supabase
         .from(tableName as any)
-        .upsert(insertData as any);
+        .upsert(insertData as any, upsertOptions);
       
       if (error) {
         // Log but don't stop the whole import

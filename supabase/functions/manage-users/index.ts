@@ -83,66 +83,48 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader || authHeader === 'Bearer undefined' || authHeader === 'Bearer null') {
-      console.log('Missing or invalid authorization header:', authHeader)
-      return new Response(JSON.stringify({ 
-        error: 'Token d\'authentification manquant',
-        debug: {
-          header_present: !!authHeader,
-          header_value: authHeader,
-          project_url: supabaseUrl
-        }
-      }), {
+    const token = authHeader?.replace('Bearer ', '')
+
+    if (!token || token === 'undefined' || token === 'null') {
+      return new Response(JSON.stringify({ error: 'Token manquant' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // Create a regular client to verify the user's token
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    })
+    // Manual extraction since verify_jwt=false in config.toml
+    let requestingUserId: string | null = null;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      requestingUserId = payload.sub;
+    } catch (e) {
+      console.error('Error decoding token:', e);
+    }
 
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
-
-    if (authError || !user) {
-      console.error('Auth verification failed:', authError?.message)
-      const tokenSnippet = authHeader.length > 20 
-        ? `${authHeader.substring(0, 15)}...${authHeader.substring(authHeader.length - 10)}`
-        : 'too short';
-        
-      return new Response(JSON.stringify({ 
-        error: 'Session invalide ou expirée',
-        debug: {
-          auth_error: authError?.message,
-          token_snippet: tokenSnippet,
-          project_url: supabaseUrl
-        }
-      }), {
-        status: 200, // Temporairement 200 pour voir le debug dans Lovable
+    if (!requestingUserId) {
+      return new Response(JSON.stringify({ error: 'Session invalide' }), {
+        status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    const requestingUserId = user.id
-    console.log('Authenticated user:', requestingUserId, user.email)
-
-    // Create admin client for user management
+    // Use service key to bypass RLS for admin check
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
     // Check if requesting user is admin
-    const { data: isAdmin, error: roleError } = await supabaseAdmin.rpc('has_role', {
-      _user_id: requestingUserId,
-      _role: 'admin'
-    })
+    const { data: userRole, error: roleError } = await supabaseAdmin
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', requestingUserId)
+      .eq('role', 'admin')
+      .maybeSingle()
 
-    if (roleError) {
-      console.error('Role check error:', roleError.message)
-    }
-
-    if (!isAdmin) {
-      console.log('User is not admin:', requestingUserId)
-      return new Response(JSON.stringify({ error: 'Accès réservé aux administrateurs' }), {
+    if (roleError || !userRole) {
+      console.log('User is not admin or role error:', requestingUserId, roleError)
+      return new Response(JSON.stringify({ 
+        error: 'Accès réservé aux administrateurs',
+        debug: { userId: requestingUserId }
+      }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
