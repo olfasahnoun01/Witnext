@@ -70,18 +70,6 @@ const App = () => {
     return () => window.removeEventListener("unhandledrejection", handleRejection);
   }, []);
 
-  const handleHardReset = () => {
-    localStorage.clear();
-    sessionStorage.clear();
-    // Clear cookies
-    document.cookie.split(";").forEach((c) => {
-      document.cookie = c
-        .replace(/^ +/, "")
-        .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-    });
-    window.location.href = "/auth";
-  };
-
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider
@@ -91,6 +79,7 @@ const App = () => {
         disableTransitionOnChange={false}
         storageKey="grosafe-theme"
       >
+        <TooltipProvider>
           <UpdateAlert />
           <Toaster />
           <Sonner />
