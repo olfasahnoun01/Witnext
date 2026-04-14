@@ -281,6 +281,21 @@ export const UserManagement = () => {
             <div>
               <h2 className="text-xl font-semibold text-foreground">Gestion des Utilisateurs</h2>
               <p className="text-sm text-muted-foreground">Ajouter, modifier ou supprimer des utilisateurs</p>
+              
+              {/* Debug Identity Banner */}
+              <div className="mt-2 p-2 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
+                <p><strong>Configured Project:</strong> rnujsdxbkndvppjqjkdu</p>
+                <p><strong>Actual Token Ref:</strong> {(() => {
+                  try {
+                    const token = localStorage.getItem('sb-rnujsdxbkndvppjqjkdu-auth-token');
+                    if (!token) return 'No token in storage';
+                    const payload = JSON.parse(atob(JSON.parse(token).access_token.split('.')[1]));
+                    return payload.ref || 'Missing ref in payload';
+                  } catch (e) {
+                    return 'Error decoding token';
+                  }
+                })()}</p>
+              </div>
             </div>
           </div>
           <Button onClick={() => openModal()}>
