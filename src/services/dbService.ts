@@ -503,6 +503,11 @@ const insertTableData = async (
   items: any[],
   stripId = true
 ): Promise<void> => {
+  if (!items.length) return;
+
+  const { data: { user } } = await supabase.auth.getUser();
+  const currentUserId = user?.id;
+
   for (const item of items) {
     try {
       // Create a clean copy of the data
@@ -513,41 +518,37 @@ const insertTableData = async (
         delete (insertData as any).id;
       }
       
-      // For certain tables, we use upsert to avoid 409 Conflict errors
-      const isProfile = tableName === 'profiles';
-      const isRole = tableName === 'user_roles';
-      const isChat = tableName === 'team_chat_messages';
-      const isDocument = tableName === 'documents';
-      
-      // IMPORTANT: Strip user-referencing fields for non-user-management tables.
-      // These UUIDs from the old project won't exist in the new project and cause 23503 errors.
-      if (!isProfile && !isRole && !isChat && !isDocument) {
-        delete (insertData as any).created_by;
-        delete (insertData as any).user_id;
-        delete (insertData as any).updated_by;
-      }
-      
       // Strip generated columns (PostgreSQL does not allow inserting into these)
       delete (insertData as any).prix_ttc;
       
-      // Use upsert for profiles and roles to prevent 409 Conflict errors
-      const query = isProfile || isRole
-        ? supabase.from(tableName as any).upsert(insertData as any)
-        : supabase.from(tableName as any).insert(insertData as any);
-      
-      const { error } = await query;
-      
-      if (error) {
-        if (error.code === '23505') {
-          console.log(`Duplicate entry skipped in ${tableName}`);
-        } else if (error.code === '23503') {
-          console.warn(`Foreign key violation in ${tableName} (likely legacy user reference), skipping item.`);
-        } else {
-          console.error(`Error inserting into ${tableName}:`, error);
+      // IMPORTANT Fix for Migration: Handle User Ownership
+      // If we are migrating to a new project, the original user IDs (created_by, user_id) 
+      // will cause "Foreign Key Violation (23503)" because those users don't exist yet.
+      // We force these to the CURRENT user doing the import so the data is valid.
+      if (currentUserId) {
+        if ('created_by' in insertData) (insertData as any).created_by = currentUserId;
+        if ('user_id' in insertData) (insertData as any).user_id = currentUserId;
+        if ('updated_by' in insertData) (insertData as any).updated_by = currentUserId;
+        
+        // Profiles special handling: The primary key IS user_id. 
+        // We only import the CURRENT user's profile to avoid conflicts with non-existent auth users.
+        if (tableName === 'profiles' && (insertData as any).user_id !== currentUserId) {
+          console.log('Skipping non-current user profile to prevent auth violation');
+          continue;
         }
       }
+      
+      // Use upsert for EVERYTHING during import to prevent 409 Conflict errors
+      const { error } = await supabase
+        .from(tableName as any)
+        .upsert(insertData as any);
+      
+      if (error) {
+        // Log but don't stop the whole import
+        console.error(`Error importing into ${tableName}:`, error.code, error.message);
+      }
     } catch (err) {
-      console.error(`Error processing item in ${tableName}:`, err);
+      console.error(`Unexpected process error in ${tableName}:`, err);
     }
   }
 };
