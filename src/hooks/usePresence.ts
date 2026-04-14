@@ -45,9 +45,9 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         }, { onConflict: 'user_id' });
 
       if (error) {
-        // Circuit breaker: if we get a permission error, stop trying
-        if ((error as any).status === 403 || error.code === '42501') {
-          console.log('Presence feature silenced: insufficient permissions for user_presence table.');
+        // Circuit breaker: if we get a permission error or foreign key violation (stale session), stop trying
+        if ((error as any).status === 403 || error.code === '42501' || error.code === '23503') {
+          console.log(`Presence feature silenced: ${error.code === '23503' ? 'Session identity mismatch (migration effect)' : 'Insufficient permissions'}. Please re-login to restore status indicators.`);
           setHasPermission(false);
           return;
         }
