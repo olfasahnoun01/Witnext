@@ -17,6 +17,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface ExtractedItem {
   id: string;
@@ -107,7 +113,7 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
         console.warn('Mapping table issues:', mapError);
       }
 
-      const updatedItems = descriptions.map((desc, idx) => {
+      const updatedItems: ExtractedItem[] = descriptions.map((desc, idx) => {
         const item: ExtractedItem = {
           id: `idx-${idx}`,
           description: desc,
@@ -119,7 +125,7 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
         if (productMatch) {
           return {
             ...item,
-            status: productMatch.fiche_technique_url ? 'found' : 'missing_fiche',
+            status: (productMatch.fiche_technique_url ? 'found' : 'missing_fiche') as ExtractedItem['status'],
             product_id: productMatch.id,
             product_name: productMatch.name,
             category: productMatch.category,
@@ -627,7 +633,7 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
             </DialogTitle>
             <div className="flex gap-2">
               <Button 
-                variant="primary" 
+                variant="default" 
                 size="sm" 
                 className="gap-2 font-bold shadow-lg"
                 onClick={() => selectedPreviewDoc && handleDownloadFiche(selectedPreviewDoc.url)}

@@ -705,7 +705,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
             </DialogTitle>
             <div className="flex gap-2">
               <Button 
-                variant="primary" 
+                variant="default" 
                 size="sm" 
                 className="gap-2 font-bold shadow-lg"
                 onClick={() => {
