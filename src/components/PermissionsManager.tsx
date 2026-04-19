@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { BIG_SECTIONS } from '@/config/navigation';
+import { UserManagement } from './UserManagement';
 
 interface ManagedUser {
   user_id: string;
@@ -136,6 +137,9 @@ export const PermissionsManager = () => {
   }
 
   return (
+    <div className="space-y-6">
+      <UserManagement />
+
     <div className="bg-card rounded-xl border border-border p-6">
       <div className="flex items-center gap-3 mb-6">
         <div className="p-3 rounded-xl bg-primary/10">
@@ -230,6 +234,7 @@ export const PermissionsManager = () => {
           })}
         </div>
       )}
+    </div>
     </div>
   );
 };
