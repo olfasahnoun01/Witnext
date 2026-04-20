@@ -146,9 +146,9 @@ export const PermissionsManager = () => {
           <Shield className="w-6 h-6 text-primary" />
         </div>
         <div>
-          <h2 className="text-xl font-semibold text-foreground">Gestion des Permissions</h2>
+          <h2 className="text-xl font-semibold text-foreground">Gestion des Permissions & Utilisateurs</h2>
           <p className="text-sm text-muted-foreground">
-            Définissez les sections et sous-sections accessibles à chaque utilisateur. Les administrateurs ont accès à tout par défaut.
+            Gérez les utilisateurs, leurs rôles, puis définissez les sections et sous-sections accessibles. Les administrateurs ont accès à tout par défaut.
           </p>
         </div>
       </div>
