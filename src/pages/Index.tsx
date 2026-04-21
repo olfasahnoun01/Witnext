@@ -21,13 +21,13 @@ const GestionDevis = lazy(() => import('@/components/GestionDevis').then(m => ({
 const PhotoGallery = lazy(() => import('@/components/PhotoGallery').then(m => ({ default: m.PhotoGallery })));
 const EmployeeList = lazy(() => import('@/components/EmployeeList').then(m => ({ default: m.EmployeeList })));
 const Flotte = lazy(() => import('@/components/Flotte').then(m => ({ default: m.Flotte })));
+const Planning = lazy(() => import('@/components/Planning').then(m => ({ default: m.Planning })));
 
 // Sub-sections that show a "Coming Soon" placeholder
 const COMING_SOON_TABS = new Set([
   'rdv',
   'suivi-clients',
   'suivi-fournisseurs',
-  'planning',
   'gestion-vehicules',
 ]);
 
@@ -116,6 +116,7 @@ const Index = () => {
         {activeTab === 'gallery' && <PhotoGallery />}
         {activeTab === 'employees' && <EmployeeList />}
         {activeTab === 'flotte' && <Flotte />}
+        {activeTab === 'planning' && <Planning />}
       </Suspense>
     );
   };

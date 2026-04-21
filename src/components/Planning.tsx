@@ -1,0 +1,683 @@
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import {
+  CalendarDays,
+  Building2,
+  MapPin,
+  Users,
+  Printer,
+  Plus,
+  Trash2,
+  FileDown,
+  RotateCcw,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { toast } from 'sonner';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+// ── Types ──────────────────────────────────────────────────────────────
+interface EmployeeRow {
+  id: string;
+  name: string;
+  shifts: Record<string, string>; // dateKey → shift code
+}
+
+type PeriodType = 'weekly' | 'monthly';
+
+// Shift code → display / style
+const SHIFT_MAP: Record<string, { label: string; bg: string; text: string }> = {
+  R: { label: 'R', bg: 'bg-red-500/20', text: 'text-red-600 dark:text-red-400' },
+  J: { label: 'J', bg: 'bg-emerald-500/20', text: 'text-emerald-600 dark:text-emerald-400' },
+  N: { label: 'N', bg: 'bg-blue-500/20', text: 'text-blue-600 dark:text-blue-400' },
+};
+
+const SHIFT_HOURS: Record<string, number> = { J: 8, N: 8, R: 0 };
+
+// ── Helpers ────────────────────────────────────────────────────────────
+function buildDateRange(start: Date, end: Date): Date[] {
+  const dates: Date[] = [];
+  const cur = new Date(start);
+  while (cur <= end) {
+    dates.push(new Date(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
+function formatDD_MM(d: Date): string {
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}`;
+}
+
+function dateKey(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function getWeekStart(d: Date): Date {
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  return new Date(d.getFullYear(), d.getMonth(), diff);
+}
+
+function getMonthStart(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function getMonthEnd(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+}
+
+function getWeekEnd(start: Date): Date {
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  return end;
+}
+
+// Arabic day abbreviations
+const AR_DAYS = ['أحد', 'إثن', 'ثلا', 'أرب', 'خمي', 'جمع', 'سبت'];
+
+// ── Component ──────────────────────────────────────────────────────────
+export const Planning = () => {
+  // Setup state
+  const [companyName, setCompanyName] = useState('');
+  const [siteName, setSiteName] = useState('');
+  const [periodType, setPeriodType] = useState<PeriodType>('monthly');
+  const [referenceDate, setReferenceDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
+
+  // Employees
+  const [employees, setEmployees] = useState<EmployeeRow[]>([]);
+  const [newName, setNewName] = useState('');
+
+  // Generated state
+  const [isGenerated, setIsGenerated] = useState(false);
+
+  const tableRef = useRef<HTMLDivElement>(null);
+
+  // Compute date range
+  const { startDate, endDate, dates } = useMemo(() => {
+    const ref = new Date(referenceDate + 'T00:00:00');
+    let s: Date, e: Date;
+    if (periodType === 'weekly') {
+      s = getWeekStart(ref);
+      e = getWeekEnd(s);
+    } else {
+      s = getMonthStart(ref);
+      e = getMonthEnd(ref);
+    }
+    return { startDate: s, endDate: e, dates: buildDateRange(s, e) };
+  }, [referenceDate, periodType]);
+
+  // Navigate period
+  const navigatePeriod = useCallback(
+    (dir: -1 | 1) => {
+      const ref = new Date(referenceDate + 'T00:00:00');
+      if (periodType === 'weekly') {
+        ref.setDate(ref.getDate() + dir * 7);
+      } else {
+        ref.setMonth(ref.getMonth() + dir);
+      }
+      setReferenceDate(
+        `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, '0')}-${String(ref.getDate()).padStart(2, '0')}`
+      );
+    },
+    [referenceDate, periodType]
+  );
+
+  // Add employee
+  const addEmployee = useCallback(() => {
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      toast.error('الرجاء إدخال اسم الموظف');
+      return;
+    }
+    setEmployees((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), name: trimmed, shifts: {} },
+    ]);
+    setNewName('');
+  }, [newName]);
+
+  // Remove employee
+  const removeEmployee = useCallback((id: string) => {
+    setEmployees((prev) => prev.filter((e) => e.id !== id));
+  }, []);
+
+  // Handle shift cell input
+  const handleShiftInput = useCallback(
+    (empId: string, dk: string, value: string) => {
+      const upper = value.toUpperCase().slice(-1); // take last char
+      if (upper && !['R', 'J', 'N'].includes(upper)) return;
+      setEmployees((prev) =>
+        prev.map((emp) =>
+          emp.id === empId
+            ? { ...emp, shifts: { ...emp.shifts, [dk]: upper } }
+            : emp
+        )
+      );
+    },
+    []
+  );
+
+  // Handle keyboard navigation
+  const handleCellKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>, empIdx: number, dateIdx: number) => {
+      let nextEmp = empIdx;
+      let nextDate = dateIdx;
+
+      if (e.key === 'ArrowRight') { nextDate = dateIdx - 1; e.preventDefault(); }
+      else if (e.key === 'ArrowLeft') { nextDate = dateIdx + 1; e.preventDefault(); }
+      else if (e.key === 'ArrowDown') { nextEmp = empIdx + 1; e.preventDefault(); }
+      else if (e.key === 'ArrowUp') { nextEmp = empIdx - 1; e.preventDefault(); }
+      else if (e.key === 'Tab') {
+        // Let default tab behaviour work
+        return;
+      } else return;
+
+      const cellId = `cell-${nextEmp}-${nextDate}`;
+      const nextEl = document.getElementById(cellId) as HTMLInputElement | null;
+      nextEl?.focus();
+      nextEl?.select();
+    },
+    []
+  );
+
+  // Summary calculations per employee
+  const summaries = useMemo(() => {
+    return employees.map((emp) => {
+      let totalJ = 0;
+      let totalN = 0;
+      let totalR = 0;
+      dates.forEach((d) => {
+        const code = emp.shifts[dateKey(d)] || '';
+        if (code === 'J') totalJ++;
+        else if (code === 'N') totalN++;
+        else if (code === 'R') totalR++;
+      });
+      const workHours = totalJ * SHIFT_HOURS.J + totalN * SHIFT_HOURS.N;
+      const restHours = totalR * 24;
+      return { totalJ, totalN, totalR, workHours, restHours };
+    });
+  }, [employees, dates]);
+
+  // Generate table
+  const handleGenerate = useCallback(() => {
+    if (employees.length === 0) {
+      toast.error('الرجاء إضافة موظف واحد على الأقل');
+      return;
+    }
+    setIsGenerated(true);
+    toast.success('تم إنشاء جدول التخطيط بنجاح');
+  }, [employees]);
+
+  // Reset
+  const handleReset = useCallback(() => {
+    setIsGenerated(false);
+    setEmployees([]);
+    setCompanyName('');
+    setSiteName('');
+    setNewName('');
+    toast.success('تم إعادة تعيين الجدول');
+  }, []);
+
+  // PDF Export
+  const exportPDF = useCallback(() => {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    const addHeader = (title: string) => {
+      // Center
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      // Fallback for Arabic, jsPDF default font doesn't support Arabic well, but we use what we have or english equivalents
+      doc.text(companyName || 'Company', pageWidth / 2, 15, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "normal");
+      doc.text(title, pageWidth / 2, 22, { align: 'center' });
+      
+      // Left
+      doc.setFontSize(10);
+      doc.text(`Site: ${siteName || '-'}`, 14, 22);
+      
+      // Right
+      const rightTextX = pageWidth - 14;
+      doc.text(`Period: ${formatDD_MM(startDate)} - ${formatDD_MM(endDate)}`, rightTextX, 15, { align: 'right' });
+      doc.text(`Exported: ${new Date().toLocaleString('fr-FR')}`, rightTextX, 22, { align: 'right' });
+    };
+
+    // --- Page 1: Schedule ---
+    addHeader('Schedule / Planning');
+
+    const dateHeaders = dates.map((d) => formatDD_MM(d));
+    const scheduleHead = [['#', 'Employee', ...dateHeaders]];
+
+    const scheduleBody = employees.map((emp, i) => {
+      return [
+        String(i + 1),
+        emp.name,
+        ...dates.map((d) => emp.shifts[dateKey(d)] || ''),
+      ];
+    });
+
+    autoTable(doc, {
+      head: scheduleHead,
+      body: scheduleBody,
+      startY: 30,
+      styles: { fontSize: 7, cellPadding: 1.5, halign: 'center' },
+      headStyles: { fillColor: [30, 58, 95], fontSize: 6 },
+      columnStyles: { 1: { halign: 'right' } },
+      didParseCell(data) {
+        if (data.section === 'body' && data.column.index >= 2) {
+          const val = String(data.cell.raw);
+          if (val === 'R') { data.cell.styles.fillColor = [254, 202, 202]; data.cell.styles.textColor = [185, 28, 28]; }
+          else if (val === 'J') { data.cell.styles.fillColor = [187, 247, 208]; data.cell.styles.textColor = [21, 128, 61]; }
+          else if (val === 'N') { data.cell.styles.fillColor = [191, 219, 254]; data.cell.styles.textColor = [29, 78, 216]; }
+        }
+      },
+    });
+
+    // --- Page 2: Summary ---
+    doc.addPage();
+    addHeader('Summary / Recap');
+
+    const summaryHead = [['#', 'Employee', 'J (Day)', 'N (Night)', 'R (Rest)', 'Work Hours', 'Rest Hours']];
+    const summaryBody = employees.map((emp, i) => {
+      const s = summaries[i];
+      return [
+        String(i + 1),
+        emp.name,
+        String(s.totalJ),
+        String(s.totalN),
+        String(s.totalR),
+        String(s.workHours),
+        String(s.restHours),
+      ];
+    });
+
+    autoTable(doc, {
+      head: summaryHead,
+      body: summaryBody,
+      startY: 30,
+      styles: { fontSize: 9, cellPadding: 2, halign: 'center' },
+      headStyles: { fillColor: [30, 58, 95], fontSize: 8 },
+      columnStyles: { 1: { halign: 'right' } },
+    });
+
+    doc.save(`planning_${formatDD_MM(startDate)}_${formatDD_MM(endDate)}.pdf`);
+    toast.success('تم تصدير ملف PDF بنجاح');
+  }, [companyName, siteName, startDate, endDate, dates, employees, summaries]);
+
+  // Period label for display
+  const periodLabel = useMemo(() => {
+    const months = [
+      'جانفي', 'فيفري', 'مارس', 'أفريل', 'ماي', 'جوان',
+      'جويلية', 'أوت', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+    ];
+    if (periodType === 'monthly') {
+      return `${months[startDate.getMonth()]} ${startDate.getFullYear()}`;
+    }
+    return `${formatDD_MM(startDate)} → ${formatDD_MM(endDate)}`;
+  }, [periodType, startDate, endDate]);
+
+  // ── Render ─────────────────────────────────────────────────────────
+  return (
+    <div className="space-y-6 animate-fade-in" dir="rtl" style={{ fontFamily: "'Inter', 'Noto Sans Arabic', system-ui, sans-serif" }}>
+      {/* ── Header ─────────────────────────────────────── */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-primary/10">
+            <CalendarDays className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-foreground">التخطيط</h2>
+            <p className="text-sm text-muted-foreground">
+              جدول مناوبات الموظفين
+            </p>
+          </div>
+        </div>
+
+        {isGenerated && (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleReset} className="gap-2 rounded-xl">
+              <RotateCcw className="w-4 h-4" />
+              إعادة تعيين
+            </Button>
+            <Button size="sm" onClick={exportPDF} className="gap-2 rounded-xl">
+              <FileDown className="w-4 h-4" />
+              تصدير PDF
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Setup Form ─────────────────────────────────── */}
+      <div className="p-5 rounded-2xl bg-card border border-border shadow-sm space-y-5">
+        <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
+          <Building2 className="w-4 h-4 text-primary" />
+          معلومات الشركة والفترة
+        </h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Company */}
+          <div className="space-y-1.5">
+            <Label className="text-sm">اسم الشركة</Label>
+            <div className="relative">
+              <Building2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="مثال: شركة الأمان"
+                className="pr-9"
+                dir="rtl"
+              />
+            </div>
+          </div>
+
+          {/* Site */}
+          <div className="space-y-1.5">
+            <Label className="text-sm">الموقع</Label>
+            <div className="relative">
+              <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={siteName}
+                onChange={(e) => setSiteName(e.target.value)}
+                placeholder="مثال: المقر الرئيسي"
+                className="pr-9"
+                dir="rtl"
+              />
+            </div>
+          </div>
+
+          {/* Period Type */}
+          <div className="space-y-1.5">
+            <Label className="text-sm">نوع الفترة</Label>
+            <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="weekly">أسبوعي</SelectItem>
+                <SelectItem value="monthly">شهري</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Date */}
+          <div className="space-y-1.5">
+            <Label className="text-sm">تاريخ مرجعي</Label>
+            <Input
+              type="date"
+              value={referenceDate}
+              onChange={(e) => setReferenceDate(e.target.value)}
+              dir="ltr"
+            />
+          </div>
+        </div>
+
+        {/* Period Navigation */}
+        <div className="flex items-center justify-center gap-4 py-2">
+          <Button variant="ghost" size="icon" onClick={() => navigatePeriod(1)} className="rounded-full">
+            <ChevronRight className="w-5 h-5" />
+          </Button>
+          <span className="text-sm font-semibold text-foreground min-w-[160px] text-center">
+            {periodLabel}
+          </span>
+          <Button variant="ghost" size="icon" onClick={() => navigatePeriod(-1)} className="rounded-full">
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Employee Manager ───────────────────────────── */}
+      <div className="p-5 rounded-2xl bg-card border border-border shadow-sm space-y-4">
+        <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
+          <Users className="w-4 h-4 text-primary" />
+          الموظفون ({employees.length})
+        </h3>
+
+        {/* Add Employee Row */}
+        <div className="flex items-center gap-3">
+          <Input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="اسم الموظف الجديد..."
+            dir="rtl"
+            className="flex-1"
+            onKeyDown={(e) => e.key === 'Enter' && addEmployee()}
+          />
+          <Button onClick={addEmployee} size="sm" className="gap-2 rounded-xl shrink-0">
+            <Plus className="w-4 h-4" />
+            إضافة
+          </Button>
+        </div>
+
+        {/* Employee Tags */}
+        {employees.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {employees.map((emp) => (
+              <span
+                key={emp.id}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-sm font-medium text-primary"
+              >
+                {emp.name}
+                <button
+                  onClick={() => removeEmployee(emp.id)}
+                  className="p-0.5 rounded-full hover:bg-destructive/20 hover:text-destructive transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Generate Button */}
+        {!isGenerated && (
+          <div className="flex justify-center pt-2">
+            <Button onClick={handleGenerate} className="gap-2 rounded-xl px-8">
+              <CalendarDays className="w-4 h-4" />
+              إنشاء الجدول
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Legend ──────────────────────────────────────── */}
+      {isGenerated && (
+        <div className="flex items-center justify-center gap-6 flex-wrap text-sm">
+          <span className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center text-xs">J</span>
+            نهاري
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-xs">N</span>
+            ليلي
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-red-500/20 text-red-600 dark:text-red-400 font-bold flex items-center justify-center text-xs">R</span>
+            راحة
+          </span>
+        </div>
+      )}
+
+      {/* ── Scheduling Table ───────────────────────────── */}
+      {isGenerated && (
+        <div ref={tableRef} className="rounded-2xl border border-border bg-card shadow-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse min-w-[800px]">
+              <thead>
+                <tr className="bg-muted/60">
+                  <th className="sticky right-0 z-20 bg-muted/90 backdrop-blur-sm px-3 py-2.5 text-right text-xs font-semibold text-muted-foreground border-b border-l border-border min-w-[140px]">
+                    الموظف
+                  </th>
+                  {dates.map((d) => {
+                    const isFriday = d.getDay() === 5;
+                    return (
+                      <th
+                        key={dateKey(d)}
+                        className={`px-1 py-2 text-center text-[10px] font-medium border-b border-l border-border min-w-[44px] ${
+                          isFriday ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400' : 'text-muted-foreground'
+                        }`}
+                      >
+                        <div>{AR_DAYS[d.getDay()]}</div>
+                        <div className="font-semibold text-xs mt-0.5">{formatDD_MM(d)}</div>
+                      </th>
+                    );
+                  })}
+                  {/* Summary headers removed from main table */}
+                </tr>
+              </thead>
+              <tbody>
+                {employees.map((emp, empIdx) => {
+                  const s = summaries[empIdx];
+                  return (
+                    <tr
+                      key={emp.id}
+                      className="group hover:bg-muted/20 transition-colors"
+                    >
+                      {/* Employee name - sticky */}
+                      <td className="sticky right-0 z-10 bg-card group-hover:bg-muted/30 backdrop-blur-sm px-3 py-1.5 text-sm font-medium text-foreground border-b border-l border-border truncate">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground text-[10px] font-bold shrink-0">
+                            {emp.name.charAt(0)}
+                          </span>
+                          <span className="truncate">{emp.name}</span>
+                        </div>
+                      </td>
+
+                      {/* Date cells */}
+                      {dates.map((d, dateIdx) => {
+                        const dk = dateKey(d);
+                        const code = emp.shifts[dk] || '';
+                        const style = code ? SHIFT_MAP[code] : null;
+                        const isFriday = d.getDay() === 5;
+                        return (
+                          <td
+                            key={dk}
+                            className={`px-0.5 py-0.5 border-b border-l border-border text-center ${
+                              isFriday ? 'bg-amber-500/5' : ''
+                            }`}
+                          >
+                            <input
+                              id={`cell-${empIdx}-${dateIdx}`}
+                              type="text"
+                              value={code}
+                              onChange={(e) => handleShiftInput(emp.id, dk, e.target.value)}
+                              onKeyDown={(e) => handleCellKeyDown(e, empIdx, dateIdx)}
+                              maxLength={1}
+                              className={`w-9 h-8 text-center text-xs font-bold rounded-md border-0 outline-none focus:ring-2 focus:ring-primary/50 transition-all ${
+                                style
+                                  ? `${style.bg} ${style.text}`
+                                  : 'bg-transparent text-muted-foreground hover:bg-muted/30'
+                              }`}
+                              dir="ltr"
+                            />
+                          </td>
+                        );
+                      })}
+
+                      {/* Summary cells removed from main table */}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Table footer info */}
+          <div className="flex items-center justify-between px-4 py-3 bg-muted/30 border-t border-border text-xs text-muted-foreground">
+            <span>
+              {companyName && `${companyName}`}
+              {siteName && ` • ${siteName}`}
+            </span>
+            <span>
+              {periodLabel} • {employees.length} موظف
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Summary Table ──────────────────────────────── */}
+      {isGenerated && (
+        <div className="rounded-2xl border border-border bg-card shadow-md overflow-hidden mt-6">
+          <div className="p-4 border-b border-border bg-muted/30">
+            <h3 className="text-base font-semibold text-foreground">ملخص المناوبات</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-muted/60">
+                  <th className="px-4 py-3 text-right text-sm font-semibold text-muted-foreground border-b border-l border-border min-w-[200px]">
+                    الموظف
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-l border-border bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                    نهاري (J)
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-l border-border bg-blue-500/10 text-blue-700 dark:text-blue-400">
+                    ليلي (N)
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-l border-border bg-red-500/10 text-red-700 dark:text-red-400">
+                    راحة (R)
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-l border-border bg-primary/10 text-primary">
+                    ساعات العمل
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-border bg-muted/40 text-muted-foreground">
+                    ساعات الراحة
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {employees.map((emp, empIdx) => {
+                  const s = summaries[empIdx];
+                  return (
+                    <tr key={emp.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-2 text-sm font-medium text-foreground border-b border-l border-border">
+                        <div className="flex items-center gap-3">
+                          <span className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground text-xs font-bold shrink-0">
+                            {emp.name.charAt(0)}
+                          </span>
+                          <span>{emp.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border bg-emerald-500/5 text-emerald-600 dark:text-emerald-400">
+                        {s.totalJ}
+                      </td>
+                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border bg-blue-500/5 text-blue-600 dark:text-blue-400">
+                        {s.totalN}
+                      </td>
+                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border bg-red-500/5 text-red-600 dark:text-red-400">
+                        {s.totalR}
+                      </td>
+                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border bg-primary/5 text-primary">
+                        {s.workHours}h
+                      </td>
+                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-border text-muted-foreground">
+                        {s.restHours}h
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
