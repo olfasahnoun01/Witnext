@@ -19,6 +19,17 @@ const Fournisseurs = lazy(() => import('@/components/Fournisseurs').then(m => ({
 const Clients = lazy(() => import('@/components/Clients').then(m => ({ default: m.Clients })));
 const GestionDevis = lazy(() => import('@/components/GestionDevis').then(m => ({ default: m.GestionDevis })));
 const PhotoGallery = lazy(() => import('@/components/PhotoGallery').then(m => ({ default: m.PhotoGallery })));
+const EmployeeList = lazy(() => import('@/components/EmployeeList').then(m => ({ default: m.EmployeeList })));
+const Flotte = lazy(() => import('@/components/Flotte').then(m => ({ default: m.Flotte })));
+
+// Sub-sections that show a "Coming Soon" placeholder
+const COMING_SOON_TABS = new Set([
+  'rdv',
+  'suivi-clients',
+  'suivi-fournisseurs',
+  'planning',
+  'gestion-vehicules',
+]);
 
 const ComponentLoader = () => (
   <div className="flex items-center justify-center py-12">
@@ -85,6 +96,11 @@ const Index = () => {
       return <ComingSoon sectionLabel={section?.label ?? 'Section'} />;
     }
 
+    // Coming-soon sub-sections
+    if (COMING_SOON_TABS.has(activeTab)) {
+      return <ComingSoon sectionLabel={SUBSECTION_LABELS[activeTab] ?? 'Section'} />;
+    }
+
     if (activeTab === 'dashboard') return <Dashboard />;
 
     return (
@@ -98,6 +114,8 @@ const Index = () => {
         {activeTab === 'devis' && <GestionDevis onTabChange={handleTabChange} />}
         {activeTab === 'ba' && <GestionDevis onTabChange={handleTabChange} initialSection="ba" initialDocType="ba" />}
         {activeTab === 'gallery' && <PhotoGallery />}
+        {activeTab === 'employees' && <EmployeeList />}
+        {activeTab === 'flotte' && <Flotte />}
       </Suspense>
     );
   };

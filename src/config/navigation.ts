@@ -13,6 +13,13 @@ import {
   ClipboardList,
   FileSignature,
   ImageIcon,
+  CalendarClock,
+  UserCheck,
+  UserCog,
+  CalendarDays,
+  UserPlus,
+  Truck,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -34,7 +41,11 @@ export const BIG_SECTIONS: BigSection[] = [
     id: 'commerciale',
     label: 'Commerciale',
     icon: ShoppingCart,
-    subsections: [],
+    subsections: [
+      { id: 'rdv', label: 'Liste des Rendez-vous', icon: CalendarClock },
+      { id: 'suivi-clients', label: 'Suivi Clients', icon: UserCheck },
+      { id: 'suivi-fournisseurs', label: 'Suivi Fournisseurs', icon: UserCog },
+    ],
   },
   {
     id: 'magasin',
@@ -57,7 +68,10 @@ export const BIG_SECTIONS: BigSection[] = [
     id: 'rh',
     label: 'Ressources Humaines',
     icon: UsersIcon,
-    subsections: [],
+    subsections: [
+      { id: 'planning', label: 'Planning', icon: CalendarDays },
+      { id: 'employees', label: 'Liste Employés', icon: UserPlus },
+    ],
   },
   {
     id: 'finance',
@@ -69,7 +83,10 @@ export const BIG_SECTIONS: BigSection[] = [
     id: 'vehicules',
     label: 'Véhicules',
     icon: Car,
-    subsections: [],
+    subsections: [
+      { id: 'flotte', label: 'Flotte', icon: Truck },
+      { id: 'gestion-vehicules', label: 'Gestion Véhicules', icon: Wrench },
+    ],
   },
 ];
 
