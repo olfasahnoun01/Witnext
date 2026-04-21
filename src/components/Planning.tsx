@@ -11,6 +11,8 @@ import {
   RotateCcw,
   ChevronLeft,
   ChevronRight,
+  Save,
+  Upload,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -107,6 +109,79 @@ export const Planning = () => {
   const [isGenerated, setIsGenerated] = useState(false);
 
   const tableRef = useRef<HTMLDivElement>(null);
+
+  // Saved data from LocalStorage
+  const [savedCompanies, setSavedCompanies] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('grosafe_companies') || '[]'); } catch { return []; }
+  });
+  const [savedSites, setSavedSites] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('grosafe_sites') || '[]'); } catch { return []; }
+  });
+
+  const handleSaveCompany = useCallback(() => {
+    const trimmed = companyName.trim();
+    if (trimmed && !savedCompanies.includes(trimmed)) {
+      const updated = [...savedCompanies, trimmed];
+      setSavedCompanies(updated);
+      localStorage.setItem('grosafe_companies', JSON.stringify(updated));
+      toast.success('تم حفظ الشركة بنجاح');
+    }
+  }, [companyName, savedCompanies]);
+
+  const handleSaveSite = useCallback(() => {
+    const trimmed = siteName.trim();
+    if (trimmed && !savedSites.includes(trimmed)) {
+      const updated = [...savedSites, trimmed];
+      setSavedSites(updated);
+      localStorage.setItem('grosafe_sites', JSON.stringify(updated));
+      toast.success('تم حفظ الموقع بنجاح');
+    }
+  }, [siteName, savedSites]);
+
+  // JSON Export/Import
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const exportJSON = useCallback(() => {
+    const data = {
+      companyName,
+      siteName,
+      periodType,
+      referenceDate,
+      employees,
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `planning_${referenceDate}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('تم تصدير البيانات (JSON)');
+  }, [companyName, siteName, periodType, referenceDate, employees]);
+
+  const handleImportJSON = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (json.employees) {
+          if (json.companyName) setCompanyName(json.companyName);
+          if (json.siteName) setSiteName(json.siteName);
+          if (json.periodType) setPeriodType(json.periodType);
+          if (json.referenceDate) setReferenceDate(json.referenceDate);
+          setEmployees(json.employees);
+          setIsGenerated(true);
+          toast.success('تم استيراد البيانات بنجاح');
+        }
+      } catch (err) {
+        toast.error('ملف غير صالح');
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, []);
 
   // Compute date range
   const { startDate, endDate, dates } = useMemo(() => {
@@ -351,18 +426,35 @@ export const Planning = () => {
           </div>
         </div>
 
-        {isGenerated && (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleReset} className="gap-2 rounded-xl">
-              <RotateCcw className="w-4 h-4" />
-              إعادة تعيين
-            </Button>
-            <Button size="sm" onClick={exportPDF} className="gap-2 rounded-xl">
-              <FileDown className="w-4 h-4" />
-              تصدير PDF
-            </Button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <input
+            type="file"
+            accept=".json"
+            ref={fileInputRef}
+            onChange={handleImportJSON}
+            className="hidden"
+          />
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="gap-2 rounded-xl">
+            <Upload className="w-4 h-4" />
+            استيراد
+          </Button>
+          {isGenerated && (
+            <>
+              <Button variant="outline" size="sm" onClick={exportJSON} className="gap-2 rounded-xl">
+                <FileDown className="w-4 h-4" />
+                تصدير JSON
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleReset} className="gap-2 rounded-xl">
+                <RotateCcw className="w-4 h-4" />
+                إعادة تعيين
+              </Button>
+              <Button size="sm" onClick={exportPDF} className="gap-2 rounded-xl">
+                <FileDown className="w-4 h-4" />
+                تصدير PDF
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* ── Setup Form ─────────────────────────────────── */}
@@ -376,30 +468,52 @@ export const Planning = () => {
           {/* Company */}
           <div className="space-y-1.5">
             <Label className="text-sm">اسم الشركة</Label>
-            <div className="relative">
-              <Building2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="مثال: شركة الأمان"
-                className="pr-9"
-                dir="rtl"
-              />
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Building2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  list="saved-companies"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="مثال: شركة الأمان"
+                  className="pr-9"
+                  dir="rtl"
+                />
+                <datalist id="saved-companies">
+                  {savedCompanies.map(c => <option key={c} value={c} />)}
+                </datalist>
+              </div>
+              {companyName && !savedCompanies.includes(companyName.trim()) && (
+                <Button variant="outline" size="icon" onClick={handleSaveCompany} title="حفظ الشركة">
+                  <Save className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           </div>
 
           {/* Site */}
           <div className="space-y-1.5">
             <Label className="text-sm">الموقع</Label>
-            <div className="relative">
-              <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                value={siteName}
-                onChange={(e) => setSiteName(e.target.value)}
-                placeholder="مثال: المقر الرئيسي"
-                className="pr-9"
-                dir="rtl"
-              />
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  list="saved-sites"
+                  value={siteName}
+                  onChange={(e) => setSiteName(e.target.value)}
+                  placeholder="مثال: المقر الرئيسي"
+                  className="pr-9"
+                  dir="rtl"
+                />
+                <datalist id="saved-sites">
+                  {savedSites.map(s => <option key={s} value={s} />)}
+                </datalist>
+              </div>
+              {siteName && !savedSites.includes(siteName.trim()) && (
+                <Button variant="outline" size="icon" onClick={handleSaveSite} title="حفظ الموقع">
+                  <Save className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           </div>
 
