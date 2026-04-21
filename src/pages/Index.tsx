@@ -23,7 +23,6 @@ const EmployeeList = lazy(() => import('@/components/EmployeeList').then(m => ({
 const Flotte = lazy(() => import('@/components/Flotte').then(m => ({ default: m.Flotte })));
 const Planning = lazy(() => import('@/components/Planning').then(m => ({ default: m.Planning })));
 
-// Sub-sections that show a "Coming Soon" placeholder
 const COMING_SOON_TABS = new Set([
   'rdv',
   'suivi-clients',
@@ -106,8 +105,8 @@ const Index = () => {
     return (
       <Suspense fallback={<ComponentLoader />}>
         {activeTab === 'inventory' && <Inventory />}
-        {activeTab === 'fournisseurs' && <Fournisseurs />}
-        {activeTab === 'clients' && <Clients />}
+        {(activeTab === 'fournisseurs' || activeTab === 'commerciale-fournisseurs') && <Fournisseurs />}
+        {(activeTab === 'clients' || activeTab === 'commerciale-clients') && <Clients />}
         {activeTab === 'comparison' && <SupplierComparison />}
         {activeTab === 'transactions' && <Transactions />}
         {activeTab === 'reports' && <Reports />}

@@ -43,6 +43,8 @@ export const BIG_SECTIONS: BigSection[] = [
     icon: ShoppingCart,
     subsections: [
       { id: 'rdv', label: 'Liste des Rendez-vous', icon: CalendarClock },
+      { id: 'commerciale-clients', label: 'Clients', icon: Users },
+      { id: 'commerciale-fournisseurs', label: 'Fournisseurs', icon: Building2 },
       { id: 'suivi-clients', label: 'Suivi Clients', icon: UserCheck },
       { id: 'suivi-fournisseurs', label: 'Suivi Fournisseurs', icon: UserCog },
     ],
