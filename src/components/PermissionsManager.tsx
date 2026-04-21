@@ -1,16 +1,38 @@
 import { useEffect, useState } from 'react';
-import { Shield, Loader2, Check, X, Save } from 'lucide-react';
+import {
+  Shield,
+  ShieldCheck,
+  Loader2,
+  Save,
+  Users,
+  UserPlus,
+  Edit2,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { BIG_SECTIONS } from '@/config/navigation';
-import { UserManagement } from './UserManagement';
+
+type Role = 'admin' | 'moderator' | 'user';
 
 interface ManagedUser {
-  user_id: string;
-  email: string | null;
-  full_name: string | null;
+  id: string;            // auth user id
+  email: string;
+  full_name: string;
+  created_at: string;
+  role: Role;
 }
 
 interface Perm {
@@ -19,34 +41,58 @@ interface Perm {
   subsection_key: string;
 }
 
+const keyOf = (section: string, sub: string) => (sub ? `${section}:${sub}` : section);
+
+const buildAllPermissionKeys = (): string[] => {
+  // "Accès total" = full-section grant for every big section
+  return BIG_SECTIONS.map((s) => s.id);
+};
+
 export const PermissionsManager = () => {
   const { toast } = useToast();
-  const [users, setUsers] = useState<ManagedUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
-  const [perms, setPerms] = useState<Record<string, Set<string>>>({}); // userId -> Set("section" | "section:sub")
-  const [adminUserIds, setAdminUserIds] = useState<Set<string>>(new Set());
 
-  const keyOf = (section: string, sub: string) => (sub ? `${section}:${sub}` : section);
+  const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [perms, setPerms] = useState<Record<string, Set<string>>>({});
+  const [loading, setLoading] = useState(true);
+  const [savingPermsFor, setSavingPermsFor] = useState<string | null>(null);
+
+  // User CRUD modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [role, setRole] = useState<Role>('user');
+  // Permissions chosen inline in the create/edit modal
+  const [modalPerms, setModalPerms] = useState<Set<string>>(new Set());
+
+  const getAuthToken = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token;
+  };
 
   const load = async () => {
     setLoading(true);
     try {
-      const [profilesRes, permsRes, rolesRes] = await Promise.all([
-        supabase.from('profiles').select('user_id, email, full_name'),
-        (supabase as any).from('user_section_permissions').select('user_id, section_key, subsection_key'),
-        supabase.from('user_roles').select('user_id, role').eq('role', 'admin'),
+      const token = await getAuthToken();
+      if (!token) throw new Error('Session expirée. Veuillez vous reconnecter.');
+
+      const [usersRes, permsRes] = await Promise.all([
+        supabase.functions.invoke('manage-users', {
+          body: { action: 'list' },
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        (supabase as any)
+          .from('user_section_permissions')
+          .select('user_id, section_key, subsection_key'),
       ]);
 
-      if (profilesRes.error) throw profilesRes.error;
+      if (usersRes.error) throw new Error(usersRes.error.message);
       if (permsRes.error) throw permsRes.error;
-      if (rolesRes.error) throw rolesRes.error;
 
-      const adminIds = new Set<string>((rolesRes.data ?? []).map((r: any) => r.user_id));
-      setAdminUserIds(adminIds);
-
-      // Hide admins (they bypass) from the management list
-      setUsers((profilesRes.data ?? []).filter((p: any) => !adminIds.has(p.user_id)));
+      setUsers(usersRes.data?.users ?? []);
 
       const map: Record<string, Set<string>> = {};
       (permsRes.data as Perm[] ?? []).forEach((p) => {
@@ -65,6 +111,7 @@ export const PermissionsManager = () => {
     load();
   }, []);
 
+  // ---------- Permission toggling (inline per user card) ----------
   const toggleFullSection = (userId: string, sectionId: string) => {
     setPerms((prev) => {
       const userSet = new Set(prev[userId] ?? []);
@@ -72,7 +119,6 @@ export const PermissionsManager = () => {
         userSet.delete(sectionId);
       } else {
         userSet.add(sectionId);
-        // Clear individual sub-section grants since full-section covers them
         const section = BIG_SECTIONS.find((s) => s.id === sectionId);
         section?.subsections.forEach((sub) => userSet.delete(`${sectionId}:${sub.id}`));
       }
@@ -87,45 +133,205 @@ export const PermissionsManager = () => {
       if (userSet.has(k)) userSet.delete(k);
       else {
         userSet.add(k);
-        userSet.delete(sectionId); // remove full-section if user is granting granularly
+        userSet.delete(sectionId);
       }
       return { ...prev, [userId]: userSet };
     });
   };
 
-  const saveUser = async (userId: string) => {
-    setSaving(userId);
-    try {
-      // Wipe + re-insert (simple, atomic-enough for low-volume admin op)
-      const { error: delErr } = await (supabase as any)
+  const grantAll = (userId: string) => {
+    setPerms((prev) => ({ ...prev, [userId]: new Set(buildAllPermissionKeys()) }));
+  };
+
+  const revokeAll = (userId: string) => {
+    setPerms((prev) => ({ ...prev, [userId]: new Set() }));
+  };
+
+  const persistPermissions = async (userId: string, set: Set<string>) => {
+    const { error: delErr } = await (supabase as any)
+      .from('user_section_permissions')
+      .delete()
+      .eq('user_id', userId);
+    if (delErr) throw delErr;
+
+    const rows = Array.from(set).map((k) => {
+      const [section_key, subsection_key] = k.split(':');
+      return {
+        user_id: userId,
+        section_key,
+        subsection_key: subsection_key ?? '',
+      };
+    });
+
+    if (rows.length > 0) {
+      const { error: insErr } = await (supabase as any)
         .from('user_section_permissions')
-        .delete()
-        .eq('user_id', userId);
-      if (delErr) throw delErr;
+        .insert(rows);
+      if (insErr) throw insErr;
+    }
+  };
 
-      const userSet = perms[userId] ?? new Set<string>();
-      const rows = Array.from(userSet).map((k) => {
-        const [section_key, subsection_key] = k.split(':');
-        return {
-          user_id: userId,
-          section_key,
-          subsection_key: subsection_key ?? '',
-        };
-      });
-
-      if (rows.length > 0) {
-        const { error: insErr } = await (supabase as any)
-          .from('user_section_permissions')
-          .insert(rows);
-        if (insErr) throw insErr;
-      }
-
-      toast({ title: 'Permissions enregistrées', description: 'Les accès ont été mis à jour.' });
+  const savePermissions = async (userId: string) => {
+    setSavingPermsFor(userId);
+    try {
+      await persistPermissions(userId, perms[userId] ?? new Set());
+      toast({ title: 'Permissions enregistrées' });
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: e.message });
     } finally {
-      setSaving(null);
+      setSavingPermsFor(null);
     }
+  };
+
+  // ---------- User CRUD ----------
+  const openModal = (user?: ManagedUser) => {
+    if (user) {
+      setEditingUser(user);
+      setEmail(user.email);
+      setFullName(user.full_name ?? '');
+      setRole(user.role);
+      setPassword('');
+      setModalPerms(new Set(perms[user.id] ?? []));
+    } else {
+      setEditingUser(null);
+      setEmail('');
+      setPassword('');
+      setFullName('');
+      setRole('user');
+      setModalPerms(new Set()); // start empty; admin picks
+    }
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingUser(null);
+    setEmail('');
+    setPassword('');
+    setFullName('');
+    setRole('user');
+    setModalPerms(new Set());
+  };
+
+  const toggleModalFullSection = (sectionId: string) => {
+    setModalPerms((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else {
+        next.add(sectionId);
+        BIG_SECTIONS.find((s) => s.id === sectionId)?.subsections.forEach((sub) =>
+          next.delete(`${sectionId}:${sub.id}`)
+        );
+      }
+      return next;
+    });
+  };
+
+  const toggleModalSubsection = (sectionId: string, subId: string) => {
+    setModalPerms((prev) => {
+      const next = new Set(prev);
+      const k = `${sectionId}:${subId}`;
+      if (next.has(k)) next.delete(k);
+      else {
+        next.add(k);
+        next.delete(sectionId);
+      }
+      return next;
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const token = await getAuthToken();
+
+      let targetUserId = editingUser?.id ?? null;
+
+      if (editingUser) {
+        const response = await supabase.functions.invoke('manage-users', {
+          body: {
+            action: 'update',
+            user_id: editingUser.id,
+            full_name: fullName,
+            role,
+            ...(password ? { password } : {}),
+          },
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (response.error) throw new Error(response.error.message);
+        if (response.data?.error) throw new Error(response.data.error);
+      } else {
+        if (!password) {
+          toast({ variant: 'destructive', title: 'Erreur', description: 'Le mot de passe est requis' });
+          setSubmitting(false);
+          return;
+        }
+        const response = await supabase.functions.invoke('manage-users', {
+          body: { action: 'create', email, password, full_name: fullName, role },
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (response.error) throw new Error(response.error.message);
+        if (response.data?.error) throw new Error(response.data.error);
+        targetUserId = response.data?.user?.id ?? response.data?.user_id ?? null;
+      }
+
+      // Persist permissions for non-admin users (admins bypass anyway)
+      if (targetUserId && role !== 'admin') {
+        await persistPermissions(targetUserId, modalPerms);
+      }
+
+      toast({
+        title: editingUser ? 'Utilisateur modifié' : 'Utilisateur créé',
+        description: editingUser
+          ? 'Informations et permissions mises à jour'
+          : `Le compte ${email} a été créé avec ses permissions`,
+      });
+
+      closeModal();
+      load();
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: e.message });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (user: ManagedUser) => {
+    if (!window.confirm(`Supprimer l'utilisateur "${user.email}" ?`)) return;
+    try {
+      const token = await getAuthToken();
+      const response = await supabase.functions.invoke('manage-users', {
+        body: { action: 'delete', user_id: user.id },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.error) throw new Error(response.error.message);
+      if (response.data?.error) throw new Error(response.data.error);
+      toast({ title: 'Utilisateur supprimé' });
+      load();
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: e.message });
+    }
+  };
+
+  const getRoleBadge = (r: Role) => {
+    if (r === 'admin')
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
+          <ShieldCheck className="w-3 h-3" /> Admin
+        </span>
+      );
+    if (r === 'moderator')
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-warning/10 text-warning">
+          <Shield className="w-3 h-3" /> Modérateur
+        </span>
+      );
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
+        Utilisateur
+      </span>
+    );
   };
 
   if (loading) {
@@ -137,104 +343,332 @@ export const PermissionsManager = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <UserManagement />
+    <>
+      <div className="bg-card rounded-xl border border-border p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-xl bg-primary/10">
+              <Users className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">
+                Gestion des Permissions & Utilisateurs
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Gérez les utilisateurs, leurs rôles, puis définissez les sections et sous-sections accessibles.
+                Les administrateurs ont accès à tout par défaut.
+              </p>
+            </div>
+          </div>
+          <Button onClick={() => openModal()}>
+            <UserPlus className="w-4 h-4 mr-2" />
+            Ajouter
+          </Button>
+        </div>
 
-    <div className="bg-card rounded-xl border border-border p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 rounded-xl bg-primary/10">
-          <Shield className="w-6 h-6 text-primary" />
-        </div>
-        <div>
-          <h2 className="text-xl font-semibold text-foreground">Gestion des Permissions & Utilisateurs</h2>
-          <p className="text-sm text-muted-foreground">
-            Gérez les utilisateurs, leurs rôles, puis définissez les sections et sous-sections accessibles. Les administrateurs ont accès à tout par défaut.
-          </p>
-        </div>
+        {users.length === 0 ? (
+          <div className="text-center py-12">
+            <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">Aucun utilisateur trouvé</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {users.map((u) => {
+              const isAdminUser = u.role === 'admin';
+              const userSet = perms[u.id] ?? new Set<string>();
+              return (
+                <div key={u.id} className="border border-border rounded-xl p-4">
+                  {/* Header row */}
+                  <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <p className="font-semibold text-foreground truncate">{u.email}</p>
+                        {getRoleBadge(u.role)}
+                      </div>
+                      {u.full_name && (
+                        <p className="text-sm text-muted-foreground mt-1">{u.full_name}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Créé le {new Date(u.created_at).toLocaleDateString('fr-FR')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!isAdminUser && (
+                        <>
+                          <Button size="sm" variant="outline" onClick={() => grantAll(u.id)}>
+                            Tout accorder
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => revokeAll(u.id)}>
+                            Tout retirer
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => savePermissions(u.id)}
+                            disabled={savingPermsFor === u.id}
+                          >
+                            {savingPermsFor === u.id ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <Save className="w-4 h-4 mr-2" />
+                            )}
+                            Enregistrer
+                          </Button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => openModal(u)}
+                        className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                        aria-label="Modifier"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(u)}
+                        className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        aria-label="Supprimer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Permissions grid */}
+                  {isAdminUser ? (
+                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm text-muted-foreground">
+                      Cet administrateur a accès à toutes les sections et sous-sections par défaut.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {BIG_SECTIONS.map((section) => {
+                        const fullGranted = userSet.has(section.id);
+                        return (
+                          <div key={section.id} className="bg-muted/40 rounded-lg p-3">
+                            <label className="flex items-center gap-2 cursor-pointer mb-2">
+                              <Checkbox
+                                checked={fullGranted}
+                                onCheckedChange={() => toggleFullSection(u.id, section.id)}
+                              />
+                              <section.icon className="w-4 h-4 text-primary" />
+                              <span className="font-medium text-sm text-foreground">{section.label}</span>
+                              <span className="text-xs text-muted-foreground ml-auto">
+                                {fullGranted ? 'Accès total' : 'Granulaire'}
+                              </span>
+                            </label>
+
+                            {section.subsections.length > 0 ? (
+                              <div className={`pl-6 space-y-1.5 ${fullGranted ? 'opacity-50 pointer-events-none' : ''}`}>
+                                {section.subsections.map((sub) => {
+                                  const k = `${section.id}:${sub.id}`;
+                                  const checked = fullGranted || userSet.has(k);
+                                  return (
+                                    <label
+                                      key={sub.id}
+                                      className="flex items-center gap-2 text-xs cursor-pointer text-muted-foreground hover:text-foreground"
+                                    >
+                                      <Checkbox
+                                        checked={checked}
+                                        disabled={fullGranted}
+                                        onCheckedChange={() => toggleSubsection(u.id, section.id, sub.id)}
+                                      />
+                                      <sub.icon className="w-3.5 h-3.5" />
+                                      <span>{sub.label}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="pl-6 text-[11px] text-muted-foreground italic">
+                                Aucune sous-section pour le moment
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {users.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          Aucun utilisateur non-administrateur à gérer.
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {users.map((u) => {
-            const userSet = perms[u.user_id] ?? new Set<string>();
-            return (
-              <div key={u.user_id} className="border border-border rounded-xl p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="font-semibold text-foreground">{u.email ?? '—'}</p>
-                    {u.full_name && (
-                      <p className="text-xs text-muted-foreground">{u.full_name}</p>
-                    )}
-                  </div>
-                  <Button size="sm" onClick={() => saveUser(u.user_id)} disabled={saving === u.user_id}>
-                    {saving === u.user_id ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Save className="w-4 h-4 mr-2" />
-                    )}
-                    Enregistrer
-                  </Button>
+      {/* Modal */}
+      {isModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
+          onClick={closeModal}
+        >
+          <div
+            className="bg-card rounded-xl border border-border shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-card z-10">
+              <h2 className="text-xl font-semibold text-foreground">
+                {editingUser ? 'Modifier Utilisateur' : 'Nouvel Utilisateur'}
+              </h2>
+              <button
+                onClick={closeModal}
+                className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={!!editingUser}
+                    placeholder="utilisateur@email.com"
+                  />
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {BIG_SECTIONS.map((section) => {
-                    const fullGranted = userSet.has(section.id);
-                    return (
-                      <div key={section.id} className="bg-muted/40 rounded-lg p-3">
-                        <label className="flex items-center gap-2 cursor-pointer mb-2">
-                          <Checkbox
-                            checked={fullGranted}
-                            onCheckedChange={() => toggleFullSection(u.user_id, section.id)}
-                          />
-                          <section.icon className="w-4 h-4 text-primary" />
-                          <span className="font-medium text-sm text-foreground">{section.label}</span>
-                          <span className="text-xs text-muted-foreground ml-auto">
-                            {fullGranted ? 'Accès total' : 'Granulaire'}
-                          </span>
-                        </label>
-
-                        {section.subsections.length > 0 && (
-                          <div className={`pl-6 space-y-1.5 ${fullGranted ? 'opacity-50 pointer-events-none' : ''}`}>
-                            {section.subsections.map((sub) => {
-                              const k = `${section.id}:${sub.id}`;
-                              const checked = fullGranted || userSet.has(k);
-                              return (
-                                <label
-                                  key={sub.id}
-                                  className="flex items-center gap-2 text-xs cursor-pointer text-muted-foreground hover:text-foreground"
-                                >
-                                  <Checkbox
-                                    checked={checked}
-                                    disabled={fullGranted}
-                                    onCheckedChange={() => toggleSubsection(u.user_id, section.id, sub.id)}
-                                  />
-                                  <sub.icon className="w-3.5 h-3.5" />
-                                  <span>{sub.label}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {section.subsections.length === 0 && (
-                          <div className="pl-6 text-[11px] text-muted-foreground italic">
-                            Aucune sous-section pour le moment
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Nom complet</Label>
+                  <Input
+                    id="fullName"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Prénom Nom"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">
+                    Mot de passe {editingUser ? '(laisser vide pour ne pas changer)' : '*'}
+                  </Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required={!editingUser}
+                    minLength={6}
+                    placeholder="••••••••"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">Rôle</Label>
+                  <Select value={role} onValueChange={(v) => setRole(v as Role)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="user">Utilisateur</SelectItem>
+                      <SelectItem value="moderator">Modérateur</SelectItem>
+                      <SelectItem value="admin">Administrateur</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            );
-          })}
+
+              {/* Permissions block — hidden for admin (they bypass) */}
+              {role !== 'admin' && (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-sm font-semibold">Permissions d'accès</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Choisissez les grandes sections et sous-sections accessibles dès la création.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setModalPerms(new Set(buildAllPermissionKeys()))}
+                      >
+                        Tout accorder
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setModalPerms(new Set())}
+                      >
+                        Tout retirer
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {BIG_SECTIONS.map((section) => {
+                      const fullGranted = modalPerms.has(section.id);
+                      return (
+                        <div key={section.id} className="bg-muted/40 rounded-lg p-3">
+                          <label className="flex items-center gap-2 cursor-pointer mb-2">
+                            <Checkbox
+                              checked={fullGranted}
+                              onCheckedChange={() => toggleModalFullSection(section.id)}
+                            />
+                            <section.icon className="w-4 h-4 text-primary" />
+                            <span className="font-medium text-sm text-foreground">{section.label}</span>
+                            <span className="text-xs text-muted-foreground ml-auto">
+                              {fullGranted ? 'Accès total' : 'Granulaire'}
+                            </span>
+                          </label>
+
+                          {section.subsections.length > 0 ? (
+                            <div className={`pl-6 space-y-1.5 ${fullGranted ? 'opacity-50 pointer-events-none' : ''}`}>
+                              {section.subsections.map((sub) => {
+                                const k = `${section.id}:${sub.id}`;
+                                const checked = fullGranted || modalPerms.has(k);
+                                return (
+                                  <label
+                                    key={sub.id}
+                                    className="flex items-center gap-2 text-xs cursor-pointer text-muted-foreground hover:text-foreground"
+                                  >
+                                    <Checkbox
+                                      checked={checked}
+                                      disabled={fullGranted}
+                                      onCheckedChange={() => toggleModalSubsection(section.id, sub.id)}
+                                    />
+                                    <sub.icon className="w-3.5 h-3.5" />
+                                    <span>{sub.label}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="pl-6 text-[11px] text-muted-foreground italic">
+                              Aucune sous-section pour le moment
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-border">
+                <Button type="button" variant="outline" onClick={closeModal}>
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Enregistrement...
+                    </>
+                  ) : editingUser ? (
+                    'Enregistrer'
+                  ) : (
+                    'Créer'
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
-    </div>
-    </div>
+    </>
   );
 };
