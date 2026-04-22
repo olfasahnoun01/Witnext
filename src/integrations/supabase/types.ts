@@ -246,6 +246,30 @@ export type Database = {
           },
         ]
       }
+      devis_helper_mappings: {
+        Row: {
+          created_at: string
+          extracted_name: string
+          fiche_technique_url: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          extracted_name: string
+          fiche_technique_url?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          extracted_name?: string
+          fiche_technique_url?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           client_id: number | null
@@ -851,6 +875,30 @@ export type Database = {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_section_permissions: {
+        Row: {
+          created_at: string
+          id: string
+          section_key: string
+          subsection_key: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          section_key: string
+          subsection_key?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          section_key?: string
+          subsection_key?: string
           user_id?: string
         }
         Relationships: []

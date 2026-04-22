@@ -92,21 +92,21 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    // Manual extraction since verify_jwt=false in config.toml
-    let requestingUserId: string | null = null;
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      requestingUserId = payload.sub;
-    } catch (e) {
-      console.error('Error decoding token:', e);
-    }
+    // Verify JWT cryptographically using Supabase auth (no manual decode!)
+    const supabaseAuthClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader! } }
+    });
+    const { data: userData, error: userError } = await supabaseAuthClient.auth.getUser(token);
 
-    if (!requestingUserId) {
+    if (userError || !userData?.user) {
+      console.error('JWT verification failed:', userError?.message);
       return new Response(JSON.stringify({ error: 'Session invalide' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
+
+    const requestingUserId = userData.user.id;
 
     // Use service key to bypass RLS for admin check
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)

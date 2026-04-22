@@ -23,6 +23,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface ExtractedItem {
   id: string;
@@ -125,7 +131,7 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
         if (productMatch) {
           return {
             ...item,
-            status: productMatch.fiche_technique_url ? 'found' : 'missing_fiche',
+            status: (productMatch.fiche_technique_url ? 'found' : 'missing_fiche') as ExtractedItem['status'],
             product_id: productMatch.id,
             product_name: productMatch.name,
             category: productMatch.category,

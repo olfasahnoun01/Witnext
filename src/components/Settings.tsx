@@ -10,7 +10,7 @@ import { exportDatabase, importDatabase } from '@/services/dbService';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { UserManagement } from './UserManagement';
+import { PermissionsManager } from './PermissionsManager';
 import { APP_VERSION, BUILD_DATE_FORMATTED } from '@/lib/version';
 import { supabase } from '@/integrations/supabase/client';
 import { Megaphone } from 'lucide-react';
@@ -118,8 +118,8 @@ export const Settings = () => {
 
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl">
-      {/* User Management - Admin Only */}
-      {isAdmin && <UserManagement />}
+      {/* Permissions & Users - Admin Only */}
+      {isAdmin && <PermissionsManager />}
 
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex items-center gap-3 mb-6">

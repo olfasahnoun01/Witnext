@@ -279,8 +279,8 @@ export const UserManagement = () => {
               <Users className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-foreground">Gestion des Utilisateurs</h2>
-              <p className="text-sm text-muted-foreground">Ajouter, modifier ou supprimer des utilisateurs</p>
+              <h2 className="text-xl font-semibold text-foreground">Utilisateurs & rôles</h2>
+              <p className="text-sm text-muted-foreground">Ajouter, modifier ou supprimer des utilisateurs depuis la gestion des permissions</p>
             </div>
           </div>
           <Button onClick={() => openModal()}>
