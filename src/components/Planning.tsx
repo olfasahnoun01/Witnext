@@ -87,8 +87,8 @@ function getWeekEnd(start: Date): Date {
   return end;
 }
 
-// Arabic day abbreviations
-const AR_DAYS = ['أحد', 'إثن', 'ثلا', 'أرب', 'خمي', 'جمع', 'سبت'];
+// Arabic day full names
+const AR_DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
 // ── Component ──────────────────────────────────────────────────────────
 export const Planning = () => {
@@ -102,8 +102,8 @@ export const Planning = () => {
   });
 
   // Employees
+  const [employeeCount, setEmployeeCount] = useState<number | ''>('');
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
-  const [newName, setNewName] = useState('');
 
   // Generated state
   const [isGenerated, setIsGenerated] = useState(false);
@@ -147,6 +147,7 @@ export const Planning = () => {
       siteName,
       periodType,
       referenceDate,
+      employeeCount,
       employees,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -157,7 +158,7 @@ export const Planning = () => {
     a.click();
     URL.revokeObjectURL(url);
     toast.success('تم تصدير البيانات (JSON)');
-  }, [companyName, siteName, periodType, referenceDate, employees]);
+  }, [companyName, siteName, periodType, referenceDate, employeeCount, employees]);
 
   const handleImportJSON = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -171,6 +172,7 @@ export const Planning = () => {
           if (json.siteName) setSiteName(json.siteName);
           if (json.periodType) setPeriodType(json.periodType);
           if (json.referenceDate) setReferenceDate(json.referenceDate);
+          if (json.employeeCount) setEmployeeCount(json.employeeCount);
           setEmployees(json.employees);
           setIsGenerated(true);
           toast.success('تم استيراد البيانات بنجاح');
@@ -213,23 +215,8 @@ export const Planning = () => {
     [referenceDate, periodType]
   );
 
-  // Add employee
-  const addEmployee = useCallback(() => {
-    const trimmed = newName.trim();
-    if (!trimmed) {
-      toast.error('الرجاء إدخال اسم الموظف');
-      return;
-    }
-    setEmployees((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), name: trimmed, shifts: {} },
-    ]);
-    setNewName('');
-  }, [newName]);
-
-  // Remove employee
-  const removeEmployee = useCallback((id: string) => {
-    setEmployees((prev) => prev.filter((e) => e.id !== id));
+  const updateEmployeeName = useCallback((id: string, name: string) => {
+    setEmployees((prev) => prev.map((e) => e.id === id ? { ...e, name } : e));
   }, []);
 
   // Handle shift cell input
@@ -291,13 +278,31 @@ export const Planning = () => {
 
   // Generate table
   const handleGenerate = useCallback(() => {
-    if (employees.length === 0) {
-      toast.error('الرجاء إضافة موظف واحد على الأقل');
+    if (!employeeCount || employeeCount <= 0) {
+      toast.error('الرجاء إدخال عدد الموظفين');
       return;
     }
+    
+    // If not already generated, or if count changed, we regenerate or adjust
+    setEmployees((prev) => {
+      const count = Number(employeeCount);
+      if (prev.length === count) return prev;
+      
+      const newArr = [...prev];
+      if (newArr.length > count) {
+        newArr.length = count; // truncate
+      } else {
+        const toAdd = count - newArr.length;
+        for (let i = 0; i < toAdd; i++) {
+          newArr.push({ id: crypto.randomUUID(), name: '', shifts: {} });
+        }
+      }
+      return newArr;
+    });
+
     setIsGenerated(true);
     toast.success('تم إنشاء جدول التخطيط بنجاح');
-  }, [employees]);
+  }, [employeeCount]);
 
   // Reset
   const handleReset = useCallback(() => {
@@ -305,7 +310,7 @@ export const Planning = () => {
     setEmployees([]);
     setCompanyName('');
     setSiteName('');
-    setNewName('');
+    setEmployeeCount('');
     toast.success('تم إعادة تعيين الجدول');
   }, []);
 
@@ -318,36 +323,40 @@ export const Planning = () => {
       // Center
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
-      // Fallback for Arabic, jsPDF default font doesn't support Arabic well, but we use what we have or english equivalents
-      doc.text(companyName || 'Company', pageWidth / 2, 15, { align: 'center' });
+      doc.text(companyName || 'Entreprise', pageWidth / 2, 15, { align: 'center' });
       
       doc.setFontSize(12);
       doc.setFont("helvetica", "normal");
       doc.text(title, pageWidth / 2, 22, { align: 'center' });
       
-      // Left
+      // RTL Layout for Headers
       doc.setFontSize(10);
-      doc.text(`Site: ${siteName || '-'}`, 14, 22);
       
-      // Right
+      // Right side (Site)
       const rightTextX = pageWidth - 14;
-      doc.text(`Period: ${formatDD_MM(startDate)} - ${formatDD_MM(endDate)}`, rightTextX, 15, { align: 'right' });
-      doc.text(`Exported: ${new Date().toLocaleString('fr-FR')}`, rightTextX, 22, { align: 'right' });
+      doc.text(`Site : ${siteName || '-'}`, rightTextX, 22, { align: 'right' });
+      
+      // Left side (Period and Date)
+      doc.text(`Période : ${formatDD_MM(startDate)} - ${formatDD_MM(endDate)}`, 14, 15, { align: 'left' });
+      doc.text(`Date d'exportation : ${new Date().toLocaleString('fr-FR')}`, 14, 22, { align: 'left' });
     };
 
     // --- Page 1: Schedule ---
-    addHeader('Schedule / Planning');
+    addHeader('Planning / Calendrier');
 
     const dateHeaders = dates.map((d) => formatDD_MM(d));
-    const scheduleHead = [['#', 'Employee', ...dateHeaders]];
+    // RTL: Reverse the columns
+    const scheduleHead = [['#', 'Employé(e)', ...dateHeaders].reverse()];
 
     const scheduleBody = employees.map((emp, i) => {
       return [
         String(i + 1),
-        emp.name,
+        emp.name || `Employé(e) ${i + 1}`,
         ...dates.map((d) => emp.shifts[dateKey(d)] || ''),
-      ];
+      ].reverse();
     });
+
+    const empColIndex = dates.length; // because length is dates + 2, and 'Employé' is at index length - 2
 
     autoTable(doc, {
       head: scheduleHead,
@@ -355,9 +364,10 @@ export const Planning = () => {
       startY: 30,
       styles: { fontSize: 7, cellPadding: 1.5, halign: 'center' },
       headStyles: { fillColor: [30, 58, 95], fontSize: 6 },
-      columnStyles: { 1: { halign: 'right' } },
+      columnStyles: { [empColIndex]: { halign: 'right' } }, // Right align employee names for RTL
       didParseCell(data) {
-        if (data.section === 'body' && data.column.index >= 2) {
+        const isShiftColumn = data.column.index < dates.length;
+        if (data.section === 'body' && isShiftColumn) {
           const val = String(data.cell.raw);
           if (val === 'R') { data.cell.styles.fillColor = [254, 202, 202]; data.cell.styles.textColor = [185, 28, 28]; }
           else if (val === 'J') { data.cell.styles.fillColor = [187, 247, 208]; data.cell.styles.textColor = [21, 128, 61]; }
@@ -368,20 +378,21 @@ export const Planning = () => {
 
     // --- Page 2: Summary ---
     doc.addPage();
-    addHeader('Summary / Recap');
+    addHeader('Résumé / Récapitulatif');
 
-    const summaryHead = [['#', 'Employee', 'J (Day)', 'N (Night)', 'R (Rest)', 'Work Hours', 'Rest Hours']];
+    // RTL: Reverse the columns
+    const summaryHead = [['#', 'Employé(e)', 'J (Jour)', 'N (Nuit)', 'R (Repos)', 'Heures de travail', 'Heures de repos'].reverse()];
     const summaryBody = employees.map((emp, i) => {
       const s = summaries[i];
       return [
         String(i + 1),
-        emp.name,
+        emp.name || `Employé(e) ${i + 1}`,
         String(s.totalJ),
         String(s.totalN),
         String(s.totalR),
         String(s.workHours),
         String(s.restHours),
-      ];
+      ].reverse();
     });
 
     autoTable(doc, {
@@ -390,7 +401,7 @@ export const Planning = () => {
       startY: 30,
       styles: { fontSize: 9, cellPadding: 2, halign: 'center' },
       headStyles: { fillColor: [30, 58, 95], fontSize: 8 },
-      columnStyles: { 1: { halign: 'right' } },
+      columnStyles: { 5: { halign: 'right' } }, // Employee name is at index 5 when reversed (7 cols total, # is 6)
     });
 
     doc.save(`planning_${formatDD_MM(startDate)}_${formatDD_MM(endDate)}.pdf`);
@@ -541,6 +552,19 @@ export const Planning = () => {
               dir="ltr"
             />
           </div>
+
+          {/* Employee Count */}
+          <div className="space-y-1.5">
+            <Label className="text-sm">عدد الموظفين</Label>
+            <Input
+              type="number"
+              min="1"
+              value={employeeCount}
+              onChange={(e) => setEmployeeCount(e.target.value === '' ? '' : Number(e.target.value))}
+              placeholder="مثال: 10"
+              dir="ltr"
+            />
+          </div>
         </div>
 
         {/* Period Navigation */}
@@ -557,59 +581,15 @@ export const Planning = () => {
         </div>
       </div>
 
-      {/* ── Employee Manager ───────────────────────────── */}
-      <div className="p-5 rounded-2xl bg-card border border-border shadow-sm space-y-4">
-        <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
-          <Users className="w-4 h-4 text-primary" />
-          الموظفون ({employees.length})
-        </h3>
-
-        {/* Add Employee Row */}
-        <div className="flex items-center gap-3">
-          <Input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="اسم الموظف الجديد..."
-            dir="rtl"
-            className="flex-1"
-            onKeyDown={(e) => e.key === 'Enter' && addEmployee()}
-          />
-          <Button onClick={addEmployee} size="sm" className="gap-2 rounded-xl shrink-0">
-            <Plus className="w-4 h-4" />
-            إضافة
+      {/* ── Action Section ───────────────────────────── */}
+      {!isGenerated && (
+        <div className="flex justify-center pt-2">
+          <Button onClick={handleGenerate} className="gap-2 rounded-xl px-8" size="lg">
+            <CalendarDays className="w-5 h-5" />
+            إنشاء الجدول
           </Button>
         </div>
-
-        {/* Employee Tags */}
-        {employees.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {employees.map((emp) => (
-              <span
-                key={emp.id}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-sm font-medium text-primary"
-              >
-                {emp.name}
-                <button
-                  onClick={() => removeEmployee(emp.id)}
-                  className="p-0.5 rounded-full hover:bg-destructive/20 hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Generate Button */}
-        {!isGenerated && (
-          <div className="flex justify-center pt-2">
-            <Button onClick={handleGenerate} className="gap-2 rounded-xl px-8">
-              <CalendarDays className="w-4 h-4" />
-              إنشاء الجدول
-            </Button>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* ── Legend ──────────────────────────────────────── */}
       {isGenerated && (
@@ -665,12 +645,18 @@ export const Planning = () => {
                       className="group hover:bg-muted/20 transition-colors"
                     >
                       {/* Employee name - sticky */}
-                      <td className="sticky right-0 z-10 bg-card group-hover:bg-muted/30 backdrop-blur-sm px-3 py-1.5 text-sm font-medium text-foreground border-b border-l border-border truncate">
+                      <td className="sticky right-0 z-10 bg-card group-hover:bg-muted/30 backdrop-blur-sm px-3 py-1.5 border-b border-l border-border">
                         <div className="flex items-center gap-2">
                           <span className="w-6 h-6 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground text-[10px] font-bold shrink-0">
-                            {emp.name.charAt(0)}
+                            {emp.name ? emp.name.charAt(0) : (empIdx + 1)}
                           </span>
-                          <span className="truncate">{emp.name}</span>
+                          <input
+                            type="text"
+                            value={emp.name}
+                            onChange={(e) => updateEmployeeName(emp.id, e.target.value)}
+                            placeholder="اسم الموظف"
+                            className="bg-transparent border-0 outline-none w-full text-sm font-medium text-foreground focus:ring-0 p-0"
+                          />
                         </div>
                       </td>
 
@@ -764,9 +750,9 @@ export const Planning = () => {
                       <td className="px-4 py-2 text-sm font-medium text-foreground border-b border-l border-border">
                         <div className="flex items-center gap-3">
                           <span className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground text-xs font-bold shrink-0">
-                            {emp.name.charAt(0)}
+                            {emp.name ? emp.name.charAt(0) : (empIdx + 1)}
                           </span>
-                          <span>{emp.name}</span>
+                          <span>{emp.name || `موظف ${empIdx + 1}`}</span>
                         </div>
                       </td>
                       <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border bg-emerald-500/5 text-emerald-600 dark:text-emerald-400">

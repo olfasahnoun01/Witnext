@@ -103,8 +103,13 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
                     )} />
                   </button>
                   
-                  {isExpanded && (
-                    <div className="space-y-1 mt-1">
+                  <div 
+                    className={cn(
+                      "grid transition-all duration-300 ease-in-out",
+                      isExpanded ? "grid-rows-[1fr] opacity-100 mt-1" : "grid-rows-[0fr] opacity-0"
+                    )}
+                  >
+                    <div className="overflow-hidden space-y-1">
                       {section.subsections.map((item) => {
                         const isActive = activeTab === item.id;
                         return (
@@ -131,7 +136,7 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
                         );
                       })}
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })}
