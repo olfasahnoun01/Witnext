@@ -10,7 +10,6 @@ import { exportDatabase, importDatabase } from '@/services/dbService';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { PermissionsManager } from './PermissionsManager';
 import { APP_VERSION, BUILD_DATE_FORMATTED } from '@/lib/version';
 import { supabase } from '@/integrations/supabase/client';
 import { Megaphone } from 'lucide-react';
@@ -118,8 +117,6 @@ export const Settings = () => {
 
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl">
-      {/* Permissions & Users - Admin Only */}
-      {isAdmin && <PermissionsManager />}
 
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex items-center gap-3 mb-6">
@@ -217,34 +214,6 @@ export const Settings = () => {
           </div>
         </div>
       )}
-
-      {/* Storage Info */}
-      <div className="bg-card rounded-xl border border-border p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-3 rounded-xl bg-muted">
-            <Cloud className="w-6 h-6 text-muted-foreground" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-foreground">Base de Données PostgreSQL</h3>
-            <p className="text-sm text-muted-foreground">Vos données sont stockées dans le cloud</p>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm">
-            <CheckCircle2 className="w-4 h-4 text-success" />
-            <span className="text-muted-foreground">Base de données PostgreSQL hébergée sur serveur</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <CheckCircle2 className="w-4 h-4 text-success" />
-            <span className="text-muted-foreground">Données synchronisées en temps réel</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <CheckCircle2 className="w-4 h-4 text-success" />
-            <span className="text-muted-foreground">Accessible depuis n'importe quel appareil</span>
-          </div>
-        </div>
-      </div>
 
 
       {/* App Info */}

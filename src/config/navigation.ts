@@ -65,7 +65,6 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'reports', label: 'Rapports & Documents', icon: FileText },
       { id: 'ba', label: "Bons d'achat", icon: FileSignature },
       { id: 'gallery', label: 'Galerie Photos', icon: ImageIcon },
-      { id: 'settings', label: 'Paramètres', icon: Settings },
     ],
   },
   {
@@ -89,6 +88,15 @@ export const BIG_SECTIONS: BigSection[] = [
     icon: Car,
     subsections: [
       { id: 'flotte', label: 'Flotte', icon: Truck },
+    ],
+  },
+  {
+    id: 'administration',
+    label: 'Administration',
+    icon: Settings,
+    subsections: [
+      { id: 'accounts', label: 'Gestion des Comptes', icon: UsersIcon },
+      { id: 'settings', label: 'Paramètres', icon: Settings },
     ],
   },
 ];

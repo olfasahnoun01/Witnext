@@ -3,6 +3,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { Loader2 } from 'lucide-react';
 import { SUBSECTION_LABELS } from '@/config/navigation';
+import { useAuth } from '@/hooks/useAuth';
 
 // Eagerly import Dashboard since it's the default view
 import { Dashboard } from '@/components/Dashboard';
@@ -24,6 +25,7 @@ const Planning = lazy(() => import('@/components/Planning').then(m => ({ default
 const EmployeeList = lazy(() => import('@/components/EmployeeList').then(m => ({ default: m.EmployeeList })));
 const Flotte = lazy(() => import('@/components/Flotte').then(m => ({ default: m.Flotte })));
 const ComingSoon = lazy(() => import('@/components/ComingSoon').then(m => ({ default: m.ComingSoon })));
+const PermissionsManager = lazy(() => import('@/components/PermissionsManager').then(m => ({ default: m.PermissionsManager })));
 
 // Prefetch map: when user is on tab X, prefetch tab Y
 const prefetchMap: Record<string, () => void> = {
@@ -40,6 +42,7 @@ const ComponentLoader = () => (
 );
 
 const Index = () => {
+  const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [, startTransition] = useTransition();
@@ -79,7 +82,6 @@ const Index = () => {
         {activeTab === 'transactions' && <Transactions />}
         {activeTab === 'reports' && <Reports />}
         {activeTab === 'gallery' && <PhotoGallery />}
-        {activeTab === 'settings' && <Settings />}
         {activeTab === 'ba' && <ComingSoon sectionLabel="Bons d'achat" />}
         
         {/* Commerciale */}
@@ -96,6 +98,12 @@ const Index = () => {
         
         {/* Véhicules */}
         {activeTab === 'flotte' && <Flotte />}
+        
+        {/* Administration */}
+        {activeTab === 'accounts' && (
+          isAdmin ? <PermissionsManager /> : <div className="p-12 text-center text-muted-foreground font-medium">Accès réservé aux administrateurs</div>
+        )}
+        {activeTab === 'settings' && <Settings />}
       </Suspense>
     );
   };
