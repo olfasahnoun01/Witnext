@@ -62,6 +62,7 @@ export interface DocumentItem {
   price?: number;
   product_id?: number;
   actual_deducted?: number;
+  line_id?: string;
 }
 
 export interface DocumentData {
@@ -103,6 +104,8 @@ export interface DevisItem {
   description?: string;
   prix_achat?: number;
   tva?: number; // 7, 13, or 19 (default 19)
+  product_id?: number;
+  line_id?: string;
 }
 
 export interface Devis {
@@ -117,7 +120,7 @@ export interface Devis {
   items: DevisItem[];
   total_amount: number;
   notes: string | null;
-  status: 'brouillon' | 'envoyé' | 'accepté' | 'refusé';
+  status: 'brouillon' | 'envoyé' | 'accepté' | 'refusé' | 'confirmé' | 'reçu' | 'intégré';
   is_ttc: boolean;
   is_bc: boolean;
   is_ba: boolean;
@@ -131,3 +134,59 @@ export interface Devis {
 
 // BonCommande is just a Devis with is_bc = true
 export type BonCommande = Devis;
+
+// --- Unified Document Engine (v2) ---
+
+export type UnifiedDocumentType = 
+  | 'BC_CLIENT' 
+  | 'DEVIS_FOURNISSEUR' 
+  | 'BC_FOURNISSEUR' 
+  | 'BL_FOURNISSEUR' 
+  | 'BE' 
+  | 'BS' 
+  | 'BL_CLIENT' 
+  | 'FACTURE';
+
+export type UnifiedDocumentStatus = 
+  | 'DRAFT' 
+  | 'PENDING' 
+  | 'VALIDATED' 
+  | 'COMPLETED' 
+  | 'REJECTED'
+  | 'PARTIALLY_RECEIVED';
+
+export interface UnifiedDocumentLine {
+  id: string; // UUID
+  document_id: string;
+  product_id: number | null;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+  
+  // Flattened product info for display
+  product_name?: string;
+  product_sku?: string;
+}
+
+export interface UnifiedDocument {
+  id: string; // UUID
+  numero: string;
+  type: UnifiedDocumentType;
+  status: UnifiedDocumentStatus;
+  client_id: number | null;
+  fournisseur_id: number | null;
+  parent_id: string | null; // UUID parent
+  notes: string | null;
+  metadata: Record<string, any>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  
+  // Relations
+  lines?: UnifiedDocumentLine[];
+  client_name?: string;
+  fournisseur_name?: string;
+}

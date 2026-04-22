@@ -28,7 +28,6 @@ const tabTitles: Record<string, string> = {
   transactions: 'Transactions',
   reports: 'Rapports & Documents',
   devis: 'Gestion Devis',
-  ba: 'Bons d\'achat',
   gallery: 'Galerie Photos',
   settings: 'Paramètres'
 };
@@ -86,7 +85,6 @@ const Index = () => {
         {activeTab === 'transactions' && <Transactions />}
         {activeTab === 'reports' && <Reports />}
         {activeTab === 'devis' && <GestionDevis onTabChange={handleTabChange} />}
-        {activeTab === 'ba' && <GestionDevis onTabChange={handleTabChange} initialSection="ba" initialDocType="ba" />}
         {activeTab === 'gallery' && <PhotoGallery />}
         {activeTab === 'settings' && <Settings />}
 </Suspense>

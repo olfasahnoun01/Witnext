@@ -204,6 +204,7 @@ export const DocumentForm = memo(({
     
     // Price is optional - only include if provided or if showPrice is true and product has price
     const itemData: DocumentItem = {
+      line_id: Math.random().toString(36).substring(7),
       ref: product.sku,
       designation: product.name,
       description: itemDescription,

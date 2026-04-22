@@ -8,6 +8,12 @@ import { ProductGroupModal } from '@/components/inventory/ProductGroupModal';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -98,16 +104,16 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
       if (prodError) throw prodError;
 
       // 2. Fetch matching learning translations
-      const { data: mappings, error: mapError } = await supabase
-        .from('devis_helper_mappings')
+      const { data: mappings, error: mapError } = await (supabase
+        .from('devis_helper_mappings' as any)
         .select('id, extracted_name, fiche_technique_url')
-        .in('extracted_name', descriptions);
+        .in('extracted_name', descriptions) as any);
 
       if (mapError) {
         console.warn('Mapping table issues:', mapError);
       }
 
-      const updatedItems = descriptions.map((desc, idx) => {
+      const updatedItems: ExtractedItem[] = descriptions.map((desc, idx) => {
         const item: ExtractedItem = {
           id: `idx-${idx}`,
           description: desc,
@@ -240,21 +246,21 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
         if (rpcError) throw rpcError;
         
         setItems(prev => prev.map(p => 
-          p.id === item.id ? { ...p, status: 'found', fiche_technique_url: publicUrl } : p
+          p.id === item.id ? { ...p, status: 'found' as const, fiche_technique_url: publicUrl } : p
         ));
       } else if (item.status === 'not_found' || item.status === 'mapped') {
         // Case: Learning Mode (Mapping)
-        const { error: mapError } = await supabase
-          .from('devis_helper_mappings')
+        const { error: mapError } = await (supabase
+          .from('devis_helper_mappings' as any)
           .upsert({
             extracted_name: item.description,
             fiche_technique_url: publicUrl
-          });
+          }) as any);
         
         if (mapError) throw mapError;
 
         setItems(prev => prev.map(p => 
-          p.id === item.id ? { ...p, status: 'mapped', fiche_technique_url: publicUrl } : p
+          p.id === item.id ? { ...p, status: 'mapped' as const, fiche_technique_url: publicUrl } : p
         ));
       }
 
@@ -627,7 +633,7 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
             </DialogTitle>
             <div className="flex gap-2">
               <Button 
-                variant="primary" 
+                variant="default" 
                 size="sm" 
                 className="gap-2 font-bold shadow-lg"
                 onClick={() => selectedPreviewDoc && handleDownloadFiche(selectedPreviewDoc.url)}

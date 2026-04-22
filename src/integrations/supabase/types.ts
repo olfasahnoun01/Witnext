@@ -248,6 +248,124 @@ export type Database = {
       }
       documents: {
         Row: {
+          client_id: number | null
+          created_at: string
+          created_by: string | null
+          id: string
+          metadata: Json
+          notes: string | null
+          numero: string
+          parent_id: string | null
+          status: Database["public"]["Enums"]["doc_status"]
+          type: Database["public"]["Enums"]["doc_type"]
+          updated_at: string
+          fournisseur_id: number | null
+        }
+        Insert: {
+          client_id?: number | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          numero: string
+          parent_id?: string | null
+          status?: Database["public"]["Enums"]["doc_status"]
+          type: Database["public"]["Enums"]["doc_type"]
+          updated_at?: string
+          fournisseur_id?: number | null
+        }
+        Update: {
+          client_id?: number | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          numero?: string
+          parent_id?: string | null
+          status?: Database["public"]["Enums"]["doc_status"]
+          type?: Database["public"]["Enums"]["doc_type"]
+          updated_at?: string
+          fournisseur_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_fournisseur_id_fkey"
+            columns: ["fournisseur_id"]
+            isOneToOne: false
+            referencedRelation: "fournisseurs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_lines: {
+        Row: {
+          created_at: string
+          description: string | null
+          document_id: string
+          id: string
+          product_id: number | null
+          quantity: number
+          total_price: number
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          document_id: string
+          id?: string
+          product_id?: number | null
+          quantity?: number
+          total_price?: number
+          unit_price?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          document_id?: string
+          id?: string
+          product_id?: number | null
+          quantity?: number
+          total_price?: number
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_lines_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents_legacy: {
+        Row: {
           created_at: string
           created_by: string | null
           doc_date: string
@@ -757,6 +875,8 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
+      doc_type: "BC_CLIENT" | "DEVIS_FOURNISSEUR" | "BC_FOURNISSEUR" | "BL_FOURNISSEUR" | "BE" | "BS" | "BL_CLIENT" | "FACTURE"
+      doc_status: "DRAFT" | "PENDING" | "VALIDATED" | "COMPLETED" | "REJECTED" | "PARTIALLY_RECEIVED"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -885,6 +1005,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
+      doc_type: ["BC_CLIENT", "DEVIS_FOURNISSEUR", "BC_FOURNISSEUR", "BL_FOURNISSEUR", "BE", "BS", "BL_CLIENT", "FACTURE"],
+      doc_status: ["DRAFT", "PENDING", "VALIDATED", "COMPLETED", "REJECTED", "PARTIALLY_RECEIVED"],
     },
   },
 } as const

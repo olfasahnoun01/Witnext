@@ -34,7 +34,6 @@ const navItems = [
   { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
   { id: 'reports', label: 'Rapports & Documents', icon: FileText },
   { id: 'devis', label: 'Gestion Devis', icon: ClipboardList },
-  { id: 'ba', label: 'Bons d\'achat', icon: FileSignature },
   { id: 'gallery', label: 'Galerie Photos', icon: ImageIcon },
   { id: 'settings', label: 'Paramètres', icon: Settings },
 ];

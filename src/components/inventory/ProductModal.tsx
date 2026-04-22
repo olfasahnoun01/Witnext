@@ -1,5 +1,5 @@
 import { memo, useRef, useCallback } from 'react';
-import { X, Upload } from 'lucide-react';
+import { X, Upload, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Product } from '@/types';
 
@@ -19,6 +19,7 @@ export interface ProductFormData {
   min_stock: number;
   image: string | null;
   color: string;
+  fiche_technique_url?: string | null;
 }
 
 interface ProductModalProps {
@@ -31,6 +32,8 @@ interface ProductModalProps {
   isSubmitting: boolean;
   defaultCategory?: string;
 }
+
+import { DocumentUploader } from '@/components/shared/DocumentUploader';
 
 export const ProductModal = memo(({
   isOpen,
@@ -95,7 +98,7 @@ export const ProductModal = memo(({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Image Upload */}
           <div className="flex items-center gap-4">
             <div 
@@ -266,6 +269,27 @@ export const ProductModal = memo(({
                 className="form-input"
               />
             </div>
+          </div>
+
+          {/* Documentation Section */}
+          <div className="space-y-3 pt-2 border-t border-dashed">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <FileText className="w-4 h-4 text-blue-500" />
+              Documentation Technique
+            </h3>
+            {formData.sku ? (
+              <DocumentUploader 
+                bucket="product-documents"
+                entityCode={formData.sku}
+                documentType="fiche_technique"
+                currentUrl={formData.fiche_technique_url}
+                onUploadSuccess={(url) => onFormDataChange({ ...formData, fiche_technique_url: url })}
+              />
+            ) : (
+              <p className="text-xs text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-100 italic">
+                Veuillez saisir un Code Article avant de charger la fiche technique.
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-4">

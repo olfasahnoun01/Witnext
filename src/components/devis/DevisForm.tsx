@@ -1,7 +1,7 @@
 import { memo, useCallback, useState, useEffect, useMemo } from 'react';
 import { ProductGroupFournisseur } from '@/types';
 import { computeDevisTotals, computeDevisLine } from '@/lib/devisPricing';
-import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package, Layers } from 'lucide-react';
+import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package, Layers, Truck, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,7 +18,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { Upload, ChevronsUpDown, Check } from 'lucide-react';
+import { Upload, ChevronsUpDown } from 'lucide-react';
 import { useRef } from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -112,6 +112,8 @@ export const DevisForm = memo(({
   const debouncedSearch = useDebounce(productSearch, 300);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
+
+
   // Item form (manual or from selected product)
   const [itemDesignation, setItemDesignation] = useState('');
   const [itemFournisseur, setItemFournisseur] = useState('');
@@ -135,7 +137,7 @@ export const DevisForm = memo(({
 
   // Add variant to existing product group
   const [showAddVariant, setShowAddVariant] = useState(false);
-  const [productGroups, setProductGroups] = useState<{ id: number; name: string; base_sku: string | null; category: string }[]>([]);
+  const [productGroups, setProductGroups] = useState<{ id: number; name: string; base_sku: string | null; category: string; fournisseur: string | null }[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [variantSku, setVariantSku] = useState('');
   const [variantSize, setVariantSize] = useState('');
@@ -297,6 +299,7 @@ export const DevisForm = memo(({
     if (designations.length === 0) return;
 
     const newItems = designations.map(name => ({
+      line_id: Math.random().toString(36).substring(7),
       designation: name,
       fournisseur: itemFournisseur.trim(),
       prix_ttc: itemPrixTtc,
@@ -305,20 +308,16 @@ export const DevisForm = memo(({
       description: itemDescription.trim() || undefined,
       tva: itemTva,
       ...(devisType === 'sortant' && itemPrixAchat > 0 ? { prix_achat: itemPrixAchat } : {}),
+      product_id: selectedProduct?.id,
     }));
 
     setDevisItems(prev => [...prev, ...newItems]);
     
-    setItemDesignation('');
-    setItemFournisseur('');
-    setItemPrixTtc(0);
-    setItemRemise(0);
-    setItemQuantity(1);
-    setItemDescription('');
-    setItemPrixAchat(0);
     setItemTva(19);
     setSelectedProduct(null);
   }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, itemTva, devisType, isEntrant, setDevisItems]);
+
+
 
   const removeItem = useCallback((idx: number) => {
     setDevisItems(prev => prev.filter((_, i) => i !== idx));
@@ -540,6 +539,7 @@ export const DevisForm = memo(({
 
         if (data.length > 1) {
           const newItems = data.map(d => ({
+            line_id: Math.random().toString(36).substring(7),
             designation: d.name,
             fournisseur: d.fournisseur || '',
             prix_ttc: d.price || 0,
@@ -547,6 +547,7 @@ export const DevisForm = memo(({
             quantity: 1,
             description: `${d.sku}${d.size ? ` - Taille: ${d.size}` : ''}${d.color ? ` - ${d.color}` : ''}`.trim() || undefined,
             ...(devisType === 'sortant' ? { prix_achat: d.price || 0 } : {}),
+            product_id: d.id,
           }));
           setDevisItems(prev => [...prev, ...newItems]);
           setItemDesignation('');
@@ -562,6 +563,7 @@ export const DevisForm = memo(({
           setItemRemise(first.remise || 0);
           setItemQuantity(1);
           setItemDescription(description);
+          setSelectedProduct(first as Product);
         }
         setShowNewArticle(false);
         resetNewArticleForm();
@@ -575,7 +577,7 @@ export const DevisForm = memo(({
   useEffect(() => {
     if (!showAddVariant) return;
     const loadGroups = async () => {
-      const { data } = await supabase.from('product_groups').select('id, name, base_sku, category').order('name');
+      const { data } = await supabase.from('product_groups').select('id, name, base_sku, category, fournisseur').order('name');
       setProductGroups(data || []);
     };
     loadGroups();
@@ -722,6 +724,16 @@ export const DevisForm = memo(({
         if (group) {
           setItemDesignation(group.name);
           setItemDescription(`${variantSku}${variantSize ? ` - Taille: ${variantSize}` : ''}${variantColor ? ` - ${variantColor}` : ''}`);
+          // Set selected product so addItem can capture the ID
+          setSelectedProduct({
+            id: result.id,
+            name: group.name,
+            sku: variantSku,
+            price: variantPrice,
+            remise: variantRemise,
+            quantity: variantQuantity,
+            fournisseur: group.fournisseur || '',
+          } as Product);
         }
         setShowAddVariant(false);
         setSelectedGroupId('');
@@ -763,8 +775,8 @@ export const DevisForm = memo(({
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-foreground">
               {editingDevis 
-                ? `Modifier ${docType === 'ba' ? "Bon d'Achat" : docType === 'bc' ? 'Bon de Commande' : 'Devis'}` 
-                : `Nouveau ${docType === 'ba' ? "Bon d'Achat" : docType === 'bc' ? 'Bon de Commande' : 'Devis'}`}
+                ? `Modifier ${docType === 'bc' ? 'Bon de Commande' : 'Devis'}` 
+                : `Nouveau ${docType === 'bc' ? 'Bon de Commande' : 'Devis'}`}
             </h3>
             {editingDevis && (
               <Button variant="outline" size="sm" onClick={onCancel}>Annuler</Button>
@@ -775,7 +787,7 @@ export const DevisForm = memo(({
           {!editingDevis && (
             <div>
               <label className="form-label">Mode du Document</label>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setDocType('devis')}
                   className={`p-2.5 rounded-lg border-2 text-xs font-semibold transition-all ${docType === 'devis'
@@ -794,15 +806,7 @@ export const DevisForm = memo(({
                 >
                   🛒 Bon de Commande
                 </button>
-                <button
-                  onClick={() => setDocType('ba')}
-                  className={`p-2.5 rounded-lg border-2 text-xs font-semibold transition-all ${docType === 'ba'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:border-muted-foreground'
-                    }`}
-                >
-                  📝 Bon d'Achat
-                </button>
+
               </div>
             </div>
           )}
@@ -810,7 +814,7 @@ export const DevisForm = memo(({
           {/* Type */}
           <div>
             <label className="form-label">
-              Flux du {docType === 'ba' ? "Bon d'Achat" : docType === 'bc' ? 'Bon de Commande' : 'Devis'}
+              Flux du {docType === 'bc' ? 'Bon de Commande' : 'Devis'}
             </label>
             <div className="grid grid-cols-2 gap-3">
               <button
@@ -829,21 +833,17 @@ export const DevisForm = memo(({
                     : 'border-border text-muted-foreground hover:border-muted-foreground'
                   }`}
               >
-                {docType === 'devis' ? '📤 Devis Sortant' : docType === 'bc' ? '📤 BC Sortant' : '📤 BA Sortant'}
+                {docType === 'devis' ? '📤 Devis Sortant' : '📤 BC Sortant'}
               </button>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
               {isEntrant
-                ? docType === 'ba' 
-                  ? '⬇️ Nous recevons un Bon d\'Achat d\'un fournisseur'
-                  : docType === 'bc'
-                    ? '⬇️ Un fournisseur nous envoie sa commande'
-                    : '⬇️ Un fournisseur nous envoie un devis (nous sommes le récepteur)'
-                : docType === 'ba'
-                  ? '⬆️ Nous envoyons un Bon d\'Achat à un client'
-                  : docType === 'bc'
-                    ? '⬆️ Nous envoyons une commande à un client'
-                    : '⬆️ Nous envoyons un devis à un client'}
+                ? docType === 'bc'
+                  ? '⬇️ Un fournisseur nous envoie sa commande'
+                  : '⬇️ Un fournisseur nous envoie un devis (nous sommes le récepteur)'
+                : docType === 'bc'
+                  ? '⬆️ Nous envoyons une commande à un client'
+                  : '⬆️ Nous envoyons un devis à un client'}
             </p>
           </div>
 
@@ -1109,7 +1109,7 @@ export const DevisForm = memo(({
 
 
               <Button onClick={addItem} disabled={!itemDesignation.trim()} className="w-full">
-                <Plus className="w-4 h-4 mr-2" /> Ajouter au devis
+                <Plus className="w-4 h-4 mr-2" /> {docType === 'bc' ? 'Ajouter au bon de commande' : 'Ajouter au devis'}
               </Button>
             </div>
           </div>

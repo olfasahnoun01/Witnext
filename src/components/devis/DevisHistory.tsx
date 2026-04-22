@@ -59,6 +59,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   const [selectedFournisseur, setSelectedFournisseur] = useState('all');
   const [echantillonDevis, setEchantillonDevis] = useState<{ id: number; number: string } | null>(null);
   const [echantillonCounts, setEchantillonCounts] = useState<Record<number, number>>({});
+  const [selectedType, setSelectedType] = useState<'all' | 'entrant' | 'sortant'>('all');
 
   // Fetch envoyé echantillon counts for all sortant devis
   useEffect(() => {
@@ -107,8 +108,11 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
         d.items.some(item => item.fournisseur?.trim() === selectedFournisseur)
       );
     }
+    if (selectedType !== 'all') {
+      result = result.filter(d => d.type === selectedType);
+    }
     return result;
-  }, [savedDevis, searchTerm, selectedFournisseur]);
+  }, [savedDevis, searchTerm, selectedFournisseur, selectedType]);
 
   const paginatedDevis = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -185,8 +189,18 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </button>
               )}
             </div>
+            <Select value={selectedType} onValueChange={v => { setSelectedType(v as any); setCurrentPage(1); }}>
+              <SelectTrigger className="h-9 w-32 bg-background">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover z-50">
+                <SelectItem value="all">Tous types</SelectItem>
+                <SelectItem value="entrant">📥 Entrant</SelectItem>
+                <SelectItem value="sortant">📤 Sortant</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={selectedFournisseur} onValueChange={v => { setSelectedFournisseur(v); setCurrentPage(1); }}>
-              <SelectTrigger className="h-9 w-48 bg-background">
+              <SelectTrigger className="h-9 w-44 bg-background">
                 <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
                 <SelectValue placeholder="Fournisseur" />
               </SelectTrigger>
@@ -305,7 +319,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2">
-                        {onConvertToBC && (
+                        {onConvertToBC && d.type === 'sortant' && (
                           <button onClick={() => onConvertToBC(d)} className="p-1.5 rounded hover:bg-success/10 text-muted-foreground hover:text-success transition-colors" title="Convertir en BC">
                             <FileText className="w-4 h-4" />
                           </button>

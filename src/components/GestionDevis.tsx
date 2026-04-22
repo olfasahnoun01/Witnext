@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { FileText, History, Plus, Search } from 'lucide-react';
+import { FileText, History, Plus, Search, ShoppingCart, TrendingUp } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Devis, DevisItem, BonCommande } from '@/types';
@@ -10,11 +10,11 @@ import { DevisHistory } from './devis/DevisHistory';
 import { BonCommandeList } from './devis/BonCommandeList';
 import { DevisHelper } from './devis/DevisHelper';
 import { BCCreationDialog } from './devis/BCCreationDialog';
-import { BACreationDialog } from './devis/BACreationDialog';
+import { UnifiedDocumentList } from './devis/UnifiedDocumentList';
+import { SalesPipeline } from './devis/SalesPipeline';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
-import { FileSignature } from 'lucide-react';
 
 const parseDevisRow = (d: any, profilesMap: Record<string, string>, sourceDevisMap?: Record<number, string>): Devis => {
   let parsedItems: DevisItem[] = [];
@@ -28,7 +28,7 @@ const parseDevisRow = (d: any, profilesMap: Record<string, string>, sourceDevisM
   return {
     ...d,
     type: d.type as 'entrant' | 'sortant',
-    status: d.status as 'brouillon' | 'envoyé' | 'accepté' | 'refusé',
+    status: d.status as 'brouillon' | 'envoyé' | 'accepté' | 'refusé' | 'confirmé' | 'reçu' | 'intégré',
     items: parsedItems,
     total_amount: Number(d.total_amount) || 0,
     is_bc: d.is_bc ?? false,
@@ -41,22 +41,24 @@ const parseDevisRow = (d: any, profilesMap: Record<string, string>, sourceDevisM
 
 interface GestionDevisProps {
   onTabChange?: (tab: string) => void;
-  initialSection?: 'form' | 'history' | 'bc' | 'ba' | 'helper';
+  initialSection?: 'form' | 'history' | 'bc' | 'helper' | 'achats' | 'pipeline';
   initialDocType?: 'devis' | 'bc' | 'ba';
 }
 
 export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocType = 'devis' }: GestionDevisProps) => {
   const { isAdmin, isModerator, user } = useAuth();
   const canEdit = true;
-  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'ba' | 'helper'>(initialSection);
+  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'helper' | 'achats' | 'pipeline'>(
+    (initialSection as any) === 'ba' ? 'form' : initialSection
+  );
   const [allDevis, setAllDevis] = useState<Devis[]>([]);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingDevis, setEditingDevis] = useState<Devis | null>(null);
   const [isBCReviewOpen, setIsBCReviewOpen] = useState(false);
-  const [isBAReviewOpen, setIsBAReviewOpen] = useState(false);
   const [devisToConvert, setDevisToConvert] = useState<Devis | null>(null);
-  const [bcToConvert, setBcToConvert] = useState<Devis | null>(null);
-  const [docType, setDocType] = useState<'devis' | 'bc' | 'ba'>(initialDocType);
+  const [docType, setDocType] = useState<'devis' | 'bc' | 'ba'>(
+    (initialDocType as any) === 'ba' ? 'ba' : initialDocType
+  );
   const devisNumberRef = useRef('');
 
   // Form state
@@ -124,13 +126,19 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
   useEffect(() => { devisNumberRef.current = devisNumber; }, [devisNumber]);
 
   const generateNextNumber = useCallback((type: 'entrant' | 'sortant', mode: 'devis' | 'bc' | 'ba' = 'devis') => {
-    const prefix = mode === 'ba'
-      ? (type === 'entrant' ? 'BAE' : 'BAS')
-      : mode === 'bc'
-        ? (type === 'entrant' ? 'BCE' : 'BCS')
-        : (type === 'entrant' ? 'DE' : 'DS');
+    let prefix = 'DE';
+    if (mode === 'bc') {
+      prefix = type === 'entrant' ? 'BCE' : 'BCS';
+    } else if (mode === 'ba') {
+      prefix = 'BA';
+    } else {
+      prefix = type === 'entrant' ? 'DE' : 'DS';
+    }
     
-    const list = mode === 'ba' ? bonsAchat : (mode === 'bc' ? bonsCommande : savedDevis);
+    let list = savedDevis;
+    if (mode === 'bc') list = bonsCommande;
+    if (mode === 'ba') list = bonsAchat;
+
     const docsOfType = list.filter(d => d.type === type);
     let maxNum = 0;
     docsOfType.forEach(d => {
@@ -207,7 +215,7 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
         created_by: user?.id,
         is_ttc: isTtc,
         is_bc: docType === 'bc',
-        is_ba: docType === 'ba',
+        is_ba: false,
       } as any);
 
       if (error) {
@@ -244,7 +252,7 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
       notes: notes || null,
       is_ttc: isTtc,
       is_bc: docType === 'bc',
-      is_ba: docType === 'ba',
+      is_ba: false,
     } as any).eq('id', editingDevis.id);
 
     if (error) {
@@ -254,7 +262,7 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
       resetForm();
       loadAll();
     }
-  }, [editingDevis, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, loadAll, resetForm]);
+  }, [editingDevis, docType, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, loadAll, resetForm]);
 
   const deleteDevis = useCallback(async (devis: Devis) => {
     const { error } = await supabase.from('devis').delete().eq('id', devis.id);
@@ -263,7 +271,6 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
     } else {
       let msg = 'Devis supprimé';
       if (devis.is_bc) msg = 'Bon de commande supprimé';
-      if (devis.is_ba) msg = 'Bon d\'achat supprimé';
       toast.success(msg);
       loadAll();
     }
@@ -316,58 +323,13 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
     }
   }, [devisToConvert, generateNextNumber, loadAll]);
 
-  const convertToBA = useCallback((bc: Devis) => {
-    setBcToConvert(bc);
-    setIsBAReviewOpen(true);
-  }, []);
-
-  const handleConfirmBA = useCallback(async (modifiedItems: DevisItem[]) => {
-    if (!bcToConvert) return;
-    
-    try {
-      const baNumber = generateNextNumber(bcToConvert.type, 'ba');
-      const { data: { user } } = await supabase.auth.getUser();
-      const totals = computeDevisTotals(modifiedItems, false);
-
-      const { error } = await supabase.from('devis').insert({
-        devis_number: baNumber,
-        devis_date: new Date().toISOString().split('T')[0],
-        source_devis_id: bcToConvert.id,
-        type: bcToConvert.type,
-        third_party_name: bcToConvert.third_party_name,
-        third_party_address: bcToConvert.third_party_address,
-        third_party_tax_id: bcToConvert.third_party_tax_id,
-        third_party_phone: bcToConvert.third_party_phone,
-        items: JSON.parse(JSON.stringify(modifiedItems)),
-        total_amount: totals.totalTTC,
-        notes: bcToConvert.notes,
-        is_ttc: bcToConvert.is_ttc,
-        is_bc: false,
-        is_ba: true,
-        created_by: user?.id,
-        status: 'confirmé',
-      } as any);
-
-      if (error) {
-        toast.error('Erreur lors de la création du BA');
-        console.error(error);
-      } else {
-        toast.success(`BA ${baNumber} créé avec succès`);
-        setIsBAReviewOpen(false);
-        setBcToConvert(null);
-        await loadAll();
-        setActiveSection('ba');
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error('Erreur lors de la création');
-    }
-  }, [bcToConvert, generateNextNumber, loadAll]);
-
   const startEdit = useCallback((d: Devis) => {
     setEditingDevis(d);
     setDevisType(d.type);
-    setDocType(d.is_ba ? 'ba' : (d.is_bc ? 'bc' : 'devis'));
+    if (d.is_ba) setDocType('ba');
+    else if (d.is_bc) setDocType('bc');
+    else setDocType('devis');
+    
     setDevisNumber(d.devis_number);
     setDevisDate(d.devis_date);
     setThirdPartyName(d.third_party_name || '');
@@ -434,6 +396,28 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
           <Search className="w-4 h-4" />
           Devis Helper
         </button>
+        <button
+          onClick={() => setActiveSection('achats')}
+          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+            activeSection === 'achats'
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <ShoppingCart className="w-4 h-4" />
+          ACHATS (Moteur v2)
+        </button>
+        <button
+          onClick={() => setActiveSection('pipeline')}
+          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+            activeSection === 'pipeline'
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4" />
+          Suivi Pipeline
+        </button>
       </div>
 
       {activeSection === 'form' && devisNumber && (
@@ -488,13 +472,22 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
           isAdminOrMod={isAdmin || isModerator}
           onEdit={startEdit}
           onDelete={deleteDevis}
-          onConvertToBA={convertToBA}
           onAdd={() => handleAddNew('bc')}
         />
       )}
 
+
+
       {activeSection === 'helper' && (
         <DevisHelper onTabChange={onTabChange} />
+      )}
+
+      {activeSection === 'achats' && (
+        <UnifiedDocumentList />
+      )}
+
+      {activeSection === 'pipeline' && (
+        <SalesPipeline />
       )}
 
       {/* Edit Devis Dialog */}
@@ -546,12 +539,7 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
         onConfirm={handleConfirmBC}
       />
 
-      <BACreationDialog
-        open={isBAReviewOpen}
-        onOpenChange={setIsBAReviewOpen}
-        sourceBC={bcToConvert}
-        onConfirm={handleConfirmBA}
-      />
+
     </div>
   );
 };

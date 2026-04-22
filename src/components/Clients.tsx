@@ -32,6 +32,7 @@ import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useAuth } from '@/hooks/useAuth';
 import { convertFileToWebp } from '@/lib/imageCompression';
+import { DocumentUploader } from './shared/DocumentUploader';
 
 interface Client {
   id: number;
@@ -80,23 +81,8 @@ export const Clients = memo(() => {
   const [selectedGovernorate, setSelectedGovernorate] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [exactLocation, setExactLocation] = useState('');
-  const [patenteUrl, setPatenteUrl] = useState<string | null>(null); // Stores path in DB
-  const [rcUrl, setRcUrl] = useState<string | null>(null); // Stores path in DB
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null); // Stores signed URL for UI
-  const [rcPreviewUrl, setRcPreviewUrl] = useState<string | null>(null); // Stores signed URL for UI
-  const [isUploading, setIsUploading] = useState(false);
-  const [isUploadingRC, setIsUploadingRC] = useState(false);
-  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
-  const [storageError, setStorageError] = useState<string | null>(null);
-  const [storageErrorRC, setStorageErrorRC] = useState<string | null>(null);
-  const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [selectedDocPath, setSelectedDocPath] = useState<string | null>(null);
-  const [selectedDocBucket, setSelectedDocBucket] = useState('');
-  const [selectedDocUrl, setSelectedDocUrl] = useState<string | null>(null);
-  const [selectedDocTitle, setSelectedDocTitle] = useState('');
-  const [isDownloadingDoc, setIsDownloadingDoc] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const rcFileInputRef = useRef<HTMLInputElement>(null);
+  const [patenteUrl, setPatenteUrl] = useState<string | null>(null);
+  const [rcUrl, setRcUrl] = useState<string | null>(null);
   
   // Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -132,11 +118,7 @@ export const Clients = memo(() => {
     setExactLocation('');
     setPatenteUrl(null);
     setRcUrl(null);
-    setPreviewUrl(null);
-    setRcPreviewUrl(null);
     setEditingClient(null);
-    setStorageError(null);
-    setStorageErrorRC(null);
   }, []);
 
   // Get cities for selected governorate
@@ -146,176 +128,9 @@ export const Clients = memo(() => {
       : [];
   }, [selectedGovernorate]);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Le fichier est trop volumineux (max 5Mo)');
-      return;
-    }
-
-    setIsUploading(true);
-    setStorageError(null);
-    try {
-      // Step 1: Convert to WebP (95% quality)
-      const { blob, ext } = await convertFileToWebp(file, { quality: 0.95 });
-      
-      const fileName = `${Date.now()}_${file.name.split('.')[0].replace(/\s+/g, '_')}.${ext}`;
-      const filePath = `client_patentes/${fileName}`;
-      
-      let { error: uploadError } = await supabase.storage
-        .from('patentes_client')
-        .upload(filePath, blob);
-
-      // Self-healing attempt: if bucket is missing, try to create it
-      if (uploadError && ((uploadError as any).status === 400 || (uploadError as any).message?.includes('not found'))) {
-        console.log("Attempting to create missing bucket 'patentes_client'...");
-        const { error: createError } = await supabase.storage.createBucket('patentes_client', { public: false });
-        
-        if (!createError) {
-          // Retry upload if creation succeeded
-          const { error: retryError } = await supabase.storage
-            .from('patentes_client')
-            .upload(filePath, blob);
-          uploadError = retryError;
-        } else {
-          // If creation failed (permissions), set storage error to show help UI
-          setStorageError('BUCKET_NOT_FOUND');
-          throw uploadError;
-        }
-      }
-
-      if (uploadError) throw uploadError;
-
-      // Now we store the path, not the public URL
-      setPatenteUrl(filePath);
-      toast.success('Patente téléchargée');
-    } catch (error: any) {
-      console.error('Error uploading patente:', error);
-      if (error.message?.includes('not found') || error.status === 400) {
-        setStorageError('BUCKET_NOT_FOUND');
-      }
-      toast.error('Erreur lors du téléchargement');
-    } finally {
-      setIsUploading(false);
-    }
+  const handleViewDocument = (url: string | null) => {
+    if (url) window.open(url, '_blank');
   };
-
-  const handleRCFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Le fichier est trop volumineux (max 5Mo)');
-      return;
-    }
-
-    setIsUploadingRC(true);
-    setStorageErrorRC(null);
-    try {
-      // Step 1: Convert to WebP (95% quality)
-      const { blob, ext } = await convertFileToWebp(file, { quality: 0.95 });
-      
-      const fileName = `${Date.now()}_RC_${file.name.split('.')[0].replace(/\s+/g, '_')}.${ext}`;
-      const filePath = `registre_commerce/${fileName}`;
-      
-      let { error: uploadError } = await supabase.storage
-        .from('registre_commerce_client')
-        .upload(filePath, blob);
-
-      // Self-healing attempt: if bucket is missing, try to create it
-      if (uploadError && ((uploadError as any).status === 400 || (uploadError as any).message?.includes('not found'))) {
-        console.log("Attempting to create missing bucket 'registre_commerce_client'...");
-        const { error: createError } = await supabase.storage.createBucket('registre_commerce_client', { public: false });
-        
-        if (!createError) {
-          const { error: retryError } = await supabase.storage
-            .from('registre_commerce_client')
-            .upload(filePath, blob);
-          uploadError = retryError;
-        } else {
-          setStorageErrorRC('BUCKET_NOT_FOUND');
-          throw uploadError;
-        }
-      }
-
-      if (uploadError) throw uploadError;
-
-      setRcUrl(filePath);
-      toast.success('Registre de Commerce téléchargé');
-    } catch (error: any) {
-      console.error('Error uploading RC:', error);
-      if (error.message?.includes('not found') || error.status === 400) {
-        setStorageErrorRC('BUCKET_NOT_FOUND');
-      }
-      toast.error('Erreur lors du téléchargement');
-    } finally {
-      setIsUploadingRC(false);
-    }
-  };
-
-  const handleViewDocument = async (path: string, bucket: string = 'patentes_client') => {
-    if (!path) return;
-    
-    // Support legacy full URLs if any
-    if (path.startsWith('http')) {
-      window.open(path, '_blank');
-      return;
-    }
-
-    setIsGeneratingLink(true);
-    try {
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .createSignedUrl(path, 60); // Link valid for 60 seconds
-
-      if (error) throw error;
-      if (data) {
-        setSelectedDocPath(path);
-        setSelectedDocBucket(bucket);
-        setSelectedDocUrl(data.signedUrl);
-        setSelectedDocTitle(bucket === 'patentes_client' ? 'Patente' : 'Registre de Commerce');
-        setPreviewModalOpen(true);
-      }
-    } catch (error) {
-      console.error(`Error creating signed URL for ${bucket}:`, error);
-      toast.error('Impossible d\'ouvrir le document');
-    } finally {
-      setIsGeneratingLink(false);
-    }
-  };
-
-  // Resolve paths to preview URLs for the modal
-  useEffect(() => {
-    const fetchPreviews = async () => {
-      // Patente Preview
-      if (patenteUrl && !patenteUrl.startsWith('http')) {
-        const { data, error } = await supabase.storage
-          .from('patentes_client')
-          .createSignedUrl(patenteUrl, 3600);
-        if (!error && data) {
-          setPreviewUrl(data.signedUrl);
-        }
-      } else {
-        setPreviewUrl(patenteUrl);
-      }
-
-      // RC Preview
-      if (rcUrl && !rcUrl.startsWith('http')) {
-        const { data, error } = await supabase.storage
-          .from('registre_commerce_client')
-          .createSignedUrl(rcUrl, 3600);
-        if (!error && data) {
-          setRcPreviewUrl(data.signedUrl);
-        }
-      } else {
-        setRcPreviewUrl(rcUrl);
-      }
-    };
-    
-    fetchPreviews();
-  }, [patenteUrl, rcUrl]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -620,179 +435,40 @@ export const Clients = memo(() => {
                       onChange={(e) => setExactLocation(e.target.value)}
                       placeholder="Ex: Rue Ibn Khaldoun, N°15, Zone Industrielle..."
                     />
-                  </div>
-
-                  {/* Patente Upload */}
-                  <div className="space-y-4 pt-4 border-t mt-4">
-                    <Label className="text-base font-semibold">Document Patente</Label>
+                               {/* Document Management Section */}
+                  <div className="space-y-4 pt-4 border-t border-dashed mt-4">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-blue-500" />
+                      Documents Obligatoires (PDF)
+                    </h3>
                     
-                    {storageError === 'BUCKET_NOT_FOUND' && (
-                      <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 space-y-3">
-                        <div className="flex items-start gap-2 text-amber-800">
-                          <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-                          <div className="text-sm">
-                            <p className="font-bold">Configuration du stockage requise</p>
-                            <p>Le dossier "patentes_client" n'existe pas dans votre projet Supabase.</p>
-                          </div>
-                        </div>
-                        <div className="bg-white p-2 rounded border font-mono text-xs overflow-x-auto">
-                          {`INSERT INTO storage.buckets (id, name, public) VALUES ('patentes_client', 'patentes_client', false);`}
-                        </div>
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          size="sm" 
-                          className="w-full gap-2 border-amber-300 text-amber-800 hover:bg-amber-100"
-                          onClick={() => {
-                            const sql = "INSERT INTO storage.buckets (id, name, public) VALUES ('patentes_client', 'patentes_client', false);\n\nCREATE POLICY \"Lecture sécurisée patentes\" ON storage.objects FOR SELECT USING (bucket_id = 'patentes_client' AND auth.uid() IS NOT NULL);\n\nCREATE POLICY \"Upload patentes\" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'patentes_client' AND auth.uid() IS NOT NULL);";
-                            navigator.clipboard.writeText(sql);
-                            toast.success('SQL copié ! Collez-le dans l\'Editeur SQL de Supabase.');
-                            window.open('https://supabase.com/dashboard/project/lptoakdzyuhkfvslgpsw/sql/new', '_blank');
-                          }}
-                        >
-                          Copier le SQL et ouvrir Supabase
-                        </Button>
+                    {code.trim() ? (
+                      <div className="space-y-3">
+                        <DocumentUploader 
+                          bucket="client-documents"
+                          entityCode={code}
+                          documentType="patente"
+                          currentUrl={patenteUrl}
+                          onUploadSuccess={(url) => setPatenteUrl(url)}
+                        />
+                        <DocumentUploader 
+                          bucket="client-documents"
+                          entityCode={code}
+                          documentType="rc"
+                          currentUrl={rcUrl}
+                          onUploadSuccess={(url) => setRcUrl(url)}
+                        />
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-lg bg-amber-50 border border-amber-100 flex items-start gap-2 text-amber-800 text-xs">
+                        <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                        <p className="italic">
+                          Veuillez saisir un <strong>Code Client</strong> avant de charger les documents pour permettre le renommage automatique.
+                        </p>
                       </div>
                     )}
-
-                    <div className="flex items-center gap-4">
-                      {patenteUrl ? (
-                        <div className="relative group w-20 h-20 rounded-lg border overflow-hidden">
-                          {previewUrl ? (
-                            <img src={previewUrl} alt="Patente preview" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full bg-muted flex items-center justify-center">
-                              <FileText className="w-6 h-6 text-muted-foreground animate-pulse" />
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="text-white hover:text-destructive"
-                              onClick={() => {
-                                setPatenteUrl(null);
-                                setPreviewUrl(null);
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-20 h-20 border-dashed"
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={isUploading}
-                        >
-                          {isUploading ? (
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
-                          ) : (
-                            <Upload className="w-6 h-6 text-muted-foreground" />
-                          )}
-                        </Button>
-                      )}
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleFileChange}
-                      />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">Upload Patente</p>
-                        <p className="text-xs text-muted-foreground">JPG, PNG (max 5Mo)</p>
-                      </div>
-                    </div>
-
-                    {/* Registre de Commerce Upload */}
-                    <Label className="text-base font-semibold pt-4 border-t block">Registre de Commerce</Label>
-                    
-                    {storageErrorRC === 'BUCKET_NOT_FOUND' && (
-                      <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 space-y-3">
-                        <div className="flex items-start gap-2 text-amber-800">
-                          <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-                          <div className="text-sm">
-                            <p className="font-bold">Configuration du stockage requise (RC)</p>
-                            <p>Le dossier "registre_commerce_client" n'existe pas.</p>
-                          </div>
-                        </div>
-                        <div className="bg-white p-2 rounded border font-mono text-xs overflow-x-auto">
-                          {`INSERT INTO storage.buckets (id, name, public) VALUES ('registre_commerce_client', 'registre_commerce_client', false);`}
-                        </div>
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          size="sm" 
-                          className="w-full gap-2 border-amber-300 text-amber-800 hover:bg-amber-100"
-                          onClick={() => {
-                            const sql = "INSERT INTO storage.buckets (id, name, public) VALUES ('registre_commerce_client', 'registre_commerce_client', false);\n\nCREATE POLICY \"Lecture sécurisée RC\" ON storage.objects FOR SELECT USING (bucket_id = 'registre_commerce_client' AND auth.uid() IS NOT NULL);\n\nCREATE POLICY \"Upload RC\" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'registre_commerce_client' AND auth.uid() IS NOT NULL);";
-                            navigator.clipboard.writeText(sql);
-                            toast.success('SQL copié !');
-                            window.open('https://supabase.com/dashboard/project/lptoakdzyuhkfvslgpsw/sql/new', '_blank');
-                          }}
-                        >
-                          Copier le SQL et ouvrir Supabase
-                        </Button>
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-4">
-                      {rcUrl ? (
-                        <div className="relative group w-20 h-20 rounded-lg border overflow-hidden">
-                          {rcPreviewUrl ? (
-                            <img src={rcPreviewUrl} alt="RC preview" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full bg-muted flex items-center justify-center">
-                              <FileText className="w-6 h-6 text-muted-foreground animate-pulse" />
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="text-white hover:text-destructive"
-                              onClick={() => {
-                                setRcUrl(null);
-                                setRcPreviewUrl(null);
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-20 h-20 border-dashed"
-                          onClick={() => rcFileInputRef.current?.click()}
-                          disabled={isUploadingRC}
-                        >
-                          {isUploadingRC ? (
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
-                          ) : (
-                            <Upload className="w-6 h-6 text-muted-foreground" />
-                          )}
-                        </Button>
-                      )}
-                      <input
-                        ref={rcFileInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleRCFileChange}
-                      />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">Upload Registre de Commerce</p>
-                        <p className="text-xs text-muted-foreground">JPG, PNG (max 5Mo)</p>
-                      </div>
-                    </div>
                   </div>
+             </div>
 
                   <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="outline" onClick={() => {
@@ -915,8 +591,7 @@ export const Clients = memo(() => {
                               variant="outline" 
                               size="sm" 
                               className="h-8 gap-1.5"
-                              disabled={isGeneratingLink}
-                              onClick={() => handleViewDocument(client.patente_url!, 'patentes_client')}
+                              onClick={() => handleViewDocument(client.patente_url!)}
                             >
                               <FileText className="w-3.5 h-3.5" />
                               Voir
@@ -931,8 +606,7 @@ export const Clients = memo(() => {
                               variant="outline" 
                               size="sm" 
                               className="h-8 gap-1.5"
-                              disabled={isGeneratingLink}
-                              onClick={() => handleViewDocument(client.registre_commerce_url!, 'registre_commerce_client')}
+                              onClick={() => handleViewDocument(client.registre_commerce_url!)}
                             >
                               <FileText className="w-3.5 h-3.5" />
                               Voir
@@ -1010,73 +684,6 @@ export const Clients = memo(() => {
         </CardContent>
       </Card>
 
-      {/* Document Preview Modal */}
-      <Dialog open={previewModalOpen} onOpenChange={setPreviewModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-6">
-          <DialogHeader className="flex-row items-center justify-between space-y-0 pb-4 pr-6">
-            <DialogTitle>Aperçu du Document : {selectedDocTitle}</DialogTitle>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="gap-2"
-              disabled={isDownloadingDoc}
-              onClick={async () => {
-                if (!selectedDocPath || !selectedDocBucket) return;
-                setIsDownloadingDoc(true);
-                try {
-                  // Method 1: Use Supabase storage.download which returns a blob directly
-                  const { data: blob, error } = await supabase.storage
-                    .from(selectedDocBucket)
-                    .download(selectedDocPath);
-                  
-                  if (error) throw error;
-                  if (!blob) throw new Error('No blob data received');
-
-                  // Method 2: Create a local object URL from the blob
-                  const blobUrl = window.URL.createObjectURL(blob);
-                  
-                  // Method 3: Trigger download with extension-preserving filename
-                  const extension = selectedDocPath.split('.').pop() || 'webp';
-                  const link = document.createElement('a');
-                  link.href = blobUrl;
-                  link.download = `${selectedDocTitle.replace(/\s+/g, '_')}_${Date.now()}.${extension}`;
-                  document.body.appendChild(link);
-                  link.click();
-                  
-                  // Clean up
-                  setTimeout(() => {
-                    document.body.removeChild(link);
-                    window.URL.revokeObjectURL(blobUrl);
-                  }, 100);
-                  
-                  toast.success('Téléchargement réussi');
-                } catch (error: any) {
-                  console.error('Download error:', error);
-                  toast.error(`Erreur: ${error.message || 'Impossible de télécharger'}`);
-                } finally {
-                  setIsDownloadingDoc(false);
-                }
-              }}
-            >
-              {isDownloadingDoc ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              Télécharger
-            </Button>
-          </DialogHeader>
-          <div className="flex-1 w-full overflow-auto bg-muted/30 rounded-lg flex items-center justify-center min-h-[400px]">
-            {selectedDocUrl && (
-              <img 
-                src={selectedDocUrl} 
-                alt="Document preview" 
-                className="max-w-full max-h-full object-contain shadow-sm rounded border bg-white" 
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 });

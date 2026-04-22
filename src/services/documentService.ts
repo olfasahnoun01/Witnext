@@ -1,0 +1,553 @@
+import { supabase } from '@/integrations/supabase/client';
+import { 
+  UnifiedDocument, 
+  UnifiedDocumentType, 
+  UnifiedDocumentStatus, 
+  UnifiedDocumentLine 
+} from '@/types';
+import { toast } from 'sonner';
+
+/**
+ * Service for the new Unified Document Engine (v2)
+ */
+export const documentService = {
+  /**
+   * Generates a sequential number for a specific document type.
+   * Format: [PREFIX]-[YEAR]-[SEQ] (e.g., DF-2024-001)
+   */
+  async generateNextNumber(type: UnifiedDocumentType): Promise<string> {
+    const prefixMap: Record<UnifiedDocumentType, string> = {
+      'BC_CLIENT': 'BCC',
+      'DEVIS_FOURNISSEUR': 'DF',
+      'BC_FOURNISSEUR': 'BCF',
+      'BL_FOURNISSEUR': 'BLF',
+      'BE': 'BE',
+      'BS': 'BS',
+      'BL_CLIENT': 'BLC',
+      'FACTURE': 'FACT'
+    };
+
+    const prefix = prefixMap[type];
+    const year = new Date().getFullYear();
+    
+    // Count existing documents of this type in the current year
+    const { count, error } = await supabase
+      .from('documents')
+      .select('*', { count: 'exact', head: true })
+      .eq('type', type)
+      .filter('numero', 'ilike', `${prefix}-${year}-%`);
+
+    if (error) {
+      console.error('Error generating number:', error);
+      return `${prefix}-${year}-${Math.floor(Math.random() * 1000)}`;
+    }
+
+    const nextSeq = (count || 0) + 1;
+    return `${prefix}-${year}-${nextSeq.toString().padStart(3, '0')}`;
+  },
+
+  /**
+   * Helper to ensure a document exists in the modern 'documents' table.
+   * Promotes legacy (numeric ID) documents if necessary.
+   */
+  async ensureModernDocument(sourceDoc: UnifiedDocument): Promise<string> {
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sourceDoc.id);
+    if (isUUID) return sourceDoc.id;
+
+    // Try to find if already promoted
+    const { data: existing } = await supabase
+      .from('documents')
+      .select('id')
+      .filter('metadata->>legacy_id', 'eq', sourceDoc.id)
+      .maybeSingle();
+
+    if (existing) return existing.id;
+
+    // Promote legacy BC to modern documents table
+    const { data: newDoc, error: promoError } = await supabase
+      .from('documents')
+      .insert({
+        numero: sourceDoc.numero,
+        type: sourceDoc.type,
+        status: sourceDoc.status === 'accepté' || sourceDoc.status === 'confirmé' ? 'VALIDATED' : 'PENDING' as any,
+        client_id: sourceDoc.client_id,
+        fournisseur_id: sourceDoc.fournisseur_id,
+        notes: sourceDoc.notes,
+        metadata: { 
+          legacy_id: sourceDoc.id,
+          promoted_at: new Date().toISOString()
+        }
+      })
+      .select()
+      .single();
+
+    if (promoError) throw promoError;
+
+    // Also promote lines for visibility in pipeline
+    if (sourceDoc.lines && sourceDoc.lines.length > 0) {
+      const promoLines = sourceDoc.lines.map(l => ({
+        document_id: newDoc.id,
+        product_id: l.product_id,
+        quantity: l.quantity,
+        unit_price: l.unit_price,
+        total_price: l.total_price,
+        description: l.description
+      }));
+      await supabase.from('document_lines').insert(promoLines);
+    }
+
+    return newDoc.id;
+  },
+
+  /**
+   * Fetches a document with its lines
+   */
+  async getDocument(id: string): Promise<UnifiedDocument | null> {
+    const { data, error } = await supabase
+      .from('documents')
+      .select(`
+        *,
+        document_lines (*)
+      `)
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return {
+      ...data,
+      lines: data.document_lines
+    } as UnifiedDocument;
+  },
+
+  /**
+   * Creates multiple DEVIS_FOURNISSEUR from a parent BC_CLIENT
+   * Handles legacy BCs by promoting them to the documents table first.
+   */
+  async createSupplierQuotesFromBC(
+    sourceDoc: UnifiedDocument, 
+    allocations: Array<{ 
+      fournisseur_id: number, 
+      items: Array<{ 
+        product_id: number, 
+        quantity: number, 
+        unit_price: number,
+        description?: string 
+      }>
+    }>
+  ) {
+    try {
+      const results = [];
+      const parentId = await this.ensureModernDocument(sourceDoc);
+
+      // 2. Create the Supplier Quotes linked to the modern parentId
+      for (const allocation of allocations) {
+        const numero = await this.generateNextNumber('DEVIS_FOURNISSEUR');
+        
+        const { data: doc, error: docError } = await supabase
+          .from('documents')
+          .insert({
+            numero,
+            type: 'DEVIS_FOURNISSEUR',
+            status: 'PENDING',
+            fournisseur_id: allocation.fournisseur_id,
+            parent_id: parentId,
+          })
+          .select()
+          .single();
+
+        if (docError) throw docError;
+
+        const linesToInsert = allocation.items.map(item => ({
+          document_id: doc.id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total_price: item.quantity * item.unit_price,
+          description: item.description
+        }));
+
+        const { error: linesError } = await supabase
+          .from('document_lines')
+          .insert(linesToInsert);
+
+        if (linesError) throw linesError;
+        
+        results.push(doc);
+      }
+
+      return { success: true, documents: results };
+    } catch (error: any) {
+      console.error('Error in createSupplierQuotesFromBC:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Calculates the remaining quantity to receive for each product of a BC_FOURNISSEUR
+   */
+  async getReceptionBacklog(sourceBC: UnifiedDocument) {
+    // 1. Ensure modern ID
+    const bcId = await this.ensureModernDocument(sourceBC);
+    const bc = await this.getDocument(bcId);
+    if (!bc) return null;
+
+    // 2. Get all existing BE (Bon d'Entrée) linked to this parent
+    const { data: receipts } = await supabase
+      .from('documents')
+      .select('*, document_lines(*)')
+      .eq('parent_id', bcId)
+      .eq('type', 'BE')
+      .neq('status', 'REJECTED');
+
+    const receivedMap: Record<number, number> = {};
+    receipts?.forEach(r => {
+      r.document_lines?.forEach((l: any) => {
+        if (l.product_id) {
+          receivedMap[l.product_id] = (receivedMap[l.product_id] || 0) + l.quantity;
+        }
+      });
+    });
+
+    return bc.lines?.map(line => ({
+      ...line,
+      ordered_qty: line.quantity,
+      already_received: receivedMap[line.product_id || 0] || 0,
+      remaining_qty: Math.max(0, line.quantity - (receivedMap[line.product_id || 0] || 0))
+    }));
+  },
+
+  /**
+   * Creates BL_FOURNISSEUR and BE (PENDING) from a BC_FOURNISSEUR
+   */
+  async createReception(
+    sourceBC: UnifiedDocument, 
+    receptions: Array<{ product_id: number, quantity: number, unit_price: number }>
+  ) {
+    try {
+      const bcId = await this.ensureModernDocument(sourceBC);
+      const bc = await this.getDocument(bcId);
+      if (!bc) throw new Error('BC non trouvé');
+
+      // 1. Create BL_FOURNISSEUR
+      const blNumero = await this.generateNextNumber('BL_FOURNISSEUR');
+      const { data: bl, error: blError } = await supabase
+        .from('documents')
+        .insert({
+          numero: blNumero,
+          type: 'BL_FOURNISSEUR',
+          status: 'VALIDATED', // BL is just a reference
+          fournisseur_id: bc.fournisseur_id,
+          parent_id: bcId,
+        })
+        .select().single();
+      if (blError) throw blError;
+
+      // 2. Create BE (Bon d'Entrée) in PENDING status
+      const beNumero = await this.generateNextNumber('BE');
+      const { data: be, error: beError } = await supabase
+        .from('documents')
+        .insert({
+          numero: beNumero,
+          type: 'BE',
+          status: 'PENDING',
+          fournisseur_id: bc.fournisseur_id,
+          parent_id: bcId,
+        })
+        .select().single();
+      if (beError) throw beError;
+
+      // 3. Create Lines for BE
+      const lines = receptions.map(r => ({
+        document_id: be.id,
+        product_id: r.product_id,
+        quantity: r.quantity,
+        unit_price: r.unit_price,
+        total_price: r.quantity * r.unit_price
+      }));
+      const { error: linesError } = await supabase.from('document_lines').insert(lines);
+      if (linesError) throw linesError;
+
+      // 4. Update Parent BC Status
+      const backlog = await this.getReceptionBacklog(bc);
+      const allReceived = backlog?.every(item => item.remaining_qty <= 0);
+      
+      const newBcStatus = allReceived ? 'COMPLETED' : 'PARTIALLY_RECEIVED';
+      await supabase.from('documents').update({ status: newBcStatus }).eq('id', bcId);
+
+      return { success: true, be_id: be.id };
+    } catch (error: any) {
+      console.error('Error in createReception:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Final validation of a BE: Triggers PostgreSQL automation for stock
+   */
+  async validateBE(beId: string) {
+    try {
+      // We only update the status. 
+      // The PostgreSQL trigger 'trigger_be_validation' will handle stock and movements.
+      const { error } = await supabase
+        .from('documents')
+        .update({ status: 'VALIDATED' })
+        .eq('id', beId);
+
+      if (error) throw error;
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error in validateBE:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Checks if all items in a BC have sufficient stock
+   */
+  async checkStockForBC(bcId: string) {
+    const { data: lines, error } = await supabase
+      .from('document_lines')
+      .select('product_id, quantity, products(name, quantity)')
+      .eq('document_id', bcId);
+
+    if (error || !lines) return { success: false, error: "Impossible de vérifier le stock." };
+
+    const shortages = lines
+      .filter(l => (l.products as any).quantity < l.quantity)
+      .map(l => ({
+        name: (l.products as any).name,
+        needed: l.quantity,
+        available: (l.products as any).quantity
+      }));
+
+    return {
+      success: shortages.length === 0,
+      shortages
+    };
+  },
+
+  /**
+   * Validates a Client BC: Checks stock, creates BS and BLC
+   */
+  async validateClientBC(bcId: string) {
+    try {
+      const bc = await this.getDocument(bcId);
+      if (!bc) throw new Error('BC non trouvé');
+
+      // 1. Stock Check
+      const stockCheck = await this.checkStockForBC(bcId);
+      if (!stockCheck.success) {
+        const list = stockCheck.shortages?.map(s => `${s.name} (Besoin: ${s.needed}, Dispo: ${s.available})`).join(', ');
+        throw new Error(`Stock insuffisant pour: ${list}`);
+      }
+
+      // 2. Create BL_CLIENT (Status: VALIDATED)
+      const blNumero = await this.generateNextNumber('BL_CLIENT');
+      const { data: bl, error: blError } = await supabase
+        .from('documents')
+        .insert({
+          numero: blNumero,
+          type: 'BL_CLIENT',
+          status: 'VALIDATED',
+          client_id: bc.client_id,
+          parent_id: bcId,
+        })
+        .select().single();
+      if (blError) throw blError;
+
+      // 3. Create BS (Bon de Sortie) in PENDING status
+      const bsNumero = await this.generateNextNumber('BS');
+      const { data: bs, error: bsError } = await supabase
+        .from('documents')
+        .insert({
+          numero: bsNumero,
+          type: 'BS',
+          status: 'PENDING',
+          client_id: bc.client_id,
+          parent_id: bcId,
+        })
+        .select().single();
+      if (bsError) throw bsError;
+
+      // 4. Clone Lines for both BL and BS
+      if (bc.lines && bc.lines.length > 0) {
+        const linesToClone = bc.lines.map(l => ({
+          product_id: l.product_id,
+          quantity: l.quantity,
+          unit_price: l.unit_price,
+          total_price: l.total_price,
+          description: l.description
+        }));
+
+        await supabase.from('document_lines').insert(linesToClone.map(l => ({ ...l, document_id: bl.id })));
+        await supabase.from('document_lines').insert(linesToClone.map(l => ({ ...l, document_id: bs.id })));
+      }
+
+      // 5. Set BC_CLIENT to COMPLETED
+      await supabase.from('documents').update({ status: 'COMPLETED' }).eq('id', bcId);
+
+      return { success: true, bs_id: bs.id, bl_id: bl.id };
+    } catch (error: any) {
+      console.error('Error in validateClientBC:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Final validation of a BS: Triggers stock decrement trigger
+   */
+  async validateBS(bsId: string) {
+    try {
+      const { error } = await supabase
+        .from('documents')
+        .update({ status: 'VALIDATED' })
+        .eq('id', bsId);
+      if (error) throw error;
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error in validateBS:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Generates a FACTURE from a BL_CLIENT
+   */
+  async createInvoiceFromBL(blId: string) {
+    try {
+      // 1. Get BL and its lines
+      const bl = await this.getDocument(blId);
+      if (!bl || bl.type !== 'BL_CLIENT') throw new Error('BL non trouvé');
+
+      // 2. Generate Facture Number
+      const factureNumero = await this.generateNextNumber('FACTURE');
+
+      // 3. Create FACTURE (Status: PENDING)
+      const { data: fact, error: factError } = await supabase
+        .from('documents')
+        .insert({
+          numero: factureNumero,
+          type: 'FACTURE',
+          status: 'PENDING',
+          client_id: bl.client_id,
+          parent_id: bl.id,
+          metadata: bl.metadata
+        })
+        .select().single();
+      if (factError) throw factError;
+
+      // 4. Clone Lines
+      if (bl.lines && bl.lines.length > 0) {
+        const factLines = bl.lines.map(l => ({
+          document_id: fact.id,
+          product_id: l.product_id,
+          quantity: l.quantity,
+          unit_price: l.unit_price,
+          total_price: l.total_price,
+          description: l.description
+        }));
+        const { error: linesError } = await supabase.from('document_lines').insert(factLines);
+        if (linesError) throw linesError;
+      }
+
+      // 5. Ensure Parent BC (Grandparent of Invoice) is Completed
+      if (bl.parent_id) {
+        await supabase.from('documents').update({ status: 'COMPLETED' }).eq('id', bl.parent_id);
+      }
+
+      return { success: true, facture_id: fact.id };
+    } catch (error: any) {
+      console.error('Error in createInvoiceFromBL:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Accepts a Supplier Quote: 
+   * 1. VALIDATED status for quote
+   * 2. REJECTED for siblings
+   * 3. Create BC_FOURNISSEUR
+   */
+  async acceptSupplierQuote(quoteId: string) {
+    try {
+      // 1. Get the quote and its parent/lines
+      const quote = await this.getDocument(quoteId);
+      if (!quote) throw new Error('Quote not found');
+      if (!quote.parent_id) throw new Error('Quote has no parent BC_CLIENT');
+
+      // 2. VALIDATE the chosen quote
+      const { error: updateError } = await supabase
+        .from('documents')
+        .update({ status: 'VALIDATED' as UnifiedDocumentStatus })
+        .eq('id', quoteId);
+      if (updateError) throw updateError;
+
+      // 3. REJECT siblings (other DEVIS_FOURNISSEUR of the same parent)
+      const { error: rejectError } = await supabase
+        .from('documents')
+        .update({ status: 'REJECTED' as UnifiedDocumentStatus })
+        .eq('parent_id', quote.parent_id)
+        .eq('type', 'DEVIS_FOURNISSEUR' as UnifiedDocumentType)
+        .neq('id', quoteId);
+      if (rejectError) throw rejectError;
+
+      // 4. Generate BC_FOURNISSEUR
+      const bcNumero = await this.generateNextNumber('BC_FOURNISSEUR');
+      const { data: bc, error: bcError } = await supabase
+        .from('documents')
+        .insert({
+          numero: bcNumero,
+          type: 'BC_FOURNISSEUR' as UnifiedDocumentType,
+          status: 'PENDING' as UnifiedDocumentStatus,
+          fournisseur_id: quote.fournisseur_id,
+          parent_id: quote.parent_id,
+          metadata: { ...quote.metadata, accepted_quote_id: quoteId }
+        })
+        .select()
+        .single();
+      if (bcError) throw bcError;
+
+      // 5. Clone lines to BC
+      if (quote.lines && quote.lines.length > 0) {
+        const bcLines = quote.lines.map(l => ({
+          document_id: bc.id,
+          product_id: l.product_id,
+          quantity: l.quantity,
+          unit_price: l.unit_price,
+          total_price: l.total_price,
+          description: l.description
+        }));
+        const { error: bcLinesError } = await supabase
+          .from('document_lines')
+          .insert(bcLines);
+        if (bcLinesError) throw bcLinesError;
+      }
+
+      return { success: true, bc_id: bc.id };
+    } catch (error: any) {
+      console.error('Error in acceptSupplierQuote:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Deletes a document and its lines
+   */
+  async deleteDocument(id: string) {
+    try {
+      // document_lines has a foreign key with ON DELETE CASCADE in most schemas,
+      // but we'll be explicit if needed or just delete from documents.
+      const { error } = await supabase
+        .from('documents')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error in deleteDocument:', error);
+      return { success: false, error: error.message };
+    }
+  }
+};

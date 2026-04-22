@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
-import { Product, DocumentItem } from '@/types';
+import { Product, DocumentItem, UnifiedDocument } from '@/types';
 import { computeDevisLine, computeDevisTotals } from '@/lib/devisPricing';
 import grosafeLogo from '@/assets/grosafe-logo.webp';
 
@@ -432,6 +432,42 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   }
   const fileName = `${docType}_${docNumber || 'nouveau'}_${docDate}.pdf`;
   doc.save(fileName);
+};
+
+export const downloadUnifiedDocumentPDF = async (doc: UnifiedDocument) => {
+  // Map UnifiedDocument types to jsPDF types
+  const typeMap: Record<string, DocumentType> = {
+    'BC_FOURNISSEUR': 'bon_entree', // Re-using layout
+    'BE': 'bon_entree',
+    'BL_FOURNISSEUR': 'bon_entree',
+    'BS': 'bon_sortie',
+    'BL_CLIENT': 'bon_livraison',
+    'BC_CLIENT': 'bon_livraison',
+    'FACTURE': 'bon_livraison', // Will use price-enabled layout
+  };
+
+  const docType = typeMap[doc.type] || 'bon_livraison';
+  
+  const docItems: DocumentItem[] = (doc.lines || []).map(l => ({
+    product_id: l.product_id,
+    designation: (l as any).products?.name || 'Produit',
+    description: l.description || '',
+    quantity: l.quantity,
+    price: l.unit_price,
+    total: l.total_price
+  }));
+
+  await generateOfficialPDF({
+    docType: docType,
+    docNumber: doc.numero,
+    docDate: doc.created_at,
+    docValidity: '',
+    transportRef: '',
+    thirdPartyName: doc.fournisseur_name || doc.client_name || '',
+    thirdPartyAddress: '',
+    thirdPartyTaxId: '',
+    docItems: docItems
+  });
 };
 
 export const downloadDocumentPDF = async (savedDoc: SavedDocument) => {

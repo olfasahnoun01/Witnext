@@ -1,10 +1,12 @@
-import { memo, useMemo, useState, useCallback } from 'react';
-import { FileText, Trash2, Download, Eye, Loader2, Search, X, FilePlus, Plus, Edit, Pencil } from 'lucide-react';
+import { useState, useMemo, useCallback, memo } from 'react';
+import { toast } from 'sonner';
+import { FileText, Trash2, Download, Eye, Loader2, Search, X, FilePlus, Plus, Edit, Pencil, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { BonCommande } from '@/types';
+import { BonCommande, UnifiedDocument, UnifiedDocumentLine } from '@/types';
 import { computeDevisTotals } from '@/lib/devisPricing';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
+import { ProcurementDialog } from './ProcurementDialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -12,6 +14,10 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { Filter } from 'lucide-react';
 
 interface BonCommandeListProps {
   bonsCommande: BonCommande[];
@@ -19,29 +25,69 @@ interface BonCommandeListProps {
   isAdminOrMod: boolean;
   onEdit: (bc: BonCommande) => void;
   onDelete: (bc: BonCommande) => void;
-  onConvertToBA: (bc: BonCommande) => void;
   onAdd: () => void;
+  onRefresh?: () => void;
 }
 
 const ITEMS_PER_PAGE = 10;
 
-export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBA, onAdd }: BonCommandeListProps) => {
+export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod, onEdit, onDelete, onAdd, onRefresh }: BonCommandeListProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<BonCommande | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState('');
   const [isGenerating, setIsGenerating] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedType, setSelectedType] = useState<'all' | 'entrant' | 'sortant'>('all');
+  const [procurementBC, setProcurementBC] = useState<UnifiedDocument | null>(null);
+
+  const startProcurement = useCallback((bc: BonCommande) => {
+    // Map legacy BC to UnifiedDocument (Simulated for Procurement flow)
+    const unifiedBC: UnifiedDocument = {
+      id: bc.id.toString(),
+      numero: bc.devis_number,
+      type: 'BC_CLIENT',
+      status: 'VALIDATED',
+      client_id: null,
+      fournisseur_id: null,
+      parent_id: null,
+      notes: bc.notes,
+      metadata: {},
+      created_by: bc.created_by,
+      created_at: bc.created_at,
+      updated_at: bc.updated_at,
+      lines: bc.items.map((item, idx) => ({
+        id: `legacy-${bc.id}-${idx}`,
+        document_id: bc.id.toString(),
+        product_id: item.product_id || null,
+        quantity: item.quantity,
+        unit_price: item.prix_ttc,
+        total_price: item.quantity * item.prix_ttc,
+        description: item.description,
+        created_at: bc.created_at,
+        updated_at: bc.updated_at,
+        product_name: item.designation,
+      })),
+      client_name: bc.third_party_name || undefined
+    };
+    setProcurementBC(unifiedBC);
+  }, []);
 
   const filteredBC = useMemo(() => {
-    if (!searchTerm.trim()) return bonsCommande;
-    const term = searchTerm.toLowerCase().trim();
-    return bonsCommande.filter(bc =>
-      bc.devis_number.toLowerCase().includes(term) ||
-      bc.third_party_name?.toLowerCase().includes(term) ||
-      bc.items.some(item => item.designation.toLowerCase().includes(term))
-    );
-  }, [bonsCommande, searchTerm]);
+    let result = bonsCommande;
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      result = result.filter(bc =>
+        bc.devis_number.toLowerCase().includes(term) ||
+        bc.third_party_name?.toLowerCase().includes(term) ||
+        bc.items.some(item => item.designation.toLowerCase().includes(term))
+      );
+    }
+    if (selectedType !== 'all') {
+      result = result.filter(bc => bc.type === selectedType);
+    }
+    return result;
+  }, [bonsCommande, searchTerm, selectedType]);
 
   const paginatedBC = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -130,6 +176,17 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                 </button>
               )}
             </div>
+            <Select value={selectedType} onValueChange={v => { setSelectedType(v as any); setCurrentPage(1); }}>
+              <SelectTrigger className="h-9 w-32 bg-background">
+                <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover z-50">
+                <SelectItem value="all">Tous types</SelectItem>
+                <SelectItem value="entrant">📥 Entrant</SelectItem>
+                <SelectItem value="sortant">📤 Sortant</SelectItem>
+              </SelectContent>
+            </Select>
             <span className="text-sm text-muted-foreground whitespace-nowrap">{filteredBC.length} BC</span>
           </div>
         </div>
@@ -201,6 +258,26 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
+                        {bc.type === 'sortant' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => startProcurement(bc)}
+                            className="flex items-center gap-1.5 h-8 px-2.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-200/50 transition-all font-bold text-xs"
+                            title="Lancer l'approvisionnement"
+                          >
+                            <ShoppingCart className="w-3.5 h-3.5" />
+                            Appros
+                          </Button>
+                        )}
+                        <button
+                          onClick={() => handlePreview(bc)}
+                          disabled={generating}
+                          className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+                          title="Prévisualiser PDF"
+                        >
+                          {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                        </button>
                         <button
                           onClick={() => onEdit(bc)}
                           className="flex items-center gap-1 px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
@@ -208,14 +285,6 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                         >
                           <Pencil className="w-3.5 h-3.5" />
                           <span className="text-xs font-medium">Modif</span>
-                        </button>
-                        <button
-                          onClick={() => onConvertToBA(bc)}
-                          className="flex items-center gap-1 px-2 py-1 rounded bg-success/10 text-success hover:bg-success/20 transition-colors"
-                          title="Créer BA"
-                        >
-                          <FilePlus className="w-3.5 h-3.5" />
-                          <span className="text-xs font-medium">BA</span>
                         </button>
                         <button
                           onClick={() => setDeleteConfirm(bc)}
@@ -278,6 +347,16 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
           )}
         </DialogContent>
       </Dialog>
+
+      <ProcurementDialog 
+        open={!!procurementBC} 
+        onOpenChange={(open) => !open && setProcurementBC(null)}
+        sourceBC={procurementBC}
+        onSuccess={() => {
+          onRefresh?.();
+          toast.success("Approvisionnement lancé avec succès.");
+        }}
+      />
     </>
   );
 });

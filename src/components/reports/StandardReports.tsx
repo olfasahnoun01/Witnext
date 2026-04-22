@@ -99,7 +99,6 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
   const [selectedFournisseur, setSelectedFournisseur] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [isExportingTransactions, setIsExportingTransactions] = useState(false);
-  const [isExportingDocuments, setIsExportingDocuments] = useState(false);
 
   const supplierOptions = useMemo(() => {
     const groups: Array<{ value: string; label: string; aliases: Set<string> }> = [];
@@ -209,33 +208,7 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
     }
   };
 
-  const exportDocumentsJSON = async () => {
-    setIsExportingDocuments(true);
-    try {
-      const allData: any[] = [];
-      const PAGE_SIZE = 1000;
-      let from = 0;
-      while (true) {
-        const { data, error } = await supabase
-          .from('documents')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .range(from, from + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allData.push(...data);
-        if (data.length < PAGE_SIZE) break;
-        from += PAGE_SIZE;
-      }
-      const date = new Date().toISOString().split('T')[0];
-      downloadJSON(allData, `documents_${date}.json`);
-      toast.success(`${allData.length} documents exportés en JSON`);
-    } catch {
-      toast.error("Erreur lors de l'export des documents");
-    } finally {
-      setIsExportingDocuments(false);
-    }
-  };
+
 
   return (
     <div className="space-y-6">
@@ -405,24 +378,6 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
           </div>
         </div>
 
-        {/* Export Documents JSON */}
-        <div className="bg-card rounded-xl border border-border p-6">
-          <div className="flex items-start gap-4">
-            <div className="p-3 rounded-xl bg-accent/10">
-              <FileJson className="w-8 h-8 text-accent-foreground" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-foreground">Documents (JSON)</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Exporte tout l'historique des documents (BL, BS, BE).
-              </p>
-              <Button onClick={exportDocumentsJSON} variant="outline" className="mt-4" disabled={isExportingDocuments}>
-                <FileJson className="w-4 h-4 mr-2" />
-                {isExportingDocuments ? 'Export...' : 'Exporter JSON'}
-              </Button>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

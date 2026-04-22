@@ -1,9 +1,10 @@
 import { memo, useMemo, useState, useCallback } from 'react';
-import { FileSignature, Trash2, Download, Eye, Loader2, Search, X, Plus, Edit, Pencil } from 'lucide-react';
+import { FileSignature, Trash2, Download, Eye, Loader2, Search, X, Plus, Edit, Pencil, CheckCircle2, PackagePlus, ChevronDown, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Devis } from '@/types';
+import { Devis, DevisItem } from '@/types';
 import { computeDevisTotals } from '@/lib/devisPricing';
+import { cn } from '@/lib/utils';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -12,6 +13,19 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { toast } from 'sonner';
 
 interface BonAchatListProps {
   bonsAchat: Devis[];
@@ -20,27 +34,37 @@ interface BonAchatListProps {
   onDelete: (ba: Devis) => void;
   onAdd: () => void;
   onEdit: (ba: Devis) => void;
+  onUpdateStatus?: (baId: number, status: string) => Promise<void>;
+  onIntegrateStock?: (ba: Devis) => Promise<void>;
 }
 
 const ITEMS_PER_PAGE = 10;
 
-export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDelete, onAdd, onEdit }: BonAchatListProps) => {
+export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDelete, onAdd, onEdit, onUpdateStatus, onIntegrateStock }: BonAchatListProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<Devis | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState('');
   const [isGenerating, setIsGenerating] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedType, setSelectedType] = useState<'all' | 'entrant' | 'sortant'>('all');
+  const [pendingStatus, setPendingStatus] = useState<{ ba: Devis; newStatus: string } | null>(null);
 
   const filteredBA = useMemo(() => {
-    if (!searchTerm.trim()) return bonsAchat;
-    const term = searchTerm.toLowerCase().trim();
-    return bonsAchat.filter(ba =>
-      ba.devis_number.toLowerCase().includes(term) ||
-      ba.third_party_name?.toLowerCase().includes(term) ||
-      ba.items.some(item => item.designation.toLowerCase().includes(term))
-    );
-  }, [bonsAchat, searchTerm]);
+    let result = bonsAchat;
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      result = result.filter(ba =>
+        ba.devis_number.toLowerCase().includes(term) ||
+        ba.third_party_name?.toLowerCase().includes(term) ||
+        ba.items.some(item => item.designation.toLowerCase().includes(term))
+      );
+    }
+    if (selectedType !== 'all') {
+      result = result.filter(ba => ba.type === selectedType);
+    }
+    return result;
+  }, [bonsAchat, searchTerm, selectedType]);
 
   const paginatedBA = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -76,14 +100,35 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
     }
   }, []);
 
-  const handleDownload = useCallback(async (ba: Devis) => {
+  const handleDownload = useCallback(async (ba: Devis, supplierFilter?: string) => {
     setIsGenerating(ba.id);
     try {
-      await downloadDevisPDF(toBAPDFData(ba));
+      let items = ba.items;
+      let devis_number = ba.devis_number;
+      
+      if (supplierFilter) {
+        items = ba.items.filter(item => item.fournisseur === supplierFilter);
+        devis_number = `${ba.devis_number}-${supplierFilter.substring(0, 3).toUpperCase()}`;
+      }
+
+      await downloadDevisPDF({
+        ...toBAPDFData(ba),
+        items,
+        devis_number
+      });
     } finally {
       setIsGenerating(null);
     }
   }, []);
+
+  const handleIntegrateStock = useCallback(async (ba: Devis) => {
+    if (!onIntegrateStock) return;
+    if (ba.status !== 'reçu' && ba.status !== 'confirmé') {
+      toast.error('Le Bon d\'Achat doit être marqué comme "Reçu" avant l\'intégration au stock.');
+      return;
+    }
+    await onIntegrateStock(ba);
+  }, [onIntegrateStock]);
 
   const closePreview = useCallback(() => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -129,6 +174,17 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
                 </button>
               )}
             </div>
+            <Select value={selectedType} onValueChange={v => { setSelectedType(v as any); setCurrentPage(1); }}>
+              <SelectTrigger className="h-9 w-32 bg-background">
+                <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover z-50">
+                <SelectItem value="all">Tous types</SelectItem>
+                <SelectItem value="entrant">📥 Entrant</SelectItem>
+                <SelectItem value="sortant">📤 Sortant</SelectItem>
+              </SelectContent>
+            </Select>
             <span className="text-sm text-muted-foreground whitespace-nowrap">{filteredBA.length} BA</span>
           </div>
         </div>
@@ -145,6 +201,7 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Créé par</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
+                <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">Statut</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">PDF</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
               </tr>
@@ -179,22 +236,59 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
                       })()}
                     </td>
                     <td className="py-3 px-4">
+                      <div className="flex flex-col items-center gap-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            "text-[10px] font-bold uppercase",
+                            ba.status === 'reçu' || ba.status === 'intégré' ? "text-success" : "text-amber-500"
+                          )}>
+                            {ba.status === 'reçu' || ba.status === 'intégré' ? 'Reçu' : 'En attente'}
+                          </span>
+                          <Switch 
+                            checked={ba.status === 'reçu' || ba.status === 'intégré'}
+                            disabled={ba.status === 'intégré'}
+                            onCheckedChange={(checked) => {
+                              const newStatus = checked ? 'reçu' : 'confirmé';
+                              setPendingStatus({ ba, newStatus });
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
                       <div className="flex items-center gap-1">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={generating}>
+                              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 text-primary" />}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuLabel className="text-[11px] uppercase text-muted-foreground">Documents PDF</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleDownload(ba)} className="gap-2 cursor-pointer">
+                              <FileSignature className="w-4 h-4 text-primary" />
+                              <span>Document Global</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel className="text-[11px] uppercase text-muted-foreground flex items-center gap-1.5">
+                              <Filter className="w-3 h-3" /> Par Fournisseur
+                            </DropdownMenuLabel>
+                            {Array.from(new Set(ba.items.map(i => i.fournisseur))).filter(Boolean).map(supplier => (
+                              <DropdownMenuItem key={supplier} onClick={() => handleDownload(ba, supplier)} className="gap-2 cursor-pointer pl-6">
+                                <span className="text-xs truncate">{supplier}</span>
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+
                         <button
                           onClick={() => handlePreview(ba)}
                           disabled={generating}
                           className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
                           title="Prévisualiser PDF"
                         >
-                          {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                        <button
-                          onClick={() => handleDownload(ba)}
-                          disabled={generating}
-                          className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
-                          title="Télécharger PDF"
-                        >
-                          <Download className="w-4 h-4" />
+                          <Eye className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
@@ -202,11 +296,10 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => onEdit(ba)}
-                          className="flex items-center gap-1 px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                          className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                           title="Modifier"
                         >
-                          <Pencil className="w-3.5 h-3.5" />
-                          <span className="text-xs font-medium">Modif</span>
+                          <Pencil className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setDeleteConfirm(ba)}
@@ -238,6 +331,35 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
           </div>
         )}
       </div>
+
+      {/* Status Confirmation */}
+      <AlertDialog open={!!pendingStatus} onOpenChange={() => setPendingStatus(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Changer le statut ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Voulez-vous marquer ce bon d'achat comme{" "}
+              <span className="font-bold text-foreground">
+                {pendingStatus?.newStatus === 'reçu' ? 'Reçu' : 'En attente'}
+              </span> ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={async () => {
+                if (pendingStatus && onUpdateStatus) {
+                  await onUpdateStatus(pendingStatus.ba.id, pendingStatus.newStatus);
+                  setPendingStatus(null);
+                }
+              }}
+              className={pendingStatus?.newStatus === 'reçu' ? "bg-success hover:bg-success/90" : "bg-primary"}
+            >
+              Confirmer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
