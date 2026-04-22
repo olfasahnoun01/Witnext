@@ -20,6 +20,7 @@ import {
   UserPlus,
   Truck,
   Wrench,
+  Settings,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -42,11 +43,12 @@ export const BIG_SECTIONS: BigSection[] = [
     label: 'Commerciale',
     icon: ShoppingCart,
     subsections: [
-      { id: 'rdv', label: 'Liste des Rendez-vous', icon: CalendarClock },
       { id: 'commerciale-clients', label: 'Clients', icon: Users },
       { id: 'commerciale-fournisseurs', label: 'Fournisseurs', icon: Building2 },
+      { id: 'devis', label: 'Gestion Devis', icon: ClipboardList },
       { id: 'suivi-clients', label: 'Suivi Clients', icon: UserCheck },
       { id: 'suivi-fournisseurs', label: 'Suivi Fournisseurs', icon: UserCog },
+      { id: 'rdv', label: 'Rendez-vous', icon: CalendarClock },
     ],
   },
   {
@@ -61,9 +63,9 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'comparison', label: 'Comparaison Prix', icon: GitCompare },
       { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
       { id: 'reports', label: 'Rapports & Documents', icon: FileText },
-      { id: 'devis', label: 'Gestion Devis', icon: ClipboardList },
       { id: 'ba', label: "Bons d'achat", icon: FileSignature },
       { id: 'gallery', label: 'Galerie Photos', icon: ImageIcon },
+      { id: 'settings', label: 'Paramètres', icon: Settings },
     ],
   },
   {
@@ -87,7 +89,6 @@ export const BIG_SECTIONS: BigSection[] = [
     icon: Car,
     subsections: [
       { id: 'flotte', label: 'Flotte', icon: Truck },
-      { id: 'gestion-vehicules', label: 'Gestion Véhicules', icon: Wrench },
     ],
   },
 ];

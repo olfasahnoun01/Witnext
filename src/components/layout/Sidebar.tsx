@@ -1,22 +1,14 @@
+import { useState, useEffect } from 'react';
 import { 
-  LayoutDashboard, 
-  Package, 
-  ArrowLeftRight, 
-  FileText, 
-  ClipboardList,
-  Settings,
   Menu,
   X,
-  GitCompare,
   ChevronRight,
-  Building2,
+  ChevronDown,
   Phone,
-  Users,
-  ImageIcon,
-  FileSignature
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import grosafeLogo from '@/assets/grosafe-logo-new.png';
+import { BIG_SECTIONS, SUBSECTION_TO_SECTION } from '@/config/navigation';
 
 interface SidebarProps {
   activeTab: string;
@@ -25,20 +17,33 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
-const navItems = [
-  { id: 'dashboard', label: 'Tableau de Bord', icon: LayoutDashboard },
-  { id: 'inventory', label: 'Inventaire', icon: Package },
-  { id: 'fournisseurs', label: 'Fournisseurs', icon: Building2 },
-  { id: 'clients', label: 'Clients', icon: Users },
-  { id: 'comparison', label: 'Comparaison Prix', icon: GitCompare },
-  { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
-  { id: 'reports', label: 'Rapports & Documents', icon: FileText },
-  { id: 'devis', label: 'Gestion Devis', icon: ClipboardList },
-  { id: 'gallery', label: 'Galerie Photos', icon: ImageIcon },
-  { id: 'settings', label: 'Paramètres', icon: Settings },
-];
-
 export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarProps) => {
+  // Initialize with the section of the active tab expanded, and others optionally true or false
+  // For better UX, let's have the active one expanded and others collapsed, or all expanded initially.
+  // We'll initialize all to true for discoverability.
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    BIG_SECTIONS.forEach(s => {
+      initial[s.id] = true;
+    });
+    return initial;
+  });
+
+  // Make sure the active section is always expanded when navigating (optional but good)
+  useEffect(() => {
+    const activeSectionId = SUBSECTION_TO_SECTION[activeTab];
+    if (activeSectionId && !expandedSections[activeSectionId]) {
+      setExpandedSections(prev => ({ ...prev, [activeSectionId]: true }));
+    }
+  }, [activeTab]);
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionId]: !prev[sectionId]
+    }));
+  };
+
   return (
     <>
       {/* Mobile overlay */}
@@ -79,33 +84,55 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
-            <p className="px-3 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
-              Menu Principal
-            </p>
-            {navItems.map((item) => {
-              const isActive = activeTab === item.id;
+          <nav className="flex-1 p-4 space-y-4 overflow-y-auto">
+            {BIG_SECTIONS.map((section) => {
+              const isExpanded = expandedSections[section.id];
               return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    onTabChange(item.id);
-                    if (window.innerWidth < 1024) onToggle();
-                  }}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group",
-                    isActive 
-                      ? "bg-primary text-primary-foreground shadow-md" 
-                      : "text-sidebar-foreground hover:bg-sidebar-accent/30 hover:text-sidebar-foreground"
+                <div key={section.id} className="space-y-1">
+                  <button 
+                    onClick={() => toggleSection(section.id)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-sidebar-foreground/60 hover:text-sidebar-foreground uppercase tracking-wider hover:bg-sidebar-accent/30 rounded-lg transition-colors group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <section.icon className="w-4 h-4" />
+                      {section.label}
+                    </div>
+                    <ChevronDown className={cn(
+                      "w-3.5 h-3.5 transition-transform duration-200", 
+                      isExpanded ? "" : "-rotate-90"
+                    )} />
+                  </button>
+                  
+                  {isExpanded && (
+                    <div className="space-y-1 mt-1">
+                      {section.subsections.map((item) => {
+                        const isActive = activeTab === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => {
+                              onTabChange(item.id);
+                              if (window.innerWidth < 1024) onToggle();
+                            }}
+                            className={cn(
+                              "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group",
+                              isActive 
+                                ? "bg-primary text-primary-foreground shadow-md" 
+                                : "text-sidebar-foreground hover:bg-sidebar-accent/30 hover:text-sidebar-foreground"
+                            )}
+                          >
+                            <item.icon className={cn(
+                              "w-4 h-4 transition-transform duration-200",
+                              !isActive && "group-hover:scale-110"
+                            )} />
+                            <span className="flex-1 text-left">{item.label}</span>
+                            {isActive && <ChevronRight className="w-4 h-4" />}
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
-                >
-                  <item.icon className={cn(
-                    "w-5 h-5 transition-transform duration-200",
-                    !isActive && "group-hover:scale-110"
-                  )} />
-                  <span className="flex-1 text-left">{item.label}</span>
-                  {isActive && <ChevronRight className="w-4 h-4" />}
-                </button>
+                </div>
               );
             })}
           </nav>
