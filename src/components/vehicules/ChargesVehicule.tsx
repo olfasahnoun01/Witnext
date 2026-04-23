@@ -32,6 +32,9 @@ interface Charge {
 export const ChargesVehicule = () => {
   const [charges, setCharges] = useState<Charge[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
+  // Load vehicles for selection
+  const vehicles = JSON.parse(localStorage.getItem('grosafe_vehicles') || '[]');
   const [form, setForm] = useState({
     vehicule: '',
     type: 'assurance' as Charge['type'],
@@ -191,12 +194,25 @@ export const ChargesVehicule = () => {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-400 uppercase pl-1">Véhicule concerné *</Label>
-                <Input
-                  placeholder="Ex: Toyota TN-1234"
+                <Select
                   value={form.vehicule}
-                  onChange={(e) => setForm({ ...form, vehicule: e.target.value })}
-                  className="rounded-2xl border-slate-200 h-12 font-semibold"
-                />
+                  onValueChange={(v) => setForm({ ...form, vehicule: v })}
+                >
+                  <SelectTrigger className="rounded-2xl border-slate-200 h-12 font-semibold">
+                    <SelectValue placeholder="Sélectionner un véhicule" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {vehicles.length === 0 ? (
+                      <div className="p-2 text-xs text-muted-foreground text-center italic">Aucun véhicule enregistré</div>
+                    ) : (
+                      vehicles.map((v: any) => (
+                        <SelectItem key={v.id} value={`${v.modele} (${v.matricule})`} className="rounded-xl">
+                          {v.modele} - {v.matricule}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
