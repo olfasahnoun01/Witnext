@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Wrench, Plus, Calendar, Car, AlertTriangle, CheckCircle2, Clock, Search, Banknote } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,11 +32,19 @@ interface MaintenanceRecord {
 }
 
 export const Maintenance = () => {
-  const [records, setRecords] = useState<MaintenanceRecord[]>([]);
+  const [records, setRecords] = useState<MaintenanceRecord[]>(() => {
+    const saved = localStorage.getItem('grosafe_maintenances');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   
   // Load vehicles for selection
   const vehicles = JSON.parse(localStorage.getItem('grosafe_vehicles') || '[]');
+
+  useEffect(() => {
+    localStorage.setItem('grosafe_maintenances', JSON.stringify(records));
+  }, [records]);
+  
   const [form, setForm] = useState({
     vehicule: '',
     description: '',
@@ -73,9 +81,9 @@ export const Maintenance = () => {
 
   const getTypeStyles = (type: MaintenanceRecord['type']) => {
     switch (type) {
-      case 'urgent': return 'bg-rose-500/10 text-rose-600 border-rose-200';
-      case 'corrective': return 'bg-amber-500/10 text-amber-600 border-amber-200';
-      case 'preventive': return 'bg-sky-500/10 text-sky-600 border-sky-200';
+      case 'urgent': return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+      case 'corrective': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+      case 'preventive': return 'bg-sky-500/10 text-sky-500 border-sky-500/20';
     }
   };
 
@@ -91,15 +99,15 @@ export const Maintenance = () => {
     <div className="space-y-8 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center shadow-lg shadow-slate-200">
-            <Wrench className="w-7 h-7 text-white" />
+          <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
+            <Wrench className="w-7 h-7 text-primary-foreground" />
           </div>
           <div>
-            <h2 className="text-2xl font-black text-slate-800 tracking-tight">Maintenances</h2>
-            <p className="text-slate-500 font-medium">Suivi des entretiens et réparations de la flotte.</p>
+            <h2 className="text-2xl font-black text-foreground tracking-tight">Maintenances</h2>
+            <p className="text-muted-foreground font-medium">Suivi des entretiens et réparations de la flotte.</p>
           </div>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} className="gap-2 rounded-2xl h-14 px-8 bg-slate-900 hover:bg-slate-800 text-white shadow-xl shadow-slate-200 transition-all hover:scale-105 active:scale-95">
+        <Button onClick={() => setIsDialogOpen(true)} className="gap-2 rounded-2xl h-14 px-8 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95">
           <Plus className="w-5 h-5" />
           Nouvelle Maintenance
         </Button>
@@ -107,22 +115,22 @@ export const Maintenance = () => {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6">Résumé Global</h3>
+          <div className="bg-card p-6 rounded-3xl border border-border shadow-sm">
+            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-6">Résumé Global</h3>
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-amber-50 border border-amber-100">
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20">
                 <div className="flex items-center gap-3">
-                  <Clock className="w-5 h-5 text-amber-600" />
-                  <span className="font-semibold text-amber-900">En cours</span>
+                  <Clock className="w-5 h-5 text-amber-500" />
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">En cours</span>
                 </div>
-                <span className="text-xl font-black text-amber-600">{records.filter(r => r.status === 'en_cours').length}</span>
+                <span className="text-xl font-black text-amber-500">{records.filter(r => r.status === 'en_cours').length}</span>
               </div>
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-rose-50 border border-rose-100">
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
                 <div className="flex items-center gap-3">
-                  <AlertTriangle className="w-5 h-5 text-rose-600" />
-                  <span className="font-semibold text-rose-900">Urgent</span>
+                  <AlertTriangle className="w-5 h-5 text-rose-500" />
+                  <span className="font-semibold text-rose-600 dark:text-rose-400">Urgent</span>
                 </div>
-                <span className="text-xl font-black text-rose-600">{records.filter(r => r.type === 'urgent').length}</span>
+                <span className="text-xl font-black text-rose-500">{records.filter(r => r.type === 'urgent').length}</span>
               </div>
             </div>
           </div>
@@ -130,24 +138,24 @@ export const Maintenance = () => {
 
         <div className="lg:col-span-2 space-y-4">
           {records.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center rounded-3xl bg-slate-50 border-2 border-dashed border-slate-200">
-              <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-sm mb-6">
-                <Wrench className="w-10 h-10 text-slate-300" />
+            <div className="flex flex-col items-center justify-center py-20 text-center rounded-3xl bg-muted/20 border-2 border-dashed border-border">
+              <div className="w-20 h-20 rounded-full bg-card flex items-center justify-center shadow-sm mb-6">
+                <Wrench className="w-10 h-10 text-muted-foreground/30" />
               </div>
-              <h3 className="text-lg font-bold text-slate-800">Aucun historique de maintenance</h3>
-              <p className="text-slate-500 max-w-xs mt-2">Enregistrez vos premières interventions pour commencer le suivi.</p>
+              <h3 className="text-lg font-bold text-foreground">Aucun historique de maintenance</h3>
+              <p className="text-muted-foreground max-w-xs mt-2">Enregistrez vos premières interventions pour commencer le suivi.</p>
             </div>
           ) : (
             records.map((record) => (
-              <div key={record.id} className="group bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all">
+              <div key={record.id} className="group bg-card p-6 rounded-3xl border border-border shadow-sm hover:shadow-md transition-all">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center group-hover:bg-slate-900 group-hover:text-white transition-colors">
+                    <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                       <Car className="w-6 h-6" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-slate-800">{record.vehicule}</h4>
-                      <div className="flex items-center gap-2 text-xs text-slate-400 font-bold mt-1">
+                      <h4 className="font-bold text-foreground">{record.vehicule}</h4>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold mt-1">
                         <Calendar className="w-3 h-3" />
                         {new Date(record.dateDebut).toLocaleDateString()}
                       </div>
@@ -158,21 +166,21 @@ export const Maintenance = () => {
                   </Badge>
                 </div>
                 
-                <h5 className="text-lg font-bold text-slate-800 mb-2">{record.description}</h5>
-                <p className="text-sm text-slate-500 mb-6 bg-slate-50/50 p-4 rounded-2xl line-clamp-2">{record.notes || 'Aucune note supplémentaire.'}</p>
+                <h5 className="text-lg font-bold text-foreground mb-2">{record.description}</h5>
+                <p className="text-sm text-muted-foreground mb-6 bg-muted/30 p-4 rounded-2xl line-clamp-2 italic">{record.notes || 'Aucune note supplémentaire.'}</p>
                 
-                <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+                <div className="flex items-center justify-between pt-4 border-t border-border">
                   <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-full bg-slate-50">
+                    <div className="p-1.5 rounded-full bg-muted/50">
                       {getStatusIcon(record.status)}
                     </div>
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-tight">
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-tight">
                       {record.status === 'en_cours' ? 'Intervention en cours' : record.status}
                     </span>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">Coût Estimé</p>
-                    <p className="font-black text-slate-800 text-lg">{parseFloat(record.coutEstime || '0').toLocaleString()} <span className="text-xs opacity-50">TND</span></p>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase mb-0.5">Coût Estimé</p>
+                    <p className="font-black text-foreground text-lg">{parseFloat(record.coutEstime || '0').toLocaleString()} <span className="text-xs opacity-50">TND</span></p>
                   </div>
                 </div>
               </div>
@@ -182,8 +190,8 @@ export const Maintenance = () => {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-2xl rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl">
-          <DialogHeader className="p-10 bg-slate-900 text-white relative">
+        <DialogContent className="sm:max-w-2xl rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl bg-card">
+          <DialogHeader className="p-10 bg-primary text-primary-foreground relative">
             <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full -mr-24 -mt-24" />
             <DialogTitle className="text-3xl font-black tracking-tight flex items-center gap-4 relative">
               <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md">
@@ -196,15 +204,15 @@ export const Maintenance = () => {
           <div className="p-10 grid gap-8">
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-3">
-                <Label htmlFor="vehicule" className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Sélection du Véhicule *</Label>
+                <Label htmlFor="vehicule" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">Sélection du Véhicule *</Label>
                 <Select
                   value={form.vehicule}
                   onValueChange={(v) => setForm({ ...form, vehicule: v })}
                 >
-                  <SelectTrigger className="rounded-2xl border-slate-200 h-14 font-semibold">
+                  <SelectTrigger className="rounded-2xl border-border bg-background h-14 font-semibold">
                     <SelectValue placeholder="Sélectionner un véhicule" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-slate-100">
+                  <SelectContent className="rounded-2xl border-border bg-card">
                     {vehicles.length === 0 ? (
                       <div className="p-2 text-xs text-muted-foreground text-center italic">Aucun véhicule enregistré</div>
                     ) : (
@@ -218,15 +226,15 @@ export const Maintenance = () => {
                 </Select>
               </div>
               <div className="space-y-3">
-                <Label htmlFor="type" className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Type de Maintenance</Label>
+                <Label htmlFor="type" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">Type de Maintenance</Label>
                 <Select
                   value={form.type}
                   onValueChange={(v: any) => setForm({ ...form, type: v })}
                 >
-                  <SelectTrigger className="rounded-2xl border-slate-200 h-14 font-semibold">
+                  <SelectTrigger className="rounded-2xl border-border bg-background h-14 font-semibold">
                     <SelectValue placeholder="Type" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-slate-100">
+                  <SelectContent className="rounded-2xl border-border bg-card">
                     <SelectItem value="preventive" className="rounded-xl">Préventive</SelectItem>
                     <SelectItem value="corrective" className="rounded-xl">Corrective</SelectItem>
                     <SelectItem value="urgent" className="rounded-xl">URGENT</SelectItem>
@@ -236,63 +244,63 @@ export const Maintenance = () => {
             </div>
 
             <div className="space-y-3">
-              <Label htmlFor="description" className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Description de l'intervention *</Label>
+              <Label htmlFor="description" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">Description de l'intervention *</Label>
               <Input
                 id="description"
                 placeholder="Ex: Vidange moteur + filtres"
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="rounded-2xl border-slate-200 h-14 font-bold"
+                className="rounded-2xl border-border bg-background h-14 font-bold"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-3">
-                <Label htmlFor="dateDebut" className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Date de début</Label>
+                <Label htmlFor="dateDebut" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">Date de début</Label>
                 <div className="relative">
-                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="dateDebut"
                     type="date"
                     value={form.dateDebut}
                     onChange={(e) => setForm({ ...form, dateDebut: e.target.value })}
-                    className="pl-12 rounded-2xl border-slate-200 h-14 font-semibold"
+                    className="pl-12 rounded-2xl border-border bg-background h-14 font-semibold"
                   />
                 </div>
               </div>
               <div className="space-y-3">
-                <Label htmlFor="cout" className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Coût Estimé (TND)</Label>
+                <Label htmlFor="cout" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">Coût Estimé (TND)</Label>
                 <div className="relative">
-                  <Banknote className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Banknote className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="cout"
                     type="number"
                     placeholder="0.00"
                     value={form.coutEstime}
                     onChange={(e) => setForm({ ...form, coutEstime: e.target.value })}
-                    className="pl-12 rounded-2xl border-slate-200 h-14 font-semibold text-xl"
+                    className="pl-12 rounded-2xl border-border bg-background h-14 font-semibold text-xl"
                   />
                 </div>
               </div>
             </div>
 
             <div className="space-y-3">
-              <Label htmlFor="notes" className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Notes Additionnelles</Label>
+              <Label htmlFor="notes" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">Notes Additionnelles</Label>
               <textarea
                 id="notes"
                 placeholder="Détails, pièces à changer, garage..."
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                className="w-full min-h-[120px] p-5 rounded-3xl border border-slate-200 focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all resize-none text-sm font-medium"
+                className="w-full min-h-[120px] p-5 rounded-3xl border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none text-sm font-medium"
               />
             </div>
           </div>
 
-          <DialogFooter className="p-10 bg-slate-50/50 flex flex-row justify-end gap-4 border-t border-slate-100">
-            <Button variant="ghost" onClick={() => setIsDialogOpen(false)} className="rounded-2xl h-14 px-8 font-bold text-slate-400 hover:text-slate-600 hover:bg-white">
+          <DialogFooter className="p-10 bg-muted/30 flex flex-row justify-end gap-4 border-t border-border">
+            <Button variant="ghost" onClick={() => setIsDialogOpen(false)} className="rounded-2xl h-14 px-8 font-bold text-muted-foreground hover:bg-muted/50">
               Annuler
             </Button>
-            <Button onClick={handleSubmit} className="rounded-2xl h-14 px-10 bg-slate-900 hover:bg-slate-800 text-white font-black shadow-xl shadow-slate-200">
+            <Button onClick={handleSubmit} className="rounded-2xl h-14 px-10 bg-primary hover:bg-primary/90 text-primary-foreground font-black shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95">
               Lancer l'Intervention
             </Button>
           </DialogFooter>

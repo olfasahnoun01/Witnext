@@ -92,25 +92,35 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
                 <div key={section.id} className="space-y-1">
                   <button 
                     onClick={() => toggleSection(section.id)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-sidebar-foreground/60 hover:text-sidebar-foreground uppercase tracking-wider hover:bg-sidebar-accent/30 rounded-lg transition-colors group"
+                    className={cn(
+                      "w-full flex items-center justify-between px-4 py-3 text-xs font-black uppercase tracking-widest transition-all rounded-2xl group",
+                      isExpanded 
+                        ? "bg-primary/10 text-primary border border-primary/20 mb-2" 
+                        : "text-slate-950 dark:text-sidebar-foreground/60 hover:bg-sidebar-accent/50"
+                    )}
                   >
-                    <div className="flex items-center gap-2">
-                      <section.icon className="w-4 h-4" />
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "p-2 rounded-xl transition-colors",
+                        isExpanded ? "bg-primary text-white" : "bg-sidebar-accent/50 group-hover:bg-sidebar-accent"
+                      )}>
+                        <section.icon className="w-4 h-4" />
+                      </div>
                       {section.label}
                     </div>
                     <ChevronDown className={cn(
-                      "w-3.5 h-3.5 transition-transform duration-200", 
-                      isExpanded ? "" : "-rotate-90"
+                      "w-4 h-4 transition-transform duration-300", 
+                      isExpanded ? "rotate-0" : "-rotate-90 opacity-40"
                     )} />
                   </button>
                   
                   <div 
                     className={cn(
-                      "grid transition-all duration-300 ease-in-out",
-                      isExpanded ? "grid-rows-[1fr] opacity-100 mt-1" : "grid-rows-[0fr] opacity-0"
+                      "grid transition-all duration-300 ease-in-out pl-3 ml-4 border-l-2 border-sidebar-border/30",
+                      isExpanded ? "grid-rows-[1fr] opacity-100 mt-1 mb-4" : "grid-rows-[0fr] opacity-0"
                     )}
                   >
-                    <div className="overflow-hidden space-y-1">
+                    <div className="overflow-hidden space-y-1.5">
                       {section.subsections.map((item) => {
                         const isActive = activeTab === item.id;
                         const content = (
