@@ -20,9 +20,17 @@ interface Vehicle {
 }
 
 export const Flotte = () => {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
+    const saved = localStorage.getItem('grosafe_vehicles');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [form, setForm] = useState({ modele: '', matricule: '', kmActuelle: '' });
+
+  const saveVehicles = (newVehicles: Vehicle[]) => {
+    setVehicles(newVehicles);
+    localStorage.setItem('grosafe_vehicles', JSON.stringify(newVehicles));
+  };
 
   const handleSubmit = useCallback(() => {
     if (!form.modele.trim() || !form.matricule.trim()) {
@@ -35,16 +43,16 @@ export const Flotte = () => {
       matricule: form.matricule.trim(),
       kmActuelle: form.kmActuelle.trim(),
     };
-    setVehicles((prev) => [...prev, newVehicle]);
+    saveVehicles([...vehicles, newVehicle]);
     setForm({ modele: '', matricule: '', kmActuelle: '' });
     setIsDialogOpen(false);
     toast.success(`Véhicule « ${newVehicle.modele} » ajouté`);
-  }, [form]);
+  }, [form, vehicles]);
 
   const handleDelete = useCallback((id: string) => {
-    setVehicles((prev) => prev.filter((v) => v.id !== id));
+    saveVehicles(vehicles.filter((v) => v.id !== id));
     toast.success('Véhicule supprimé');
-  }, []);
+  }, [vehicles]);
 
   return (
     <div className="space-y-6 animate-fade-in">

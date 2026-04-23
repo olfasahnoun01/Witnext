@@ -34,6 +34,9 @@ interface MaintenanceRecord {
 export const Maintenance = () => {
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
+  // Load vehicles for selection
+  const vehicles = JSON.parse(localStorage.getItem('grosafe_vehicles') || '[]');
   const [form, setForm] = useState({
     vehicule: '',
     description: '',
@@ -194,16 +197,25 @@ export const Maintenance = () => {
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-3">
                 <Label htmlFor="vehicule" className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Sélection du Véhicule *</Label>
-                <div className="relative">
-                  <Car className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    id="vehicule"
-                    placeholder="Matricule ou modèle"
-                    value={form.vehicule}
-                    onChange={(e) => setForm({ ...form, vehicule: e.target.value })}
-                    className="pl-12 rounded-2xl border-slate-200 h-14 font-semibold focus:ring-slate-900/10"
-                  />
-                </div>
+                <Select
+                  value={form.vehicule}
+                  onValueChange={(v) => setForm({ ...form, vehicule: v })}
+                >
+                  <SelectTrigger className="rounded-2xl border-slate-200 h-14 font-semibold">
+                    <SelectValue placeholder="Sélectionner un véhicule" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-slate-100">
+                    {vehicles.length === 0 ? (
+                      <div className="p-2 text-xs text-muted-foreground text-center italic">Aucun véhicule enregistré</div>
+                    ) : (
+                      vehicles.map((v: any) => (
+                        <SelectItem key={v.id} value={`${v.modele} (${v.matricule})`} className="rounded-xl">
+                          {v.modele} - {v.matricule}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-3">
                 <Label htmlFor="type" className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Type de Maintenance</Label>

@@ -45,6 +45,10 @@ interface Bon {
 export const BonCarburant = () => {
   const [bons, setBons] = useState<Bon[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
+  // Load data for selections
+  const employees = JSON.parse(localStorage.getItem('grosafe_employees') || '[]');
+  const vehicles = JSON.parse(localStorage.getItem('grosafe_vehicles') || '[]');
   const [form, setForm] = useState({
     numBon: '',
     date: new Date().toISOString().split('T')[0],
@@ -225,23 +229,47 @@ export const BonCarburant = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="vehicule" className="text-sm font-semibold text-foreground/80">Véhicule *</Label>
-                <Input
-                  id="vehicule"
-                  placeholder="Ex: Toyota TN-1234"
+                <Select
                   value={form.vehicule}
-                  onChange={(e) => setForm({ ...form, vehicule: e.target.value })}
-                  className="rounded-xl border-muted-foreground/20 h-11"
-                />
+                  onValueChange={(v) => setForm({ ...form, vehicule: v })}
+                >
+                  <SelectTrigger className="rounded-xl border-muted-foreground/20 h-11">
+                    <SelectValue placeholder="Sélectionner un véhicule" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vehicles.length === 0 ? (
+                      <div className="p-2 text-xs text-muted-foreground text-center italic">Aucun véhicule enregistré</div>
+                    ) : (
+                      vehicles.map((v: any) => (
+                        <SelectItem key={v.id} value={`${v.modele} (${v.matricule})`}>
+                          {v.modele} - {v.matricule}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="conducteur" className="text-sm font-semibold text-foreground/80">Conducteur *</Label>
-                <Input
-                  id="conducteur"
-                  placeholder="Nom du conducteur"
+                <Select
                   value={form.conducteur}
-                  onChange={(e) => setForm({ ...form, conducteur: e.target.value })}
-                  className="rounded-xl border-muted-foreground/20 h-11"
-                />
+                  onValueChange={(v) => setForm({ ...form, conducteur: v })}
+                >
+                  <SelectTrigger className="rounded-xl border-muted-foreground/20 h-11">
+                    <SelectValue placeholder="Sélectionner un employé" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.length === 0 ? (
+                      <div className="p-2 text-xs text-muted-foreground text-center italic">Aucun employé enregistré</div>
+                    ) : (
+                      employees.map((emp: any) => (
+                        <SelectItem key={emp.id} value={`${emp.prenom} ${emp.nom}`}>
+                          {emp.prenom} {emp.nom}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

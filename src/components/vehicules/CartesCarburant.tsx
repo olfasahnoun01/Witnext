@@ -32,6 +32,9 @@ export const CartesCarburant = () => {
   const [selectedCard, setSelectedCard] = useState<FuelCard | null>(null);
   const [rechargeAmount, setRechargeAmount] = useState('');
   
+  // Load employees for the driver list
+  const employees = JSON.parse(localStorage.getItem('grosafe_employees') || '[]');
+  
   const [newCardForm, setNewCardForm] = useState({
     numCarte: '',
     conducteur: '',
@@ -214,16 +217,25 @@ export const CartesCarburant = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="conducteur" className="text-sm font-bold text-slate-600 uppercase tracking-tight">Nom du Conducteur</Label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    id="conducteur"
-                    placeholder="Saisir le nom"
-                    value={newCardForm.conducteur}
-                    onChange={(e) => setNewCardForm({ ...newCardForm, conducteur: e.target.value })}
-                    className="pl-11 rounded-2xl border-slate-200 h-12"
-                  />
-                </div>
+                <Select
+                  value={newCardForm.conducteur}
+                  onValueChange={(v) => setNewCardForm({ ...newCardForm, conducteur: v })}
+                >
+                  <SelectTrigger className="rounded-2xl border-slate-200 h-12">
+                    <SelectValue placeholder="Sélectionner un employé" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.length === 0 ? (
+                      <div className="p-2 text-xs text-muted-foreground text-center italic">Aucun employé enregistré</div>
+                    ) : (
+                      employees.map((emp: any) => (
+                        <SelectItem key={emp.id} value={`${emp.prenom} ${emp.nom}`}>
+                          {emp.prenom} {emp.nom}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="solde" className="text-sm font-bold text-slate-600 uppercase tracking-tight">Solde Initial (Optionnel)</Label>

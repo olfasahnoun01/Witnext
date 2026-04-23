@@ -21,9 +21,17 @@ interface Employee {
 }
 
 export const EmployeeList = () => {
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>(() => {
+    const saved = localStorage.getItem('grosafe_employees');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [form, setForm] = useState({ prenom: '', nom: '', tel: '', cin: '' });
+
+  const saveEmployees = (newEmployees: Employee[]) => {
+    setEmployees(newEmployees);
+    localStorage.setItem('grosafe_employees', JSON.stringify(newEmployees));
+  };
 
   const handleSubmit = useCallback(() => {
     if (!form.prenom.trim() || !form.nom.trim()) {
@@ -37,16 +45,16 @@ export const EmployeeList = () => {
       tel: form.tel.trim(),
       cin: form.cin.trim(),
     };
-    setEmployees((prev) => [...prev, newEmployee]);
+    saveEmployees([...employees, newEmployee]);
     setForm({ prenom: '', nom: '', tel: '', cin: '' });
     setIsDialogOpen(false);
     toast.success(`${newEmployee.prenom} ${newEmployee.nom} ajouté(e)`);
-  }, [form]);
+  }, [form, employees]);
 
   const handleDelete = useCallback((id: string) => {
-    setEmployees((prev) => prev.filter((e) => e.id !== id));
+    saveEmployees(employees.filter((e) => e.id !== id));
     toast.success('Employé supprimé');
-  }, []);
+  }, [employees]);
 
   return (
     <div className="space-y-6 animate-fade-in">
