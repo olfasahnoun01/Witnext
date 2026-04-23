@@ -43,7 +43,10 @@ interface Bon {
 }
 
 export const BonCarburant = () => {
-  const [bons, setBons] = useState<Bon[]>([]);
+  const [bons, setBons] = useState<Bon[]>(() => {
+    const saved = localStorage.getItem('grosafe_bons');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   
   // Load data for selections
@@ -59,6 +62,11 @@ export const BonCarburant = () => {
     notes: '',
   });
 
+  const saveBons = (newBons: Bon[]) => {
+    setBons(newBons);
+    localStorage.setItem('grosafe_bons', JSON.stringify(newBons));
+  };
+
   const handleSubmit = useCallback(() => {
     if (!form.numBon || !form.montant || !form.conducteur || !form.vehicule) {
       toast.error('Veuillez remplir tous les champs obligatoires');
@@ -71,7 +79,7 @@ export const BonCarburant = () => {
       status: 'en_attente',
     };
 
-    setBons((prev) => [newBon, ...prev]);
+    saveBons([newBon, ...bons]);
     setIsDialogOpen(false);
     setForm({
       numBon: '',
@@ -83,7 +91,7 @@ export const BonCarburant = () => {
       notes: '',
     });
     toast.success('Bon de carburant ajouté');
-  }, [form]);
+  }, [form, bons]);
 
   return (
     <div className="space-y-6 animate-fade-in">

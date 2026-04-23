@@ -33,7 +33,10 @@ interface FuelCard {
 }
 
 export const CartesCarburant = () => {
-  const [cards, setCards] = useState<FuelCard[]>([]);
+  const [cards, setCards] = useState<FuelCard[]>(() => {
+    const saved = localStorage.getItem('grosafe_fuel_cards');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [isNewCardDialogOpen, setIsNewCardDialogOpen] = useState(false);
   const [isRechargeDialogOpen, setIsRechargeDialogOpen] = useState(false);
   const [selectedCard, setSelectedCard] = useState<FuelCard | null>(null);
@@ -48,6 +51,11 @@ export const CartesCarburant = () => {
     solde: '',
   });
 
+  const saveCards = (newCards: FuelCard[]) => {
+    setCards(newCards);
+    localStorage.setItem('grosafe_fuel_cards', JSON.stringify(newCards));
+  };
+
   const handleCreateCard = useCallback(() => {
     if (!newCardForm.numCarte || !newCardForm.conducteur) {
       toast.error('Veuillez remplir tous les champs');
@@ -61,11 +69,11 @@ export const CartesCarburant = () => {
       solde: parseFloat(newCardForm.solde || '0'),
     };
 
-    setCards((prev) => [...prev, newCard]);
+    saveCards([...cards, newCard]);
     setIsNewCardDialogOpen(false);
     setNewCardForm({ numCarte: '', conducteur: '', solde: '' });
     toast.success('Carte de carburant créée');
-  }, [newCardForm]);
+  }, [newCardForm, cards]);
 
   const handleRecharge = useCallback(() => {
     if (!selectedCard || !rechargeAmount || parseFloat(rechargeAmount) <= 0) {
@@ -73,22 +81,23 @@ export const CartesCarburant = () => {
       return;
     }
 
-    setCards((prev) => prev.map(c => 
+    const updatedCards = cards.map(c => 
       c.id === selectedCard.id 
         ? { ...c, solde: c.solde + parseFloat(rechargeAmount) } 
         : c
-    ));
+    );
 
+    saveCards(updatedCards);
     toast.success(`Carte rechargée de ${rechargeAmount} TND`);
     setIsRechargeDialogOpen(false);
     setRechargeAmount('');
     setSelectedCard(null);
-  }, [selectedCard, rechargeAmount]);
+  }, [selectedCard, rechargeAmount, cards]);
 
   const handleDeleteCard = useCallback((id: string) => {
-    setCards((prev) => prev.filter(c => c.id !== id));
+    saveCards(cards.filter(c => c.id !== id));
     toast.success('Carte supprimée');
-  }, []);
+  }, [cards]);
 
   return (
     <div className="space-y-8 animate-fade-in">
