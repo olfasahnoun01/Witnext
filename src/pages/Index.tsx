@@ -29,7 +29,6 @@ const BonCarburant = lazy(() => import('@/components/vehicules/BonCarburant').th
 const CartesCarburant = lazy(() => import('@/components/vehicules/CartesCarburant').then(m => ({ default: m.CartesCarburant })));
 const Maintenance = lazy(() => import('@/components/vehicules/Maintenance').then(m => ({ default: m.Maintenance })));
 const ChargesVehicule = lazy(() => import('@/components/vehicules/ChargesVehicule').then(m => ({ default: m.ChargesVehicule })));
-const DriverMobileView = lazy(() => import('@/components/vehicules/DriverMobileView').then(m => ({ default: m.DriverMobileView })));
 const ComingSoon = lazy(() => import('@/components/ComingSoon').then(m => ({ default: m.ComingSoon })));
 const PermissionsManager = lazy(() => import('@/components/PermissionsManager').then(m => ({ default: m.PermissionsManager })));
 
@@ -109,7 +108,6 @@ const Index = () => {
         {activeTab === 'vehicules-cartes' && <CartesCarburant />}
         {activeTab === 'vehicules-maintenance' && <Maintenance />}
         {activeTab === 'vehicules-charges' && <ChargesVehicule />}
-        {activeTab === 'driver-hub' && <DriverMobileView />}
         
         {/* Administration */}
         {activeTab === 'accounts' && (

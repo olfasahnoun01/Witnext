@@ -33,6 +33,7 @@ export interface SubSection {
   id: string;
   label: string;
   icon: LucideIcon;
+  path?: string;
 }
 
 export interface BigSection {
@@ -98,7 +99,7 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'vehicules-cartes', label: 'Cartes Carburants', icon: CreditCard },
       { id: 'vehicules-maintenance', label: 'Maintenance', icon: Wrench },
       { id: 'vehicules-charges', label: 'Charges', icon: Receipt },
-      { id: 'driver-hub', label: 'App Conducteur', icon: Smartphone },
+      { id: 'driver-hub', label: 'App Conducteur', icon: Smartphone, path: '/driver' },
     ],
   },
   {

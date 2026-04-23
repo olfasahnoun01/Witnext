@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Menu,
   X,
@@ -112,6 +113,39 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
                     <div className="overflow-hidden space-y-1">
                       {section.subsections.map((item) => {
                         const isActive = activeTab === item.id;
+                        const content = (
+                          <>
+                            <item.icon className={cn(
+                              "w-4 h-4 transition-transform duration-200",
+                              !isActive && "group-hover:scale-110"
+                            )} />
+                            <span className="flex-1 text-left">{item.label}</span>
+                            {isActive && <ChevronRight className="w-4 h-4" />}
+                          </>
+                        );
+
+                        const baseStyles = cn(
+                          "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group",
+                          isActive 
+                            ? "bg-primary text-primary-foreground shadow-md" 
+                            : "text-sidebar-foreground hover:bg-sidebar-accent/30 hover:text-sidebar-foreground"
+                        );
+
+                        if (item.path) {
+                          return (
+                            <Link 
+                              key={item.id} 
+                              to={item.path}
+                              onClick={() => {
+                                if (window.innerWidth < 1024) onToggle();
+                              }}
+                              className={baseStyles}
+                            >
+                              {content}
+                            </Link>
+                          );
+                        }
+
                         return (
                           <button
                             key={item.id}
@@ -119,19 +153,9 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
                               onTabChange(item.id);
                               if (window.innerWidth < 1024) onToggle();
                             }}
-                            className={cn(
-                              "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group",
-                              isActive 
-                                ? "bg-primary text-primary-foreground shadow-md" 
-                                : "text-sidebar-foreground hover:bg-sidebar-accent/30 hover:text-sidebar-foreground"
-                            )}
+                            className={baseStyles}
                           >
-                            <item.icon className={cn(
-                              "w-4 h-4 transition-transform duration-200",
-                              !isActive && "group-hover:scale-110"
-                            )} />
-                            <span className="flex-1 text-left">{item.label}</span>
-                            {isActive && <ChevronRight className="w-4 h-4" />}
+                            {content}
                           </button>
                         );
                       })}
