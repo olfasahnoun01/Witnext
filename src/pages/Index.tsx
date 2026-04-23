@@ -24,6 +24,11 @@ const PhotoGallery = lazy(() => import('@/components/PhotoGallery').then(m => ({
 const Planning = lazy(() => import('@/components/Planning').then(m => ({ default: m.Planning })));
 const EmployeeList = lazy(() => import('@/components/EmployeeList').then(m => ({ default: m.EmployeeList })));
 const Flotte = lazy(() => import('@/components/Flotte').then(m => ({ default: m.Flotte })));
+const VehiculeStats = lazy(() => import('@/components/vehicules/VehiculeStats').then(m => ({ default: m.VehiculeStats })));
+const BonCarburant = lazy(() => import('@/components/vehicules/BonCarburant').then(m => ({ default: m.BonCarburant })));
+const CartesCarburant = lazy(() => import('@/components/vehicules/CartesCarburant').then(m => ({ default: m.CartesCarburant })));
+const Maintenance = lazy(() => import('@/components/vehicules/Maintenance').then(m => ({ default: m.Maintenance })));
+const ChargesVehicule = lazy(() => import('@/components/vehicules/ChargesVehicule').then(m => ({ default: m.ChargesVehicule })));
 const ComingSoon = lazy(() => import('@/components/ComingSoon').then(m => ({ default: m.ComingSoon })));
 const PermissionsManager = lazy(() => import('@/components/PermissionsManager').then(m => ({ default: m.PermissionsManager })));
 
@@ -98,6 +103,11 @@ const Index = () => {
         
         {/* Véhicules */}
         {activeTab === 'flotte' && <Flotte />}
+        {activeTab === 'vehicules-stats' && <VehiculeStats />}
+        {activeTab === 'vehicules-bons' && <BonCarburant />}
+        {activeTab === 'vehicules-cartes' && <CartesCarburant />}
+        {activeTab === 'vehicules-maintenance' && <Maintenance />}
+        {activeTab === 'vehicules-charges' && <ChargesVehicule />}
         
         {/* Administration */}
         {activeTab === 'accounts' && (

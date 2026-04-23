@@ -20,6 +20,10 @@ import {
   UserPlus,
   Truck,
   Wrench,
+  BarChart3,
+  Fuel,
+  CreditCard,
+  Receipt,
   Settings,
   type LucideIcon,
 } from 'lucide-react';
@@ -88,6 +92,11 @@ export const BIG_SECTIONS: BigSection[] = [
     icon: Car,
     subsections: [
       { id: 'flotte', label: 'Flotte', icon: Truck },
+      { id: 'vehicules-stats', label: 'Statistiques', icon: BarChart3 },
+      { id: 'vehicules-bons', label: 'Bons Carburants', icon: Fuel },
+      { id: 'vehicules-cartes', label: 'Cartes Carburants', icon: CreditCard },
+      { id: 'vehicules-maintenance', label: 'Maintenance', icon: Wrench },
+      { id: 'vehicules-charges', label: 'Charges', icon: Receipt },
     ],
   },
   {
