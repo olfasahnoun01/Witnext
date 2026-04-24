@@ -25,7 +25,6 @@ import {
   CreditCard,
   Receipt,
   Settings,
-  Smartphone,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -99,7 +98,6 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'vehicules-cartes', label: 'Cartes Carburants', icon: CreditCard },
       { id: 'vehicules-maintenance', label: 'Maintenance', icon: Wrench },
       { id: 'vehicules-charges', label: 'Charges', icon: Receipt },
-      { id: 'driver-hub', label: 'App Conducteur', icon: Smartphone, path: '/driver' },
     ],
   },
   {

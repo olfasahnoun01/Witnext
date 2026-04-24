@@ -8,7 +8,6 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
-import DriverHub from "./pages/DriverHub";
 import NotFound from "./pages/NotFound";
 import { UpdateAlert } from "@/components/UpdateAlert";
 
@@ -42,7 +41,6 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/auth" element={<Auth />} />
-      <Route path="/driver" element={<DriverHub />} />
       <Route
         path="/"
         element={
