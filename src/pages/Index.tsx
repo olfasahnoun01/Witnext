@@ -4,6 +4,7 @@ import { Header } from '@/components/layout/Header';
 import { Loader2 } from 'lucide-react';
 import { SUBSECTION_LABELS } from '@/config/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { cn } from '@/lib/utils';
 
 // Eagerly import Dashboard since it's the default view
 import { Dashboard } from '@/components/Dashboard';
@@ -30,7 +31,9 @@ const CartesCarburant = lazy(() => import('@/components/vehicules/CartesCarburan
 const Maintenance = lazy(() => import('@/components/vehicules/Maintenance').then(m => ({ default: m.Maintenance })));
 const ChargesVehicule = lazy(() => import('@/components/vehicules/ChargesVehicule').then(m => ({ default: m.ChargesVehicule })));
 const ComingSoon = lazy(() => import('@/components/ComingSoon').then(m => ({ default: m.ComingSoon })));
+const SuiviManager = lazy(() => import('@/components/commercial/SuiviManager').then(m => ({ default: m.SuiviManager })));
 const PermissionsManager = lazy(() => import('@/components/PermissionsManager').then(m => ({ default: m.PermissionsManager })));
+const RDV = lazy(() => import('@/components/commercial/RDV').then(m => ({ default: m.RDV })));
 
 // Prefetch map: when user is on tab X, prefetch tab Y
 const prefetchMap: Record<string, () => void> = {
@@ -49,7 +52,7 @@ const ComponentLoader = () => (
 const Index = () => {
   const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
   const [, startTransition] = useTransition();
 
   // Prefetch likely next tabs after idle
@@ -93,9 +96,9 @@ const Index = () => {
         {activeTab === 'commerciale-clients' && <Clients />}
         {activeTab === 'commerciale-fournisseurs' && <Fournisseurs />}
         {activeTab === 'devis' && <GestionDevis onTabChange={handleTabChange} />}
-        {activeTab === 'suivi-clients' && <ComingSoon sectionLabel="Suivi Clients" />}
-        {activeTab === 'suivi-fournisseurs' && <ComingSoon sectionLabel="Suivi Fournisseurs" />}
-        {activeTab === 'rdv' && <ComingSoon sectionLabel="Rendez-vous" />}
+        {activeTab === 'suivi-clients' && <SuiviManager type="client" />}
+        {activeTab === 'suivi-fournisseurs' && <SuiviManager type="fournisseur" />}
+        {activeTab === 'rdv' && <RDV />}
         
         {/* Ressources Humaines */}
         {activeTab === 'planning' && <Planning />}
@@ -127,8 +130,12 @@ const Index = () => {
         onToggle={() => setSidebarOpen(!sidebarOpen)}
       />
       
-      <div className="lg:ml-72">
-        <Header title={SUBSECTION_LABELS[activeTab] || 'Grosafe'} />
+      <div className={cn("transition-all duration-300", sidebarOpen ? "lg:ml-72" : "lg:ml-0")}>
+        <Header 
+          title={SUBSECTION_LABELS[activeTab] || 'Grosafe'} 
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          sidebarOpen={sidebarOpen}
+        />
         
         <main className="p-6">
           {renderContent()}

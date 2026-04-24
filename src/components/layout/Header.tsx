@@ -1,4 +1,4 @@
-import { LogOut } from 'lucide-react';
+import { LogOut, Menu, Sidebar as SidebarIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePresence } from '@/hooks/usePresence';
@@ -9,9 +9,11 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface HeaderProps {
   title: string;
+  onToggle?: () => void;
+  sidebarOpen?: boolean;
 }
 
-export const Header = ({ title }: HeaderProps) => {
+export const Header = ({ title, onToggle, sidebarOpen }: HeaderProps) => {
   const [userName, setUserName] = useState<string | null>(null);
   const { user, signOut, isAdmin, isModerator } = useAuth();
   const { onlineUsers } = usePresence();
@@ -38,9 +40,18 @@ export const Header = ({ title }: HeaderProps) => {
   return (
     <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b border-border">
       <div className="flex items-center justify-between px-6 py-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{title}</h1>
-          <p className="text-sm text-muted-foreground">
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={onToggle}
+            className="hidden lg:flex hover:bg-muted"
+          >
+            <Menu className="w-5 h-5 text-muted-foreground" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+            <p className="text-sm text-muted-foreground">
             {new Date().toLocaleDateString('fr-TN', { 
               weekday: 'long', 
               year: 'numeric', 
@@ -48,6 +59,7 @@ export const Header = ({ title }: HeaderProps) => {
               day: 'numeric' 
             })}
           </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-4">
