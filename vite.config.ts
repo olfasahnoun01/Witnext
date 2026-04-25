@@ -37,9 +37,9 @@ export default defineConfig(({ mode }) => ({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'favicon.png', 'robots.txt', 'placeholder.svg'],
       manifest: {
-        name: 'Grosafe Gestion',
+        name: 'Alpha',
         short_name: 'Grosafe',
-        description: "Système de gestion d'inventaire hors-ligne pour Grosafe Équipement.",
+        description: "Système de gestion d'entreprise pour Grosafe Équipement.",
         theme_color: '#ffffff',
         icons: [
           {

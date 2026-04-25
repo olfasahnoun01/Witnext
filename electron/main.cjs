@@ -11,7 +11,7 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs')
     },
-    title: "Grosafe Inventory Hub",
+    title: "Alpha",
     icon: path.join(__dirname, '../public/favicon.png')
   });
 

@@ -131,7 +131,7 @@ export default function Auth() {
             />
           </div>
           <p className="text-muted-foreground text-sm mt-1">
-            Système de gestion d'inventaire
+            Système de gestion d'entreprise
           </p>
         </div>
 
@@ -217,9 +217,19 @@ export default function Auth() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-sm text-muted-foreground mt-6">
-          © 2026 Grosafe Équipement. Tous droits réservés.
-        </p>
+        <div className="text-center space-y-2 mt-6">
+          <p className="text-sm text-muted-foreground">
+            © 2026 Grosafe Équipement. Tous droits réservés.
+          </p>
+          <div className="pt-2 border-t border-border/50">
+            <p className="text-xs text-muted-foreground font-medium">
+              Développé par <span className="text-primary">Adam Abdeljalil</span>
+            </p>
+            <p className="text-[10px] text-muted-foreground/80 mt-1 italic">
+              Pour signaler un problème veuillez contacter l'administrateur + (216) 56244009
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
