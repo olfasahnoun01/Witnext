@@ -98,7 +98,7 @@
   },
   "build": {
     "appId": "com.grosafe.hub",
-    "productName": "Grosafe Inventory Hub",
+    "productName": "Alpha",
     "directories": {
       "output": "release"
     },

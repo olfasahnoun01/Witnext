@@ -34,6 +34,7 @@ const ComingSoon = lazy(() => import('@/components/ComingSoon').then(m => ({ def
 const SuiviManager = lazy(() => import('@/components/commercial/SuiviManager').then(m => ({ default: m.SuiviManager })));
 const PermissionsManager = lazy(() => import('@/components/PermissionsManager').then(m => ({ default: m.PermissionsManager })));
 const RDV = lazy(() => import('@/components/commercial/RDV').then(m => ({ default: m.RDV })));
+const TeamChat = lazy(() => import('@/components/TeamChat').then(m => ({ default: m.TeamChat })));
 
 // Prefetch map: when user is on tab X, prefetch tab Y
 const prefetchMap: Record<string, () => void> = {
@@ -132,16 +133,18 @@ const Index = () => {
       
       <div className={cn("transition-all duration-300", sidebarOpen ? "lg:ml-72" : "lg:ml-0")}>
         <Header 
-          title={SUBSECTION_LABELS[activeTab] || 'Grosafe'} 
+          title={SUBSECTION_LABELS[activeTab] || 'Alpha'} 
           onToggle={() => setSidebarOpen(!sidebarOpen)}
           sidebarOpen={sidebarOpen}
         />
-        
         <main className="p-6">
           {renderContent()}
         </main>
       </div>
       
+      <Suspense fallback={null}>
+        <TeamChat />
+      </Suspense>
     </div>
   );
 };

@@ -25,7 +25,7 @@ export const AIAssistant = () => {
   const [messages, setMessages] = useState<ExtendedChatMessage[]>([
     {
       role: 'assistant',
-      content: `Bonjour! Je suis l'assistant IA de Grosafe. Je peux **créer des produits, des fournisseurs** et **gérer votre stock**. Essayez:
+      content: `Bonjour! Je suis Alpha, votre assistant IA. Je peux **créer des produits, des fournisseurs** et **gérer votre stock**. Essayez:
 
 • "Crée un produit Engrais NPK dans la catégorie Engrais"
 • "Ajoute un fournisseur AgriPlus spécialisé en Phytosanitaire"
@@ -273,7 +273,7 @@ Ou cliquez sur **Analyse Stratégique** pour un rapport complet.`
               <Bot className="w-5 h-5 text-success" />
             </div>
             <div>
-              <h3 className="font-semibold text-foreground">Assistant Intelligent</h3>
+              <h3 className="font-semibold text-foreground">Alpha - Assistant Intelligent</h3>
               <p className="text-xs text-muted-foreground">Créez, gérez et analysez votre inventaire</p>
             </div>
           </div>

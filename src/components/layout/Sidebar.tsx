@@ -71,7 +71,7 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
               <div className="rounded-xl p-2">
                 <img 
                   src={grosafeLogo} 
-                  alt="Grosafe Équipement" 
+                  alt="Alpha" 
                   className="h-16 w-auto object-contain"
                 />
               </div>
@@ -180,7 +180,7 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
           <div className="p-4 border-t border-sidebar-border/50">
             <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
               <p className="text-sm font-medium text-sidebar-foreground">
-                Grosafe Équipement
+                Alpha
               </p>
               <div className="flex items-center gap-2 mt-2 text-xs text-sidebar-foreground/80">
                 <Phone className="w-3.5 h-3.5" />
