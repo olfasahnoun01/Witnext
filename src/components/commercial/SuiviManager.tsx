@@ -56,35 +56,7 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   
   // Dummy data
-  const [entries, setEntries] = useState<SuiviEntry[]>([
-    {
-      id: '1',
-      date: '2024-03-22',
-      numOffre: 'OFF-2024-001',
-      entityName: type === 'client' ? 'Société Alpha' : 'Fournisseur X',
-      charge: 'commercial@grosafe.tn',
-      visAVis: 'M. Sami',
-      notes: 'Relance effectuée, attend le retour du DG.'
-    },
-    {
-      id: '2',
-      date: '2024-03-21',
-      numOffre: 'OFF-2024-002',
-      entityName: type === 'client' ? 'Société Beta' : 'Fournisseur Y',
-      charge: 'commercial@grosafe.tn',
-      visAVis: 'Mme. Ines',
-      notes: 'Offre technique validée, en attente de négociation prix.'
-    },
-    {
-      id: '3',
-      date: '2024-03-23',
-      numOffre: 'OFF-2024-001',
-      entityName: type === 'client' ? 'Société Alpha' : 'Fournisseur X',
-      charge: 'commercial@grosafe.tn',
-      visAVis: 'M. Sami',
-      notes: 'Nouvel appel, confirmation pour la semaine prochaine.'
-    }
-  ]);
+  const [entries, setEntries] = useState<SuiviEntry[]>([]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formData, setFormData] = useState<Partial<SuiviEntry>>({
@@ -308,6 +280,7 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
                         <TableCell className="text-xs italic text-muted-foreground max-w-[250px] truncate" title={entry.notes}>
                           {entry.notes}
                         </TableCell>
+
                       </TableRow>
                     ))}
                     {(!selectedEntity && filteredEntries.length === 0) && (

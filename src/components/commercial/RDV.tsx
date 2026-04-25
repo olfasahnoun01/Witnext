@@ -65,40 +65,7 @@ interface RDV {
 export const RDV = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [rdvs, setRdvs] = useState<RDV[]>([
-    {
-      id: '1',
-      numero: 'RDV-001',
-      dateCreation: '2024-03-20',
-      societe: 'TechPro Solutions',
-      activite: 'Informatique',
-      adresse: 'Zone Industrielle, Tunis',
-      telephone: '+216 71 000 000',
-      email: 'contact@techpro.tn',
-      personneContactee: 'M. Ahmed Ben Ali',
-      dateRDV: '2024-03-25',
-      notes: 'Premier contact pour renouvellement parc auto',
-      besoin: '5 utilitaires légers',
-      pieceJointe: 'envoyé',
-      charge: 'commercial@grosafe.tn'
-    },
-    {
-      id: '2',
-      numero: 'RDV-002',
-      dateCreation: '2024-03-21',
-      societe: 'Global Logistics',
-      activite: 'Transport',
-      adresse: 'Port de Radès',
-      telephone: '+216 71 111 111',
-      email: 'info@globallog.com',
-      personneContactee: 'Mme. Sarah Mansour',
-      dateRDV: '2024-03-27',
-      notes: 'Nouveau client potentiel',
-      besoin: 'Maintenance flotte complète',
-      pieceJointe: 'non envoyé',
-      charge: 'commercial@grosafe.tn'
-    }
-  ]);
+  const [rdvs, setRdvs] = useState<RDV[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   
   // Form State

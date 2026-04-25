@@ -11,7 +11,25 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     strictPort: true,
+    proxy: {
+      '/functions/v1': {
+        target: 'https://rnujsdxbkndvppjqjkdu.supabase.co',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/rest/v1': {
+        target: 'https://rnujsdxbkndvppjqjkdu.supabase.co',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/auth/v1': {
+        target: 'https://rnujsdxbkndvppjqjkdu.supabase.co',
+        changeOrigin: true,
+        secure: false,
+      },
+    }
   },
+
   plugins: [
     react(),
     mode === "development" && componentTagger(),
