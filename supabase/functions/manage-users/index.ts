@@ -1,10 +1,14 @@
+// @ts-nocheck
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const ALLOWED_ORIGINS = [
   'https://rnujsdxbkndvppjqjkdu.supabase.co',
+  'https://zfnhihbttwmrldcbaige.supabase.co',
   'https://grosafe-stock-website.lovable.app',
   'https://lptoakdzyuhkfvslgpsw.lovable.app',
-  'https://grosafe-stock.lovable.app'
+  'https://grosafe-stock.lovable.app',
+  'http://localhost:8080',
+  'http://localhost:5173'
 ];
 
 function getCorsHeaders(origin: string | null): Record<string, string> {

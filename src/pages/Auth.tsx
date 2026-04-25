@@ -45,7 +45,7 @@ export default function Auth() {
   // Function to clear browser cache and reload
   const handleClearCache = () => {
     // Clear all auth-related storage
-    localStorage.removeItem('sb-lptoakdzyuhkfvslgpsw-auth-token');
+    localStorage.removeItem('sb-rnujsdxbkndvppjqjkdu-auth-token');
     sessionStorage.clear();
     
     // Remove the expired param and reload

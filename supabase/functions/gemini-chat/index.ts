@@ -1,9 +1,14 @@
+// @ts-nocheck
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const ALLOWED_ORIGINS = [
+  'https://rnujsdxbkndvppjqjkdu.supabase.co',
+  'https://zfnhihbttwmrldcbaige.supabase.co',
   'https://lptoakdzyuhkfvslgpsw.lovable.app',
   'https://grosafe-stock.lovable.app',
-  'https://id-preview--376e296f-5a69-4cea-8e37-706cad53f5c2.lovable.app'
+  'https://id-preview--376e296f-5a69-4cea-8e37-706cad53f5c2.lovable.app',
+  'http://localhost:8080',
+  'http://localhost:5173'
 ];
 
 function getCorsHeaders(origin: string | null): Record<string, string> {
@@ -241,7 +246,7 @@ const AI_TOOLS = [
   }
 ];
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);
 

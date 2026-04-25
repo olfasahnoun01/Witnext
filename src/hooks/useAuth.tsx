@@ -83,7 +83,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Force clear all auth data on new browser session BEFORE anything else
     const forceLogoutOnNewSession = async () => {
       // Clear the Supabase auth token from localStorage
-      const supabaseAuthKey = `sb-lptoakdzyuhkfvslgpsw-auth-token`;
+      const supabaseAuthKey = `sb-rnujsdxbkndvppjqjkdu-auth-token`;
       const existingToken = localStorage.getItem(supabaseAuthKey);
       
       if (existingToken) {
