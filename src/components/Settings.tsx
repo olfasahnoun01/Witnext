@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_VERSION, BUILD_DATE_FORMATTED } from '@/lib/version';
 import { supabase } from '@/integrations/supabase/client';
-import { Megaphone } from 'lucide-react';
+
 
 export const Settings = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -20,7 +20,7 @@ export const Settings = () => {
   const { isAdmin } = useAuth();
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
+
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -88,32 +88,7 @@ export const Settings = () => {
     }
   };
 
-  const publishUpdateVersion = async () => {
-    setIsPublishing(true);
-    try {
-      const newVersion = `v${Date.now()}`;
-      const { error } = await supabase
-        .from('app_config' as any)
-        .update({ value: newVersion, updated_at: new Date().toISOString() })
-        .eq('key', 'update_alert_version');
 
-      if (error) throw error;
-
-      toast({
-        title: "Version publiée",
-        description: "Tous les utilisateurs verront le rappel de mise à jour au prochain chargement."
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        variant: "destructive",
-        title: "Erreur",
-        description: "Impossible de publier la nouvelle version"
-      });
-    } finally {
-      setIsPublishing(false);
-    }
-  };
 
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl">
@@ -186,45 +161,26 @@ export const Settings = () => {
         </div>
       </div>
 
-      {isAdmin && (
-        <div className="bg-card rounded-xl border border-border p-6 border-l-4 border-l-primary">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Megaphone className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">Notifications de Mise à jour</h2>
-              <p className="text-sm text-muted-foreground">Forcer l'apparition du rappel d'actualisation (CTRL+F5) pour tous les utilisateurs</p>
-            </div>
-          </div>
 
-          <div className="bg-muted/50 p-4 rounded-lg flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Déclencher un rappel global</p>
-              <p className="text-xs text-muted-foreground">À utiliser après une mise à jour importante du code pour s'assurer que tout le monde recharge son cache.</p>
-            </div>
-            <Button 
-              onClick={publishUpdateVersion}
-              disabled={isPublishing}
-              className="whitespace-nowrap shadow-lg shadow-primary/20"
-            >
-              <Megaphone className="w-4 h-4 mr-2" />
-              {isPublishing ? 'Publication...' : 'Publier une nouvelle version'}
-            </Button>
-          </div>
-        </div>
-      )}
 
 
       {/* App Info */}
-      <div className="bg-card rounded-xl border border-border p-6">
-        <h3 className="font-semibold text-foreground mb-4">À Propos</h3>
-        <div className="space-y-2 text-sm text-muted-foreground">
-          <p><strong className="text-foreground">Application:</strong> Grosafe Gestion</p>
-          <p><strong className="text-foreground">Version:</strong> {APP_VERSION}</p>
-          <p><strong className="text-foreground">Dernière mise à jour:</strong> {BUILD_DATE_FORMATTED}</p>
-          <p><strong className="text-foreground">Technologies:</strong> React, TypeScript, PostgreSQL, Tailwind CSS</p>
-          <p><strong className="text-foreground">Mode:</strong> Application Web avec Base de Données Cloud</p>
+      <div className="bg-card rounded-xl border border-border p-6 bg-gradient-to-br from-card to-primary/5">
+        <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+          À Propos
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div className="space-y-2 text-muted-foreground">
+            <p><strong className="text-foreground">Application:</strong> Alpha</p>
+            <p><strong className="text-foreground">Version:</strong> {APP_VERSION}</p>
+            <p><strong className="text-foreground">Dernière mise à jour:</strong> {BUILD_DATE_FORMATTED}</p>
+          </div>
+          <div className="space-y-2 text-muted-foreground">
+            <p><strong className="text-foreground">Technologies:</strong> React, TypeScript, PostgreSQL</p>
+            <p><strong className="text-foreground">Mode:</strong> Application Cloud Haute Disponibilité</p>
+            <p>© 2026 Grosafe Équipement</p>
+          </div>
         </div>
       </div>
     </div>
