@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const isDev = process.env.NODE_ENV === 'development';
@@ -55,13 +55,20 @@ autoUpdater.on('download-progress', (progressObj) => {
 
 autoUpdater.on('update-downloaded', (info) => {
   console.log('Update downloaded:', info);
-  if (mainWindow) {
-    mainWindow.webContents.send('update-message', 'Mise à jour téléchargée. L\'application va redémarrer pour l\'installer.');
-  }
-  // Wait a bit then install
-  setTimeout(() => {
-    autoUpdater.quitAndInstall();
-  }, 3000);
+  
+  const dialogOpts = {
+    type: 'info',
+    buttons: ['Redémarrer', 'Plus tard'],
+    title: 'Mise à jour disponible',
+    message: 'Une nouvelle version de l\'application a été téléchargée.',
+    detail: 'Voulez-vous redémarrer l\'application pour appliquer les mises à jour maintenant ?'
+  };
+
+  dialog.showMessageBox(mainWindow, dialogOpts).then((returnValue) => {
+    if (returnValue.response === 0) {
+      autoUpdater.quitAndInstall();
+    }
+  });
 });
 
 app.whenReady().then(() => {
