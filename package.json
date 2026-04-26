@@ -1,7 +1,7 @@
 {
   "name": "vite_react_shadcn_ts",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Système de Gestion d'Entreprise pour Grosafe Équipement",
   "author": "Grosafe",
   "repository": {
@@ -17,7 +17,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:8080 && cross-env NODE_ENV=development electron .\"",
-    "electron:build": "npm run build && npx electron-builder"
+    "electron:build": "npm run build && npx electron-builder --publish always"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -123,7 +123,6 @@
     "win": {
       "target": "nsis",
       "icon": "public/favicon.png",
-      "publisherName": "Grosafe Équipement",
       "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
