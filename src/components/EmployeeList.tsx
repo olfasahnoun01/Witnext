@@ -291,11 +291,14 @@ export const EmployeeList = () => {
                   <SelectValue placeholder="Sélectionner un poste" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Ouvrier">Ouvrier</SelectItem>
                   <SelectItem value="Operateur">Operateur (Accès Mobile)</SelectItem>
-                  <SelectItem value="Chauffeur">Chauffeur</SelectItem>
-                  <SelectItem value="Magasinier">Magasinier</SelectItem>
-                  <SelectItem value="Administrateur">Administrateur</SelectItem>
+                  <SelectItem value="Commercial">Commercial</SelectItem>
+                  <SelectItem value="RH">Ressources Humaines (RH)</SelectItem>
+                  <SelectItem value="Magasin">Magasin</SelectItem>
+                  <SelectItem value="Finance">Finance</SelectItem>
+                  <SelectItem value="Informatique">Informatique</SelectItem>
+                  <SelectItem value="Direction">Direction</SelectItem>
+                  <SelectItem value="Achat">Achat</SelectItem>
                 </SelectContent>
               </Select>
             </div>
