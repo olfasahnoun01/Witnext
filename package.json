@@ -4,6 +4,10 @@
   "version": "0.0.0",
   "description": "Système de Gestion d'Entreprise pour Grosafe Équipement",
   "author": "Grosafe",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/olfasahnoun01/remix-of-grosafe-inventory-hub-de9c3b04.git"
+  },
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -50,6 +54,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
+    "electron-updater": "^6.8.3",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "jspdf": "^4.0.0",
@@ -101,6 +106,13 @@
   "build": {
     "appId": "com.grosafe.hub",
     "productName": "Alpha",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "olfasahnoun01",
+        "repo": "remix-of-grosafe-inventory-hub-de9c3b04"
+      }
+    ],
     "directories": {
       "output": "release"
     },
