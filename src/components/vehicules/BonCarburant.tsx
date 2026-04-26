@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { Fuel, Plus, Search, Filter, Calendar, User, Car, Banknote, ClipboardList } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Fuel, Plus, Search, Calendar, User, Car, Banknote, ClipboardList, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,71 +27,138 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
-interface Bon {
+interface FuelVoucher {
   id: string;
-  numBon: string;
+  num_bon: string;
   date: string;
-  montant: string;
-  conducteur: string;
-  typeCarburant: 'essence' | 'gasoil';
-  vehicule: string;
-  notes: string;
-  status: 'en_attente' | 'utilise';
-  km?: string;
-  distance?: string;
+  montant: number;
+  conducteur_id: string | null;
+  vehicule_id: string | null;
+  type_carburant: string | null;
+  notes: string | null;
+  status: string | null;
+  km: number | null;
+  distance: number | null;
+  // Joined data
+  employee?: { prenom: string; nom: string } | null;
+  vehicle?: { modele: string; matricule: string } | null;
+}
+
+interface Employee {
+  id: string;
+  prenom: string;
+  nom: string;
+}
+
+interface Vehicle {
+  id: string;
+  modele: string;
+  matricule: string;
 }
 
 export const BonCarburant = () => {
-  const [bons, setBons] = useState<Bon[]>(() => {
-    const saved = localStorage.getItem('grosafe_bons');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [bons, setBons] = useState<FuelVoucher[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
-  // Load data for selections
-  const employees = JSON.parse(localStorage.getItem('grosafe_employees') || '[]');
-  const vehicles = JSON.parse(localStorage.getItem('grosafe_vehicles') || '[]');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [form, setForm] = useState({
     numBon: '',
     date: new Date().toISOString().split('T')[0],
     montant: '',
-    conducteur: '',
-    typeCarburant: 'gasoil' as 'essence' | 'gasoil',
-    vehicule: '',
+    conducteurId: '',
+    typeCarburant: 'gasoil' as string,
+    vehiculeId: '',
     notes: '',
   });
 
-  const saveBons = (newBons: Bon[]) => {
-    setBons(newBons);
-    localStorage.setItem('grosafe_bons', JSON.stringify(newBons));
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [bonsRes, empRes, vehRes] = await Promise.all([
+        supabase
+          .from('fuel_vouchers')
+          .select('*, employee:employees(prenom, nom), vehicle:vehicles(modele, matricule)')
+          .order('created_at', { ascending: false }),
+        supabase.from('employees').select('id, prenom, nom').order('prenom'),
+        supabase.from('vehicles').select('id, modele, matricule').order('modele'),
+      ]);
+
+      if (bonsRes.error) throw bonsRes.error;
+      if (empRes.error) throw empRes.error;
+      if (vehRes.error) throw vehRes.error;
+
+      setBons((bonsRes.data as any) || []);
+      setEmployees(empRes.data || []);
+      setVehicles(vehRes.data || []);
+    } catch (error: any) {
+      console.error('Error fetching data:', error);
+      toast.error('Erreur lors du chargement des données');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleSubmit = useCallback(() => {
-    if (!form.numBon || !form.montant || !form.conducteur || !form.vehicule) {
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleSubmit = async () => {
+    if (!form.numBon || !form.montant || !form.conducteurId || !form.vehiculeId) {
       toast.error('Veuillez remplir tous les champs obligatoires');
       return;
     }
 
-    const newBon: Bon = {
-      id: crypto.randomUUID(),
-      ...form,
-      status: 'en_attente',
-    };
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from('fuel_vouchers')
+        .insert([{
+          num_bon: form.numBon.trim(),
+          date: form.date,
+          montant: parseFloat(form.montant),
+          conducteur_id: form.conducteurId,
+          vehicule_id: form.vehiculeId,
+          type_carburant: form.typeCarburant,
+          notes: form.notes.trim() || null,
+          status: 'pending',
+        }]);
 
-    saveBons([newBon, ...bons]);
-    setIsDialogOpen(false);
-    setForm({
-      numBon: '',
-      date: new Date().toISOString().split('T')[0],
-      montant: '',
-      conducteur: '',
-      typeCarburant: 'gasoil',
-      vehicule: '',
-      notes: '',
-    });
-    toast.success('Bon de carburant ajouté');
-  }, [form, bons]);
+      if (error) throw error;
+
+      toast.success('Bon de carburant ajouté');
+      setForm({
+        numBon: '',
+        date: new Date().toISOString().split('T')[0],
+        montant: '',
+        conducteurId: '',
+        typeCarburant: 'gasoil',
+        vehiculeId: '',
+        notes: '',
+      });
+      setIsDialogOpen(false);
+      fetchData();
+    } catch (error: any) {
+      console.error('Error adding voucher:', error);
+      toast.error(error.message || 'Erreur lors de l\'ajout du bon');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getDriverName = (bon: FuelVoucher) => {
+    if (bon.employee) return `${bon.employee.prenom} ${bon.employee.nom}`;
+    return '-';
+  };
+
+  const getVehicleName = (bon: FuelVoucher) => {
+    if (bon.vehicle) return `${bon.vehicle.modele} (${bon.vehicle.matricule})`;
+    return '-';
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -129,72 +196,78 @@ export const BonCarburant = () => {
             <p className="text-sm font-medium text-muted-foreground">Montant Total</p>
           </div>
           <p className="text-2xl font-bold text-foreground">
-            {bons.reduce((acc, b) => acc + parseFloat(b.montant || '0'), 0).toLocaleString()} <span className="text-sm text-muted-foreground font-normal">TND</span>
+            {bons.reduce((acc, b) => acc + (b.montant || 0), 0).toLocaleString()} <span className="text-sm text-muted-foreground font-normal">TND</span>
           </p>
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/30 hover:bg-muted/30 border-border">
-              <TableHead className="font-semibold text-foreground">Bon n°</TableHead>
-              <TableHead className="font-semibold text-foreground">Véhicule</TableHead>
-              <TableHead className="font-semibold text-foreground">Conducteur</TableHead>
-              <TableHead className="font-semibold text-foreground">Carburant</TableHead>
-              <TableHead className="font-semibold text-right text-foreground">Montant</TableHead>
-              <TableHead className="font-semibold text-foreground">Date</TableHead>
-              <TableHead className="font-semibold text-foreground">Status</TableHead>
-              <TableHead className="font-semibold text-foreground">Km / Distance</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {bons.length === 0 ? (
-              <TableRow className="border-border">
-                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
-                  <div className="flex flex-col items-center justify-center gap-2">
-                    <Search className="w-8 h-8 opacity-20" />
-                    <p>Aucun bon de carburant trouvé</p>
-                  </div>
-                </TableCell>
+      {isLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-primary/60" />
+        </div>
+      ) : (
+        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30 hover:bg-muted/30 border-border">
+                <TableHead className="font-semibold text-foreground">Bon n°</TableHead>
+                <TableHead className="font-semibold text-foreground">Véhicule</TableHead>
+                <TableHead className="font-semibold text-foreground">Conducteur</TableHead>
+                <TableHead className="font-semibold text-foreground">Carburant</TableHead>
+                <TableHead className="font-semibold text-right text-foreground">Montant</TableHead>
+                <TableHead className="font-semibold text-foreground">Date</TableHead>
+                <TableHead className="font-semibold text-foreground">Status</TableHead>
+                <TableHead className="font-semibold text-foreground">Km / Distance</TableHead>
               </TableRow>
-            ) : (
-              bons.map((bon) => (
-                <TableRow key={bon.id} className="hover:bg-muted/50 transition-colors border-border">
-                  <TableCell className="font-medium text-primary">{bon.numBon}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2 text-foreground">
-                      <Car className="w-4 h-4 text-muted-foreground" />
-                      {bon.vehicule}
+            </TableHeader>
+            <TableBody>
+              {bons.length === 0 ? (
+                <TableRow className="border-border">
+                  <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Search className="w-8 h-8 opacity-20" />
+                      <p>Aucun bon de carburant trouvé</p>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2 text-foreground">
-                      <User className="w-4 h-4 text-muted-foreground" />
-                      {bon.conducteur}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={bon.typeCarburant === 'essence' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' : 'bg-blue-500/10 text-blue-500 border-blue-500/20'}>
-                      {bon.typeCarburant}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-semibold text-foreground">{parseFloat(bon.montant).toLocaleString()} TND</TableCell>
-                  <TableCell className="text-foreground">{new Date(bon.date).toLocaleDateString()}</TableCell>
-                  <TableCell>
-                    <Badge className={bon.status === 'utilise' ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-amber-500 hover:bg-amber-600 text-white'}>
-                      {bon.status === 'en_attente' ? 'En attente' : 'Utilisé'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {bon.km ? `${bon.km} km` : '-'} / {bon.distance ? `${bon.distance} km` : '-'}
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              ) : (
+                bons.map((bon) => (
+                  <TableRow key={bon.id} className="hover:bg-muted/50 transition-colors border-border">
+                    <TableCell className="font-medium text-primary">{bon.num_bon}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2 text-foreground">
+                        <Car className="w-4 h-4 text-muted-foreground" />
+                        {getVehicleName(bon)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2 text-foreground">
+                        <User className="w-4 h-4 text-muted-foreground" />
+                        {getDriverName(bon)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={bon.type_carburant === 'essence' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' : 'bg-blue-500/10 text-blue-500 border-blue-500/20'}>
+                        {bon.type_carburant || 'gasoil'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-foreground">{(bon.montant || 0).toLocaleString()} TND</TableCell>
+                    <TableCell className="text-foreground">{new Date(bon.date).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <Badge className={bon.status === 'used' ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-amber-500 hover:bg-amber-600 text-white'}>
+                        {bon.status === 'pending' ? 'En attente' : bon.status === 'used' ? 'Utilisé' : (bon.status || 'En attente')}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {bon.km ? `${bon.km} km` : '-'} / {bon.distance ? `${bon.distance} km` : '-'}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-lg rounded-3xl p-0 overflow-hidden border-none shadow-2xl bg-card">
@@ -238,8 +311,8 @@ export const BonCarburant = () => {
               <div className="space-y-2">
                 <Label htmlFor="vehicule" className="text-sm font-semibold text-foreground">Véhicule *</Label>
                 <Select
-                  value={form.vehicule}
-                  onValueChange={(v) => setForm({ ...form, vehicule: v })}
+                  value={form.vehiculeId}
+                  onValueChange={(v) => setForm({ ...form, vehiculeId: v })}
                 >
                   <SelectTrigger className="rounded-xl border-border bg-background h-11 text-foreground">
                     <SelectValue placeholder="Sélectionner un véhicule" />
@@ -248,8 +321,8 @@ export const BonCarburant = () => {
                     {vehicles.length === 0 ? (
                       <div className="p-2 text-xs text-muted-foreground text-center italic">Aucun véhicule enregistré</div>
                     ) : (
-                      vehicles.map((v: any) => (
-                        <SelectItem key={v.id} value={`${v.modele} (${v.matricule})`}>
+                      vehicles.map((v) => (
+                        <SelectItem key={v.id} value={v.id}>
                           {v.modele} - {v.matricule}
                         </SelectItem>
                       ))
@@ -260,8 +333,8 @@ export const BonCarburant = () => {
               <div className="space-y-2">
                 <Label htmlFor="conducteur" className="text-sm font-semibold text-foreground">Conducteur *</Label>
                 <Select
-                  value={form.conducteur}
-                  onValueChange={(v) => setForm({ ...form, conducteur: v })}
+                  value={form.conducteurId}
+                  onValueChange={(v) => setForm({ ...form, conducteurId: v })}
                 >
                   <SelectTrigger className="rounded-xl border-border bg-background h-11 text-foreground">
                     <SelectValue placeholder="Sélectionner un employé" />
@@ -270,8 +343,8 @@ export const BonCarburant = () => {
                     {employees.length === 0 ? (
                       <div className="p-2 text-xs text-muted-foreground text-center italic">Aucun employé enregistré</div>
                     ) : (
-                      employees.map((emp: any) => (
-                        <SelectItem key={emp.id} value={`${emp.prenom} ${emp.nom}`}>
+                      employees.map((emp) => (
+                        <SelectItem key={emp.id} value={emp.id}>
                           {emp.prenom} {emp.nom}
                         </SelectItem>
                       ))
@@ -300,7 +373,7 @@ export const BonCarburant = () => {
                 <Label htmlFor="type" className="text-sm font-semibold text-foreground">Carburant</Label>
                 <Select
                   value={form.typeCarburant}
-                  onValueChange={(v: any) => setForm({ ...form, typeCarburant: v })}
+                  onValueChange={(v) => setForm({ ...form, typeCarburant: v })}
                 >
                   <SelectTrigger className="rounded-xl border-border bg-background h-11 text-foreground">
                     <SelectValue placeholder="Sélectionner" />
@@ -326,11 +399,18 @@ export const BonCarburant = () => {
           </div>
 
           <DialogFooter className="p-6 bg-muted/30 gap-3 border-t border-border">
-            <Button variant="ghost" onClick={() => setIsDialogOpen(false)} className="rounded-xl px-6 h-11 hover:bg-muted/50 text-muted-foreground transition-colors">
+            <Button variant="ghost" onClick={() => setIsDialogOpen(false)} className="rounded-xl px-6 h-11 hover:bg-muted/50 text-muted-foreground transition-colors" disabled={isSubmitting}>
               Annuler
             </Button>
-            <Button onClick={handleSubmit} className="rounded-xl px-8 h-11 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all border-none">
-              Enregistrer
+            <Button onClick={handleSubmit} className="rounded-xl px-8 h-11 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all border-none" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Enregistrement...
+                </>
+              ) : (
+                'Enregistrer'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

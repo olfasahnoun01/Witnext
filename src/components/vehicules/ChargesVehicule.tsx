@@ -20,6 +20,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Charge {
   id: string;
@@ -43,8 +44,16 @@ export const ChargesVehicule = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'assurance' | 'vignette' | 'visite_technique' | 'leasing'>('assurance');
   
-  // Load vehicles for selection
-  const vehicles = JSON.parse(localStorage.getItem('grosafe_vehicles') || '[]');
+  // Load vehicles from Supabase
+  const [vehicles, setVehicles] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchVehicles = async () => {
+      const { data } = await supabase.from('vehicles').select('id, modele, matricule');
+      setVehicles(data || []);
+    };
+    fetchVehicles();
+  }, []);
   
   useEffect(() => {
     localStorage.setItem('grosafe_charges_vehicules', JSON.stringify(charges));

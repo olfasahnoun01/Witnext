@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { UserPlus, Users, Trash2, Phone, CreditCard } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { UserPlus, Users, Trash2, Phone, CreditCard, Shield, Mail, Lock, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -11,50 +11,143 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface Employee {
   id: string;
   prenom: string;
   nom: string;
-  tel: string;
-  cin: string;
+  email?: string;
+  phone?: string;
+  role?: string;
+  user_id?: string;
 }
 
 export const EmployeeList = () => {
-  const [employees, setEmployees] = useState<Employee[]>(() => {
-    const saved = localStorage.getItem('grosafe_employees');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [form, setForm] = useState({ prenom: '', nom: '', tel: '', cin: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [form, setForm] = useState({ 
+    prenom: '', 
+    nom: '', 
+    phone: '', 
+    poste: 'Ouvrier',
+    email: '',
+    password: ''
+  });
 
-  const saveEmployees = (newEmployees: Employee[]) => {
-    setEmployees(newEmployees);
-    localStorage.setItem('grosafe_employees', JSON.stringify(newEmployees));
+  const fetchEmployees = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setEmployees(data || []);
+    } catch (error: any) {
+      console.error('Error fetching employees:', error);
+      toast.error('Erreur lors du chargement des employés');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleSubmit = useCallback(() => {
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
+
+  const handleSubmit = async () => {
     if (!form.prenom.trim() || !form.nom.trim()) {
       toast.error('Le prénom et le nom sont obligatoires');
       return;
     }
-    const newEmployee: Employee = {
-      id: crypto.randomUUID(),
-      prenom: form.prenom.trim(),
-      nom: form.nom.trim(),
-      tel: form.tel.trim(),
-      cin: form.cin.trim(),
-    };
-    saveEmployees([...employees, newEmployee]);
-    setForm({ prenom: '', nom: '', tel: '', cin: '' });
-    setIsDialogOpen(false);
-    toast.success(`${newEmployee.prenom} ${newEmployee.nom} ajouté(e)`);
-  }, [form, employees]);
 
-  const handleDelete = useCallback((id: string) => {
-    saveEmployees(employees.filter((e) => e.id !== id));
-    toast.success('Employé supprimé');
-  }, [employees]);
+    if (form.poste === 'Operateur' && (!form.email || !form.password)) {
+      toast.error('L\'email et le mot de passe sont requis pour un Opérateur');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      let userId = null;
+
+      // 1. Create Auth User if Operateur
+      if (form.poste === 'Operateur') {
+        const { data: { session } } = await supabase.auth.getSession();
+        const response = await supabase.functions.invoke('manage-users', {
+          body: {
+            action: 'create',
+            email: form.email,
+            password: form.password,
+            full_name: `${form.prenom} ${form.nom}`,
+            role: 'user' // Default role for operators
+          },
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`
+          }
+        });
+
+        if (response.error || response.data?.error) {
+          throw new Error(response.error?.message || response.data?.error);
+        }
+
+        userId = response.data.user.id;
+      }
+
+      // 2. Create Employee Record
+      const { error: insertError } = await supabase
+        .from('employees')
+        .insert([{
+          prenom: form.prenom.trim(),
+          nom: form.nom.trim(),
+          phone: form.phone.trim() || null,
+          email: form.poste === 'Operateur' ? form.email.trim() : null,
+          role: form.poste,
+          user_id: userId
+        }]);
+
+      if (insertError) throw insertError;
+
+      toast.success(`${form.prenom} ${form.nom} ajouté(e)`);
+      setForm({ prenom: '', nom: '', phone: '', poste: 'Ouvrier', email: '', password: '' });
+      setIsDialogOpen(false);
+      fetchEmployees();
+    } catch (error: any) {
+      console.error('Error adding employee:', error);
+      toast.error(error.message || 'Erreur lors de l\'ajout de l\'employé');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cet employé ?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('employees')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      setEmployees(employees.filter((e) => e.id !== id));
+      toast.success('Employé supprimé');
+    } catch (error: any) {
+      console.error('Error deleting employee:', error);
+      toast.error('Erreur lors de la suppression');
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -81,7 +174,11 @@ export const EmployeeList = () => {
       </div>
 
       {/* List */}
-      {employees.length === 0 ? (
+      {isLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-primary/60" />
+        </div>
+      ) : employees.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center rounded-2xl border-2 border-dashed border-border bg-muted/30">
           <div className="p-5 rounded-2xl bg-primary/10 mb-4">
             <Users className="w-10 h-10 text-primary/60" />
@@ -111,20 +208,32 @@ export const EmployeeList = () => {
 
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-foreground truncate">
-                  {emp.prenom} {emp.nom}
-                </p>
-                <div className="flex items-center gap-4 mt-0.5 text-xs text-muted-foreground">
-                  {emp.tel && (
-                    <span className="flex items-center gap-1">
-                      <Phone className="w-3 h-3" />
-                      {emp.tel}
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-foreground truncate">
+                    {emp.prenom} {emp.nom}
+                  </p>
+                  {emp.role && (
+                    <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
+                      {emp.role}
                     </span>
                   )}
-                  {emp.cin && (
+                  {emp.user_id && (
+                    <span className="p-1 rounded-full bg-emerald-100 text-emerald-600" title="Compte mobile actif">
+                      <Shield className="w-3 h-3" />
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-4 mt-0.5 text-xs text-muted-foreground">
+                  {emp.phone && (
                     <span className="flex items-center gap-1">
-                      <CreditCard className="w-3 h-3" />
-                      {emp.cin}
+                      <Phone className="w-3 h-3" />
+                      {emp.phone}
+                    </span>
+                  )}
+                  {emp.email && (
+                    <span className="flex items-center gap-1">
+                      <Mail className="w-3 h-3" />
+                      {emp.email}
                     </span>
                   )}
                 </div>
@@ -154,52 +263,103 @@ export const EmployeeList = () => {
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="emp-prenom">Prénom *</Label>
-              <Input
-                id="emp-prenom"
-                placeholder="Prénom de l'employé"
-                value={form.prenom}
-                onChange={(e) => setForm((f) => ({ ...f, prenom: e.target.value }))}
-                autoFocus
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="emp-prenom">Prénom *</Label>
+                <Input
+                  id="emp-prenom"
+                  placeholder="Prénom"
+                  value={form.prenom}
+                  onChange={(e) => setForm((f) => ({ ...f, prenom: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="emp-nom">Nom *</Label>
+                <Input
+                  id="emp-nom"
+                  placeholder="Nom"
+                  value={form.nom}
+                  onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))}
+                />
+              </div>
             </div>
+
             <div className="grid gap-2">
-              <Label htmlFor="emp-nom">Nom *</Label>
-              <Input
-                id="emp-nom"
-                placeholder="Nom de l'employé"
-                value={form.nom}
-                onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))}
-              />
+              <Label htmlFor="emp-poste">Poste / Fonction *</Label>
+              <Select value={form.poste} onValueChange={(v) => setForm(f => ({ ...f, poste: v }))}>
+                <SelectTrigger id="emp-poste">
+                  <SelectValue placeholder="Sélectionner un poste" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Ouvrier">Ouvrier</SelectItem>
+                  <SelectItem value="Operateur">Operateur (Accès Mobile)</SelectItem>
+                  <SelectItem value="Chauffeur">Chauffeur</SelectItem>
+                  <SelectItem value="Magasinier">Magasinier</SelectItem>
+                  <SelectItem value="Administrateur">Administrateur</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+
+            {form.poste === 'Operateur' && (
+              <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 space-y-4 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
+                  <Shield className="w-4 h-4" />
+                  Accès Mobile App
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="emp-email" className="flex items-center gap-2">
+                    <Mail className="w-3 h-3" /> Email de connexion *
+                  </Label>
+                  <Input
+                    id="emp-email"
+                    type="email"
+                    placeholder="email@grosafe.com"
+                    value={form.email}
+                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="emp-password" className="flex items-center gap-2">
+                    <Lock className="w-3 h-3" /> Mot de passe *
+                  </Label>
+                  <Input
+                    id="emp-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={form.password}
+                    onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="grid gap-2">
-              <Label htmlFor="emp-tel">Numéro de Téléphone</Label>
+              <Label htmlFor="emp-phone">Téléphone</Label>
               <Input
-                id="emp-tel"
-                placeholder="Ex: 55 123 456"
-                value={form.tel}
-                onChange={(e) => setForm((f) => ({ ...f, tel: e.target.value }))}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="emp-cin">Numéro CIN</Label>
-              <Input
-                id="emp-cin"
-                placeholder="Ex: 12345678"
-                value={form.cin}
-                onChange={(e) => setForm((f) => ({ ...f, cin: e.target.value }))}
+                id="emp-phone"
+                placeholder="55 123 456"
+                value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
               />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="rounded-xl">
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="rounded-xl" disabled={isSubmitting}>
               Annuler
             </Button>
-            <Button onClick={handleSubmit} className="gap-2 rounded-xl">
-              <UserPlus className="w-4 h-4" />
-              Ajouter
+            <Button onClick={handleSubmit} className="gap-2 rounded-xl" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Ajout...
+                </>
+              ) : (
+                <>
+                  <UserPlus className="w-4 h-4" />
+                  Ajouter
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

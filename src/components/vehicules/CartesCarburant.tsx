@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { CreditCard, Plus, History, RefreshCw, User, Wallet, MoreVertical, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface FuelCard {
   id: string;
@@ -42,8 +43,16 @@ export const CartesCarburant = () => {
   const [selectedCard, setSelectedCard] = useState<FuelCard | null>(null);
   const [rechargeAmount, setRechargeAmount] = useState('');
   
-  // Load employees for the driver list
-  const employees = JSON.parse(localStorage.getItem('grosafe_employees') || '[]');
+  // Load employees from Supabase
+  const [employees, setEmployees] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      const { data } = await supabase.from('employees').select('id, prenom, nom');
+      setEmployees(data || []);
+    };
+    fetchEmployees();
+  }, []);
   
   const [newCardForm, setNewCardForm] = useState({
     numCarte: '',

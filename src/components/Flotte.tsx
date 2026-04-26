@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { Truck, Plus, Trash2, Gauge, Hash } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Truck, Plus, Trash2, Hash, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -11,48 +11,91 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Vehicle {
   id: string;
   modele: string;
   matricule: string;
-  kmActuelle: string;
+  type?: string;
 }
 
 export const Flotte = () => {
-  const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
-    const saved = localStorage.getItem('grosafe_vehicles');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [form, setForm] = useState({ modele: '', matricule: '', kmActuelle: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [form, setForm] = useState({ modele: '', matricule: '', type: '' });
 
-  const saveVehicles = (newVehicles: Vehicle[]) => {
-    setVehicles(newVehicles);
-    localStorage.setItem('grosafe_vehicles', JSON.stringify(newVehicles));
+  const fetchVehicles = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setVehicles(data || []);
+    } catch (error: any) {
+      console.error('Error fetching vehicles:', error);
+      toast.error('Erreur lors du chargement des véhicules');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleSubmit = useCallback(() => {
+  useEffect(() => {
+    fetchVehicles();
+  }, []);
+
+  const handleSubmit = async () => {
     if (!form.modele.trim() || !form.matricule.trim()) {
       toast.error('Le modèle et la matricule sont obligatoires');
       return;
     }
-    const newVehicle: Vehicle = {
-      id: crypto.randomUUID(),
-      modele: form.modele.trim(),
-      matricule: form.matricule.trim(),
-      kmActuelle: form.kmActuelle.trim(),
-    };
-    saveVehicles([...vehicles, newVehicle]);
-    setForm({ modele: '', matricule: '', kmActuelle: '' });
-    setIsDialogOpen(false);
-    toast.success(`Véhicule « ${newVehicle.modele} » ajouté`);
-  }, [form, vehicles]);
 
-  const handleDelete = useCallback((id: string) => {
-    saveVehicles(vehicles.filter((v) => v.id !== id));
-    toast.success('Véhicule supprimé');
-  }, [vehicles]);
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from('vehicles')
+        .insert([{
+          modele: form.modele.trim(),
+          matricule: form.matricule.trim(),
+          type: form.type.trim() || null,
+        }]);
+
+      if (error) throw error;
+
+      toast.success(`Véhicule « ${form.modele} » ajouté`);
+      setForm({ modele: '', matricule: '', type: '' });
+      setIsDialogOpen(false);
+      fetchVehicles();
+    } catch (error: any) {
+      console.error('Error adding vehicle:', error);
+      toast.error(error.message || 'Erreur lors de l\'ajout du véhicule');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce véhicule ?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('vehicles')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      setVehicles(vehicles.filter((v) => v.id !== id));
+      toast.success('Véhicule supprimé');
+    } catch (error: any) {
+      console.error('Error deleting vehicle:', error);
+      toast.error('Erreur lors de la suppression');
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -79,7 +122,11 @@ export const Flotte = () => {
       </div>
 
       {/* List */}
-      {vehicles.length === 0 ? (
+      {isLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-primary/60" />
+        </div>
+      ) : vehicles.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center rounded-2xl border-2 border-dashed border-border bg-muted/30">
           <div className="p-5 rounded-2xl bg-primary/10 mb-4">
             <Truck className="w-10 h-10 text-primary/60" />
@@ -122,10 +169,10 @@ export const Flotte = () => {
                   <Hash className="w-3.5 h-3.5" />
                   <span>{v.matricule}</span>
                 </div>
-                {v.kmActuelle && (
+                {v.type && (
                   <div className="flex items-center gap-2">
-                    <Gauge className="w-3.5 h-3.5" />
-                    <span>{v.kmActuelle} km</span>
+                    <Truck className="w-3.5 h-3.5" />
+                    <span>{v.type}</span>
                   </div>
                 )}
               </div>
@@ -165,24 +212,32 @@ export const Flotte = () => {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="veh-km">KM Actuelle</Label>
+              <Label htmlFor="veh-type">Type</Label>
               <Input
-                id="veh-km"
-                placeholder="Ex: 45000"
-                type="number"
-                value={form.kmActuelle}
-                onChange={(e) => setForm((f) => ({ ...f, kmActuelle: e.target.value }))}
+                id="veh-type"
+                placeholder="Ex: Camion, Voiture..."
+                value={form.type}
+                onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
               />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="rounded-xl">
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="rounded-xl" disabled={isSubmitting}>
               Annuler
             </Button>
-            <Button onClick={handleSubmit} className="gap-2 rounded-xl">
-              <Plus className="w-4 h-4" />
-              Ajouter
+            <Button onClick={handleSubmit} className="gap-2 rounded-xl" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Ajout...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  Ajouter
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

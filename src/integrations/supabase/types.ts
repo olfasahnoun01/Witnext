@@ -477,6 +477,111 @@ export type Database = {
           },
         ]
       }
+      employees: {
+        Row: {
+          id: string
+          user_id: string | null
+          prenom: string
+          nom: string
+          email: string | null
+          phone: string | null
+          role: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          prenom: string
+          nom: string
+          email?: string | null
+          phone?: string | null
+          role?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          prenom?: string
+          nom?: string
+          email?: string | null
+          phone?: string | null
+          role?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      fuel_vouchers: {
+        Row: {
+          id: string
+          num_bon: string
+          date: string
+          montant: number
+          conducteur_id: string | null
+          vehicule_id: string | null
+          type_carburant: string | null
+          voucher_type: string | null
+          notes: string | null
+          status: string | null
+          proof_image_url: string | null
+          km: number | null
+          distance: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          num_bon: string
+          date?: string
+          montant?: number
+          conducteur_id?: string | null
+          vehicule_id?: string | null
+          type_carburant?: string | null
+          voucher_type?: string | null
+          notes?: string | null
+          status?: string | null
+          proof_image_url?: string | null
+          km?: number | null
+          distance?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          num_bon?: string
+          date?: string
+          montant?: number
+          conducteur_id?: string | null
+          vehicule_id?: string | null
+          type_carburant?: string | null
+          voucher_type?: string | null
+          notes?: string | null
+          status?: string | null
+          proof_image_url?: string | null
+          km?: number | null
+          distance?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fuel_vouchers_conducteur_id_fkey"
+            columns: ["conducteur_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fuel_vouchers_vehicule_id_fkey"
+            columns: ["vehicule_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fournisseurs: {
         Row: {
           created_at: string
@@ -900,6 +1005,33 @@ export type Database = {
           section_key?: string
           subsection_key?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      vehicles: {
+        Row: {
+          id: string
+          modele: string
+          matricule: string
+          type: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          modele: string
+          matricule: string
+          type?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          modele?: string
+          matricule?: string
+          type?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }

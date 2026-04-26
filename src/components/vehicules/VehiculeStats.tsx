@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react';
-import { BarChart3, Car, Fuel, Wrench, Receipt, Users, Calendar as CalendarIcon, TrendingUp, AlertCircle, CreditCard } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { BarChart3, Car, Fuel, Wrench, Receipt, Users, Calendar as CalendarIcon, TrendingUp, AlertCircle, CreditCard, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export const VehiculeStats = () => {
   const [activeTab, setActiveTab] = useState<'voiture' | 'chauffeur'>('voiture');
@@ -20,12 +22,34 @@ export const VehiculeStats = () => {
   const [selectedVehicule, setSelectedVehicule] = useState<string>('all');
   const [selectedChauffeur, setSelectedChauffeur] = useState<string>('all');
 
-  // Load data from localStorage
-  const vehicules = useMemo(() => JSON.parse(localStorage.getItem('grosafe_vehicles') || '[]'), []);
-  const employes = useMemo(() => JSON.parse(localStorage.getItem('grosafe_employees') || '[]'), []);
-  const bons = useMemo(() => JSON.parse(localStorage.getItem('grosafe_bons') || '[]'), []);
+  // Load data from Supabase + localStorage
+  const [vehicules, setVehicules] = useState<any[]>([]);
+  const [employes, setEmployes] = useState<any[]>([]);
+  const [bons, setBons] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const maintenances = useMemo(() => JSON.parse(localStorage.getItem('grosafe_maintenances') || '[]'), []);
   const charges = useMemo(() => JSON.parse(localStorage.getItem('grosafe_charges_vehicules') || '[]'), []);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [vehRes, empRes, bonsRes] = await Promise.all([
+          supabase.from('vehicles').select('*'),
+          supabase.from('employees').select('*'),
+          supabase.from('fuel_vouchers').select('*, employee:employees(prenom, nom), vehicle:vehicles(modele, matricule)'),
+        ]);
+        setVehicules(vehRes.data || []);
+        setEmployes(empRes.data || []);
+        setBons(bonsRes.data || []);
+      } catch (error) {
+        console.error('Error loading stats data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   // Helper function to check if a date falls within the selected range
   const isWithinDateRange = (dateStr: string) => {
@@ -40,14 +64,23 @@ export const VehiculeStats = () => {
 
   // --- STATS PAR VOITURE ---
   const statsVoiture = useMemo(() => {
-    const filterVehicule = (v: string) => selectedVehicule === 'all' || v === selectedVehicule;
+    const filterVehicule = (id: string) => selectedVehicule === 'all' || id === selectedVehicule;
 
-    const filteredBons = bons.filter((b: any) => filterVehicule(b.vehicule) && isWithinDateRange(b.date));
-    const filteredMaintenances = maintenances.filter((m: any) => filterVehicule(m.vehicule) && isWithinDateRange(m.dateDebut));
-    const filteredCharges = charges.filter((c: any) => filterVehicule(c.vehicule) && isWithinDateRange(c.dateEcheance));
+    const filteredBons = bons.filter((b: any) => filterVehicule(b.vehicule_id) && isWithinDateRange(b.date));
+    const filteredMaintenances = maintenances.filter((m: any) => {
+      // Maintenances still use vehicle name string
+      const veh = vehicules.find((v: any) => v.id === selectedVehicule);
+      const vehName = veh ? `${veh.modele} (${veh.matricule})` : '';
+      return (selectedVehicule === 'all' || m.vehicule === vehName) && isWithinDateRange(m.dateDebut);
+    });
+    const filteredCharges = charges.filter((c: any) => {
+      const veh = vehicules.find((v: any) => v.id === selectedVehicule);
+      const vehName = veh ? `${veh.modele} (${veh.matricule})` : '';
+      return (selectedVehicule === 'all' || c.vehicule === vehName) && isWithinDateRange(c.dateEcheance);
+    });
 
-    const totalCarburantTND = filteredBons.reduce((acc: number, b: any) => acc + parseFloat(b.montant || '0'), 0);
-    const totalDistance = filteredBons.reduce((acc: number, b: any) => acc + parseFloat(b.distance || '0'), 0);
+    const totalCarburantTND = filteredBons.reduce((acc: number, b: any) => acc + (b.montant || 0), 0);
+    const totalDistance = filteredBons.reduce((acc: number, b: any) => acc + (b.distance || 0), 0);
     const totalMaintenanceTND = filteredMaintenances.reduce((acc: number, m: any) => acc + parseFloat(m.coutEstime || '0'), 0);
     
     // Group charges by type
@@ -74,12 +107,12 @@ export const VehiculeStats = () => {
 
   // --- STATS PAR CHAUFFEUR ---
   const statsChauffeur = useMemo(() => {
-    const filterChauffeur = (c: string) => selectedChauffeur === 'all' || c === selectedChauffeur;
+    const filterChauffeur = (id: string) => selectedChauffeur === 'all' || id === selectedChauffeur;
 
-    const filteredBons = bons.filter((b: any) => filterChauffeur(b.conducteur) && isWithinDateRange(b.date));
+    const filteredBons = bons.filter((b: any) => filterChauffeur(b.conducteur_id) && isWithinDateRange(b.date));
 
-    const totalCarburantTND = filteredBons.reduce((acc: number, b: any) => acc + parseFloat(b.montant || '0'), 0);
-    const totalDistance = filteredBons.reduce((acc: number, b: any) => acc + parseFloat(b.distance || '0'), 0);
+    const totalCarburantTND = filteredBons.reduce((acc: number, b: any) => acc + (b.montant || 0), 0);
+    const totalDistance = filteredBons.reduce((acc: number, b: any) => acc + (b.distance || 0), 0);
 
     return {
       carburant: totalCarburantTND,
@@ -151,7 +184,7 @@ export const VehiculeStats = () => {
               <SelectContent className="rounded-2xl bg-card border-border">
                 <SelectItem value="all" className="font-bold">Tous les véhicules (Global)</SelectItem>
                 {vehicules.map((v: any) => (
-                  <SelectItem key={v.id} value={`${v.modele} (${v.matricule})`}>
+                  <SelectItem key={v.id} value={v.id}>
                     {v.modele} - {v.matricule}
                   </SelectItem>
                 ))}
@@ -253,7 +286,7 @@ export const VehiculeStats = () => {
               <SelectContent className="rounded-2xl bg-card border-border">
                 <SelectItem value="all" className="font-bold">Tous les chauffeurs (Global)</SelectItem>
                 {employes.map((emp: any) => (
-                  <SelectItem key={emp.id} value={`${emp.prenom} ${emp.nom}`}>
+                  <SelectItem key={emp.id} value={emp.id}>
                     {emp.prenom} {emp.nom}
                   </SelectItem>
                 ))}
