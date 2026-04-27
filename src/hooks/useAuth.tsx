@@ -46,6 +46,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isModerator, setIsModerator] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
 
+  // Device ID for tracking concurrent logins
+  const getDeviceId = () => {
+    let id = localStorage.getItem('grosafe_device_id');
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem('grosafe_device_id', id);
+    }
+    return id;
+  };
+
   // Handle session expiration with user-friendly message
   const handleSessionExpired = async (reason: string = 'Session expirée') => {
     console.log('Session expired:', reason);
@@ -70,7 +80,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Show toast notification
     toast({
       title: '🔒 Session expirée',
-      description: 'Votre session a expiré. Veuillez vous reconnecter pour continuer.',
+      description: reason === 'Concurrent login' 
+        ? 'Quelqu\'un s\'est connecté à votre compte depuis un autre appareil. Vous avez été déconnecté.'
+        : 'Votre session a expiré. Veuillez vous reconnecter pour continuer.',
       variant: 'destructive',
       duration: 8000,
     });
@@ -178,6 +190,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (session?.user) {
         checkUserRoles(session.user.id);
+        setupSessionTracking(session.user.id);
       }
     };
 
@@ -210,6 +223,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setSessionExpired(false);
         setTimeout(() => {
           checkUserRoles(session.user.id);
+          setupSessionTracking(session.user.id);
         }, 0);
       } else {
         setIsAdmin(false);
@@ -240,8 +254,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       subscription.unsubscribe();
       clearInterval(sessionCheckInterval);
+      supabase.removeAllChannels();
     };
   }, []);
+
+  const setupSessionTracking = async (userId: string) => {
+    const deviceId = getDeviceId();
+    const channelName = `session_${userId}`;
+
+    // Update active device in profiles (fails silently if migration not run)
+    try {
+      await supabase.from('profiles').update({ active_device_id: deviceId }).eq('user_id', userId);
+    } catch (e) {
+      console.log('Could not update active device (migration might be missing)', e);
+    }
+
+    const channel = supabase.channel(channelName);
+    
+    channel
+      .on('broadcast', { event: 'new_login' }, (payload) => {
+        if (payload.payload?.device_id && payload.payload.device_id !== deviceId) {
+          console.log('Concurrent login detected, logging out...');
+          handleSessionExpired('Concurrent login');
+        }
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.send({
+            type: 'broadcast',
+            event: 'new_login',
+            payload: { device_id: deviceId },
+          });
+        }
+      });
+  };
 
   const checkUserRoles = async (userId: string) => {
     try {

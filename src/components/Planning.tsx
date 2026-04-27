@@ -42,7 +42,14 @@ const SHIFT_MAP: Record<string, { label: string; bg: string; text: string }> = {
   R: { label: 'R', bg: 'bg-red-500/20', text: 'text-red-600 dark:text-red-400' },
   J: { label: 'J', bg: 'bg-emerald-500/20', text: 'text-emerald-600 dark:text-emerald-400' },
   N: { label: 'N', bg: 'bg-blue-500/20', text: 'text-blue-600 dark:text-blue-400' },
+  'J-P1': { label: 'J-P1', bg: 'bg-orange-500/20', text: 'text-orange-600 dark:text-orange-400' },
+  'J-P2': { label: 'bg-purple-500/20', bg: 'bg-purple-500/20', text: 'text-purple-600 dark:text-purple-400' },
+  'N-P1': { label: 'N-P1', bg: 'bg-indigo-500/20', text: 'text-indigo-600 dark:text-indigo-400' },
+  'N-P2': { label: 'N-P2', bg: 'bg-pink-500/20', text: 'text-pink-600 dark:text-pink-400' },
 };
+
+// Fix label for J-P2
+SHIFT_MAP['J-P2'].label = 'J-P2';
 
 const SHIFT_HOURS: Record<string, number> = { J: 8, N: 8, R: 0 };
 
@@ -223,11 +230,20 @@ export const Planning = () => {
   const handleShiftInput = useCallback(
     (empId: string, dk: string, value: string) => {
       const upper = value.toUpperCase().slice(-1); // take last char
-      if (upper && !['R', 'J', 'N'].includes(upper)) return;
+      let finalValue = upper;
+      
+      // Shortcuts
+      if (upper === 'A') finalValue = 'J-P1';
+      else if (upper === 'Z') finalValue = 'J-P2';
+      else if (upper === 'O') finalValue = 'N-P1';
+      else if (upper === 'P') finalValue = 'N-P2';
+
+      if (finalValue && !SHIFT_MAP[finalValue]) return;
+      
       setEmployees((prev) =>
         prev.map((emp) =>
           emp.id === empId
-            ? { ...emp, shifts: { ...emp.shifts, [dk]: upper } }
+            ? { ...emp, shifts: { ...emp.shifts, [dk]: finalValue } }
             : emp
         )
       );
@@ -261,18 +277,36 @@ export const Planning = () => {
   // Summary calculations per employee
   const summaries = useMemo(() => {
     return employees.map((emp) => {
-      let totalJ = 0;
-      let totalN = 0;
-      let totalR = 0;
+      let totalJ = 0, totalN = 0, totalR = 0;
+      let totalJP1 = 0, totalJP2 = 0, totalNP1 = 0, totalNP2 = 0;
+
       dates.forEach((d) => {
         const code = emp.shifts[dateKey(d)] || '';
         if (code === 'J') totalJ++;
         else if (code === 'N') totalN++;
         else if (code === 'R') totalR++;
+        else if (code === 'J-P1') totalJP1++;
+        else if (code === 'J-P2') totalJP2++;
+        else if (code === 'N-P1') totalNP1++;
+        else if (code === 'N-P2') totalNP2++;
       });
-      const workHours = totalJ * SHIFT_HOURS.J + totalN * SHIFT_HOURS.N;
-      const restHours = totalR * 24;
-      return { totalJ, totalN, totalR, workHours, restHours };
+
+      const totalWorkDays = totalJ + totalN + totalJP1 + totalJP2 + totalNP1 + totalNP2;
+      
+      // Salary Formula: 
+      // If work days >= 15 -> 250.000 DT
+      // Else -> (250.000 / 22) * work days
+      let salary = 0;
+      if (totalWorkDays >= 15) {
+        salary = 250.000;
+      } else {
+        salary = (250.000 / 22) * totalWorkDays;
+      }
+
+      return { 
+        totalJ, totalN, totalR, totalJP1, totalJP2, totalNP1, totalNP2, 
+        totalWorkDays, salary 
+      };
     });
   }, [employees, dates]);
 
@@ -372,6 +406,10 @@ export const Planning = () => {
           if (val === 'R') { data.cell.styles.fillColor = [254, 202, 202]; data.cell.styles.textColor = [185, 28, 28]; }
           else if (val === 'J') { data.cell.styles.fillColor = [187, 247, 208]; data.cell.styles.textColor = [21, 128, 61]; }
           else if (val === 'N') { data.cell.styles.fillColor = [191, 219, 254]; data.cell.styles.textColor = [29, 78, 216]; }
+          else if (val === 'J-P1') { data.cell.styles.fillColor = [255, 237, 213]; data.cell.styles.textColor = [194, 65, 12]; }
+          else if (val === 'J-P2') { data.cell.styles.fillColor = [243, 232, 255]; data.cell.styles.textColor = [126, 34, 206]; }
+          else if (val === 'N-P1') { data.cell.styles.fillColor = [224, 231, 255]; data.cell.styles.textColor = [67, 56, 202]; }
+          else if (val === 'N-P2') { data.cell.styles.fillColor = [252, 231, 243]; data.cell.styles.textColor = [190, 24, 93]; }
         }
       },
     });
@@ -381,7 +419,7 @@ export const Planning = () => {
     addHeader('Résumé / Récapitulatif');
 
     // RTL: Reverse the columns
-    const summaryHead = [['#', 'Employé(e)', 'J (Jour)', 'N (Nuit)', 'R (Repos)', 'Heures de travail', 'Heures de repos'].reverse()];
+    const summaryHead = [['#', 'Employé(e)', 'J', 'N', 'J-P1', 'J-P2', 'N-P1', 'N-P2', 'R', 'Total Travail'].reverse()];
     const summaryBody = employees.map((emp, i) => {
       const s = summaries[i];
       return [
@@ -389,9 +427,12 @@ export const Planning = () => {
         emp.name || `Employé(e) ${i + 1}`,
         String(s.totalJ),
         String(s.totalN),
+        String(s.totalJP1),
+        String(s.totalJP2),
+        String(s.totalNP1),
+        String(s.totalNP2),
         String(s.totalR),
-        String(s.workHours),
-        String(s.restHours),
+        `${s.totalWorkDays} j`,
       ].reverse();
     });
 
@@ -399,9 +440,33 @@ export const Planning = () => {
       head: summaryHead,
       body: summaryBody,
       startY: 30,
-      styles: { fontSize: 9, cellPadding: 2, halign: 'center' },
-      headStyles: { fillColor: [30, 58, 95], fontSize: 8 },
-      columnStyles: { 5: { halign: 'right' } }, // Employee name is at index 5 when reversed (7 cols total, # is 6)
+      styles: { fontSize: 8, cellPadding: 2, halign: 'center' },
+      headStyles: { fillColor: [30, 58, 95], fontSize: 7 },
+      columnStyles: { 8: { halign: 'right' } }, // Employee name index
+    });
+
+    // --- Page 3: Salaries ---
+    doc.addPage();
+    addHeader('Estimation Salaires');
+
+    const salaryHead = [['#', 'Employé(e)', 'Jours de travail', 'Salaire (DT)'].reverse()];
+    const salaryBody = employees.map((emp, i) => {
+      const s = summaries[i];
+      return [
+        String(i + 1),
+        emp.name || `Employé(e) ${i + 1}`,
+        String(s.totalWorkDays),
+        `${s.salary.toFixed(3)} DT`,
+      ].reverse();
+    });
+
+    autoTable(doc, {
+      head: salaryHead,
+      body: salaryBody,
+      startY: 30,
+      styles: { fontSize: 9, cellPadding: 3, halign: 'center' },
+      headStyles: { fillColor: [21, 128, 61], fontSize: 8 },
+      columnStyles: { 2: { halign: 'right' } },
     });
 
     doc.save(`planning_${formatDD_MM(startDate)}_${formatDD_MM(endDate)}.pdf`);
@@ -599,12 +664,28 @@ export const Planning = () => {
             نهاري
           </span>
           <span className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-xs">N</span>
+            <span className="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-xs">ليلي</span>
             ليلي
           </span>
           <span className="flex items-center gap-2">
             <span className="w-7 h-7 rounded-lg bg-red-500/20 text-red-600 dark:text-red-400 font-bold flex items-center justify-center text-xs">R</span>
             راحة
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-orange-500/20 text-orange-600 dark:text-orange-400 font-bold flex items-center justify-center text-[10px]">J-P1</span>
+            J-P1 (A)
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-600 dark:text-purple-400 font-bold flex items-center justify-center text-[10px]">J-P2</span>
+            J-P2 (Z)
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center text-[10px]">N-P1</span>
+            N-P1 (O)
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-pink-500/20 text-pink-600 dark:text-pink-400 font-bold flex items-center justify-center text-[10px]">N-P2</span>
+            N-P2 (P)
           </span>
         </div>
       )}
@@ -679,7 +760,7 @@ export const Planning = () => {
                               value={code}
                               onChange={(e) => handleShiftInput(emp.id, dk, e.target.value)}
                               onKeyDown={(e) => handleCellKeyDown(e, empIdx, dateIdx)}
-                              maxLength={1}
+                              maxLength={4}
                               className={`w-9 h-8 text-center text-xs font-bold rounded-md border-0 outline-none focus:ring-2 focus:ring-primary/50 transition-all ${
                                 style
                                   ? `${style.bg} ${style.text}`
@@ -726,19 +807,28 @@ export const Planning = () => {
                     الموظف
                   </th>
                   <th className="px-3 py-3 text-center text-xs font-semibold border-b border-l border-border bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                    نهاري (J)
+                    J
                   </th>
                   <th className="px-3 py-3 text-center text-xs font-semibold border-b border-l border-border bg-blue-500/10 text-blue-700 dark:text-blue-400">
-                    ليلي (N)
+                    N
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-l border-border bg-orange-500/10 text-orange-700 dark:text-orange-400">
+                    J-P1
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-l border-border bg-purple-500/10 text-purple-700 dark:text-purple-400">
+                    J-P2
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-l border-border bg-indigo-500/10 text-indigo-700 dark:text-indigo-400">
+                    N-P1
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-l border-border bg-pink-500/10 text-pink-700 dark:text-pink-400">
+                    N-P2
                   </th>
                   <th className="px-3 py-3 text-center text-xs font-semibold border-b border-l border-border bg-red-500/10 text-red-700 dark:text-red-400">
-                    راحة (R)
+                    R
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-l border-border bg-primary/10 text-primary">
-                    ساعات العمل
-                  </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-border bg-muted/40 text-muted-foreground">
-                    ساعات الراحة
+                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-border bg-primary/10 text-primary">
+                    Total Travail (Jours)
                   </th>
                 </tr>
               </thead>
@@ -761,14 +851,67 @@ export const Planning = () => {
                       <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border bg-blue-500/5 text-blue-600 dark:text-blue-400">
                         {s.totalN}
                       </td>
+                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border bg-orange-500/5 text-orange-600 dark:text-orange-400">
+                        {s.totalJP1}
+                      </td>
+                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border bg-purple-500/5 text-purple-600 dark:text-purple-400">
+                        {s.totalJP2}
+                      </td>
+                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border bg-indigo-500/5 text-indigo-600 dark:text-indigo-400">
+                        {s.totalNP1}
+                      </td>
+                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border bg-pink-500/5 text-pink-600 dark:text-pink-400">
+                        {s.totalNP2}
+                      </td>
                       <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border bg-red-500/5 text-red-600 dark:text-red-400">
                         {s.totalR}
                       </td>
-                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border bg-primary/5 text-primary">
-                        {s.workHours}h
+                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-border bg-primary/5 text-primary">
+                        {s.totalWorkDays} j
                       </td>
-                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-border text-muted-foreground">
-                        {s.restHours}h
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Salary Table ────────────────────────────────── */}
+      {isGenerated && (
+        <div className="rounded-2xl border border-border bg-card shadow-md overflow-hidden mt-6">
+          <div className="p-4 border-b border-border bg-muted/30">
+            <h3 className="text-base font-semibold text-foreground">جدول الرواتب (Estimation Salaires)</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-muted/60">
+                  <th className="px-4 py-3 text-right text-sm font-semibold text-muted-foreground border-b border-l border-border min-w-[200px]">
+                    الموظف
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-l border-border">
+                    أيام العمل الإجمالية
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-border bg-emerald-500/10 text-emerald-700">
+                    الراتب (DT)
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {employees.map((emp, empIdx) => {
+                  const s = summaries[empIdx];
+                  return (
+                    <tr key={emp.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-2 text-sm font-medium text-foreground border-b border-l border-border">
+                        {emp.name || `موظف ${empIdx + 1}`}
+                      </td>
+                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border">
+                        {s.totalWorkDays}
+                      </td>
+                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-border text-emerald-600">
+                        {s.salary.toFixed(3)} DT
                       </td>
                     </tr>
                   );

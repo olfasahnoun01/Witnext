@@ -125,7 +125,7 @@ Deno.serve(async (req: Request) => {
         
         if (error) {
           return new Response(JSON.stringify({ error: mapErrorToUserMessage(error) }), {
-            status: 400,
+            status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
@@ -153,14 +153,14 @@ Deno.serve(async (req: Request) => {
 
         if (!email || !validateEmail(email)) {
           return new Response(JSON.stringify({ error: 'Format d\'email invalide' }), {
-            status: 400,
+            status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
 
         if (!password || !validatePassword(password)) {
           return new Response(JSON.stringify({ error: 'Le mot de passe doit contenir entre 6 et 128 caractères' }), {
-            status: 400,
+            status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
@@ -176,7 +176,7 @@ Deno.serve(async (req: Request) => {
         if (createError) {
           console.error('Auth creation failed:', createError.message)
           return new Response(JSON.stringify({ error: mapErrorToUserMessage(createError) }), {
-            status: 400,
+            status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
@@ -218,7 +218,7 @@ Deno.serve(async (req: Request) => {
         
         if (!user_id) {
           return new Response(JSON.stringify({ error: 'ID utilisateur requis' }), {
-            status: 400,
+            status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
@@ -229,7 +229,7 @@ Deno.serve(async (req: Request) => {
         if (password) {
           if (!validatePassword(password)) {
             return new Response(JSON.stringify({ error: 'Le mot de passe doit contenir entre 6 et 128 caractères' }), {
-              status: 400,
+              status: 200,
               headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             })
           }
@@ -248,7 +248,7 @@ Deno.serve(async (req: Request) => {
 
           if (updateError) {
             return new Response(JSON.stringify({ error: mapErrorToUserMessage(updateError) }), {
-              status: 400,
+              status: 200,
               headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             })
           }
@@ -296,14 +296,14 @@ Deno.serve(async (req: Request) => {
 
         if (!user_id) {
           return new Response(JSON.stringify({ error: 'ID utilisateur requis' }), {
-            status: 400,
+            status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
 
         if (user_id === requestingUserId) {
           return new Response(JSON.stringify({ error: 'Vous ne pouvez pas supprimer votre propre compte' }), {
-            status: 400,
+            status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
@@ -312,7 +312,7 @@ Deno.serve(async (req: Request) => {
 
         if (deleteError) {
           return new Response(JSON.stringify({ error: mapErrorToUserMessage(deleteError) }), {
-            status: 400,
+            status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
@@ -324,7 +324,7 @@ Deno.serve(async (req: Request) => {
 
       default:
         return new Response(JSON.stringify({ error: 'Action non reconnue' }), {
-          status: 400,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
     }
