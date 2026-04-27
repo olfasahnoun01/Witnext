@@ -46,7 +46,7 @@ interface Client {
 }
 
 interface DevisFormProps {
-  devisType: 'entrant' | 'sortant';
+  devisType: 'achat' | 'vente';
   devisNumber: string;
   devisDate: string;
   thirdPartyName: string;
@@ -58,7 +58,7 @@ interface DevisFormProps {
   editingDevis: Devis | null;
   isSaving: boolean;
   isTtc: boolean;
-  setDevisType: (t: 'entrant' | 'sortant') => void;
+  setDevisType: (t: 'achat' | 'vente') => void;
   setDevisNumber: (v: string) => void;
   setDevisDate: (v: string) => void;
   setThirdPartyName: (v: string) => void;
@@ -85,7 +85,7 @@ export const DevisForm = memo(({
   onSave, onUpdate, onCancel,
   docType, setDocType,
 }: DevisFormProps) => {
-  const isEntrant = devisType === 'entrant';
+  const isAchat = devisType === 'achat';
 
   // Third parties
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
@@ -180,8 +180,8 @@ export const DevisForm = memo(({
         .select('id, name, sku, category, fournisseur, size, color, price, prix_ttc, remise, quantity, min_stock, product_group_id')
         .ilike('name', `${debouncedSearch}%`);
 
-      // Filter by selected fournisseur in devis entrant
-      if (isEntrant && thirdPartyName.trim()) {
+      // Filter by selected fournisseur in devis achat
+      if (isAchat && thirdPartyName.trim()) {
         query = query.eq('fournisseur', thirdPartyName.trim());
       }
 
@@ -201,19 +201,19 @@ export const DevisForm = memo(({
     };
     search();
     return () => { cancelled = true; };
-  }, [debouncedSearch, isEntrant, thirdPartyName]);
+  }, [debouncedSearch, isAchat, thirdPartyName]);
 
   const selectExistingProduct = useCallback((product: Product) => {
     setSelectedProduct(product);
     setItemDesignation(product.name);
     setItemFournisseur(product.fournisseur || '');
-    if (isEntrant) {
-      // For entrant: retrieved price is HT (product.price), TTC is calculated from it
+    if (isAchat) {
+      // For achat: retrieved price is HT (product.price), TTC is calculated from it
       const priceHt = product.price || 0;
       setItemPrixTtc(priceHt);
-      setItemPrixAchat(0); // Not needed for entrant
+      setItemPrixAchat(0); // Not needed for achat
     } else {
-      // For sortant: prix achat is cost from DB, prix vente starts at 0
+      // For vente: prix achat is cost from DB, prix vente starts at 0
       setItemPrixAchat(product.price || 0);
       setItemPrixTtc(0);
     }
@@ -225,7 +225,7 @@ export const DevisForm = memo(({
     setItemPrixAchat(basePrixAchat);
     setProductSearch('');
     setSearchResults([]);
-  }, [isTtc, isEntrant]);
+  }, [isTtc, isAchat]);
 
   useEffect(() => { setSelectedThirdPartyId(''); }, [devisType]);
 
@@ -235,7 +235,7 @@ export const DevisForm = memo(({
       setThirdPartyName(''); setThirdPartyAddress(''); setThirdPartyTaxId(''); setThirdPartyPhone('');
       return;
     }
-    const list = isEntrant ? fournisseurs : clients;
+    const list = isAchat ? fournisseurs : clients;
     const item = list.find(x => x.id.toString() === id);
     if (item) {
       setThirdPartyName(item.nom);
@@ -243,7 +243,7 @@ export const DevisForm = memo(({
       setThirdPartyTaxId(item.matricule_fiscale || '');
       setThirdPartyPhone(item.phone || '');
     }
-  }, [isEntrant, fournisseurs, clients, setThirdPartyName, setThirdPartyAddress, setThirdPartyTaxId, setThirdPartyPhone]);
+  }, [isAchat, fournisseurs, clients, setThirdPartyName, setThirdPartyAddress, setThirdPartyTaxId, setThirdPartyPhone]);
 
   const newFournisseurCities = useMemo(() => {
     return newFournisseurGovernorate
@@ -280,7 +280,7 @@ export const DevisForm = memo(({
     } else if (data) {
       toast.success('Fournisseur créé');
       setFournisseurs(prev => [...prev, data as Fournisseur].sort((a, b) => a.nom.localeCompare(b.nom)));
-      if (isEntrant) {
+      if (isAchat) {
         setThirdPartyName(data.nom);
         setThirdPartyPhone((data as any).phone || '');
         setThirdPartyAddress((data as any).location || '');
@@ -290,7 +290,7 @@ export const DevisForm = memo(({
       setShowNewFournisseur(false);
       resetNewFournisseurForm();
     }
-  }, [newFournisseurName, newFournisseurMatricule, newFournisseurPhone, newFournisseurSpecialite, newFournisseurGovernorate, newFournisseurCity, isEntrant, setThirdPartyName, setThirdPartyPhone, setThirdPartyAddress, setThirdPartyTaxId, resetNewFournisseurForm]);
+  }, [newFournisseurName, newFournisseurMatricule, newFournisseurPhone, newFournisseurSpecialite, newFournisseurGovernorate, newFournisseurCity, isAchat, setThirdPartyName, setThirdPartyPhone, setThirdPartyAddress, setThirdPartyTaxId, resetNewFournisseurForm]);
 
   const addItem = useCallback(() => {
     if (!itemDesignation.trim()) { toast.error('Nom d\'article requis'); return; }
@@ -307,7 +307,7 @@ export const DevisForm = memo(({
       quantity: itemQuantity,
       description: itemDescription.trim() || undefined,
       tva: itemTva,
-      ...(devisType === 'sortant' && itemPrixAchat > 0 ? { prix_achat: itemPrixAchat } : {}),
+      ...(devisType === 'vente' && itemPrixAchat > 0 ? { prix_achat: itemPrixAchat } : {}),
       product_id: selectedProduct?.id,
     }));
 
@@ -315,7 +315,7 @@ export const DevisForm = memo(({
     
     setItemTva(19);
     setSelectedProduct(null);
-  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, itemTva, devisType, isEntrant, setDevisItems]);
+  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, itemTva, devisType, isAchat, setDevisItems]);
 
 
 
@@ -349,7 +349,7 @@ export const DevisForm = memo(({
       quantity: editItemQty,
       remise: editItemRemise,
       tva: editItemTva,
-      ...(devisType === 'sortant' ? { prix_achat: editItemPrixAchat } : {}),
+      ...(devisType === 'vente' ? { prix_achat: editItemPrixAchat } : {}),
     } : item));
     setEditingItemIdx(null);
   }, [editingItemIdx, editItemPrix, editItemQty, editItemRemise, editItemTva, editItemPrixAchat, devisType, setDevisItems]);
@@ -546,7 +546,7 @@ export const DevisForm = memo(({
             remise: d.remise || 0,
             quantity: 1,
             description: `${d.sku}${d.size ? ` - Taille: ${d.size}` : ''}${d.color ? ` - ${d.color}` : ''}`.trim() || undefined,
-            ...(devisType === 'sortant' ? { prix_achat: d.price || 0 } : {}),
+            ...(devisType === 'vente' ? { prix_achat: d.price || 0 } : {}),
             product_id: d.id,
           }));
           setDevisItems(prev => [...prev, ...newItems]);
@@ -758,14 +758,14 @@ export const DevisForm = memo(({
   }, [productGroups, groupSearch]);
 
   // All prices in the system are HT — always pass false so the engine adds TVA on top
-  const isSortantTTC = false;
+  const isVenteTTC = false;
   const devisTotals = useMemo(() => {
     return computeDevisTotals(devisItems, false);
   }, [devisItems, isTtc, devisType]);
   const totalAmount = devisTotals.totalFinal;
-  const thirdPartyList = isEntrant ? fournisseurs : clients;
-  const ThirdPartyIcon = isEntrant ? Building2 : Users;
-  const thirdPartyLabel = isEntrant ? 'Fournisseur (expéditeur)' : 'Client (destinataire)';
+  const thirdPartyList = isAchat ? fournisseurs : clients;
+  const ThirdPartyIcon = isAchat ? Building2 : Users;
+  const thirdPartyLabel = isAchat ? 'Fournisseur (expéditeur)' : 'Client (destinataire)';
 
   return (
     <>
@@ -818,26 +818,26 @@ export const DevisForm = memo(({
             </label>
             <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={() => setDevisType('entrant')}
-                className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${devisType === 'entrant'
+                onClick={() => setDevisType('achat')}
+                className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${devisType === 'achat'
                     ? 'border-success bg-success/10 text-success'
                     : 'border-border text-muted-foreground hover:border-muted-foreground'
                   }`}
               >
-                📥 Devis Entrant
+                📥 Devis Achat
               </button>
               <button
-                onClick={() => setDevisType('sortant')}
-                className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${devisType === 'sortant'
+                onClick={() => setDevisType('vente')}
+                className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${devisType === 'vente'
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border text-muted-foreground hover:border-muted-foreground'
                   }`}
               >
-                {docType === 'devis' ? '📤 Devis Sortant' : '📤 BC Sortant'}
+                {docType === 'devis' ? '📤 Devis Vente' : '📤 BC Vente'}
               </button>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              {isEntrant
+              {isAchat
                 ? docType === 'bc'
                   ? '⬇️ Un fournisseur nous envoie sa commande'
                   : '⬇️ Un fournisseur nous envoie un devis (nous sommes le récepteur)'
@@ -884,13 +884,13 @@ export const DevisForm = memo(({
           </div>
 
           {/* Third Party */}
-          <div className={`p-4 rounded-xl ${isEntrant ? 'bg-success/5 border border-success/20' : 'bg-primary/5 border border-primary/20'}`}>
+          <div className={`p-4 rounded-xl ${isAchat ? 'bg-success/5 border border-success/20' : 'bg-primary/5 border border-primary/20'}`}>
             <div className="flex items-center justify-between mb-3">
-              <h4 className={`font-medium flex items-center gap-2 ${isEntrant ? 'text-success' : 'text-primary'}`}>
+              <h4 className={`font-medium flex items-center gap-2 ${isAchat ? 'text-success' : 'text-primary'}`}>
                 <ThirdPartyIcon className="w-4 h-4" />
                 {thirdPartyLabel}
               </h4>
-              {isEntrant && (
+              {isAchat && (
                 <Button variant="ghost" size="sm" onClick={() => setShowNewFournisseur(true)} className="text-xs">
                   <UserPlus className="w-3.5 h-3.5 mr-1" />
                   Nouveau
@@ -1012,19 +1012,19 @@ export const DevisForm = memo(({
                   )}
 
                   {/* Quantity, Price & Remise */}
-                  <div className={`grid gap-3 ${devisType === 'sortant' ? (isTtc ? 'grid-cols-6' : 'grid-cols-4') : (isTtc ? 'grid-cols-5' : 'grid-cols-3')}`}>
+                  <div className={`grid gap-3 ${devisType === 'vente' ? (isTtc ? 'grid-cols-6' : 'grid-cols-4') : (isTtc ? 'grid-cols-5' : 'grid-cols-3')}`}>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
                     </div>
-                    {devisType === 'sortant' && (
+                    {devisType === 'vente' && (
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
                         <input type="number" min="0" step="0.001" value={itemPrixAchat || ''} onChange={e => setItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
                       </div>
                     )}
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">{isEntrant ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
                     <div>
@@ -1043,7 +1043,7 @@ export const DevisForm = memo(({
                     )}
                     {isTtc && (
                       <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">{isEntrant ? 'Prix Achat TTC' : 'Prix Vente TTC'}</label>
+                        <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC' : 'Prix Vente TTC'}</label>
                         <input type="number" min="0" step="0.001" value={parseFloat((itemPrixTtc * (1 - itemRemise / 100) * (1 + itemTva / 100)).toFixed(3)) || ''} onChange={e => {
                           const ttcVal = parseFloat(e.target.value) || 0;
                           const remiseFactor = 1 - (itemRemise / 100);
@@ -1062,19 +1062,19 @@ export const DevisForm = memo(({
                     <input type="text" value={itemFournisseur} onChange={e => setItemFournisseur(e.target.value)} className="form-input" placeholder="Fournisseur" />
                     <input type="text" value={itemDescription} onChange={e => setItemDescription(e.target.value)} className="form-input" placeholder="Description (opt.)" />
                   </div>
-                  <div className={`grid gap-3 ${devisType === 'sortant' ? (isTtc ? 'grid-cols-6' : 'grid-cols-4') : (isTtc ? 'grid-cols-5' : 'grid-cols-3')}`}>
+                  <div className={`grid gap-3 ${devisType === 'vente' ? (isTtc ? 'grid-cols-6' : 'grid-cols-4') : (isTtc ? 'grid-cols-5' : 'grid-cols-3')}`}>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Quantité</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
                     </div>
-                    {devisType === 'sortant' && (
+                    {devisType === 'vente' && (
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
                         <input type="number" min="0" step="0.001" value={itemPrixAchat || ''} onChange={e => setItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
                       </div>
                     )}
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">{isEntrant ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
                       <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
                     </div>
                     <div>
@@ -1093,7 +1093,7 @@ export const DevisForm = memo(({
                     )}
                     {isTtc && (
                       <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">{isEntrant ? 'Prix Achat TTC' : 'Prix Vente TTC'}</label>
+                        <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC' : 'Prix Vente TTC'}</label>
                         <input type="number" min="0" step="0.001" value={parseFloat((itemPrixTtc * (1 - itemRemise / 100) * (1 + itemTva / 100)).toFixed(3)) || ''} onChange={e => {
                           const ttcVal = parseFloat(e.target.value) || 0;
                           const remiseFactor = 1 - (itemRemise / 100);
@@ -1192,19 +1192,19 @@ export const DevisForm = memo(({
                   {editingItemIdx === idx ? (
                     <div className="space-y-3">
                       <p className="font-medium text-foreground">{item.designation}</p>
-                      <div className={`grid gap-3 ${devisType === 'sortant' ? (isTtc ? 'grid-cols-6' : 'grid-cols-4') : (isTtc ? 'grid-cols-5' : 'grid-cols-3')}`}>
+                      <div className={`grid gap-3 ${devisType === 'vente' ? (isTtc ? 'grid-cols-6' : 'grid-cols-4') : (isTtc ? 'grid-cols-5' : 'grid-cols-3')}`}>
                         <div>
                           <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
                           <input type="number" min="1" value={editItemQty} onChange={e => setEditItemQty(parseInt(e.target.value) || 1)} className="form-input" />
                         </div>
-                        {devisType === 'sortant' && (
+                        {devisType === 'vente' && (
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
                             <input type="number" min="0" step="0.001" value={editItemPrixAchat || ''} onChange={e => setEditItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
                           </div>
                         )}
                         <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">{isEntrant ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
+                          <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
                           <input type="number" min="0" step="0.001" value={editItemPrix || ''} onChange={e => setEditItemPrix(parseFloat(e.target.value) || 0)} className="form-input" />
                         </div>
                         <div>
@@ -1223,7 +1223,7 @@ export const DevisForm = memo(({
                         )}
                         {isTtc && (
                           <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">{isEntrant ? 'Prix Achat TTC' : 'Prix Vente TTC'}</label>
+                            <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC' : 'Prix Vente TTC'}</label>
                             <input type="number" min="0" step="0.001" value={parseFloat((editItemPrix * (1 - editItemRemise / 100) * (1 + editItemTva / 100)).toFixed(3)) || ''} onChange={e => {
                               const ttcVal = parseFloat(e.target.value) || 0;
                               const remiseFactor = 1 - (editItemRemise / 100);
@@ -1246,14 +1246,14 @@ export const DevisForm = memo(({
                           {item.fournisseur && `${item.fournisseur} • `}
                           Qté: {item.quantity}
                           {item.prix_achat != null && item.prix_achat > 0 && ` • Achat HT: ${item.prix_achat.toFixed(3)}`}
-                          {item.prix_achat != null && item.prix_achat > 0 && isTtc && !isEntrant && ` (TTC: ${(item.prix_achat * (1 + (item.tva ?? 19) / 100)).toFixed(3)})`}
-                          {` • ${isEntrant ? 'Achat' : 'P.U'} HT: ${item.prix_ttc.toFixed(3)}`}
-                          {isTtc && !isEntrant && ` (TTC: ${(item.prix_ttc * (1 + (item.tva ?? 19) / 100)).toFixed(3)})`}
+                          {item.prix_achat != null && item.prix_achat > 0 && isTtc && !isAchat && ` (TTC: ${(item.prix_achat * (1 + (item.tva ?? 19) / 100)).toFixed(3)})`}
+                          {` • ${isAchat ? 'Achat' : 'P.U'} HT: ${item.prix_ttc.toFixed(3)}`}
+                          {isTtc && !isAchat && ` (TTC: ${(item.prix_ttc * (1 + (item.tva ?? 19) / 100)).toFixed(3)})`}
                           {isTtc && ` • TVA: ${item.tva ?? 19}%`}
                           {(() => {
-                            const line = computeDevisLine(item, isSortantTTC);
-                            const unitAfter = isSortantTTC ? line.unitAfterRemiseTTC : line.unitAfterRemiseHT;
-                            const lineTotal = isSortantTTC ? line.lineTTC : line.lineHT;
+                            const line = computeDevisLine(item, isVenteTTC);
+                            const unitAfter = isVenteTTC ? line.unitAfterRemiseTTC : line.unitAfterRemiseHT;
+                            const lineTotal = isVenteTTC ? line.lineTTC : line.lineHT;
                             return (
                               <>
                                 {item.remise > 0 && ` • Remise: ${item.remise}% → ${unitAfter.toFixed(3)} TND`}

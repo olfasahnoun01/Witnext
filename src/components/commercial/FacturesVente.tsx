@@ -1,0 +1,159 @@
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, Search, FileText, CheckCircle, Clock, XCircle, FileEdit, Trash2, Eye } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { Facture } from '@/types';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+
+export const FacturesVente = () => {
+  const [factures, setFactures] = useState<Facture[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const fetchFactures = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('factures')
+        .select('*')
+        .eq('type', 'vente')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setFactures(data || []);
+    } catch (err: any) {
+      console.error('Error fetching factures:', err);
+      toast.error('Erreur lors du chargement des factures');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFactures();
+  }, [fetchFactures]);
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'payée':
+        return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-success/10 text-success border border-success/20"><CheckCircle className="w-3.5 h-3.5" /> Payée</span>;
+      case 'envoyée':
+        return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20"><FileText className="w-3.5 h-3.5" /> Envoyée</span>;
+      case 'retard':
+        return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-destructive/10 text-destructive border border-destructive/20"><Clock className="w-3.5 h-3.5" /> En Retard</span>;
+      case 'annulée':
+        return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border"><XCircle className="w-3.5 h-3.5" /> Annulée</span>;
+      default:
+        return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-secondary text-secondary-foreground border border-border"><FileEdit className="w-3.5 h-3.5" /> Brouillon</span>;
+    }
+  };
+
+  const filteredFactures = factures.filter(f => 
+    f.numero?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    f.third_party_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <h2 className="text-2xl font-bold tracking-tight">Factures de Vente</h2>
+        
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="relative flex-1 md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Rechercher une facture..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+          </div>
+          <button
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
+            onClick={() => toast.info('Création de facture bientôt disponible')}
+          >
+            <Plus className="w-4 h-4" />
+            Créer Facture
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-muted/50 text-muted-foreground">
+              <tr>
+                <th className="px-6 py-4 font-medium">N° Facture</th>
+                <th className="px-6 py-4 font-medium">Client</th>
+                <th className="px-6 py-4 font-medium">Date</th>
+                <th className="px-6 py-4 font-medium">Échéance</th>
+                <th className="px-6 py-4 font-medium text-right">Montant TTC</th>
+                <th className="px-6 py-4 font-medium text-center">Statut</th>
+                <th className="px-6 py-4 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
+                    Chargement des factures...
+                  </td>
+                </tr>
+              ) : filteredFactures.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
+                    <div className="flex flex-col items-center gap-2">
+                      <FileText className="w-8 h-8 text-muted-foreground/50" />
+                      <p>Aucune facture trouvée</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredFactures.map((facture) => (
+                  <tr key={facture.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-6 py-4 font-medium text-foreground">
+                      {facture.numero}
+                    </td>
+                    <td className="px-6 py-4">
+                      {facture.third_party_name || '-'}
+                    </td>
+                    <td className="px-6 py-4 text-muted-foreground">
+                      {format(new Date(facture.date_creation), 'dd MMM yyyy', { locale: fr })}
+                    </td>
+                    <td className="px-6 py-4 text-muted-foreground">
+                      {facture.date_echeance ? format(new Date(facture.date_echeance), 'dd MMM yyyy', { locale: fr }) : '-'}
+                    </td>
+                    <td className="px-6 py-4 text-right font-medium">
+                      {facture.total_amount.toLocaleString('fr-TN', { style: 'currency', currency: 'TND' })}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      {getStatusBadge(facture.status)}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          className="p-2 text-muted-foreground hover:text-primary transition-colors rounded-lg hover:bg-primary/10"
+                          title="Voir"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          className="p-2 text-muted-foreground hover:text-destructive transition-colors rounded-lg hover:bg-destructive/10"
+                          title="Supprimer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};

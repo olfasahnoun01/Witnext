@@ -27,7 +27,7 @@ const parseDevisRow = (d: any, profilesMap: Record<string, string>, sourceDevisM
   }
   return {
     ...d,
-    type: d.type as 'entrant' | 'sortant',
+    type: d.type as 'achat' | 'vente',
     status: d.status as 'brouillon' | 'envoyé' | 'accepté' | 'refusé' | 'confirmé' | 'reçu' | 'intégré',
     items: parsedItems,
     total_amount: Number(d.total_amount) || 0,
@@ -62,7 +62,7 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
   const devisNumberRef = useRef('');
 
   // Form state
-  const [devisType, setDevisType] = useState<'entrant' | 'sortant'>('sortant');
+  const [devisType, setDevisType] = useState<'achat' | 'vente'>('vente');
   const [devisNumber, setDevisNumber] = useState('');
   const [devisDate, setDevisDate] = useState(new Date().toISOString().split('T')[0]);
   const [thirdPartyName, setThirdPartyName] = useState('');
@@ -125,14 +125,14 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
 
   useEffect(() => { devisNumberRef.current = devisNumber; }, [devisNumber]);
 
-  const generateNextNumber = useCallback((type: 'entrant' | 'sortant', mode: 'devis' | 'bc' | 'ba' = 'devis') => {
+  const generateNextNumber = useCallback((type: 'achat' | 'vente', mode: 'devis' | 'bc' | 'ba' = 'devis') => {
     let prefix = 'DE';
     if (mode === 'bc') {
-      prefix = type === 'entrant' ? 'BCE' : 'BCS';
+      prefix = type === 'achat' ? 'BCE' : 'BCS';
     } else if (mode === 'ba') {
       prefix = 'BA';
     } else {
-      prefix = type === 'entrant' ? 'DE' : 'DS';
+      prefix = type === 'achat' ? 'DE' : 'DS';
     }
     
     let list = savedDevis;
@@ -166,12 +166,12 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
   }, []);
 
   const resetForm = useCallback(() => {
-    setDevisType('sortant');
+    setDevisType('vente');
     setDocType('devis');
     clearFormFields(true);
     setEditingDevis(null);
     setShowEditDialog(false);
-    setDevisNumber(generateNextNumber('sortant', 'devis'));
+    setDevisNumber(generateNextNumber('vente', 'devis'));
   }, [clearFormFields, generateNextNumber]);
 
   const clearInputsOnly = useCallback(() => {
@@ -179,7 +179,7 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
     setDevisNumber(generateNextNumber(devisType, docType));
   }, [clearFormFields, generateNextNumber, devisType, docType]);
 
-  const handleTypeChange = useCallback((type: 'entrant' | 'sortant') => {
+  const handleTypeChange = useCallback((type: 'achat' | 'vente') => {
     setDevisType(type);
     clearFormFields();
   }, [clearFormFields]);

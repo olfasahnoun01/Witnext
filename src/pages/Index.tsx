@@ -31,6 +31,7 @@ const CartesCarburant = lazy(() => import('@/components/vehicules/CartesCarburan
 const Maintenance = lazy(() => import('@/components/vehicules/Maintenance').then(m => ({ default: m.Maintenance })));
 const ChargesVehicule = lazy(() => import('@/components/vehicules/ChargesVehicule').then(m => ({ default: m.ChargesVehicule })));
 const ComingSoon = lazy(() => import('@/components/ComingSoon').then(m => ({ default: m.ComingSoon })));
+const FacturesVente = lazy(() => import('@/components/commercial/FacturesVente').then(m => ({ default: m.FacturesVente })));
 const SuiviManager = lazy(() => import('@/components/commercial/SuiviManager').then(m => ({ default: m.SuiviManager })));
 const PermissionsManager = lazy(() => import('@/components/PermissionsManager').then(m => ({ default: m.PermissionsManager })));
 const RDV = lazy(() => import('@/components/commercial/RDV').then(m => ({ default: m.RDV })));
@@ -85,20 +86,24 @@ const Index = () => {
       <Suspense fallback={<ComponentLoader />}>
         {/* Magasin & Stock */}
         {activeTab === 'inventory' && <Inventory />}
-        {activeTab === 'fournisseurs' && <Fournisseurs />}
-        {activeTab === 'clients' && <Clients />}
         {activeTab === 'comparison' && <SupplierComparison />}
         {activeTab === 'transactions' && <Transactions />}
         {activeTab === 'reports' && <Reports />}
         {activeTab === 'gallery' && <PhotoGallery />}
-        {activeTab === 'ba' && <ComingSoon sectionLabel="Bons d'achat" />}
         
         {/* Commerciale */}
+        {activeTab === 'pipeline' && <GestionDevis onTabChange={handleTabChange} initialSection="pipeline" />}
         {activeTab === 'commerciale-clients' && <Clients />}
-        {activeTab === 'commerciale-fournisseurs' && <Fournisseurs />}
-        {activeTab === 'devis' && <GestionDevis onTabChange={handleTabChange} />}
+        {activeTab === 'devis-vente' && <GestionDevis onTabChange={handleTabChange} initialSection="history" />}
+        {activeTab === 'bc-vente' && <GestionDevis onTabChange={handleTabChange} initialSection="bc" />}
+        {activeTab === 'factures-vente' && <FacturesVente />}
         {activeTab === 'suivi-clients' && <SuiviManager type="client" />}
+        
+        {activeTab === 'commerciale-fournisseurs' && <Fournisseurs />}
+        {activeTab === 'devis-achat' && <GestionDevis onTabChange={handleTabChange} initialSection="achats" />}
+        {activeTab === 'bc-achat' && <GestionDevis onTabChange={handleTabChange} initialSection="achats" />}
         {activeTab === 'suivi-fournisseurs' && <SuiviManager type="fournisseur" />}
+        
         {activeTab === 'rdv' && <RDV />}
         
         {/* Ressources Humaines */}

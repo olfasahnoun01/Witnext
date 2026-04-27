@@ -72,7 +72,7 @@ export const BCCreationDialog = ({
   }, [debouncedSearch]);
 
   const addItemFromProduct = useCallback((product: Product) => {
-    const isEntrant = sourceDevis?.type === 'entrant';
+    const isAchat = sourceDevis?.type === 'achat';
     setItems(prev => [...prev, {
       designation: product.name,
       fournisseur: product.fournisseur || '',
@@ -81,7 +81,7 @@ export const BCCreationDialog = ({
       quantity: 1,
       description: `${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`,
       tva: 19,
-      ...(sourceDevis?.type === 'sortant' ? { prix_achat: product.price || 0 } : {}),
+      ...(sourceDevis?.type === 'vente' ? { prix_achat: product.price || 0 } : {}),
     }]);
     setProductSearch('');
     setSearchResults([]);
@@ -184,7 +184,7 @@ export const BCCreationDialog = ({
                 <TableRow>
                   <TableHead className="w-[70px] px-2 text-center">Qté</TableHead>
                   <TableHead className="w-[200px]">Désignation</TableHead>
-                  {sourceDevis.type === 'sortant' && (
+                  {sourceDevis.type === 'vente' && (
                     <TableHead className="text-right w-[110px]">Prix Achat HT</TableHead>
                   )}
                   <TableHead className="text-right w-[110px]">Prix Vente HT</TableHead>
@@ -219,7 +219,7 @@ export const BCCreationDialog = ({
                           <p className="font-medium text-xs line-clamp-1" title={item.designation}>{item.designation}</p>
                           <p className="text-[9px] text-muted-foreground line-clamp-1">{item.description || '-'}</p>
                         </TableCell>
-                        {sourceDevis.type === 'sortant' && (
+                        {sourceDevis.type === 'vente' && (
                           <TableCell className="text-right px-1">
                             <Input
                               type="number"

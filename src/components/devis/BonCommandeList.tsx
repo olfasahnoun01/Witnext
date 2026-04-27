@@ -38,7 +38,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
   const [previewTitle, setPreviewTitle] = useState('');
   const [isGenerating, setIsGenerating] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedType, setSelectedType] = useState<'all' | 'entrant' | 'sortant'>('all');
+  const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>('all');
   const [procurementBC, setProcurementBC] = useState<UnifiedDocument | null>(null);
 
   const startProcurement = useCallback((bc: BonCommande) => {
@@ -183,8 +183,8 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
               </SelectTrigger>
               <SelectContent className="bg-popover z-50">
                 <SelectItem value="all">Tous types</SelectItem>
-                <SelectItem value="entrant">📥 Entrant</SelectItem>
-                <SelectItem value="sortant">📤 Sortant</SelectItem>
+                <SelectItem value="achat">📥 Achat</SelectItem>
+                <SelectItem value="vente">📤 Vente</SelectItem>
               </SelectContent>
             </Select>
             <span className="text-sm text-muted-foreground whitespace-nowrap">{filteredBC.length} BC</span>
@@ -215,9 +215,9 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                   <tr key={bc.id} className="border-b border-border/50 hover:bg-muted/30">
                     <td className="py-3 px-4">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        bc.type === 'entrant' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
+                        bc.type === 'achat' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
                       }`}>
-                        {bc.type === 'entrant' ? '📥 Entrant' : '📤 Sortant'}
+                        {bc.type === 'achat' ? '📥 Achat' : '📤 Vente'}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-sm font-medium text-foreground">{bc.devis_number}</td>
@@ -258,7 +258,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
-                        {bc.type === 'sortant' && (
+                        {bc.type === 'vente' && (
                           <Button
                             variant="outline"
                             size="sm"

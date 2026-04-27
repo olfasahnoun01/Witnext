@@ -135,6 +135,27 @@ export interface Devis {
 // BonCommande is just a Devis with is_bc = true
 export type BonCommande = Devis;
 
+export interface Facture {
+  id: string; // UUID
+  numero: string;
+  type: 'vente' | 'achat';
+  date_creation: string;
+  date_echeance: string | null;
+  third_party_name: string | null;
+  third_party_address: string | null;
+  third_party_tax_id: string | null;
+  third_party_phone: string | null;
+  items: DevisItem[];
+  total_amount: number;
+  status: 'brouillon' | 'envoyée' | 'payée' | 'retard' | 'annulée';
+  is_ttc: boolean;
+  source_bc_id: number | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // --- Unified Document Engine (v2) ---
 
 export type UnifiedDocumentType = 

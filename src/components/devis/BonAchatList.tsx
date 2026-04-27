@@ -47,7 +47,7 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
   const [previewTitle, setPreviewTitle] = useState('');
   const [isGenerating, setIsGenerating] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedType, setSelectedType] = useState<'all' | 'entrant' | 'sortant'>('all');
+  const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>('all');
   const [pendingStatus, setPendingStatus] = useState<{ ba: Devis; newStatus: string } | null>(null);
 
   const filteredBA = useMemo(() => {
@@ -181,8 +181,8 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
               </SelectTrigger>
               <SelectContent className="bg-popover z-50">
                 <SelectItem value="all">Tous types</SelectItem>
-                <SelectItem value="entrant">📥 Entrant</SelectItem>
-                <SelectItem value="sortant">📤 Sortant</SelectItem>
+                <SelectItem value="achat">📥 Achat</SelectItem>
+                <SelectItem value="vente">📤 Vente</SelectItem>
               </SelectContent>
             </Select>
             <span className="text-sm text-muted-foreground whitespace-nowrap">{filteredBA.length} BA</span>
@@ -214,9 +214,9 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
                   <tr key={ba.id} className="border-b border-border/50 hover:bg-muted/30">
                     <td className="py-3 px-4">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        ba.type === 'entrant' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
+                        ba.type === 'achat' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
                       }`}>
-                        {ba.type === 'entrant' ? '📥 Entrant' : '📤 Sortant'}
+                        {ba.type === 'achat' ? '📥 Achat' : '📤 Vente'}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-sm font-medium text-foreground">{ba.devis_number}</td>

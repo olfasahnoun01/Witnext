@@ -25,6 +25,7 @@ import {
   CreditCard,
   Receipt,
   Settings,
+  TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -48,10 +49,15 @@ export const BIG_SECTIONS: BigSection[] = [
     label: 'Commerciale',
     icon: ShoppingCart,
     subsections: [
+      { id: 'pipeline', label: 'Pipeline Commercial', icon: TrendingUp },
       { id: 'commerciale-clients', label: 'Clients', icon: Users },
-      { id: 'commerciale-fournisseurs', label: 'Fournisseurs', icon: Building2 },
-      { id: 'devis', label: 'Gestion Devis', icon: ClipboardList },
+      { id: 'devis-vente', label: 'Devis de Vente', icon: ClipboardList },
+      { id: 'bc-vente', label: 'BC de Vente', icon: FileText },
+      { id: 'factures-vente', label: 'Factures de Vente', icon: Receipt },
       { id: 'suivi-clients', label: 'Suivi Clients', icon: UserCheck },
+      { id: 'commerciale-fournisseurs', label: 'Fournisseurs', icon: Building2 },
+      { id: 'devis-achat', label: "Devis d'Achat", icon: ClipboardList },
+      { id: 'bc-achat', label: "BC d'Achat", icon: FileText },
       { id: 'suivi-fournisseurs', label: 'Suivi Fournisseurs', icon: UserCog },
       { id: 'rdv', label: 'Rendez-vous', icon: CalendarClock },
     ],
@@ -63,12 +69,9 @@ export const BIG_SECTIONS: BigSection[] = [
     subsections: [
       { id: 'dashboard', label: 'Tableau de Bord', icon: LayoutDashboard },
       { id: 'inventory', label: 'Inventaire', icon: Package },
-      { id: 'fournisseurs', label: 'Fournisseurs', icon: Building2 },
-      { id: 'clients', label: 'Clients', icon: Users },
       { id: 'comparison', label: 'Comparaison Prix', icon: GitCompare },
       { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
       { id: 'reports', label: 'Rapports & Documents', icon: FileText },
-      { id: 'ba', label: "Bons d'achat", icon: FileSignature },
       { id: 'gallery', label: 'Galerie Photos', icon: ImageIcon },
     ],
   },

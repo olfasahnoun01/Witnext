@@ -59,18 +59,18 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   const [selectedFournisseur, setSelectedFournisseur] = useState('all');
   const [echantillonDevis, setEchantillonDevis] = useState<{ id: number; number: string } | null>(null);
   const [echantillonCounts, setEchantillonCounts] = useState<Record<number, number>>({});
-  const [selectedType, setSelectedType] = useState<'all' | 'entrant' | 'sortant'>('all');
+  const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>('all');
 
-  // Fetch envoyé echantillon counts for all sortant devis
+  // Fetch envoyé echantillon counts for all vente devis
   useEffect(() => {
-    const sortantIds = savedDevis.filter(d => d.type === 'sortant').map(d => d.id);
-    if (sortantIds.length === 0) return;
+    const venteIds = savedDevis.filter(d => d.type === 'vente').map(d => d.id);
+    if (venteIds.length === 0) return;
 
     const fetchCounts = async () => {
       const { data, error } = await supabase
         .from('echantillons')
         .select('devis_id, id')
-        .in('devis_id', sortantIds)
+        .in('devis_id', venteIds)
         .eq('status', 'envoyé');
       if (!error && data) {
         const counts: Record<number, number> = {};
@@ -195,8 +195,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
               </SelectTrigger>
               <SelectContent className="bg-popover z-50">
                 <SelectItem value="all">Tous types</SelectItem>
-                <SelectItem value="entrant">📥 Entrant</SelectItem>
-                <SelectItem value="sortant">📤 Sortant</SelectItem>
+                <SelectItem value="achat">📥 Achat</SelectItem>
+                <SelectItem value="vente">📤 Vente</SelectItem>
               </SelectContent>
             </Select>
             <Select value={selectedFournisseur} onValueChange={v => { setSelectedFournisseur(v); setCurrentPage(1); }}>
@@ -227,7 +227,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Mode</th>
-                {/* Échantillon column only for sortant */}
+                {/* Échantillon column only for vente */}
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Échantillon</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">PDF</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
@@ -241,9 +241,9 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                   <tr key={d.id} className="border-b border-border/50 hover:bg-muted/30">
                     <td className="py-3 px-4">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        d.type === 'entrant' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
+                        d.type === 'achat' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
                       }`}>
-                        {d.type === 'entrant' ? '📥 Entrant' : '📤 Sortant'}
+                        {d.type === 'achat' ? '📥 Achat' : '📤 Vente'}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-sm font-medium text-foreground">{d.devis_number}</td>
@@ -280,7 +280,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      {d.type === 'sortant' ? (
+                      {d.type === 'vente' ? (
                         <button
                           onClick={() => setEchantillonDevis({ id: d.id, number: d.devis_number })}
                           className="relative p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
@@ -319,7 +319,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2">
-                        {onConvertToBC && d.type === 'sortant' && (
+                        {onConvertToBC && d.type === 'vente' && (
                           <button onClick={() => onConvertToBC(d)} className="p-1.5 rounded hover:bg-success/10 text-muted-foreground hover:text-success transition-colors" title="Convertir en BC">
                             <FileText className="w-4 h-4" />
                           </button>
@@ -374,7 +374,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     <th className="text-right py-2 px-3 font-medium text-muted-foreground">Qté</th>
                     <th className="text-left py-2 px-3 font-medium text-muted-foreground">Fournisseur</th>
                     <th className="text-right py-2 px-3 font-medium text-muted-foreground">P.U HT</th>
-                    {itemsDevis.type === 'sortant' && (
+                    {itemsDevis.type === 'vente' && (
                       <th className="text-right py-2 px-3 font-medium text-muted-foreground">Prix Achat</th>
                     )}
                     <th className="text-right py-2 px-3 font-medium text-muted-foreground">Remise</th>
@@ -392,7 +392,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                         <td className="py-2 px-3 text-right text-foreground">{item.quantity}</td>
                         <td className="py-2 px-3 text-muted-foreground">{item.fournisseur || '-'}</td>
                         <td className="py-2 px-3 text-right text-foreground">{line.unitHT.toFixed(3)} TND</td>
-                        {itemsDevis.type === 'sortant' && (
+                        {itemsDevis.type === 'vente' && (
                           <td className="py-2 px-3 text-right text-muted-foreground">{item.prix_achat != null && item.prix_achat > 0 ? `${item.prix_achat.toFixed(3)} TND` : '-'}</td>
                         )}
                         <td className="py-2 px-3 text-right text-muted-foreground">{item.remise > 0 ? `${item.remise}%` : '-'}</td>
@@ -406,7 +406,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                   {(() => {
                     const totals = computeDevisTotals(itemsDevis.items, false);
                     const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
-                    const colSpan = itemsDevis.type === 'sortant' ? 7 : 6;
+                    const colSpan = itemsDevis.type === 'vente' ? 7 : 6;
                     return (
                       <>
                         <tr className="border-t-2 border-border">

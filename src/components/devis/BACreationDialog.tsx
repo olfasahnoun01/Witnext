@@ -209,7 +209,7 @@ export const BACreationDialog = ({
       quantity: 1,
       description: `${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`,
       tva: 19,
-      ...(sourceBC?.type === 'sortant' ? { prix_achat: product.price || 0 } : {}),
+      ...(sourceBC?.type === 'vente' ? { prix_achat: product.price || 0 } : {}),
     };
     
     setItems(prev => [...prev, newItem]);
@@ -311,7 +311,7 @@ export const BACreationDialog = ({
           prix_ttc: alloc.prix_ht * (1 + alloc.tva / 100), // Note: internal calculations use prix_ttc for DevisItem usually
           remise: alloc.remise,
           tva: alloc.tva,
-          ...(sourceBC?.type === 'sortant' ? { prix_achat: alloc.prix_ht } : {}),
+          ...(sourceBC?.type === 'vente' ? { prix_achat: alloc.prix_ht } : {}),
         });
       });
     });
@@ -408,7 +408,7 @@ export const BACreationDialog = ({
                     <TableRow>
                       <TableHead className="w-[70px] px-2 text-center">Qté</TableHead>
                       <TableHead className="w-[200px]">Désignation</TableHead>
-                      {sourceBC.type === 'sortant' && (
+                      {sourceBC.type === 'vente' && (
                         <TableHead className="text-right w-[110px]">Prix Achat HT</TableHead>
                       )}
                       <TableHead className="text-right w-[110px]">Prix Vente HT</TableHead>
@@ -443,7 +443,7 @@ export const BACreationDialog = ({
                               <p className="font-medium text-xs line-clamp-1" title={item.designation}>{item.designation}</p>
                               <p className="text-[9px] text-muted-foreground line-clamp-1">{item.description || '-'}</p>
                             </TableCell>
-                            {sourceBC.type === 'sortant' && (
+                            {sourceBC.type === 'vente' && (
                               <TableCell className="text-right px-1">
                                 <Input
                                   type="number"
