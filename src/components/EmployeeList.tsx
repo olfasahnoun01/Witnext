@@ -90,7 +90,7 @@ export const EmployeeList = () => {
             email: form.email,
             password: form.password,
             full_name: `${form.prenom} ${form.nom}`,
-            role: 'user' // Default role for operators
+            role: 'operateur' 
           },
           headers: {
             Authorization: `Bearer ${session?.access_token}`

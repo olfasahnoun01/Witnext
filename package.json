@@ -130,9 +130,9 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Grosafe Inventory Hub"
+      "shortcutName": "Alpha"
     },
-    "copyright": "Copyright © 2024 Grosafe Équipement",
+    "copyright": "Copyright © 2026 Grosafe Équipement",
     "npmRebuild": false
   }
 }
