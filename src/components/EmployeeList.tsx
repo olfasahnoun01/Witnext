@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { UserPlus, Users, Trash2, Phone, CreditCard, Shield, Mail, Lock, Loader2 } from 'lucide-react';
+import { UserPlus, Users, Trash2, Phone, CreditCard, Shield, Mail, Lock, Loader2, Edit2, IdCard } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +28,7 @@ interface Employee {
   phone?: string;
   role?: string;
   user_id?: string;
+  cin?: string;
 }
 
 export const EmployeeList = () => {
@@ -35,10 +36,13 @@ export const EmployeeList = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ 
     prenom: '', 
     nom: '', 
     phone: '', 
+    cin: '',
     poste: 'Ouvrier',
     email: '',
     password: ''
@@ -104,30 +108,64 @@ export const EmployeeList = () => {
         userId = response.data.user.id;
       }
 
-      // 2. Create Employee Record
-      const { error: insertError } = await supabase
-        .from('employees')
-        .insert([{
-          prenom: form.prenom.trim(),
-          nom: form.nom.trim(),
-          phone: form.phone.trim() || null,
-          email: form.poste === 'Operateur' ? form.email.trim() : null,
-          role: form.poste,
-          user_id: userId
-        }]);
+      // 2. Create or Update Employee Record
+      if (isEditing && editingId) {
+        const { error: updateError } = await supabase
+          .from('employees')
+          .update({
+            prenom: form.prenom.trim(),
+            nom: form.nom.trim(),
+            phone: form.phone.trim() || null,
+            cin: form.cin.trim() || null,
+            role: form.poste
+          })
+          .eq('id', editingId);
 
-      if (insertError) throw insertError;
+        if (updateError) throw updateError;
+        toast.success(`${form.prenom} ${form.nom} mis à jour`);
+      } else {
+        const { error: insertError } = await supabase
+          .from('employees')
+          .insert([{
+            prenom: form.prenom.trim(),
+            nom: form.nom.trim(),
+            phone: form.phone.trim() || null,
+            cin: form.cin.trim() || null,
+            email: form.poste === 'Operateur' ? form.email.trim() : null,
+            role: form.poste,
+            user_id: userId
+          }]);
 
-      toast.success(`${form.prenom} ${form.nom} ajouté(e)`);
-      setForm({ prenom: '', nom: '', phone: '', poste: 'Ouvrier', email: '', password: '' });
+        if (insertError) throw insertError;
+        toast.success(`${form.prenom} ${form.nom} ajouté(e)`);
+      }
+
+      setForm({ prenom: '', nom: '', phone: '', cin: '', poste: 'Ouvrier', email: '', password: '' });
       setIsDialogOpen(false);
+      setIsEditing(false);
+      setEditingId(null);
       fetchEmployees();
     } catch (error: any) {
-      console.error('Error adding employee:', error);
-      toast.error(error.message || 'Erreur lors de l\'ajout de l\'employé');
+      console.error('Error saving employee:', error);
+      toast.error(error.message || 'Erreur lors de la sauvegarde de l\'employé');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleEdit = (emp: Employee) => {
+    setForm({
+      prenom: emp.prenom,
+      nom: emp.nom,
+      phone: emp.phone || '',
+      cin: emp.cin || '',
+      poste: emp.role || 'Ouvrier',
+      email: emp.email || '',
+      password: '' // Password isn't fetched
+    });
+    setEditingId(emp.id);
+    setIsEditing(true);
+    setIsDialogOpen(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -165,7 +203,12 @@ export const EmployeeList = () => {
           </div>
         </div>
         <Button
-          onClick={() => setIsDialogOpen(true)}
+          onClick={() => {
+            setIsEditing(false);
+            setEditingId(null);
+            setForm({ prenom: '', nom: '', phone: '', cin: '', poste: 'Ouvrier', email: '', password: '' });
+            setIsDialogOpen(true);
+          }}
           className="gap-2 rounded-xl shadow-md hover:shadow-lg transition-shadow"
         >
           <UserPlus className="w-4 h-4" />
@@ -224,6 +267,12 @@ export const EmployeeList = () => {
                   )}
                 </div>
                 <div className="flex items-center gap-4 mt-0.5 text-xs text-muted-foreground">
+                  {emp.cin && (
+                    <span className="flex items-center gap-1">
+                      <IdCard className="w-3 h-3" />
+                      CIN: {emp.cin}
+                    </span>
+                  )}
                   {emp.phone && (
                     <span className="flex items-center gap-1">
                       <Phone className="w-3 h-3" />
@@ -239,14 +288,23 @@ export const EmployeeList = () => {
                 </div>
               </div>
 
-              {/* Delete */}
-              <button
-                onClick={() => handleDelete(emp.id)}
-                className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
-                title="Supprimer"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              {/* Actions */}
+              <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-all">
+                <button
+                  onClick={() => handleEdit(emp)}
+                  className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all"
+                  title="Modifier"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleDelete(emp.id)}
+                  className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+                  title="Supprimer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -258,7 +316,7 @@ export const EmployeeList = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-primary" />
-              Ajouter un Employé
+              {isEditing ? 'Modifier Employé' : 'Ajouter un Employé'}
             </DialogTitle>
           </DialogHeader>
 
@@ -291,6 +349,7 @@ export const EmployeeList = () => {
                   <SelectValue placeholder="Sélectionner un poste" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="Ouvrier">Ouvrier</SelectItem>
                   <SelectItem value="Operateur">Operateur (Accès Mobile)</SelectItem>
                   <SelectItem value="Commercial">Commercial</SelectItem>
                   <SelectItem value="RH">Ressources Humaines (RH)</SelectItem>
@@ -303,7 +362,7 @@ export const EmployeeList = () => {
               </Select>
             </div>
 
-            {form.poste === 'Operateur' && (
+            {!isEditing && form.poste === 'Operateur' && (
               <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 space-y-4 animate-in fade-in slide-in-from-top-2">
                 <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
                   <Shield className="w-4 h-4" />
@@ -336,14 +395,32 @@ export const EmployeeList = () => {
               </div>
             )}
 
-            <div className="grid gap-2">
-              <Label htmlFor="emp-phone">Téléphone</Label>
-              <Input
-                id="emp-phone"
-                placeholder="55 123 456"
-                value={form.phone}
-                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="emp-phone">Téléphone</Label>
+                <Input
+                  id="emp-phone"
+                  placeholder="55 123 456"
+                  value={form.phone}
+                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="emp-cin">CIN</Label>
+                <Input
+                  id="emp-cin"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={8}
+                  placeholder="Numéro CIN (8 chiffres)"
+                  value={form.cin}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9]/g, '');
+                    setForm((f) => ({ ...f, cin: val }));
+                  }}
+                />
+              </div>
             </div>
           </div>
 
@@ -360,7 +437,7 @@ export const EmployeeList = () => {
               ) : (
                 <>
                   <UserPlus className="w-4 h-4" />
-                  Ajouter
+                  {isEditing ? 'Enregistrer' : 'Ajouter'}
                 </>
               )}
             </Button>

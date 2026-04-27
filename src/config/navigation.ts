@@ -26,6 +26,7 @@ import {
   Receipt,
   Settings,
   TrendingUp,
+  ShoppingBag,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -45,21 +46,28 @@ export interface BigSection {
 
 export const BIG_SECTIONS: BigSection[] = [
   {
-    id: 'commerciale',
-    label: 'Commerciale',
+    id: 'ventes',
+    label: 'Ventes',
     icon: ShoppingCart,
     subsections: [
       { id: 'pipeline', label: 'Pipeline Commercial', icon: TrendingUp },
       { id: 'commerciale-clients', label: 'Clients', icon: Users },
-      { id: 'devis-vente', label: 'Devis de Vente', icon: ClipboardList },
-      { id: 'bc-vente', label: 'BC de Vente', icon: FileText },
-      { id: 'factures-vente', label: 'Factures de Vente', icon: Receipt },
+      { id: 'devis-vente', label: 'Devis', icon: ClipboardList },
+      { id: 'bc-vente', label: 'Bons de Commande', icon: FileText },
+      { id: 'factures-vente', label: 'Factures', icon: Receipt },
       { id: 'suivi-clients', label: 'Suivi Clients', icon: UserCheck },
-      { id: 'commerciale-fournisseurs', label: 'Fournisseurs', icon: Building2 },
-      { id: 'devis-achat', label: "Devis d'Achat", icon: ClipboardList },
-      { id: 'bc-achat', label: "BC d'Achat", icon: FileText },
-      { id: 'suivi-fournisseurs', label: 'Suivi Fournisseurs', icon: UserCog },
       { id: 'rdv', label: 'Rendez-vous', icon: CalendarClock },
+    ],
+  },
+  {
+    id: 'achats',
+    label: 'Achats',
+    icon: ShoppingBag,
+    subsections: [
+      { id: 'commerciale-fournisseurs', label: 'Fournisseurs', icon: Building2 },
+      { id: 'devis-achat', label: "Devis (Demandes de prix)", icon: ClipboardList },
+      { id: 'bc-achat', label: "Bons de Commande", icon: FileText },
+      { id: 'suivi-fournisseurs', label: 'Suivi Fournisseurs', icon: UserCog },
     ],
   },
   {

@@ -10,6 +10,7 @@ import {
 import { cn } from '@/lib/utils';
 import grosafeLogo from '@/assets/grosafe-logo-new.png';
 import { BIG_SECTIONS, SUBSECTION_TO_SECTION } from '@/config/navigation';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface SidebarProps {
   activeTab: string;
@@ -44,6 +45,8 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
       [sectionId]: !prev[sectionId]
     }));
   };
+
+  const { canAccessSection, canAccessSubsection, visibleSections } = usePermissions();
 
   return (
     <>
@@ -84,10 +87,13 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
             </button>
           </div>
 
-          {/* Navigation */}
           <nav className="flex-1 p-4 space-y-4 overflow-y-auto">
-            {BIG_SECTIONS.map((section) => {
+            {visibleSections.map((section) => {
               const isExpanded = expandedSections[section.id];
+              const visibleSubsections = section.subsections.filter(sub => canAccessSubsection(sub.id));
+              
+              if (visibleSubsections.length === 0) return null;
+
               return (
                 <div key={section.id} className="space-y-1">
                   <button 
@@ -121,7 +127,7 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
                     )}
                   >
                     <div className="overflow-hidden space-y-1.5">
-                      {section.subsections.map((item) => {
+                      {visibleSubsections.map((item) => {
                         const isActive = activeTab === item.id;
                         const content = (
                           <>
