@@ -23,8 +23,9 @@ import {
   FileCheck,
   FileX,
   MoreHorizontal,
-  Download,
-  Filter
+  Download, 
+  Filter,
+  Table as TableIcon
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { 
@@ -149,7 +150,7 @@ export const RDV = () => {
               onClick={() => setViewMode('table')}
               className="gap-2"
             >
-              <Table className="w-4 h-4" />
+              <TableIcon className="w-4 h-4" />
               Tableau
             </Button>
             <Button 
@@ -311,7 +312,8 @@ export const RDV = () => {
               </div>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm overflow-hidden">

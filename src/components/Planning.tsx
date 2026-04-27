@@ -43,13 +43,10 @@ const SHIFT_MAP: Record<string, { label: string; bg: string; text: string }> = {
   J: { label: 'J', bg: 'bg-emerald-500/20', text: 'text-emerald-600 dark:text-emerald-400' },
   N: { label: 'N', bg: 'bg-blue-500/20', text: 'text-blue-600 dark:text-blue-400' },
   'J-P1': { label: 'J-P1', bg: 'bg-orange-500/20', text: 'text-orange-600 dark:text-orange-400' },
-  'J-P2': { label: 'bg-purple-500/20', bg: 'bg-purple-500/20', text: 'text-purple-600 dark:text-purple-400' },
+  'J-P2': { label: 'J-P2', bg: 'bg-purple-500/20', text: 'text-purple-600 dark:text-purple-400' },
   'N-P1': { label: 'N-P1', bg: 'bg-indigo-500/20', text: 'text-indigo-600 dark:text-indigo-400' },
   'N-P2': { label: 'N-P2', bg: 'bg-pink-500/20', text: 'text-pink-600 dark:text-pink-400' },
 };
-
-// Fix label for J-P2
-SHIFT_MAP['J-P2'].label = 'J-P2';
 
 const SHIFT_HOURS: Record<string, number> = { J: 8, N: 8, R: 0 };
 
