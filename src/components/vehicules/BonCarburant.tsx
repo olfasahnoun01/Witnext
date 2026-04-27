@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Fuel, Plus, Search, Calendar, User, Car, Banknote, ClipboardList, Loader2 } from 'lucide-react';
+import { Fuel, Plus, Search, Calendar, User, Car, Banknote, ClipboardList, Loader2, Image as ImageIcon, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,6 +41,7 @@ interface FuelVoucher {
   status: string | null;
   km: number | null;
   distance: number | null;
+  proof_image_url: string | null;
   // Joined data
   employee?: { prenom: string; nom: string } | null;
   vehicle?: { modele: string; matricule: string } | null;
@@ -65,6 +66,7 @@ export const BonCarburant = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     numBon: '',
@@ -218,6 +220,7 @@ export const BonCarburant = () => {
                 <TableHead className="font-semibold text-foreground">Date</TableHead>
                 <TableHead className="font-semibold text-foreground">Status</TableHead>
                 <TableHead className="font-semibold text-foreground">Km / Distance</TableHead>
+                <TableHead className="font-semibold text-center text-foreground">Odomètre</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -260,6 +263,20 @@ export const BonCarburant = () => {
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {bon.km ? `${bon.km} km` : '-'} / {bon.distance ? `${bon.distance} km` : '-'}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {bon.proof_image_url ? (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0"
+                          onClick={() => setSelectedImage(bon.proof_image_url)}
+                        >
+                          <ImageIcon className="w-4 h-4 text-primary" />
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground text-xs italic">-</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -413,6 +430,26 @@ export const BonCarburant = () => {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+        <DialogContent className="max-w-3xl p-0 overflow-hidden bg-transparent border-none">
+          {selectedImage && (
+            <div className="relative group">
+              <img 
+                src={selectedImage} 
+                alt="Odomètre" 
+                className="w-full h-auto rounded-lg shadow-2xl"
+              />
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
+                <Button variant="secondary" onClick={() => window.open(selectedImage, '_blank')}>
+                  <Eye className="w-4 h-4 mr-2" />
+                  Ouvrir en plein écran
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

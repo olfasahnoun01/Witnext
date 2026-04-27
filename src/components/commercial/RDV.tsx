@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   Table, 
   TableBody, 
@@ -49,6 +49,7 @@ import { Calendar as UICalendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, isSameDay, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { supabase } from '@/integrations/supabase/client';
 
 interface RDV {
   id: string;
@@ -71,9 +72,50 @@ export const RDV = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [rdvs, setRdvs] = useState<RDV[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+
+  const fetchRdvs = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('rdvs')
+        .select('*')
+        .order('date_rdv', { ascending: false });
+
+      if (error) throw error;
+
+      const mappedRdvs: RDV[] = (data || []).map((item: any) => ({
+        id: item.id,
+        numero: item.numero,
+        dateCreation: item.date_creation,
+        societe: item.societe,
+        activite: item.activite || '',
+        adresse: item.adresse || '',
+        telephone: item.telephone || '',
+        email: item.email || '',
+        personneContactee: item.personne_contactee || '',
+        dateRDV: item.date_rdv,
+        notes: item.notes || '',
+        besoin: item.besoin || '',
+        pieceJointe: item.piece_jointe as 'envoyé' | 'non envoyé',
+        charge: item.charge || ''
+      }));
+
+      setRdvs(mappedRdvs);
+    } catch (error: any) {
+      console.error('Error fetching rdvs:', error);
+      toast.error('Erreur lors du chargement des rendez-vous');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRdvs();
+  }, [fetchRdvs]);
   
   // Form State
   const [formData, setFormData] = useState<Partial<RDV>>({
@@ -81,29 +123,42 @@ export const RDV = () => {
     dateCreation: new Date().toISOString().split('T')[0]
   });
 
-  const handleAddRDV = (e: React.FormEvent) => {
+  const handleAddRDV = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newRDV: RDV = {
-      id: Math.random().toString(36).substr(2, 9),
-      numero: `RDV-${(rdvs.length + 1).toString().padStart(3, '0')}`,
-      dateCreation: formData.dateCreation || new Date().toISOString().split('T')[0],
-      societe: formData.societe || '',
-      activite: formData.activite || '',
-      adresse: formData.adresse || '',
-      telephone: formData.telephone || '',
-      email: formData.email || '',
-      personneContactee: formData.personneContactee || '',
-      dateRDV: formData.dateRDV || '',
-      notes: formData.notes || '',
-      besoin: formData.besoin || '',
-      pieceJointe: formData.pieceJointe as 'envoyé' | 'non envoyé',
-      charge: user?.email || 'Unknown'
-    };
+    
+    const newNumero = `RDV-${(rdvs.length + 1).toString().padStart(3, '0')}`;
+    const dateRDV = formData.dateRDV ? new Date(formData.dateRDV).toISOString() : new Date().toISOString();
 
-    setRdvs([newRDV, ...rdvs]);
-    setDialogOpen(false);
-    setFormData({ pieceJointe: 'non envoyé', dateCreation: new Date().toISOString().split('T')[0] });
-    toast.success('Rendez-vous ajouté avec succès');
+    try {
+      const { data, error } = await (supabase as any)
+        .from('rdvs')
+        .insert([{
+          numero: newNumero,
+          date_creation: formData.dateCreation || new Date().toISOString().split('T')[0],
+          societe: formData.societe || '',
+          activite: formData.activite || '',
+          adresse: formData.adresse || '',
+          telephone: formData.telephone || '',
+          email: formData.email || '',
+          personne_contactee: formData.personneContactee || '',
+          date_rdv: dateRDV,
+          notes: formData.notes || '',
+          besoin: formData.besoin || '',
+          piece_jointe: formData.pieceJointe,
+          charge: user?.email || 'Unknown'
+        }])
+        .select();
+
+      if (error) throw error;
+
+      toast.success('Rendez-vous ajouté avec succès');
+      setDialogOpen(false);
+      setFormData({ pieceJointe: 'non envoyé', dateCreation: new Date().toISOString().split('T')[0] });
+      fetchRdvs();
+    } catch (error: any) {
+      console.error('Error adding rdv:', error);
+      toast.error('Erreur lors de l\'ajout du rendez-vous');
+    }
   };
 
   const filteredRdvs = useMemo(() => {
@@ -343,7 +398,11 @@ export const RDV = () => {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {viewMode === 'table' ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+          ) : viewMode === 'table' ? (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader className="bg-muted/50">
@@ -383,7 +442,7 @@ export const RDV = () => {
                         <TableCell className="text-xs">{rdv.personneContactee}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                            {rdv.dateRDV}
+                          {rdv.dateRDV ? format(parseISO(rdv.dateRDV), 'dd/MM/yyyy HH:mm') : '-'}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-xs italic text-muted-foreground truncate max-w-[200px]" title={rdv.besoin}>
@@ -427,7 +486,12 @@ export const RDV = () => {
                     appointment: appointmentsDates
                   }}
                   modifiersStyles={{
-                    appointment: { fontWeight: 'bold', color: 'var(--primary)', borderBottom: '2px solid var(--primary)' }
+                    appointment: { 
+                      fontWeight: 'bold', 
+                      backgroundColor: 'var(--primary)', 
+                      color: 'white',
+                      borderRadius: '4px'
+                    }
                   }}
                 />
               </div>
