@@ -21,6 +21,8 @@ const Clients = lazy(() => import('@/components/Clients').then(m => ({ default: 
 
 const GestionDevis = lazy(() => import('@/components/GestionDevis').then(m => ({ default: m.GestionDevis })));
 const PhotoGallery = lazy(() => import('@/components/PhotoGallery').then(m => ({ default: m.PhotoGallery })));
+const UnifiedDocumentList = lazy(() => import('@/components/devis/UnifiedDocumentList').then(m => ({ default: m.UnifiedDocumentList })));
+const PurchaseRequestManager = lazy(() => import('@/components/devis/PurchaseRequestManager').then(m => ({ default: m.PurchaseRequestManager })));
 
 const Planning = lazy(() => import('@/components/Planning').then(m => ({ default: m.Planning })));
 const EmployeeList = lazy(() => import('@/components/EmployeeList').then(m => ({ default: m.EmployeeList })));
@@ -31,7 +33,6 @@ const CartesCarburant = lazy(() => import('@/components/vehicules/CartesCarburan
 const Maintenance = lazy(() => import('@/components/vehicules/Maintenance').then(m => ({ default: m.Maintenance })));
 const ChargesVehicule = lazy(() => import('@/components/vehicules/ChargesVehicule').then(m => ({ default: m.ChargesVehicule })));
 const ComingSoon = lazy(() => import('@/components/ComingSoon').then(m => ({ default: m.ComingSoon })));
-const FacturesVente = lazy(() => import('@/components/commercial/FacturesVente').then(m => ({ default: m.FacturesVente })));
 const SuiviManager = lazy(() => import('@/components/commercial/SuiviManager').then(m => ({ default: m.SuiviManager })));
 const PermissionsManager = lazy(() => import('@/components/PermissionsManager').then(m => ({ default: m.PermissionsManager })));
 const RDV = lazy(() => import('@/components/commercial/RDV').then(m => ({ default: m.RDV })));
@@ -92,16 +93,48 @@ const Index = () => {
         {activeTab === 'gallery' && <PhotoGallery />}
         
         {/* Commerciale */}
-        {activeTab === 'pipeline' && <GestionDevis onTabChange={handleTabChange} initialSection="pipeline" />}
+        {activeTab === 'pipeline' && (
+          <GestionDevis
+            onTabChange={handleTabChange}
+            initialSection="history"
+            hiddenSections={['pipeline', 'achats']}
+          />
+        )}
         {activeTab === 'commerciale-clients' && <Clients />}
         {activeTab === 'devis-vente' && <GestionDevis onTabChange={handleTabChange} initialSection="history" />}
         {activeTab === 'bc-vente' && <GestionDevis onTabChange={handleTabChange} initialSection="bc" />}
-        {activeTab === 'factures-vente' && <FacturesVente />}
+        {activeTab === 'bl-vente' && (
+          <UnifiedDocumentList
+            title="Bons de Livraison"
+            description="Suivez les bons de livraison générés après validation des commandes client."
+            documentTypes={['BL_CLIENT']}
+          />
+        )}
+        {activeTab === 'factures-vente' && (
+          <UnifiedDocumentList
+            title="Factures de Vente"
+            description="Retrouvez les factures générées depuis les bons de livraison client."
+            documentTypes={['FACTURE']}
+          />
+        )}
         {activeTab === 'suivi-clients' && <SuiviManager type="client" />}
         
+        {activeTab === 'demande-achat' && <PurchaseRequestManager />}
         {activeTab === 'commerciale-fournisseurs' && <Fournisseurs />}
-        {activeTab === 'devis-achat' && <GestionDevis onTabChange={handleTabChange} initialSection="achats" />}
-        {activeTab === 'bc-achat' && <GestionDevis onTabChange={handleTabChange} initialSection="achats" />}
+        {activeTab === 'devis-achat' && (
+          <UnifiedDocumentList
+            title="Devis Fournisseurs"
+            description="Comparez les devis entrants reçus des fournisseurs après validation des demandes d'achat."
+            documentTypes={['DEVIS_FOURNISSEUR']}
+          />
+        )}
+        {activeTab === 'bc-achat' && (
+          <UnifiedDocumentList
+            title="Bons de Commande Fournisseurs"
+            description="Gérez les bons de commande sortants envoyés aux fournisseurs."
+            documentTypes={['BC_FOURNISSEUR']}
+          />
+        )}
         {activeTab === 'suivi-fournisseurs' && <SuiviManager type="fournisseur" />}
         
         {activeTab === 'rdv' && <RDV />}

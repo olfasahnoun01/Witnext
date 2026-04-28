@@ -43,13 +43,32 @@ interface GestionDevisProps {
   onTabChange?: (tab: string) => void;
   initialSection?: 'form' | 'history' | 'bc' | 'helper' | 'achats' | 'pipeline';
   initialDocType?: 'devis' | 'bc' | 'ba';
+  hiddenSections?: Array<'achats' | 'pipeline'>;
 }
 
-export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocType = 'devis' }: GestionDevisProps) => {
+export const GestionDevis = ({
+  onTabChange,
+  initialSection = 'form',
+  initialDocType = 'devis',
+  hiddenSections = [],
+}: GestionDevisProps) => {
   const { isAdmin, isModerator, user } = useAuth();
   const canEdit = true;
+  const isSectionHidden = useCallback(
+    (section: 'achats' | 'pipeline') => hiddenSections.includes(section),
+    [hiddenSections]
+  );
+  const resolveVisibleSection = useCallback(
+    (section: 'form' | 'history' | 'bc' | 'helper' | 'achats' | 'pipeline') => {
+      if ((section === 'achats' || section === 'pipeline') && isSectionHidden(section)) {
+        return 'history';
+      }
+      return section;
+    },
+    [isSectionHidden]
+  );
   const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'helper' | 'achats' | 'pipeline'>(
-    (initialSection as any) === 'ba' ? 'form' : initialSection
+    (initialSection as any) === 'ba' ? 'form' : resolveVisibleSection(initialSection)
   );
   const [allDevis, setAllDevis] = useState<Devis[]>([]);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -119,9 +138,9 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
 
   // Update active section and doc type if props change
   useEffect(() => {
-    if (initialSection) setActiveSection(initialSection);
+    if (initialSection) setActiveSection(resolveVisibleSection(initialSection));
     if (initialDocType) setDocType(initialDocType);
-  }, [initialSection, initialDocType]);
+  }, [initialSection, initialDocType, resolveVisibleSection]);
 
   useEffect(() => { devisNumberRef.current = devisNumber; }, [devisNumber]);
 
@@ -396,28 +415,32 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
           <Search className="w-4 h-4" />
           Devis Helper
         </button>
-        <button
-          onClick={() => setActiveSection('achats')}
-          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-            activeSection === 'achats'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <ShoppingCart className="w-4 h-4" />
-          ACHATS (Moteur v2)
-        </button>
-        <button
-          onClick={() => setActiveSection('pipeline')}
-          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-            activeSection === 'pipeline'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <TrendingUp className="w-4 h-4" />
-          Suivi Pipeline
-        </button>
+        {!isSectionHidden('achats') && (
+          <button
+            onClick={() => setActiveSection('achats')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+              activeSection === 'achats'
+                ? 'bg-primary text-primary-foreground shadow-md'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <ShoppingCart className="w-4 h-4" />
+            ACHATS (Moteur v2)
+          </button>
+        )}
+        {!isSectionHidden('pipeline') && (
+          <button
+            onClick={() => setActiveSection('pipeline')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+              activeSection === 'pipeline'
+                ? 'bg-primary text-primary-foreground shadow-md'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <TrendingUp className="w-4 h-4" />
+            Suivi Pipeline
+          </button>
+        )}
       </div>
 
       {activeSection === 'form' && devisNumber && (
@@ -482,11 +505,11 @@ export const GestionDevis = ({ onTabChange, initialSection = 'form', initialDocT
         <DevisHelper onTabChange={onTabChange} />
       )}
 
-      {activeSection === 'achats' && (
+      {activeSection === 'achats' && !isSectionHidden('achats') && (
         <UnifiedDocumentList />
       )}
 
-      {activeSection === 'pipeline' && (
+      {activeSection === 'pipeline' && !isSectionHidden('pipeline') && (
         <SalesPipeline />
       )}
 

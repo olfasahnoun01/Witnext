@@ -138,6 +138,7 @@ Deno.serve(async (req: Request) => {
           id: user.id,
           email: user.email,
           full_name: user.user_metadata?.full_name || '',
+          position: user.user_metadata?.position || '',
           created_at: user.created_at,
           role: roles?.find((r: any) => r.user_id === user.id)?.role || 'user'
         }))
@@ -148,7 +149,7 @@ Deno.serve(async (req: Request) => {
       }
 
       case 'create': {
-        const { email, password, full_name, role } = params
+        const { email, password, full_name, position, role } = params
         console.log('Starting user creation for:', email)
 
         if (!email || !validateEmail(email)) {
@@ -170,7 +171,7 @@ Deno.serve(async (req: Request) => {
           email: email.trim(),
           password,
           email_confirm: true,
-          user_metadata: { full_name: full_name?.trim() || '' }
+          user_metadata: { full_name: full_name?.trim() || '', position: position?.trim() || '' }
         })
 
         if (createError) {
@@ -214,7 +215,7 @@ Deno.serve(async (req: Request) => {
       }
 
       case 'update': {
-        const { user_id, password, full_name, role } = params
+        const { user_id, password, full_name, position, role } = params
         
         if (!user_id) {
           return new Response(JSON.stringify({ error: 'ID utilisateur requis' }), {
@@ -236,8 +237,11 @@ Deno.serve(async (req: Request) => {
           updateData.password = password
           console.log('Password will be updated for user:', user_id)
         }
-        if (full_name !== undefined) {
-          updateData.user_metadata = { full_name: full_name?.trim() || '' }
+        if (full_name !== undefined || position !== undefined) {
+          updateData.user_metadata = {
+            full_name: full_name?.trim() || '',
+            position: position?.trim() || ''
+          }
         }
 
         if (Object.keys(updateData).length > 0) {

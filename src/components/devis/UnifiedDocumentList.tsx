@@ -13,7 +13,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { UnifiedDocument, UnifiedDocumentStatus } from '@/types';
+import { UnifiedDocument, UnifiedDocumentStatus, UnifiedDocumentType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +36,28 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
 
-export const UnifiedDocumentList = () => {
+interface UnifiedDocumentListProps {
+  title?: string;
+  description?: string;
+  documentTypes?: UnifiedDocumentType[];
+}
+
+const DEFAULT_DOCUMENT_TYPES: UnifiedDocumentType[] = [
+  'BC_CLIENT',
+  'DEVIS_FOURNISSEUR',
+  'BC_FOURNISSEUR',
+  'BL_FOURNISSEUR',
+  'BE',
+  'BS',
+  'BL_CLIENT',
+  'FACTURE',
+];
+
+export const UnifiedDocumentList = ({
+  title = 'Gestion des Achats & Ventes',
+  description = 'Gérez vos devis, commandes et logistique (Moteur v2)',
+  documentTypes = DEFAULT_DOCUMENT_TYPES,
+}: UnifiedDocumentListProps) => {
   const [documents, setDocuments] = useState<UnifiedDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,7 +79,7 @@ export const UnifiedDocumentList = () => {
             products(name)
           )
         `)
-        .in('type', ['BC_CLIENT', 'DEVIS_FOURNISSEUR', 'BC_FOURNISSEUR', 'BL_FOURNISSEUR', 'BE', 'BS', 'BL_CLIENT', 'FACTURE'])
+        .in('type', documentTypes)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -76,7 +97,7 @@ export const UnifiedDocumentList = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [documentTypes]);
 
   useEffect(() => {
     loadDocuments();
@@ -191,8 +212,8 @@ export const UnifiedDocumentList = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold">Gestion des Achats & Ventes</h2>
-          <p className="text-sm text-muted-foreground">Gérez vos devis, commandes et logistique (Moteur v2)</p>
+          <h2 className="text-2xl font-bold">{title}</h2>
+          <p className="text-sm text-muted-foreground">{description}</p>
         </div>
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -219,6 +240,7 @@ export const UnifiedDocumentList = () => {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+                      {doc.type === 'DEMANDE_ACHAT' && 'DEMANDE D\'ACHAT'}
                       {doc.type === 'BC_CLIENT' && 'BC CLIENT'}
                       {doc.type === 'DEVIS_FOURNISSEUR' && 'DEVIS FOURNISSEUR'}
                       {doc.type === 'BC_FOURNISSEUR' && 'BC FOURNISSEUR'}
@@ -236,6 +258,7 @@ export const UnifiedDocumentList = () => {
                   "p-2 bg-background rounded-lg border shadow-sm",
                   doc.type === 'BS' ? "text-red-500" : (doc.type === 'BE' ? "text-green-500" : (doc.type === 'FACTURE' ? "text-indigo-600" : "text-primary"))
                 )}>
+                   {doc.type === 'DEMANDE_ACHAT' && <Package className="w-5 h-5" />}
                    {doc.type === 'DEVIS_FOURNISSEUR' && <Clock className="w-5 h-5" />}
                    {doc.type === 'BC_FOURNISSEUR' && <Truck className="w-5 h-5" />}
                    {doc.type === 'BC_CLIENT' && <Package className="w-5 h-5" />}
@@ -380,5 +403,3 @@ export const UnifiedDocumentList = () => {
     </div>
   );
 };
-
-const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');

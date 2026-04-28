@@ -17,6 +17,7 @@ export const documentService = {
    */
   async generateNextNumber(type: UnifiedDocumentType): Promise<string> {
     const prefixMap: Record<UnifiedDocumentType, string> = {
+      'DEMANDE_ACHAT': 'DA',
       'BC_CLIENT': 'BCC',
       'DEVIS_FOURNISSEUR': 'DF',
       'BC_FOURNISSEUR': 'BCF',
@@ -123,7 +124,7 @@ export const documentService = {
    * Creates multiple DEVIS_FOURNISSEUR from a parent BC_CLIENT
    * Handles legacy BCs by promoting them to the documents table first.
    */
-  async createSupplierQuotesFromBC(
+  async createSupplierQuotesFromSource(
     sourceDoc: UnifiedDocument, 
     allocations: Array<{ 
       fournisseur_id: number, 
@@ -138,6 +139,21 @@ export const documentService = {
     try {
       const results = [];
       const parentId = await this.ensureModernDocument(sourceDoc);
+
+      const existingSource = await this.getDocument(parentId);
+
+      if (existingSource) {
+        await supabase
+          .from('documents')
+          .update({
+            metadata: {
+              ...(existingSource.metadata || {}),
+              workflow_stage: 'supplier_quotes_requested',
+              supplier_sourcing_started_at: new Date().toISOString(),
+            },
+          })
+          .eq('id', parentId);
+      }
 
       // 2. Create the Supplier Quotes linked to the modern parentId
       for (const allocation of allocations) {
@@ -177,7 +193,132 @@ export const documentService = {
 
       return { success: true, documents: results };
     } catch (error: any) {
-      console.error('Error in createSupplierQuotesFromBC:', error);
+      console.error('Error in createSupplierQuotesFromSource:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  async createSupplierQuotesFromBC(
+    sourceDoc: UnifiedDocument,
+    allocations: Array<{
+      fournisseur_id: number,
+      items: Array<{
+        product_id: number,
+        quantity: number,
+        unit_price: number,
+        description?: string
+      }>
+    }>
+  ) {
+    return this.createSupplierQuotesFromSource(sourceDoc, allocations);
+  },
+
+  async createPurchaseRequest(params: {
+    notes?: string;
+    requesterName?: string;
+    requesterRole?: string;
+    targetRole?: 'responsable_stock' | 'responsable_achat';
+    items: Array<{
+      product_id?: number | null;
+      quantity: number;
+      description?: string;
+      custom_name?: string;
+      supplier_name?: string;
+    }>;
+  }) {
+    try {
+      const numero = await this.generateNextNumber('DEMANDE_ACHAT');
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const { data: doc, error: docError } = await supabase
+        .from('documents')
+        .insert({
+          numero,
+          type: 'DEMANDE_ACHAT',
+          status: 'PENDING',
+          notes: params.notes || null,
+          created_by: user?.id ?? null,
+          metadata: {
+            workflow_stage: params.targetRole === 'responsable_achat' ? 'sent_to_purchasing' : 'submitted',
+            stock_review: params.targetRole === 'responsable_achat' ? 'bypassed' : 'pending',
+            requester_name: params.requesterName || null,
+            requester_role: params.requesterRole || 'agent_commercial',
+            target_role: params.targetRole || 'responsable_stock',
+          },
+        })
+        .select()
+        .single();
+
+      if (docError) throw docError;
+
+      const lines = params.items.map((item) => ({
+        document_id: doc.id,
+        product_id: item.product_id ?? null,
+        quantity: item.quantity,
+        unit_price: 0,
+        total_price: 0,
+        description: [
+          item.custom_name?.trim(),
+          item.supplier_name?.trim() ? `Fournisseur: ${item.supplier_name.trim()}` : '',
+          item.description?.trim(),
+        ].filter(Boolean).join(' | ') || null,
+      }));
+
+      const { error: linesError } = await supabase.from('document_lines').insert(lines);
+      if (linesError) throw linesError;
+
+      return { success: true, document: doc };
+    } catch (error: any) {
+      console.error('Error in createPurchaseRequest:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  async reviewPurchaseRequest(
+    requestId: string,
+    decision: 'available' | 'purchase_required',
+    comment?: string
+  ) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const { data: current, error: loadError } = await supabase
+        .from('documents')
+        .select('metadata')
+        .eq('id', requestId)
+        .single();
+
+      if (loadError) throw loadError;
+
+      const metadata = {
+        ...(current.metadata as Record<string, unknown>),
+        workflow_stage: 'sent_to_purchasing',
+        stock_review: decision,
+        stock_review_comment: comment || null,
+        stock_reviewed_at: new Date().toISOString(),
+        stock_reviewed_by: user?.id ?? null,
+      };
+
+      const nextStatus: UnifiedDocumentStatus =
+        decision === 'available' ? 'COMPLETED' : 'VALIDATED';
+
+      const { error } = await supabase
+        .from('documents')
+        .update({
+          status: nextStatus,
+          metadata,
+        })
+        .eq('id', requestId);
+
+      if (error) throw error;
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error in reviewPurchaseRequest:', error);
       return { success: false, error: error.message };
     }
   },

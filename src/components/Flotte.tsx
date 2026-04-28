@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Truck, Plus, Trash2, Hash, Loader2 } from 'lucide-react';
 import {
   Dialog,
@@ -21,6 +21,7 @@ interface Vehicle {
 }
 
 export const Flotte = () => {
+  const firstInputRef = useRef<HTMLInputElement | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -48,6 +49,17 @@ export const Flotte = () => {
   useEffect(() => {
     fetchVehicles();
   }, []);
+
+  useEffect(() => {
+    if (!isDialogOpen) return;
+
+    const timeoutId = window.setTimeout(() => {
+      firstInputRef.current?.focus();
+      firstInputRef.current?.select();
+    }, 50);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isDialogOpen]);
 
   const handleSubmit = async () => {
     if (!form.modele.trim() || !form.matricule.trim()) {
@@ -196,10 +208,10 @@ export const Flotte = () => {
               <Label htmlFor="veh-modele">Modèle *</Label>
               <Input
                 id="veh-modele"
+                ref={firstInputRef}
                 placeholder="Ex: Toyota Hilux"
                 value={form.modele}
                 onChange={(e) => setForm((f) => ({ ...f, modele: e.target.value }))}
-                autoFocus
               />
             </div>
             <div className="grid gap-2">

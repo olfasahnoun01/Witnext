@@ -15,6 +15,7 @@ import {
   Plus, 
   Search, 
   Calendar, 
+  Clock,
   Building2, 
   Phone, 
   Mail, 
@@ -22,7 +23,7 @@ import {
   User, 
   FileCheck,
   FileX,
-  MoreHorizontal,
+  Pencil,
   Download, 
   Filter,
   Table as TableIcon
@@ -46,7 +47,6 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Calendar as UICalendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, isSameDay, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -68,12 +68,52 @@ interface RDV {
   charge: string;
 }
 
+interface RDVFormData {
+  dateCreation: string;
+  societe: string;
+  activite: string;
+  adresse: string;
+  telephone: string;
+  email: string;
+  personneContactee: string;
+  dateRDV: string;
+  heureRDV: string;
+  notes: string;
+  besoin: string;
+  pieceJointe: 'envoyé' | 'non envoyé';
+}
+
+const createEmptyFormData = (): RDVFormData => ({
+  dateCreation: new Date().toISOString().split('T')[0],
+  societe: '',
+  activite: '',
+  adresse: '',
+  telephone: '',
+  email: '',
+  personneContactee: '',
+  dateRDV: '',
+  heureRDV: '',
+  notes: '',
+  besoin: '',
+  pieceJointe: 'non envoyé',
+});
+
+const buildRDVDateTime = (date: string, time?: string) => {
+  if (!date) {
+    return new Date().toISOString();
+  }
+
+  const normalizedTime = time && time.trim() ? time : '00:00';
+  return new Date(`${date}T${normalizedTime}:00`).toISOString();
+};
+
 export const RDV = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [rdvs, setRdvs] = useState<RDV[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingRDV, setEditingRDV] = useState<RDV | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
@@ -118,48 +158,85 @@ export const RDV = () => {
   }, [fetchRdvs]);
   
   // Form State
-  const [formData, setFormData] = useState<Partial<RDV>>({
-    pieceJointe: 'non envoyé',
-    dateCreation: new Date().toISOString().split('T')[0]
-  });
+  const [formData, setFormData] = useState<RDVFormData>(createEmptyFormData());
 
-  const handleAddRDV = async (e: React.FormEvent) => {
+  const resetForm = useCallback(() => {
+    setFormData(createEmptyFormData());
+    setEditingRDV(null);
+  }, []);
+
+  const handleSubmitRDV = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const newNumero = `RDV-${(rdvs.length + 1).toString().padStart(3, '0')}`;
-    const dateRDV = formData.dateRDV ? new Date(formData.dateRDV).toISOString() : new Date().toISOString();
+    const dateRDV = buildRDVDateTime(formData.dateRDV, formData.heureRDV);
 
     try {
-      const { data, error } = await (supabase as any)
-        .from('rdvs')
-        .insert([{
-          numero: newNumero,
-          date_creation: formData.dateCreation || new Date().toISOString().split('T')[0],
-          societe: formData.societe || '',
-          activite: formData.activite || '',
-          adresse: formData.adresse || '',
-          telephone: formData.telephone || '',
-          email: formData.email || '',
-          personne_contactee: formData.personneContactee || '',
-          date_rdv: dateRDV,
-          notes: formData.notes || '',
-          besoin: formData.besoin || '',
-          piece_jointe: formData.pieceJointe,
-          charge: user?.email || 'Unknown'
-        }])
-        .select();
+      const payload = {
+        date_creation: formData.dateCreation || new Date().toISOString().split('T')[0],
+        societe: formData.societe || '',
+        activite: formData.activite || '',
+        adresse: formData.adresse || '',
+        telephone: formData.telephone || '',
+        email: formData.email || '',
+        personne_contactee: formData.personneContactee || '',
+        date_rdv: dateRDV,
+        notes: formData.notes || '',
+        besoin: formData.besoin || '',
+        piece_jointe: formData.pieceJointe,
+        charge: editingRDV?.charge || user?.email || 'Unknown'
+      };
+
+      const query = editingRDV
+        ? (supabase as any).from('rdvs').update(payload).eq('id', editingRDV.id)
+        : (supabase as any).from('rdvs').insert([{
+            ...payload,
+            numero: `RDV-${(rdvs.length + 1).toString().padStart(3, '0')}`
+          }]);
+
+      const { error } = await query.select();
 
       if (error) throw error;
 
-      toast.success('Rendez-vous ajouté avec succès');
+      toast.success(editingRDV ? 'Rendez-vous modifié avec succès' : 'Rendez-vous ajouté avec succès');
       setDialogOpen(false);
-      setFormData({ pieceJointe: 'non envoyé', dateCreation: new Date().toISOString().split('T')[0] });
-      fetchRdvs();
+      resetForm();
+      await fetchRdvs();
     } catch (error: any) {
-      console.error('Error adding rdv:', error);
-      toast.error('Erreur lors de l\'ajout du rendez-vous');
+      console.error('Error saving rdv:', error);
+      toast.error(editingRDV ? 'Erreur lors de la modification du rendez-vous' : 'Erreur lors de l\'ajout du rendez-vous');
     }
   };
+
+  const handleEditRDV = useCallback((rdv: RDV) => {
+    let datePart = '';
+    let timePart = '';
+
+    try {
+      const parsedDate = parseISO(rdv.dateRDV);
+      datePart = format(parsedDate, 'yyyy-MM-dd');
+      timePart = format(parsedDate, 'HH:mm');
+    } catch {
+      datePart = '';
+      timePart = '';
+    }
+
+    setEditingRDV(rdv);
+    setFormData({
+      dateCreation: rdv.dateCreation || new Date().toISOString().split('T')[0],
+      societe: rdv.societe || '',
+      activite: rdv.activite || '',
+      adresse: rdv.adresse || '',
+      telephone: rdv.telephone || '',
+      email: rdv.email || '',
+      personneContactee: rdv.personneContactee || '',
+      dateRDV: datePart,
+      heureRDV: timePart,
+      notes: rdv.notes || '',
+      besoin: rdv.besoin || '',
+      pieceJointe: rdv.pieceJointe || 'non envoyé',
+    });
+    setDialogOpen(true);
+  }, []);
 
   const filteredRdvs = useMemo(() => {
     return rdvs.filter(rdv => 
@@ -219,18 +296,29 @@ export const RDV = () => {
             </Button>
           </div>
 
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog
+            open={dialogOpen}
+            onOpenChange={(open) => {
+              setDialogOpen(open);
+              if (!open) resetForm();
+            }}
+          >
             <DialogTrigger asChild>
-              <Button className="gap-2 bg-primary hover:bg-primary/90 shadow-lg transition-all duration-300">
+              <Button
+                className="gap-2 bg-primary hover:bg-primary/90 shadow-lg transition-all duration-300"
+                onClick={() => resetForm()}
+              >
                 <Plus className="w-4 h-4" />
                 Nouveau RDV
               </Button>
             </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-2xl font-bold">Ajouter un Rendez-vous</DialogTitle>
+              <DialogTitle className="text-2xl font-bold">
+                {editingRDV ? `Modifier ${editingRDV.numero}` : 'Ajouter un Rendez-vous'}
+              </DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleAddRDV} className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+            <form onSubmit={handleSubmitRDV} className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
               <div className="space-y-2">
                 <Label htmlFor="societe">Nom de la société</Label>
                 <div className="relative">
@@ -275,10 +363,25 @@ export const RDV = () => {
                 <Input 
                   id="dateRDV" 
                   type="date" 
-                  value={formData.dateRDV || ''}
+                  value={formData.dateRDV}
                   onChange={e => setFormData({...formData, dateRDV: e.target.value})}
                   required
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="heureRDV">Heure RDV</Label>
+                <div className="relative">
+                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="heureRDV"
+                    type="time"
+                    className="pl-10"
+                    value={formData.heureRDV}
+                    onChange={e => setFormData({...formData, heureRDV: e.target.value})}
+                    required
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -339,7 +442,7 @@ export const RDV = () => {
                 <Label>Pièce jointe</Label>
                 <Select 
                   value={formData.pieceJointe} 
-                  onValueChange={val => setFormData({...formData, pieceJointe: val as any})}
+                  onValueChange={val => setFormData({...formData, pieceJointe: val as RDVFormData['pieceJointe']})}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -362,8 +465,19 @@ export const RDV = () => {
               </div>
 
               <div className="col-span-full flex justify-end gap-3 pt-4 border-t">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
-                <Button type="submit">Enregistrer le RDV</Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setDialogOpen(false);
+                    resetForm();
+                  }}
+                >
+                  Annuler
+                </Button>
+                <Button type="submit">
+                  {editingRDV ? 'Enregistrer les modifications' : 'Enregistrer le RDV'}
+                </Button>
               </div>
             </form>
           </DialogContent>
@@ -463,8 +577,14 @@ export const RDV = () => {
                         </TableCell>
                         <TableCell className="text-xs font-semibold">{rdv.charge}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" className="hover:bg-primary/10">
-                            <MoreHorizontal className="w-4 h-4" />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="hover:bg-primary/10"
+                            onClick={() => handleEditRDV(rdv)}
+                            title="Modifier le rendez-vous"
+                          >
+                            <Pencil className="w-4 h-4" />
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -516,7 +636,12 @@ export const RDV = () => {
                             <p className="font-bold text-primary">{rdv.societe}</p>
                             <p className="text-xs text-muted-foreground">{rdv.activite}</p>
                           </div>
-                          <Badge variant="secondary" className="text-[10px]">{rdv.numero}</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-[10px]">
+                              {format(parseISO(rdv.dateRDV), 'HH:mm')}
+                            </Badge>
+                            <Badge variant="secondary" className="text-[10px]">{rdv.numero}</Badge>
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           <div className="flex items-center gap-2">
@@ -534,6 +659,12 @@ export const RDV = () => {
                         </div>
                         <div className="mt-3 pt-3 border-t text-[11px] text-muted-foreground line-clamp-2">
                           {rdv.besoin}
+                        </div>
+                        <div className="mt-3 flex justify-end">
+                          <Button variant="outline" size="sm" onClick={() => handleEditRDV(rdv)}>
+                            <Pencil className="w-4 h-4 mr-2" />
+                            Modifier
+                          </Button>
                         </div>
                       </div>
                     ))

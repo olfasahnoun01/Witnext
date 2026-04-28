@@ -1,24 +1,15 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { 
-  UnifiedDocument, 
-  UnifiedDocumentLine, 
-  Product, 
-  UnifiedDocumentType
-} from '@/types';
+import { UnifiedDocument } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { Plus, Trash2, Search, FileSignature, AlertCircle, ShoppingCart } from 'lucide-react';
+import { Plus, Trash2, FileSignature, ShoppingCart } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { toast } from 'sonner';
@@ -38,7 +29,7 @@ interface Allocation {
 interface ProcurementDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** The Client BC that needs procurement */
+  /** The source document that needs supplier sourcing */
   sourceBC: UnifiedDocument | null;
   onSuccess: () => void;
 }
@@ -141,7 +132,7 @@ export const ProcurementDialog = ({
           }
           
           supplierMap[alloc.fournisseur_id].push({
-            product_id: line?.product_id,
+            product_id: line?.product_id ?? null,
             quantity: alloc.quantity,
             unit_price: alloc.unit_price,
             description: line?.description
@@ -161,7 +152,7 @@ export const ProcurementDialog = ({
       }
 
       // 2. Call service
-      const result = await documentService.createSupplierQuotesFromBC(sourceBC, supplierRequests);
+      const result = await documentService.createSupplierQuotesFromSource(sourceBC, supplierRequests);
       
       if (result.success) {
         toast.success(`${result.documents?.length} Devis Fournisseurs ont été créés.`);
@@ -250,6 +241,8 @@ export const ProcurementDialog = ({
 
   if (!sourceBC) return null;
 
+  const sourceLabel = sourceBC.type === 'DEMANDE_ACHAT' ? 'demande d\'achat' : 'commande client';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
@@ -259,7 +252,7 @@ export const ProcurementDialog = ({
             Approvisionnement pour {sourceBC.numero}
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Sélectionnez les fournisseurs pour chaque article de la commande client.
+            Sélectionnez les fournisseurs pour chaque article de la {sourceLabel}.
           </p>
         </DialogHeader>
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { UserPlus, Users, Trash2, Phone, CreditCard, Shield, Mail, Lock, Loader2, Edit2, IdCard } from 'lucide-react';
 import {
   Dialog,
@@ -32,6 +32,7 @@ interface Employee {
 }
 
 export const EmployeeList = () => {
+  const firstInputRef = useRef<HTMLInputElement | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -69,6 +70,17 @@ export const EmployeeList = () => {
   useEffect(() => {
     fetchEmployees();
   }, []);
+
+  useEffect(() => {
+    if (!isDialogOpen) return;
+
+    const timeoutId = window.setTimeout(() => {
+      firstInputRef.current?.focus();
+      firstInputRef.current?.select();
+    }, 50);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isDialogOpen]);
 
   const handleSubmit = async () => {
     if (!form.prenom.trim() || !form.nom.trim()) {
@@ -326,6 +338,7 @@ export const EmployeeList = () => {
                 <Label htmlFor="emp-prenom">Prénom *</Label>
                 <Input
                   id="emp-prenom"
+                  ref={firstInputRef}
                   placeholder="Prénom"
                   value={form.prenom}
                   onChange={(e) => setForm((f) => ({ ...f, prenom: e.target.value }))}

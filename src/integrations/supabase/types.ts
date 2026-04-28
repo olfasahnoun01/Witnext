@@ -1058,7 +1058,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
-      doc_type: "BC_CLIENT" | "DEVIS_FOURNISSEUR" | "BC_FOURNISSEUR" | "BL_FOURNISSEUR" | "BE" | "BS" | "BL_CLIENT" | "FACTURE"
+      doc_type: "DEMANDE_ACHAT" | "BC_CLIENT" | "DEVIS_FOURNISSEUR" | "BC_FOURNISSEUR" | "BL_FOURNISSEUR" | "BE" | "BS" | "BL_CLIENT" | "FACTURE"
       doc_status: "DRAFT" | "PENDING" | "VALIDATED" | "COMPLETED" | "REJECTED" | "PARTIALLY_RECEIVED"
     }
     CompositeTypes: {
@@ -1188,7 +1188,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
-      doc_type: ["BC_CLIENT", "DEVIS_FOURNISSEUR", "BC_FOURNISSEUR", "BL_FOURNISSEUR", "BE", "BS", "BL_CLIENT", "FACTURE"],
+      doc_type: ["DEMANDE_ACHAT", "BC_CLIENT", "DEVIS_FOURNISSEUR", "BC_FOURNISSEUR", "BL_FOURNISSEUR", "BE", "BS", "BL_CLIENT", "FACTURE"],
       doc_status: ["DRAFT", "PENDING", "VALIDATED", "COMPLETED", "REJECTED", "PARTIALLY_RECEIVED"],
     },
   },

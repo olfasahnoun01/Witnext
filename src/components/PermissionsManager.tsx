@@ -9,6 +9,8 @@ import {
   Edit2,
   Trash2,
   X,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -31,6 +33,7 @@ interface ManagedUser {
   id: string;            // auth user id
   email: string;
   full_name: string;
+  position?: string;
   created_at: string;
   role: Role;
 }
@@ -48,11 +51,22 @@ const buildAllPermissionKeys = (): string[] => {
   return BIG_SECTIONS.map((s) => s.id);
 };
 
+const POSITION_OPTIONS = [
+  'Responsable achat',
+  'Responsable commerciale',
+  'Responsable magazin',
+  'Responsable informatique',
+  'Responsable ressources humaines',
+  'Responsable administrative',
+  'Operateur',
+] as const;
+
 export const PermissionsManager = () => {
   const { toast } = useToast();
 
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [perms, setPerms] = useState<Record<string, Set<string>>>({});
+  const [expandedUsers, setExpandedUsers] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [savingPermsFor, setSavingPermsFor] = useState<string | null>(null);
 
@@ -64,6 +78,7 @@ export const PermissionsManager = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [position, setPosition] = useState<string>('Operateur');
   const [role, setRole] = useState<Role>('user');
   // Permissions chosen inline in the create/edit modal
   const [modalPerms, setModalPerms] = useState<Set<string>>(new Set());
@@ -189,6 +204,7 @@ export const PermissionsManager = () => {
       setEditingUser(user);
       setEmail(user.email);
       setFullName(user.full_name ?? '');
+      setPosition(user.position || 'Operateur');
       setRole(user.role);
       setPassword('');
       setModalPerms(new Set(perms[user.id] ?? []));
@@ -197,6 +213,7 @@ export const PermissionsManager = () => {
       setEmail('');
       setPassword('');
       setFullName('');
+      setPosition('Operateur');
       setRole('user');
       setModalPerms(new Set()); // start empty; admin picks
     }
@@ -209,8 +226,13 @@ export const PermissionsManager = () => {
     setEmail('');
     setPassword('');
     setFullName('');
+    setPosition('Operateur');
     setRole('user');
     setModalPerms(new Set());
+  };
+
+  const toggleExpandedUser = (userId: string) => {
+    setExpandedUsers((prev) => ({ ...prev, [userId]: !prev[userId] }));
   };
 
   const toggleModalFullSection = (sectionId: string) => {
@@ -254,6 +276,7 @@ export const PermissionsManager = () => {
             action: 'update',
             user_id: editingUser.id,
             full_name: fullName,
+            position,
             role,
             ...(password ? { password } : {}),
           },
@@ -268,7 +291,7 @@ export const PermissionsManager = () => {
           return;
         }
         const response = await supabase.functions.invoke('manage-users', {
-          body: { action: 'create', email, password, full_name: fullName, role },
+          body: { action: 'create', email, password, full_name: fullName, position, role },
           headers: { Authorization: `Bearer ${token}` },
         });
         if (response.error) throw new Error(response.error.message);
@@ -376,10 +399,11 @@ export const PermissionsManager = () => {
             {users.map((u) => {
               const isAdminUser = u.role === 'admin';
               const userSet = perms[u.id] ?? new Set<string>();
+              const isExpanded = !!expandedUsers[u.id];
               return (
                 <div key={u.id} className="border border-border rounded-xl p-4">
                   {/* Header row */}
-                  <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 flex-wrap">
                         <p className="font-semibold text-foreground truncate">{u.email}</p>
@@ -388,12 +412,24 @@ export const PermissionsManager = () => {
                       {u.full_name && (
                         <p className="text-sm text-muted-foreground mt-1">{u.full_name}</p>
                       )}
+                      {u.position && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{u.position}</p>
+                      )}
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Créé le {new Date(u.created_at).toLocaleDateString('fr-FR')}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => toggleExpandedUser(u.id)}
+                      >
+                        {isExpanded ? <ChevronUp className="w-4 h-4 mr-2" /> : <ChevronDown className="w-4 h-4 mr-2" />}
+                        {isExpanded ? 'Masquer permissions' : 'Afficher permissions'}
+                      </Button>
                       {!isAdminUser && (
+                        isExpanded && (
                         <>
                           <Button size="sm" variant="outline" onClick={() => grantAll(u.id)}>
                             Tout accorder
@@ -414,6 +450,7 @@ export const PermissionsManager = () => {
                             Enregistrer
                           </Button>
                         </>
+                        )
                       )}
                       <button
                         onClick={() => openModal(u)}
@@ -433,7 +470,7 @@ export const PermissionsManager = () => {
                   </div>
 
                   {/* Permissions grid */}
-                  {isAdminUser ? (
+                  {isExpanded && (isAdminUser ? (
                     <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm text-muted-foreground">
                       Cet administrateur a accès à toutes les sections et sous-sections par défaut.
                     </div>
@@ -485,7 +522,7 @@ export const PermissionsManager = () => {
                         );
                       })}
                     </div>
-                  )}
+                  ))}
                 </div>
               );
             })}
@@ -552,6 +589,19 @@ export const PermissionsManager = () => {
                     minLength={6}
                     placeholder="••••••••"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="position">Poste</Label>
+                  <Select value={position} onValueChange={setPosition}>
+                    <SelectTrigger id="position">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {POSITION_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Rôle</Label>

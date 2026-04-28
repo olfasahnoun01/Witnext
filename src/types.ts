@@ -159,6 +159,7 @@ export interface Facture {
 // --- Unified Document Engine (v2) ---
 
 export type UnifiedDocumentType = 
+  | 'DEMANDE_ACHAT'
   | 'BC_CLIENT' 
   | 'DEVIS_FOURNISSEUR' 
   | 'BC_FOURNISSEUR' 
