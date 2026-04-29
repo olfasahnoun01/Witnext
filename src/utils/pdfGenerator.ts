@@ -449,7 +449,8 @@ export const downloadUnifiedDocumentPDF = async (doc: UnifiedDocument) => {
   const docType = typeMap[doc.type] || 'bon_livraison';
   
   const docItems: DocumentItem[] = (doc.lines || []).map(l => ({
-    product_id: l.product_id,
+    product_id: l.product_id || 0,
+    ref: (l as any).products?.sku || '',
     designation: (l as any).products?.name || 'Produit',
     description: l.description || '',
     quantity: l.quantity,
