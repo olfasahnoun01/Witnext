@@ -40,6 +40,7 @@ interface UnifiedDocumentListProps {
   title?: string;
   description?: string;
   documentTypes?: UnifiedDocumentType[];
+  metadataFilter?: { key: string; value: string };
 }
 
 const DEFAULT_DOCUMENT_TYPES: UnifiedDocumentType[] = [
@@ -57,6 +58,7 @@ export const UnifiedDocumentList = ({
   title = 'Gestion des Achats & Ventes',
   description = 'Gérez vos devis, commandes et logistique (Moteur v2)',
   documentTypes = DEFAULT_DOCUMENT_TYPES,
+  metadataFilter,
 }: UnifiedDocumentListProps) => {
   const [documents, setDocuments] = useState<UnifiedDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,7 +70,7 @@ export const UnifiedDocumentList = ({
   const loadDocuments = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('documents')
         .select(`
           *,
@@ -79,7 +81,13 @@ export const UnifiedDocumentList = ({
             products(name)
           )
         `)
-        .in('type', documentTypes)
+        .in('type', documentTypes);
+
+      if (metadataFilter) {
+        query = query.filter(`metadata->>${metadataFilter.key}`, 'eq', metadataFilter.value);
+      }
+
+      const { data, error } = await query
         .order('created_at', { ascending: false })
         .limit(500);
 

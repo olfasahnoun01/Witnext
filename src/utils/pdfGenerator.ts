@@ -461,11 +461,11 @@ export const downloadUnifiedDocumentPDF = async (doc: UnifiedDocument) => {
     docType: docType,
     docNumber: doc.numero,
     docDate: doc.created_at,
-    docValidity: '',
-    transportRef: '',
-    thirdPartyName: doc.fournisseur_name || doc.client_name || '',
-    thirdPartyAddress: '',
-    thirdPartyTaxId: '',
+    docValidity: doc.metadata?.validity || '',
+    transportRef: doc.metadata?.transport_ref || '',
+    thirdPartyName: doc.fournisseur_name || doc.client_name || doc.metadata?.third_party_name || '',
+    thirdPartyAddress: doc.metadata?.third_party_address || '',
+    thirdPartyTaxId: doc.metadata?.third_party_tax_id || '',
     docItems: docItems
   });
 };

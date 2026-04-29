@@ -23,6 +23,7 @@ const GestionDevis = lazy(() => import('@/components/GestionDevis').then(m => ({
 const PhotoGallery = lazy(() => import('@/components/PhotoGallery').then(m => ({ default: m.PhotoGallery })));
 const UnifiedDocumentList = lazy(() => import('@/components/devis/UnifiedDocumentList').then(m => ({ default: m.UnifiedDocumentList })));
 const PurchaseRequestManager = lazy(() => import('@/components/devis/PurchaseRequestManager').then(m => ({ default: m.PurchaseRequestManager })));
+const WarehouseDocumentManager = lazy(() => import('@/components/inventory/WarehouseDocumentManager').then(m => ({ default: m.WarehouseDocumentManager })));
 
 const Planning = lazy(() => import('@/components/Planning').then(m => ({ default: m.Planning })));
 const EmployeeList = lazy(() => import('@/components/EmployeeList').then(m => ({ default: m.EmployeeList })));
@@ -87,6 +88,27 @@ const Index = () => {
       <Suspense fallback={<ComponentLoader />}>
         {/* Magasin & Stock */}
         {activeTab === 'inventory' && <Inventory />}
+        {activeTab === 'be-magasin' && (
+          <WarehouseDocumentManager 
+            type="BE" 
+            title="Bons d'Entrée" 
+            description="Gérez les réceptions de stock et entrées manuelles." 
+          />
+        )}
+        {activeTab === 'bs-magasin' && (
+          <WarehouseDocumentManager 
+            type="BS" 
+            title="Bons de Sortie" 
+            description="Gérez les sorties de stock manuelles." 
+          />
+        )}
+        {activeTab === 'bl-magasin' && (
+          <WarehouseDocumentManager 
+            type="BL_CLIENT" 
+            title="Bons de Livraison (Magasin)" 
+            description="Gérez les livraisons créées directement depuis le magasin." 
+          />
+        )}
         {activeTab === 'comparison' && <SupplierComparison />}
         {activeTab === 'transactions' && <Transactions />}
         {activeTab === 'reports' && <Reports />}
@@ -103,8 +125,9 @@ const Index = () => {
         {activeTab === 'bl-vente' && (
           <UnifiedDocumentList
             title="Bons de Livraison"
-            description="Suivez les bons de livraison générés après validation des commandes client."
+            description="Suivez les bons de livraison générés depuis le magasin."
             documentTypes={['BL_CLIENT']}
+            metadataFilter={{ key: 'origin', value: 'magasin' }}
           />
         )}
         {activeTab === 'factures-vente' && (

@@ -70,7 +70,7 @@ export const documentService = {
       .insert({
         numero: sourceDoc.numero,
         type: sourceDoc.type,
-        status: sourceDoc.status === 'accepté' || sourceDoc.status === 'confirmé' ? 'VALIDATED' : 'PENDING' as any,
+        status: (sourceDoc as any).status === 'accepté' || (sourceDoc as any).status === 'confirmé' ? 'VALIDATED' : 'PENDING' as any,
         client_id: sourceDoc.client_id,
         fournisseur_id: sourceDoc.fournisseur_id,
         notes: sourceDoc.notes,
@@ -688,6 +688,61 @@ export const documentService = {
       return { success: true };
     } catch (error: any) {
       console.error('Error in deleteDocument:', error);
+      return { success: false, error: error.message };
+    }
+  },
+  async createDocument(params: {
+    type: UnifiedDocumentType;
+    status?: UnifiedDocumentStatus;
+    clientId?: number;
+    fournisseurId?: number;
+    notes?: string;
+    metadata?: any;
+    lines: Array<{
+      product_id: number;
+      quantity: number;
+      unit_price: number;
+      description?: string;
+    }>;
+  }) {
+    try {
+      const numero = await this.generateNextNumber(params.type);
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { data: doc, error: docError } = await supabase
+        .from('documents')
+        .insert({
+          numero,
+          type: params.type,
+          status: params.status || 'PENDING',
+          client_id: params.clientId || null,
+          fournisseur_id: params.fournisseurId || null,
+          notes: params.notes || null,
+          created_by: user?.id ?? null,
+          metadata: params.metadata || {},
+        })
+        .select().single();
+
+      if (docError) throw docError;
+
+      const linesToInsert = params.lines.map(line => ({
+        document_id: doc.id,
+        product_id: line.product_id,
+        quantity: line.quantity,
+        unit_price: line.unit_price,
+        total_price: line.quantity * line.unit_price,
+        description: line.description || null
+      }));
+
+      const { error: linesError } = await supabase
+        .from('document_lines')
+        .insert(linesToInsert);
+
+      if (linesError) throw linesError;
+
+      return { success: true, document: doc };
+    } catch (error: any) {
+      console.error('Error in createDocument:', error);
       return { success: false, error: error.message };
     }
   }

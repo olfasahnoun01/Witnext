@@ -26,6 +26,8 @@ import {
   Receipt,
   Settings,
   ShoppingBag,
+  PackageCheck,
+  TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -78,6 +80,9 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'dashboard', label: 'Tableau de Bord', icon: LayoutDashboard },
       { id: 'demande-achat-magasin', label: "Demandes d'achat", icon: FileSignature },
       { id: 'inventory', label: 'Inventaire', icon: Package },
+      { id: 'be-magasin', label: "Bons d'Entrée", icon: PackageCheck },
+      { id: 'bs-magasin', label: 'Bons de Sortie', icon: TrendingUp },
+      { id: 'bl-magasin', label: 'Bons de Livraison', icon: Truck },
       { id: 'comparison', label: 'Comparaison Prix', icon: GitCompare },
       { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
       { id: 'reports', label: 'Rapports & Documents', icon: FileText },
