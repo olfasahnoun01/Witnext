@@ -3,6 +3,10 @@ const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const isDev = process.env.NODE_ENV === 'development';
 
+if (isDev) {
+  process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+}
+
 let mainWindow;
 
 function createWindow() {

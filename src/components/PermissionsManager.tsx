@@ -27,7 +27,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { BIG_SECTIONS } from '@/config/navigation';
 
-type Role = 'admin' | 'moderator' | 'user';
+type Role = 'admin' | 'user';
 
 interface ManagedUser {
   id: string;            // auth user id
@@ -47,7 +47,6 @@ interface Perm {
 const keyOf = (section: string, sub: string) => (sub ? `${section}:${sub}` : section);
 
 const buildAllPermissionKeys = (): string[] => {
-  // "Accès total" = full-section grant for every big section
   return BIG_SECTIONS.map((s) => s.id);
 };
 
@@ -59,6 +58,7 @@ const POSITION_OPTIONS = [
   'Responsable ressources humaines',
   'Responsable administrative',
   'Operateur',
+  'Chauffeur',
 ] as const;
 
 export const PermissionsManager = () => {
@@ -80,8 +80,10 @@ export const PermissionsManager = () => {
   const [fullName, setFullName] = useState('');
   const [position, setPosition] = useState<string>('Operateur');
   const [role, setRole] = useState<Role>('user');
+  
   // Permissions chosen inline in the create/edit modal
   const [modalPerms, setModalPerms] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'admins' | 'users' | 'drivers'>('admins');
 
   const getAuthToken = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -126,7 +128,6 @@ export const PermissionsManager = () => {
     load();
   }, []);
 
-  // ---------- Permission toggling (inline per user card) ----------
   const toggleFullSection = (userId: string, sectionId: string) => {
     setPerms((prev) => {
       const userSet = new Set(prev[userId] ?? []);
@@ -198,7 +199,6 @@ export const PermissionsManager = () => {
     }
   };
 
-  // ---------- User CRUD ----------
   const openModal = (user?: ManagedUser) => {
     if (user) {
       setEditingUser(user);
@@ -215,7 +215,7 @@ export const PermissionsManager = () => {
       setFullName('');
       setPosition('Operateur');
       setRole('user');
-      setModalPerms(new Set()); // start empty; admin picks
+      setModalPerms(new Set());
     }
     setIsModalOpen(true);
   };
@@ -267,7 +267,6 @@ export const PermissionsManager = () => {
     setSubmitting(true);
     try {
       const token = await getAuthToken();
-
       let targetUserId = editingUser?.id ?? null;
 
       if (editingUser) {
@@ -299,7 +298,6 @@ export const PermissionsManager = () => {
         targetUserId = response.data?.user?.id ?? response.data?.user_id ?? null;
       }
 
-      // Persist permissions for non-admin users (admins bypass anyway)
       if (targetUserId && role !== 'admin') {
         await persistPermissions(targetUserId, modalPerms);
       }
@@ -344,18 +342,22 @@ export const PermissionsManager = () => {
           <ShieldCheck className="w-3 h-3" /> Admin
         </span>
       );
-    if (r === 'moderator')
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-warning/10 text-warning">
-          <Shield className="w-3 h-3" /> Modérateur
-        </span>
-      );
     return (
       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
         Utilisateur
       </span>
     );
   };
+
+  const filteredUsers = users.filter((u) => {
+    const pos = (u.position || '').toLowerCase();
+    const isDriverOrOp = pos === 'chauffeur' || pos === 'operateur' || pos === 'chauffer';
+    
+    if (activeTab === 'drivers') return isDriverOrOp;
+    if (activeTab === 'admins') return u.role === 'admin';
+    if (activeTab === 'users') return u.role === 'user' && !isDriverOrOp;
+    return true;
+  });
 
   if (loading) {
     return (
@@ -379,7 +381,6 @@ export const PermissionsManager = () => {
               </h2>
               <p className="text-sm text-muted-foreground">
                 Gérez les utilisateurs, leurs rôles, puis définissez les sections et sous-sections accessibles.
-                Les administrateurs ont accès à tout par défaut.
               </p>
             </div>
           </div>
@@ -389,20 +390,52 @@ export const PermissionsManager = () => {
           </Button>
         </div>
 
-        {users.length === 0 ? (
+        <div className="flex gap-1 mb-6 p-1 bg-muted/50 rounded-lg w-fit">
+          <button
+            onClick={() => setActiveTab('admins')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'admins' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Administrateurs ({users.filter(u => u.role === 'admin').length})
+          </button>
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'users' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Utilisateurs ({users.filter(u => {
+              const pos = (u.position || '').toLowerCase();
+              return u.role === 'user' && pos !== 'chauffeur' && pos !== 'operateur' && pos !== 'chauffer';
+            }).length})
+          </button>
+          <button
+            onClick={() => setActiveTab('drivers')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'drivers' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Chauffeurs ({users.filter(u => {
+              const pos = (u.position || '').toLowerCase();
+              return pos === 'chauffeur' || pos === 'operateur' || pos === 'chauffer';
+            }).length})
+          </button>
+        </div>
+
+        {filteredUsers.length === 0 ? (
           <div className="text-center py-12">
             <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">Aucun utilisateur trouvé</p>
+            <p className="text-muted-foreground">Aucun utilisateur trouvé dans cette section</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {users.map((u) => {
+            {filteredUsers.map((u) => {
               const isAdminUser = u.role === 'admin';
               const userSet = perms[u.id] ?? new Set<string>();
               const isExpanded = !!expandedUsers[u.id];
               return (
                 <div key={u.id} className="border border-border rounded-xl p-4">
-                  {/* Header row */}
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 flex-wrap">
@@ -428,8 +461,7 @@ export const PermissionsManager = () => {
                         {isExpanded ? <ChevronUp className="w-4 h-4 mr-2" /> : <ChevronDown className="w-4 h-4 mr-2" />}
                         {isExpanded ? 'Masquer permissions' : 'Afficher permissions'}
                       </Button>
-                      {!isAdminUser && (
-                        isExpanded && (
+                      {!isAdminUser && isExpanded && (
                         <>
                           <Button size="sm" variant="outline" onClick={() => grantAll(u.id)}>
                             Tout accorder
@@ -450,32 +482,28 @@ export const PermissionsManager = () => {
                             Enregistrer
                           </Button>
                         </>
-                        )
                       )}
                       <button
                         onClick={() => openModal(u)}
                         className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
-                        aria-label="Modifier"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(u)}
                         className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                        aria-label="Supprimer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
 
-                  {/* Permissions grid */}
                   {isExpanded && (isAdminUser ? (
-                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm text-muted-foreground">
+                    <div className="mt-4 bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm text-muted-foreground">
                       Cet administrateur a accès à toutes les sections et sous-sections par défaut.
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                       {BIG_SECTIONS.map((section) => {
                         const fullGranted = userSet.has(section.id);
                         return (
@@ -487,12 +515,8 @@ export const PermissionsManager = () => {
                               />
                               <section.icon className="w-4 h-4 text-primary" />
                               <span className="font-medium text-sm text-foreground">{section.label}</span>
-                              <span className="text-xs text-muted-foreground ml-auto">
-                                {fullGranted ? 'Accès total' : 'Granulaire'}
-                              </span>
                             </label>
-
-                            {section.subsections.length > 0 ? (
+                            {section.subsections.length > 0 && (
                               <div className={`pl-6 space-y-1.5 ${fullGranted ? 'opacity-50 pointer-events-none' : ''}`}>
                                 {section.subsections.map((sub) => {
                                   const k = `${section.id}:${sub.id}`;
@@ -507,15 +531,10 @@ export const PermissionsManager = () => {
                                         disabled={fullGranted}
                                         onCheckedChange={() => toggleSubsection(u.id, section.id, sub.id)}
                                       />
-                                      <sub.icon className="w-3.5 h-3.5" />
                                       <span>{sub.label}</span>
                                     </label>
                                   );
                                 })}
-                              </div>
-                            ) : (
-                              <div className="pl-6 text-[11px] text-muted-foreground italic">
-                                Aucune sous-section pour le moment
                               </div>
                             )}
                           </div>
@@ -530,7 +549,6 @@ export const PermissionsManager = () => {
         )}
       </div>
 
-      {/* Modal */}
       {isModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
@@ -544,10 +562,7 @@ export const PermissionsManager = () => {
               <h2 className="text-xl font-semibold text-foreground">
                 {editingUser ? 'Modifier Utilisateur' : 'Nouvel Utilisateur'}
               </h2>
-              <button
-                onClick={closeModal}
-                className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
-              >
+              <button onClick={closeModal} className="p-2 rounded-lg hover:bg-muted text-muted-foreground">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -563,42 +578,33 @@ export const PermissionsManager = () => {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     disabled={!!editingUser}
-                    placeholder="utilisateur@email.com"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="fullName">Nom complet</Label>
                   <Input
                     id="fullName"
-                    type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Prénom Nom"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">
-                    Mot de passe {editingUser ? '(laisser vide pour ne pas changer)' : '*'}
-                  </Label>
+                  <Label htmlFor="password">Mot de passe {editingUser ? '(laisser vide)' : '*'}</Label>
                   <Input
                     id="password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required={!editingUser}
-                    minLength={6}
-                    placeholder="••••••••"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="position">Poste</Label>
                   <Select value={position} onValueChange={setPosition}>
-                    <SelectTrigger id="position">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger id="position"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {POSITION_OPTIONS.map((option) => (
-                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      {POSITION_OPTIONS.map((opt) => (
+                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -606,48 +612,28 @@ export const PermissionsManager = () => {
                 <div className="space-y-2">
                   <Label htmlFor="role">Rôle</Label>
                   <Select value={role} onValueChange={(v) => setRole(v as Role)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="user">Utilisateur</SelectItem>
-                      <SelectItem value="moderator">Modérateur</SelectItem>
                       <SelectItem value="admin">Administrateur</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
-              {/* Permissions block — hidden for admin (they bypass) */}
               {role !== 'admin' && (
-                <div className="space-y-3 pt-2">
+                <div className="space-y-3 pt-4 border-t border-border">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-sm font-semibold">Permissions d'accès</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Choisissez les grandes sections et sous-sections accessibles dès la création.
-                      </p>
-                    </div>
+                    <Label className="font-semibold">Permissions d'accès</Label>
                     <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setModalPerms(new Set(buildAllPermissionKeys()))}
-                      >
+                      <Button type="button" size="sm" variant="outline" onClick={() => setModalPerms(new Set(buildAllPermissionKeys()))}>
                         Tout accorder
                       </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setModalPerms(new Set())}
-                      >
+                      <Button type="button" size="sm" variant="outline" onClick={() => setModalPerms(new Set())}>
                         Tout retirer
                       </Button>
                     </div>
                   </div>
-
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {BIG_SECTIONS.map((section) => {
                       const fullGranted = modalPerms.has(section.id);
@@ -658,37 +644,24 @@ export const PermissionsManager = () => {
                               checked={fullGranted}
                               onCheckedChange={() => toggleModalFullSection(section.id)}
                             />
-                            <section.icon className="w-4 h-4 text-primary" />
-                            <span className="font-medium text-sm text-foreground">{section.label}</span>
-                            <span className="text-xs text-muted-foreground ml-auto">
-                              {fullGranted ? 'Accès total' : 'Granulaire'}
-                            </span>
+                            <span className="font-medium text-sm">{section.label}</span>
                           </label>
-
-                          {section.subsections.length > 0 ? (
+                          {section.subsections.length > 0 && (
                             <div className={`pl-6 space-y-1.5 ${fullGranted ? 'opacity-50 pointer-events-none' : ''}`}>
                               {section.subsections.map((sub) => {
                                 const k = `${section.id}:${sub.id}`;
                                 const checked = fullGranted || modalPerms.has(k);
                                 return (
-                                  <label
-                                    key={sub.id}
-                                    className="flex items-center gap-2 text-xs cursor-pointer text-muted-foreground hover:text-foreground"
-                                  >
+                                  <label key={sub.id} className="flex items-center gap-2 text-xs cursor-pointer">
                                     <Checkbox
                                       checked={checked}
                                       disabled={fullGranted}
                                       onCheckedChange={() => toggleModalSubsection(section.id, sub.id)}
                                     />
-                                    <sub.icon className="w-3.5 h-3.5" />
                                     <span>{sub.label}</span>
                                   </label>
                                 );
                               })}
-                            </div>
-                          ) : (
-                            <div className="pl-6 text-[11px] text-muted-foreground italic">
-                              Aucune sous-section pour le moment
                             </div>
                           )}
                         </div>
@@ -699,20 +672,9 @@ export const PermissionsManager = () => {
               )}
 
               <div className="flex justify-end gap-3 pt-4 border-t border-border">
-                <Button type="button" variant="outline" onClick={closeModal}>
-                  Annuler
-                </Button>
+                <Button type="button" variant="outline" onClick={closeModal}>Annuler</Button>
                 <Button type="submit" disabled={submitting}>
-                  {submitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Enregistrement...
-                    </>
-                  ) : editingUser ? (
-                    'Enregistrer'
-                  ) : (
-                    'Créer'
-                  )}
+                  {submitting ? 'Enregistrement...' : editingUser ? 'Enregistrer' : 'Créer'}
                 </Button>
               </div>
             </form>

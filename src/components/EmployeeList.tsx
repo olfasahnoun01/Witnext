@@ -88,8 +88,9 @@ export const EmployeeList = () => {
       return;
     }
 
-    if (form.poste === 'Operateur' && (!form.email || !form.password)) {
-      toast.error('L\'email et le mot de passe sont requis pour un Opérateur');
+    const isChauffeur = form.poste === 'Chauffeur' || form.poste === 'Operateur';
+    if (isChauffeur && (!form.email || !form.password)) {
+      toast.error('L\'email et le mot de passe sont requis pour un Chauffeur');
       return;
     }
 
@@ -97,8 +98,8 @@ export const EmployeeList = () => {
     try {
       let userId = null;
 
-      // 1. Create Auth User if Operateur
-      if (form.poste === 'Operateur') {
+      // 1. Create Auth User if Chauffeur/Operateur
+      if (isChauffeur) {
         const { data: { session } } = await supabase.auth.getSession();
         const response = await supabase.functions.invoke('manage-users', {
           body: {
@@ -106,7 +107,7 @@ export const EmployeeList = () => {
             email: form.email,
             password: form.password,
             full_name: `${form.prenom} ${form.nom}`,
-            role: 'operateur' 
+            role: 'user' // Default to user role, permissions managed in account tab
           },
           headers: {
             Authorization: `Bearer ${session?.access_token}`
@@ -117,7 +118,7 @@ export const EmployeeList = () => {
           throw new Error(response.error?.message || response.data?.error);
         }
 
-        userId = response.data.user.id;
+        userId = response.data.user?.id || response.data.user_id;
       }
 
       // 2. Create or Update Employee Record
@@ -143,7 +144,7 @@ export const EmployeeList = () => {
             nom: form.nom.trim(),
             phone: form.phone.trim() || null,
             cin: form.cin.trim() || null,
-            email: form.poste === 'Operateur' ? form.email.trim() : null,
+            email: isChauffeur ? form.email.trim() : null,
             role: form.poste,
             user_id: userId
           }]);
@@ -173,7 +174,7 @@ export const EmployeeList = () => {
       cin: emp.cin || '',
       poste: emp.role || 'Ouvrier',
       email: emp.email || '',
-      password: '' // Password isn't fetched
+      password: ''
     });
     setEditingId(emp.id);
     setIsEditing(true);
@@ -201,7 +202,6 @@ export const EmployeeList = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-primary/10">
@@ -228,7 +228,6 @@ export const EmployeeList = () => {
         </Button>
       </div>
 
-      {/* List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-primary/60" />
@@ -255,13 +254,11 @@ export const EmployeeList = () => {
               className="group flex items-center gap-4 p-4 rounded-xl bg-card border border-border shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200"
               style={{ animationDelay: `${idx * 40}ms` }}
             >
-              {/* Avatar */}
               <div className="flex-shrink-0 w-11 h-11 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground font-bold text-sm shadow">
                 {emp.prenom.charAt(0).toUpperCase()}
                 {emp.nom.charAt(0).toUpperCase()}
               </div>
 
-              {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="font-semibold text-foreground truncate">
@@ -300,7 +297,6 @@ export const EmployeeList = () => {
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-all">
                 <button
                   onClick={() => handleEdit(emp)}
@@ -322,7 +318,6 @@ export const EmployeeList = () => {
         </div>
       )}
 
-      {/* Add Employee Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -363,7 +358,7 @@ export const EmployeeList = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Ouvrier">Ouvrier</SelectItem>
-                  <SelectItem value="Operateur">Operateur (Accès Mobile)</SelectItem>
+                  <SelectItem value="Chauffeur">Chauffeur (Accès Mobile)</SelectItem>
                   <SelectItem value="Commercial">Commercial</SelectItem>
                   <SelectItem value="RH">Ressources Humaines (RH)</SelectItem>
                   <SelectItem value="Magasin">Magasin</SelectItem>
@@ -375,7 +370,7 @@ export const EmployeeList = () => {
               </Select>
             </div>
 
-            {!isEditing && form.poste === 'Operateur' && (
+            {!isEditing && (form.poste === 'Chauffeur' || form.poste === 'Operateur') && (
               <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 space-y-4 animate-in fade-in slide-in-from-top-2">
                 <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
                   <Shield className="w-4 h-4" />
@@ -445,7 +440,7 @@ export const EmployeeList = () => {
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Ajout...
+                  Traitement...
                 </>
               ) : (
                 <>

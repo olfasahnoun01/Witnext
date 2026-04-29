@@ -235,17 +235,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!adminError && adminData) {
         setIsAdmin(true);
-        setIsModerator(true); // Admin has all moderator permissions
+        setIsModerator(true);
       } else {
         setIsAdmin(false);
         
-        // Check moderator role only if not admin
-        const { data: modData, error: modError } = await supabase.rpc('has_role', {
+        // Users now have the same base privileges as moderators used to have
+        // This allows them to see sections they have explicit permission for
+        const { data: userData, error: userError } = await supabase.rpc('has_role', {
           _user_id: userId,
-          _role: 'moderator'
+          _role: 'user'
         });
         
-        setIsModerator(!modError && !!modData);
+        setIsModerator(!userError && !!userData);
       }
     } catch (error) {
       // Check if error is due to session expiration
