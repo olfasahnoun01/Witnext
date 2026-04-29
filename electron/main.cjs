@@ -1,6 +1,10 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
+
+// Stability fix for Windows: prevents window from becoming unresponsive
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+
 const isDev = process.env.NODE_ENV === 'development';
 
 if (isDev) {
@@ -8,6 +12,51 @@ if (isDev) {
 }
 
 let mainWindow;
+
+function createDefaultMenu() {
+  const template = [
+    {
+      label: 'Fichier',
+      submenu: [
+        { label: 'Quitter', role: 'quit' }
+      ]
+    },
+    {
+      label: 'Édition',
+      submenu: [
+        { label: 'Annuler', role: 'undo' },
+        { label: 'Rétablir', role: 'redo' },
+        { type: 'separator' },
+        { label: 'Couper', role: 'cut' },
+        { label: 'Copier', role: 'copy' },
+        { label: 'Coller', role: 'paste' },
+        { label: 'Supprimer', role: 'delete' },
+        { type: 'separator' },
+        { label: 'Tout sélectionner', role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'Affichage',
+      submenu: [
+        { label: 'Actualiser', role: 'reload' },
+        { label: 'Actualiser (forcé)', role: 'forceReload' },
+        { label: 'Outils de développement', role: 'toggleDevTools' },
+        { type: 'separator' },
+        { label: 'Plein écran', role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Fenêtre',
+      submenu: [
+        { label: 'Réduire', role: 'minimize' },
+        { label: 'Fermer', role: 'close' }
+      ]
+    }
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -22,12 +71,20 @@ function createWindow() {
     icon: path.join(__dirname, '../public/favicon.png')
   });
 
+  createDefaultMenu();
+
   if (isDev) {
     mainWindow.loadURL('http://localhost:8080');
     mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+
+  // Force focus when window is ready
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    mainWindow.focus();
+  });
 }
 
 // Auto-update logging and events
