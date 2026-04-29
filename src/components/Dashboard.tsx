@@ -126,6 +126,7 @@ export const Dashboard = memo(() => {
   useRealtimeData({
     tables: ['products', 'transactions'],
     onDataChange: loadData,
+    showToast: false,
   });
 
   // Memoized KPI cards configuration

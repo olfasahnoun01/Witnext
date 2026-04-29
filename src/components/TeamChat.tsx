@@ -40,6 +40,11 @@ export const TeamChat = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastReadRef = useRef<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const isOpenRef = useRef(false);
+
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
 
   // Play notification sound
   const playNotificationSound = useCallback(() => {
@@ -101,7 +106,7 @@ export const TeamChat = () => {
       setMessages(data || []);
 
       // Update unread count if chat is closed
-      if (!isOpen && data && data.length > 0) {
+      if (!isOpenRef.current && data && data.length > 0) {
         if (lastReadRef.current) {
           const unread = data.filter(m => m.created_at > lastReadRef.current!).length;
           setUnreadCount(unread);
@@ -113,7 +118,7 @@ export const TeamChat = () => {
     } catch (error) {
       console.error('Error fetching messages:', error);
     }
-  }, [canAccess, isOpen]);
+  }, [canAccess]);
 
   // Subscribe to realtime updates
   useEffect(() => {
@@ -136,10 +141,11 @@ export const TeamChat = () => {
             setMessages(prev => [...prev, newMsg]);
             
             // Show notification and play sound if chat is closed and message is from someone else
-            if (!isOpen && newMsg.user_id !== user?.id) {
+            if (!isOpenRef.current && newMsg.user_id !== user?.id) {
               setUnreadCount(prev => prev + 1);
               playNotificationSound();
-              toast.info(`${newMsg.user_email}: ${newMsg.content.substring(0, 50)}...`, {
+              const preview = newMsg.content.length > 50 ? `${newMsg.content.slice(0, 50)}…` : newMsg.content;
+              toast.info(`${newMsg.user_email}: ${preview}`, {
                 duration: 3000,
               });
             }
@@ -153,7 +159,13 @@ export const TeamChat = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [canAccess, fetchMessages, isOpen, user?.id, playNotificationSound]);
+  }, [canAccess, fetchMessages, user?.id, playNotificationSound]);
+
+  useEffect(() => {
+    if (isOpen && canAccess) {
+      void fetchMessages();
+    }
+  }, [isOpen, canAccess, fetchMessages]);
 
   // Scroll to bottom on new messages
   useEffect(() => {

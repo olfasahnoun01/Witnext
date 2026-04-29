@@ -111,11 +111,11 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
     fetchFournisseurs();
   }, [fetchGroups, fetchFournisseurs]);
 
-  // Subscribe to realtime changes on products and product_groups
+  // product_groups only: VariantView subscribes to products to avoid duplicate channels while drilling in
   useRealtimeData({
-    tables: ['products', 'product_groups'],
+    tables: ['product_groups'],
     onDataChange: fetchGroups,
-    showToast: true
+    showToast: false,
   });
 
   // Calculate product count per fournisseur in current category

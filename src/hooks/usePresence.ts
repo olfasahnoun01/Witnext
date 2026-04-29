@@ -147,12 +147,8 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
       )
       .subscribe();
 
-    // Also poll every 30s as backup
-    const pollInterval = setInterval(fetchOnlineUsers, 30000);
-
     return () => {
       supabase.removeChannel(channel);
-      clearInterval(pollInterval);
     };
   }, [user, isAdmin, isModerator, fetchOnlineUsers, hasPermission]);
 

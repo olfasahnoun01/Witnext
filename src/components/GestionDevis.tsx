@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { FileText, History, Plus, Search, ShoppingCart, TrendingUp } from 'lucide-react';
+import { FileText, History, Plus, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Devis, DevisItem, BonCommande } from '@/types';
@@ -10,8 +10,6 @@ import { DevisHistory } from './devis/DevisHistory';
 import { BonCommandeList } from './devis/BonCommandeList';
 import { DevisHelper } from './devis/DevisHelper';
 import { BCCreationDialog } from './devis/BCCreationDialog';
-import { UnifiedDocumentList } from './devis/UnifiedDocumentList';
-import { SalesPipeline } from './devis/SalesPipeline';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -41,34 +39,25 @@ const parseDevisRow = (d: any, profilesMap: Record<string, string>, sourceDevisM
 
 interface GestionDevisProps {
   onTabChange?: (tab: string) => void;
-  initialSection?: 'form' | 'history' | 'bc' | 'helper' | 'achats' | 'pipeline';
+  initialSection?: 'form' | 'history' | 'bc' | 'helper';
   initialDocType?: 'devis' | 'bc' | 'ba';
-  hiddenSections?: Array<'achats' | 'pipeline'>;
+  initialDevisType?: 'achat' | 'vente';
+  lockDevisType?: boolean;
+  sectionMode?: 'devis' | 'bc';
 }
 
 export const GestionDevis = ({
   onTabChange,
   initialSection = 'form',
   initialDocType = 'devis',
-  hiddenSections = [],
+  initialDevisType,
+  lockDevisType,
+  sectionMode,
 }: GestionDevisProps) => {
   const { isAdmin, isModerator, user } = useAuth();
   const canEdit = true;
-  const isSectionHidden = useCallback(
-    (section: 'achats' | 'pipeline') => hiddenSections.includes(section),
-    [hiddenSections]
-  );
-  const resolveVisibleSection = useCallback(
-    (section: 'form' | 'history' | 'bc' | 'helper' | 'achats' | 'pipeline') => {
-      if ((section === 'achats' || section === 'pipeline') && isSectionHidden(section)) {
-        return 'history';
-      }
-      return section;
-    },
-    [isSectionHidden]
-  );
-  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'helper' | 'achats' | 'pipeline'>(
-    (initialSection as any) === 'ba' ? 'form' : resolveVisibleSection(initialSection)
+  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'helper'>(
+    (initialSection as any) === 'ba' ? 'form' : initialSection
   );
   const [allDevis, setAllDevis] = useState<Devis[]>([]);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -81,8 +70,10 @@ export const GestionDevis = ({
   const devisNumberRef = useRef('');
 
   // Form state
-  const [devisType, setDevisType] = useState<'achat' | 'vente'>('vente');
+  const defaultDevisType = initialDevisType ?? 'vente';
+  const [devisType, setDevisType] = useState<'achat' | 'vente'>(defaultDevisType);
   const [devisNumber, setDevisNumber] = useState('');
+  const pageMode = sectionMode ?? (initialSection === 'bc' ? 'bc' : 'devis');
   const [devisDate, setDevisDate] = useState(new Date().toISOString().split('T')[0]);
   const [thirdPartyName, setThirdPartyName] = useState('');
   const [thirdPartyAddress, setThirdPartyAddress] = useState('');
@@ -97,12 +88,14 @@ export const GestionDevis = ({
   const savedDevis = useMemo(() => allDevis.filter(d => !d.is_bc && !d.is_ba), [allDevis]);
   const bonsCommande = useMemo(() => allDevis.filter(d => d.is_bc), [allDevis]);
   const bonsAchat = useMemo(() => allDevis.filter(d => d.is_ba), [allDevis]);
+  const isVenteOnly = initialDevisType === 'vente' || lockDevisType;
 
   const loadAll = useCallback(async () => {
     const { data, error } = await supabase
       .from('devis')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(1000);
 
     if (!error && data) {
       const creatorIds = [...new Set(data.map(d => d.created_by).filter(Boolean))] as string[];
@@ -138,9 +131,10 @@ export const GestionDevis = ({
 
   // Update active section and doc type if props change
   useEffect(() => {
-    if (initialSection) setActiveSection(resolveVisibleSection(initialSection));
+    if (initialSection) setActiveSection(initialSection);
     if (initialDocType) setDocType(initialDocType);
-  }, [initialSection, initialDocType, resolveVisibleSection]);
+    if (initialDevisType) setDevisType(initialDevisType);
+  }, [initialSection, initialDocType, initialDevisType]);
 
   useEffect(() => { devisNumberRef.current = devisNumber; }, [devisNumber]);
 
@@ -185,13 +179,13 @@ export const GestionDevis = ({
   }, []);
 
   const resetForm = useCallback(() => {
-    setDevisType('vente');
+    setDevisType(defaultDevisType);
     setDocType('devis');
     clearFormFields(true);
     setEditingDevis(null);
     setShowEditDialog(false);
-    setDevisNumber(generateNextNumber('vente', 'devis'));
-  }, [clearFormFields, generateNextNumber]);
+    setDevisNumber(generateNextNumber(defaultDevisType, 'devis'));
+  }, [clearFormFields, defaultDevisType, generateNextNumber]);
 
   const clearInputsOnly = useCallback(() => {
     clearFormFields(false);
@@ -363,16 +357,20 @@ export const GestionDevis = ({
 
   const handleAddNew = useCallback((mode: 'devis' | 'bc' | 'ba') => {
     resetForm();
+    setDevisType(defaultDevisType);
     setDocType(mode);
     setActiveSection('form');
-  }, [resetForm]);
+  }, [defaultDevisType, resetForm]);
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Section tabs */}
       <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit flex-wrap">
         <button
-          onClick={() => { setActiveSection('form'); if (!editingDevis) resetForm(); }}
+          onClick={() => {
+            if (!editingDevis) handleAddNew(sectionMode ?? 'devis');
+            else setActiveSection('form');
+          }}
           className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
             activeSection === 'form'
               ? 'bg-primary text-primary-foreground shadow-md'
@@ -380,7 +378,13 @@ export const GestionDevis = ({
           }`}
         >
           <Plus className="w-4 h-4" />
-          {editingDevis ? 'Modifier Document' : 'CRÉER DOCUMENT'}
+          {editingDevis
+            ? 'Modifier Document'
+            : sectionMode === 'bc'
+              ? 'CRÉER UN BON DE COMMANDE'
+              : sectionMode === 'devis'
+                ? 'CRÉER UN DEVIS'
+                : 'CRÉER DOCUMENT'}
         </button>
         <button
           onClick={() => setActiveSection('history')}
@@ -393,17 +397,19 @@ export const GestionDevis = ({
           <History className="w-4 h-4" />
           Liste Devis ({savedDevis.length})
         </button>
-        <button
-          onClick={() => setActiveSection('bc')}
-          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-            activeSection === 'bc'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          Liste BC ({bonsCommande.length})
-        </button>
+        {!isVenteOnly && (
+          <button
+            onClick={() => setActiveSection('bc')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+              activeSection === 'bc'
+                ? 'bg-primary text-primary-foreground shadow-md'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            Liste BC ({bonsCommande.length})
+          </button>
+        )}
         <button
           onClick={() => setActiveSection('helper')}
           className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
@@ -415,32 +421,6 @@ export const GestionDevis = ({
           <Search className="w-4 h-4" />
           Devis Helper
         </button>
-        {!isSectionHidden('achats') && (
-          <button
-            onClick={() => setActiveSection('achats')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-              activeSection === 'achats'
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <ShoppingCart className="w-4 h-4" />
-            ACHATS (Moteur v2)
-          </button>
-        )}
-        {!isSectionHidden('pipeline') && (
-          <button
-            onClick={() => setActiveSection('pipeline')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-              activeSection === 'pipeline'
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <TrendingUp className="w-4 h-4" />
-            Suivi Pipeline
-          </button>
-        )}
       </div>
 
       {activeSection === 'form' && devisNumber && (
@@ -472,6 +452,8 @@ export const GestionDevis = ({
           onSave={saveDevis}
           onUpdate={updateDevis}
           onCancel={editingDevis ? resetForm : clearInputsOnly}
+          lockDevisType={lockDevisType}
+          forceDocType={sectionMode}
         />
       )}
 
@@ -484,7 +466,8 @@ export const GestionDevis = ({
           onEdit={startEdit}
           onDelete={deleteDevis}
           onConvertToBC={convertToBC}
-          onAdd={() => handleAddNew('devis')}
+          onAdd={() => handleAddNew(sectionMode ?? 'devis')}
+          defaultTypeFilter={initialDevisType ?? 'all'}
         />
       )}
 
@@ -496,6 +479,7 @@ export const GestionDevis = ({
           onEdit={startEdit}
           onDelete={deleteDevis}
           onAdd={() => handleAddNew('bc')}
+          showAddButton={false}
         />
       )}
 
@@ -503,14 +487,6 @@ export const GestionDevis = ({
 
       {activeSection === 'helper' && (
         <DevisHelper onTabChange={onTabChange} />
-      )}
-
-      {activeSection === 'achats' && !isSectionHidden('achats') && (
-        <UnifiedDocumentList />
-      )}
-
-      {activeSection === 'pipeline' && !isSectionHidden('pipeline') && (
-        <SalesPipeline />
       )}
 
       {/* Edit Devis Dialog */}
@@ -549,6 +525,7 @@ export const GestionDevis = ({
                 onSave={saveDevis}
                 onUpdate={updateDevis}
                 onCancel={resetForm}
+                lockDevisType={lockDevisType}
               />
             )}
           </div>

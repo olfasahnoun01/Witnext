@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, useRef, createContext, useContext, ReactNode } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -45,6 +45,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const userRef = useRef<User | null>(null);
+  const sessionExpiredRef = useRef(false);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    sessionExpiredRef.current = sessionExpired;
+  }, [sessionExpired]);
 
   // Device ID for tracking concurrent logins
   const getDeviceId = () => {
@@ -58,7 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Handle session expiration with user-friendly message
   const handleSessionExpired = async (reason: string = 'Session expirée') => {
-    console.log('Session expired:', reason);
+    sessionExpiredRef.current = true;
     setSessionExpired(true);
     
     // Clear local auth state
@@ -110,6 +120,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       setSession(session);
       setUser(session?.user ?? null);
+      sessionExpiredRef.current = false;
       setSessionExpired(false);
       setIsLoading(false);
 
@@ -125,7 +136,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       // Handle specific auth events
       if (event === 'TOKEN_REFRESHED') {
-        console.log('Token refreshed successfully');
+        sessionExpiredRef.current = false;
         setSessionExpired(false);
       }
       
@@ -133,7 +144,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (event === 'SIGNED_OUT') {
         // Check if this was an automatic sign out (session expired)
         // vs a user-initiated sign out
-        if (sessionExpired) {
+        if (sessionExpiredRef.current) {
           // Already handled
           return;
         }
@@ -145,6 +156,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // Check roles with setTimeout to avoid deadlock
       if (session?.user) {
+        sessionExpiredRef.current = false;
         setSessionExpired(false);
         setTimeout(() => {
           checkUserRoles(session.user.id);
@@ -170,7 +182,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             error.message?.includes('session_not_found')) {
           await handleSessionExpired('Token de rafraîchissement invalide');
         }
-      } else if (!currentSession && user) {
+      } else if (!currentSession && userRef.current) {
         // Session was lost unexpectedly
         await handleSessionExpired('Session perdue');
       }
@@ -179,7 +191,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       subscription.unsubscribe();
       clearInterval(sessionCheckInterval);
-      supabase.removeAllChannels();
     };
   }, []);
 
@@ -251,6 +262,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    sessionExpiredRef.current = false;
     setUser(null);
     setSession(null);
     setIsAdmin(false);

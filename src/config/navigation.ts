@@ -25,7 +25,6 @@ import {
   CreditCard,
   Receipt,
   Settings,
-  TrendingUp,
   ShoppingBag,
   type LucideIcon,
 } from 'lucide-react';
@@ -50,7 +49,6 @@ export const BIG_SECTIONS: BigSection[] = [
     label: 'Ventes',
     icon: ShoppingCart,
     subsections: [
-      { id: 'pipeline', label: 'Pipeline Commercial', icon: TrendingUp },
       { id: 'commerciale-clients', label: 'Clients', icon: Users },
       { id: 'devis-vente', label: 'Devis', icon: ClipboardList },
       { id: 'bc-vente', label: 'Bons de Commande', icon: FileText },
@@ -78,6 +76,7 @@ export const BIG_SECTIONS: BigSection[] = [
     icon: Package,
     subsections: [
       { id: 'dashboard', label: 'Tableau de Bord', icon: LayoutDashboard },
+      { id: 'demande-achat-magasin', label: "Demandes d'achat", icon: FileSignature },
       { id: 'inventory', label: 'Inventaire', icon: Package },
       { id: 'comparison', label: 'Comparaison Prix', icon: GitCompare },
       { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight },

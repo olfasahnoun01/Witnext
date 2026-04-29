@@ -73,6 +73,8 @@ interface DevisFormProps {
   onCancel: () => void;
   docType: 'devis' | 'bc' | 'ba';
   setDocType: (t: 'devis' | 'bc' | 'ba') => void;
+  lockDevisType?: boolean;
+  forceDocType?: 'devis' | 'bc';
 }
 
 export const DevisForm = memo(({
@@ -83,7 +85,7 @@ export const DevisForm = memo(({
   setThirdPartyName, setThirdPartyAddress, setThirdPartyTaxId, setThirdPartyPhone,
   setNotes, setDevisItems, setIsTtc,
   onSave, onUpdate, onCancel,
-  docType, setDocType,
+  docType, setDocType, lockDevisType, forceDocType,
 }: DevisFormProps) => {
   const isAchat = devisType === 'achat';
 
@@ -153,17 +155,17 @@ export const DevisForm = memo(({
 
   useEffect(() => {
     const load = async () => {
-      const [fRes, cRes, pCatRes, pgCatRes] = await Promise.all([
+      const [fRes, cRes, catSettingsRes] = await Promise.all([
         supabase.from('fournisseurs').select('id, nom, matricule_fiscale, location, phone').order('nom'),
         supabase.from('clients').select('id, nom, matricule_fiscale, location, phone').order('nom'),
-        supabase.from('products').select('category'),
-        supabase.from('product_groups').select('category'),
+        supabase.from('category_settings').select('category_name'),
       ]);
       if (fRes.data) setFournisseurs(fRes.data);
       if (cRes.data) setClients(cRes.data);
       const allCats = new Set<string>(DEFAULT_CATEGORIES);
-      (pCatRes.data || []).forEach(p => allCats.add(p.category));
-      (pgCatRes.data || []).forEach(p => allCats.add(p.category));
+      (catSettingsRes.data || []).forEach((row: { category_name: string | null }) => {
+        if (row.category_name) allCats.add(row.category_name);
+      });
       setDbCategories([...allCats].sort());
     };
     load();
@@ -213,37 +215,63 @@ export const DevisForm = memo(({
       setItemPrixTtc(priceHt);
       setItemPrixAchat(0); // Not needed for achat
     } else {
-      // For vente: prix achat is cost from DB, prix vente starts at 0
-      setItemPrixAchat(product.price || 0);
-      setItemPrixTtc(0);
+      // For vente: auto-fill sale HT price from inventory price when available
+      const salePriceHt = product.price || 0;
+      setItemPrixTtc(salePriceHt);
+      setItemPrixAchat(0);
     }
     setItemRemise(product.remise || 0);
     setItemQuantity(1);
     setItemDescription(`${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`);
-    // Prix d'achat = price from product (cost price HT, always)
-    const basePrixAchat = product.price || 0;
-    setItemPrixAchat(basePrixAchat);
     setProductSearch('');
     setSearchResults([]);
-  }, [isTtc, isAchat]);
+  }, [isAchat]);
 
   useEffect(() => { setSelectedThirdPartyId(''); }, [devisType]);
 
-  const handleThirdPartySelect = useCallback((id: string) => {
-    setSelectedThirdPartyId(id);
-    if (id === 'manual') {
-      setThirdPartyName(''); setThirdPartyAddress(''); setThirdPartyTaxId(''); setThirdPartyPhone('');
+  const handleThirdPartyNameChange = useCallback((value: string) => {
+    const trimmed = value.trim();
+    const list = isAchat ? fournisseurs : clients;
+    const match = list.find(item => item.nom.trim().toLowerCase() === trimmed.toLowerCase());
+
+    setThirdPartyName(value);
+    if (!trimmed) {
+      setThirdPartyAddress('');
+      setThirdPartyTaxId('');
+      setThirdPartyPhone('');
+      setSelectedThirdPartyId('');
       return;
     }
-    const list = isAchat ? fournisseurs : clients;
-    const item = list.find(x => x.id.toString() === id);
-    if (item) {
-      setThirdPartyName(item.nom);
-      setThirdPartyAddress(item.location || '');
-      setThirdPartyTaxId(item.matricule_fiscale || '');
-      setThirdPartyPhone(item.phone || '');
+
+    if (match) {
+      setThirdPartyAddress(match.location || '');
+      setThirdPartyTaxId(match.matricule_fiscale || '');
+      setThirdPartyPhone(match.phone || '');
+      setSelectedThirdPartyId(match.id.toString());
+    } else {
+      setThirdPartyAddress('');
+      setThirdPartyTaxId('');
+      setThirdPartyPhone('');
+      setSelectedThirdPartyId('');
     }
   }, [isAchat, fournisseurs, clients, setThirdPartyName, setThirdPartyAddress, setThirdPartyTaxId, setThirdPartyPhone]);
+
+  const filteredThirdParties = useMemo(() => {
+    const query = thirdPartyName.trim().toLowerCase();
+    if (!query) return [];
+    const list = isAchat ? fournisseurs : clients;
+    return list
+      .filter(item => item.nom.trim().toLowerCase().includes(query))
+      .slice(0, 8);
+  }, [isAchat, fournisseurs, clients, thirdPartyName]);
+
+  const handleThirdPartySuggestionSelect = useCallback((item: Fournisseur | Client) => {
+    setThirdPartyName(item.nom);
+    setThirdPartyAddress(item.location || '');
+    setThirdPartyTaxId(item.matricule_fiscale || '');
+    setThirdPartyPhone(item.phone || '');
+    setSelectedThirdPartyId(item.id.toString());
+  }, [setThirdPartyName, setThirdPartyAddress, setThirdPartyTaxId, setThirdPartyPhone]);
 
   const newFournisseurCities = useMemo(() => {
     return newFournisseurGovernorate
@@ -765,7 +793,8 @@ export const DevisForm = memo(({
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyList = isAchat ? fournisseurs : clients;
   const ThirdPartyIcon = isAchat ? Building2 : Users;
-  const thirdPartyLabel = isAchat ? 'Fournisseur (expéditeur)' : 'Client (destinataire)';
+  const thirdPartyLabel = isAchat ? 'Fournisseur' : 'Client';
+  const thirdPartyRole = isAchat ? 'Expéditeur' : 'Destinataire';
 
   return (
     <>
@@ -783,8 +812,8 @@ export const DevisForm = memo(({
             )}
           </div>
 
-          {/* Document Mode Selector - Only if not editing (optional) */}
-          {!editingDevis && (
+          {/* Document Mode Selector - Only if not editing and not forcing a specific document type */}
+          {!editingDevis && !forceDocType && (
             <div>
               <label className="form-label">Mode du Document</label>
               <div className="grid grid-cols-2 gap-3">
@@ -811,41 +840,48 @@ export const DevisForm = memo(({
             </div>
           )}
 
-          {/* Type */}
-          <div>
-            <label className="form-label">
-              Flux du {docType === 'bc' ? 'Bon de Commande' : 'Devis'}
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setDevisType('achat')}
-                className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${devisType === 'achat'
-                    ? 'border-success bg-success/10 text-success'
-                    : 'border-border text-muted-foreground hover:border-muted-foreground'
-                  }`}
-              >
-                📥 Devis Achat
-              </button>
-              <button
-                onClick={() => setDevisType('vente')}
-                className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${devisType === 'vente'
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border text-muted-foreground hover:border-muted-foreground'
-                  }`}
-              >
-                {docType === 'devis' ? '📤 Devis Vente' : '📤 BC Vente'}
-              </button>
+          {!forceDocType && (
+            <div>
+              <label className="form-label">
+                Flux du {docType === 'bc' ? 'Bon de Commande' : 'Devis'}
+              </label>
+              {lockDevisType ? (
+                <div className="rounded-lg border border-border bg-muted/10 p-3 text-sm text-foreground">
+                  📤 {devisType === 'vente' ? 'Devis Vente' : 'Devis Achat'}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setDevisType('achat')}
+                    className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${devisType === 'achat'
+                        ? 'border-success bg-success/10 text-success'
+                        : 'border-border text-muted-foreground hover:border-muted-foreground'
+                      }`}
+                  >
+                    📥 Devis Achat
+                  </button>
+                  <button
+                    onClick={() => setDevisType('vente')}
+                    className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${devisType === 'vente'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:border-muted-foreground'
+                      }`}
+                  >
+                    {docType === 'devis' ? '📤 Devis Vente' : '📤 BC Vente'}
+                  </button>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-2">
+                {isAchat
+                  ? docType === 'bc'
+                    ? '⬇️ Un fournisseur nous envoie sa commande'
+                    : '⬇️ Un fournisseur nous envoie un devis (nous sommes le récepteur)'
+                  : docType === 'bc'
+                    ? '⬆️ Nous envoyons une commande à un client'
+                    : '⬆️ Nous envoyons un devis à un client'}
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              {isAchat
-                ? docType === 'bc'
-                  ? '⬇️ Un fournisseur nous envoie sa commande'
-                  : '⬇️ Un fournisseur nous envoie un devis (nous sommes le récepteur)'
-                : docType === 'bc'
-                  ? '⬆️ Nous envoyons une commande à un client'
-                  : '⬆️ Nous envoyons un devis à un client'}
-            </p>
-          </div>
+          )}
 
           {/* TTC / HT Switch */}
           {(
@@ -888,7 +924,7 @@ export const DevisForm = memo(({
             <div className="flex items-center justify-between mb-3">
               <h4 className={`font-medium flex items-center gap-2 ${isAchat ? 'text-success' : 'text-primary'}`}>
                 <ThirdPartyIcon className="w-4 h-4" />
-                {thirdPartyLabel}
+                {thirdPartyLabel} <span className="text-xs text-muted-foreground">({thirdPartyRole})</span>
               </h4>
               {isAchat && (
                 <Button variant="ghost" size="sm" onClick={() => setShowNewFournisseur(true)} className="text-xs">
@@ -898,22 +934,29 @@ export const DevisForm = memo(({
               )}
             </div>
             <div className="space-y-3">
-              <Select value={selectedThirdPartyId} onValueChange={handleThirdPartySelect}>
-                <SelectTrigger className="w-full bg-background">
-                  <SelectValue placeholder={`Sélectionner...`} />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  <SelectItem value="manual">
-                    <span className="flex items-center gap-2"><Edit className="w-4 h-4" /> Saisie manuelle</span>
-                  </SelectItem>
-                  {thirdPartyList.map(item => (
-                    <SelectItem key={item.id} value={item.id.toString()}>
-                      <span className="font-medium">{item.nom}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <input type="text" value={thirdPartyName} onChange={e => setThirdPartyName(e.target.value)} className="form-input" placeholder="Raison sociale" />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={thirdPartyName}
+                  onChange={e => handleThirdPartyNameChange(e.target.value)}
+                  className="form-input"
+                  placeholder={`Tapez le nom du ${thirdPartyLabel.toLowerCase()}...`}
+                />
+                {filteredThirdParties.length > 0 && (
+                  <div className="absolute left-0 right-0 mt-1 z-20 max-h-56 overflow-y-auto rounded-xl border border-border bg-card shadow-md">
+                    {filteredThirdParties.map(item => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onMouseDown={() => handleThirdPartySuggestionSelect(item)}
+                        className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-muted"
+                      >
+                        {item.nom}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <input type="text" value={thirdPartyPhone} onChange={e => setThirdPartyPhone(e.target.value)} className="form-input" placeholder="Téléphone" />
                 <input type="text" value={thirdPartyTaxId} onChange={e => setThirdPartyTaxId(e.target.value)} className="form-input" placeholder="Matricule Fiscale" />

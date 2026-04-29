@@ -27,11 +27,12 @@ interface BonCommandeListProps {
   onDelete: (bc: BonCommande) => void;
   onAdd: () => void;
   onRefresh?: () => void;
+  showAddButton?: boolean;
 }
 
 const ITEMS_PER_PAGE = 10;
 
-export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod, onEdit, onDelete, onAdd, onRefresh }: BonCommandeListProps) => {
+export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod, onEdit, onDelete, onAdd, onRefresh, showAddButton = true }: BonCommandeListProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<BonCommande | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -156,10 +157,12 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-4">
             <h3 className="text-lg font-semibold text-foreground">Mes Bons de Commande</h3>
-            <Button onClick={onAdd} size="sm" className="h-8 gap-2">
-              <Plus className="w-4 h-4" />
-              Ajouter BC
-            </Button>
+            {showAddButton && (
+              <Button onClick={onAdd} size="sm" className="h-8 gap-2">
+                <Plus className="w-4 h-4" />
+                Ajouter BC
+              </Button>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">

@@ -27,6 +27,7 @@ interface DevisHistoryProps {
   onDelete: (d: Devis) => void;
   onConvertToBC?: (d: Devis) => void;
   onAdd: () => void;
+  defaultTypeFilter?: 'all' | 'achat' | 'vente';
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -48,7 +49,7 @@ const toDevisPDFData = (d: Devis): DevisPDFData => ({
   is_ba: d.is_ba,
 });
 
-export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBC, onAdd }: DevisHistoryProps) => {
+export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBC, onAdd, defaultTypeFilter }: DevisHistoryProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<Devis | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -59,7 +60,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   const [selectedFournisseur, setSelectedFournisseur] = useState('all');
   const [echantillonDevis, setEchantillonDevis] = useState<{ id: number; number: string } | null>(null);
   const [echantillonCounts, setEchantillonCounts] = useState<Record<number, number>>({});
-  const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>('all');
+  const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>(defaultTypeFilter || 'all');
 
   // Fetch envoyé echantillon counts for all vente devis
   useEffect(() => {
@@ -97,6 +98,9 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim();
       result = result.filter(d =>
+        d.devis_number.toLowerCase().includes(term) ||
+        d.third_party_name?.toLowerCase().includes(term) ||
+        d.creator_name?.toLowerCase().includes(term) ||
         d.items.some(item =>
           item.designation.toLowerCase().includes(term) ||
           item.fournisseur?.toLowerCase().includes(term)
@@ -224,6 +228,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Tiers</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Créé par</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Statut</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Mode</th>
@@ -252,6 +257,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     </td>
                     <td className="py-3 px-4 text-sm text-foreground">{d.third_party_name || '-'}</td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">{d.creator_name || '-'}</td>
+                    <td className="py-3 px-4 text-sm text-foreground uppercase tracking-wide">{d.status || '-'}</td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1.5">
                         <button
@@ -318,21 +324,24 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                       </div>
                     </td>
                     <td className="py-3 px-4">
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         {onConvertToBC && d.type === 'vente' && (
-                          <button onClick={() => onConvertToBC(d)} className="p-1.5 rounded hover:bg-success/10 text-muted-foreground hover:text-success transition-colors" title="Convertir en BC">
+                          <Button size="sm" variant="secondary" onClick={() => onConvertToBC(d)}>
                             <FileText className="w-4 h-4" />
-                          </button>
+                            Créer BC
+                          </Button>
                         )}
-                        {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && canEdit && (
-                          <button onClick={() => onEdit(d)} className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors" title="Modifier">
+                        {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && canEdit && d.status !== 'accepté' && (
+                          <Button size="sm" variant="outline" onClick={() => onEdit(d)}>
                             <Edit className="w-4 h-4" />
-                          </button>
+                            Modifier
+                          </Button>
                         )}
                         {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && (
-                          <button onClick={() => setDeleteConfirm(d)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Supprimer">
+                          <Button size="sm" variant="destructive" onClick={() => setDeleteConfirm(d)}>
                             <Trash2 className="w-4 h-4" />
-                          </button>
+                            Supprimer
+                          </Button>
                         )}
                       </div>
                     </td>

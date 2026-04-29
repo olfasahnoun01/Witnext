@@ -37,9 +37,16 @@ const mapProduct = (p: any, includeImage = false): Product => ({
 export const getAllProducts = async (): Promise<Product[]> => {
   const allData: any[] = [];
   const PAGE_SIZE = 1000;
+  const MAX_PAGES = 30;
   let from = 0;
-  
+  let pages = 0;
+
   while (true) {
+    pages += 1;
+    if (pages > MAX_PAGES) {
+      console.warn(`getAllProducts: stopped after ${MAX_PAGES * PAGE_SIZE} rows (safety cap).`);
+      break;
+    }
     const { data, error } = await supabase
       .from('products')
       .select(PRODUCT_COLUMNS_LIGHT)
@@ -50,10 +57,11 @@ export const getAllProducts = async (): Promise<Product[]> => {
       console.error('Erreur lors de la récupération des produits:', error);
       break;
     }
-    
-    allData.push(...data);
-    
-    if (data.length < PAGE_SIZE) break;
+
+    const batch = data || [];
+    allData.push(...batch);
+
+    if (batch.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
   }
   

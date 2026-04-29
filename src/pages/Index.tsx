@@ -93,16 +93,13 @@ const Index = () => {
         {activeTab === 'gallery' && <PhotoGallery />}
         
         {/* Commerciale */}
-        {activeTab === 'pipeline' && (
-          <GestionDevis
-            onTabChange={handleTabChange}
-            initialSection="history"
-            hiddenSections={['pipeline', 'achats']}
-          />
-        )}
         {activeTab === 'commerciale-clients' && <Clients />}
-        {activeTab === 'devis-vente' && <GestionDevis onTabChange={handleTabChange} initialSection="history" />}
-        {activeTab === 'bc-vente' && <GestionDevis onTabChange={handleTabChange} initialSection="bc" />}
+        {activeTab === 'devis-vente' && (
+          <GestionDevis onTabChange={handleTabChange} initialSection="history" initialDevisType="vente" lockDevisType sectionMode="devis" />
+        )}
+        {activeTab === 'bc-vente' && (
+          <GestionDevis onTabChange={handleTabChange} initialSection="bc" sectionMode="bc" />
+        )}
         {activeTab === 'bl-vente' && (
           <UnifiedDocumentList
             title="Bons de Livraison"
@@ -119,21 +116,13 @@ const Index = () => {
         )}
         {activeTab === 'suivi-clients' && <SuiviManager type="client" />}
         
-        {activeTab === 'demande-achat' && <PurchaseRequestManager />}
+        {(activeTab === 'demande-achat' || activeTab === 'demande-achat-magasin') && <PurchaseRequestManager />}
         {activeTab === 'commerciale-fournisseurs' && <Fournisseurs />}
         {activeTab === 'devis-achat' && (
-          <UnifiedDocumentList
-            title="Devis Fournisseurs"
-            description="Comparez les devis entrants reçus des fournisseurs après validation des demandes d'achat."
-            documentTypes={['DEVIS_FOURNISSEUR']}
-          />
+          <GestionDevis onTabChange={handleTabChange} initialSection="history" initialDevisType="achat" lockDevisType sectionMode="devis" />
         )}
         {activeTab === 'bc-achat' && (
-          <UnifiedDocumentList
-            title="Bons de Commande Fournisseurs"
-            description="Gérez les bons de commande sortants envoyés aux fournisseurs."
-            documentTypes={['BC_FOURNISSEUR']}
-          />
+          <GestionDevis onTabChange={handleTabChange} initialSection="bc" initialDevisType="achat" lockDevisType sectionMode="bc" />
         )}
         {activeTab === 'suivi-fournisseurs' && <SuiviManager type="fournisseur" />}
         

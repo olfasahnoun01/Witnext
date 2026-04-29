@@ -58,7 +58,6 @@ const AppRoutes = () => {
 
 const App = () => {
   useEffect(() => {
-    console.log("DEBUG: App started. If you don't see this, the code isn't syncing!");
     const handleRejection = (event: PromiseRejectionEvent) => {
       const msg = String(event.reason?.message || event.reason || "");
       if (msg.includes("Failed to fetch dynamically imported module") || msg.includes("dynamically imported module")) {

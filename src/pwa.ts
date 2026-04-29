@@ -2,19 +2,33 @@
 // activates immediately, and reloads the page so every browser gets the new version.
 import { registerSW } from "virtual:pwa-register";
 
+let registrationPollId: ReturnType<typeof setInterval> | null = null;
+let pageHideListenerAttached = false;
+
+const clearRegistrationPoll = () => {
+  if (registrationPollId != null) {
+    clearInterval(registrationPollId);
+    registrationPollId = null;
+  }
+};
+
 export const initPWA = () => {
   if (typeof window === "undefined") return;
+
+  if (!pageHideListenerAttached) {
+    pageHideListenerAttached = true;
+    window.addEventListener("pagehide", clearRegistrationPoll);
+  }
 
   const updateSW = registerSW({
     immediate: true,
     onNeedRefresh() {
-      // New version available — activate it and reload right away.
       updateSW(true);
     },
     onRegisteredSW(_swUrl, registration) {
       if (!registration) return;
-      // Poll for updates every 60s so long-open tabs catch new deploys.
-      setInterval(() => {
+      clearRegistrationPoll();
+      registrationPollId = setInterval(() => {
         registration.update().catch(() => {});
       }, 60 * 1000);
     },

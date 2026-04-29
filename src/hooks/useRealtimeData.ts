@@ -25,9 +25,12 @@ const EVENT_LABELS: Record<string, string> = {
   DELETE: 'supprimé',
 };
 
+const REALTIME_REFETCH_MS = 400;
+
 export const useRealtimeData = ({ tables, onDataChange, showToast = true }: UseRealtimeOptions) => {
   const isFirstRender = useRef(true);
   const onDataChangeRef = useRef(onDataChange);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Keep the callback ref updated
   useEffect(() => {
@@ -41,8 +44,6 @@ export const useRealtimeData = ({ tables, onDataChange, showToast = true }: UseR
     const tableList = tablesKey.split(',') as TableName[];
     
     const handleChange = (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
-      console.log('Realtime update:', payload.eventType, payload.table);
-      
       // Show toast notification (skip on first render to avoid false notifications)
       if (showToast && !isFirstRender.current) {
         const tableLabel = TABLE_LABELS[payload.table as TableName] || payload.table;
@@ -54,8 +55,14 @@ export const useRealtimeData = ({ tables, onDataChange, showToast = true }: UseR
           duration: 3000,
         });
       }
-      
-      onDataChangeRef.current();
+
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = null;
+        onDataChangeRef.current();
+      }, REALTIME_REFETCH_MS);
     };
 
     // Mark first render as complete after a short delay
@@ -90,6 +97,10 @@ export const useRealtimeData = ({ tables, onDataChange, showToast = true }: UseR
 
     return () => {
       clearTimeout(timer);
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
       channels.forEach((channel) => {
         supabase.removeChannel(channel);
       });

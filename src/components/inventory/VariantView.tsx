@@ -111,7 +111,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
 
   useEffect(() => { fetchVariants(); }, [fetchVariants]);
 
-  useRealtimeData({ tables: ['products'], onDataChange: fetchVariants, showToast: true });
+  useRealtimeData({ tables: ['products'], onDataChange: fetchVariants, showToast: false });
 
   const totalStock = variants.reduce((sum, v) => sum + v.quantity, 0);
 

@@ -65,8 +65,15 @@ const getExtraDescription = (description?: string | null) => {
     .join(' | ');
 };
 
+const normalizePosteKey = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '');
+
 export const PurchaseRequestManager = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [requests, setRequests] = useState<UnifiedDocument[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [fournisseurs, setFournisseurs] = useState<SupplierOption[]>([]);
@@ -79,6 +86,22 @@ export const PurchaseRequestManager = () => {
   const [lines, setLines] = useState<PurchaseRequestLine[]>([emptyLine()]);
   const [submitting, setSubmitting] = useState(false);
   const [procurementRequest, setProcurementRequest] = useState<UnifiedDocument | null>(null);
+
+  const currentUserPosition = String(
+    user?.user_metadata?.position || user?.user_metadata?.role || ''
+  ).trim();
+  const currentUserPositionKey = normalizePosteKey(currentUserPosition);
+  const isResponsableCommercial =
+    currentUserPositionKey === 'responsable commerciale' || currentUserPositionKey === 'responsable commercial';
+  const isResponsableStock =
+    currentUserPositionKey === 'responsable magazin' ||
+    currentUserPositionKey === 'responsable magasin' ||
+    currentUserPositionKey === 'responsable stock';
+  const isResponsableAchat = currentUserPositionKey === 'responsable achat';
+  const purchaseRequestTargets: Array<'responsable_stock' | 'responsable_achat'> = isResponsableCommercial
+    ? ['responsable_stock', 'responsable_achat']
+    : [];
+  const canCreatePurchaseRequest = isResponsableCommercial;
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -95,7 +118,8 @@ export const PurchaseRequestManager = () => {
             document_lines(*, products(name, sku, quantity))
           `)
           .eq('type', 'DEMANDE_ACHAT')
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false })
+          .limit(500),
         supabase
           .from('products')
           .select('id, name, sku, quantity')
@@ -151,12 +175,18 @@ export const PurchaseRequestManager = () => {
     loadRequesterName();
   }, [user]);
 
+  useEffect(() => {
+    if (purchaseRequestTargets.length > 0 && !purchaseRequestTargets.includes(targetRole)) {
+      setTargetRole(purchaseRequestTargets[0]);
+    }
+  }, [purchaseRequestTargets, targetRole]);
+
   const resetForm = useCallback(() => {
     setRequesterName(user?.user_metadata?.full_name || user?.email?.split('@')[0] || '');
-    setTargetRole('responsable_stock');
+    setTargetRole(purchaseRequestTargets[0] ?? 'responsable_stock');
     setNotes('');
     setLines([emptyLine()]);
-  }, [user]);
+  }, [user, purchaseRequestTargets]);
 
   const addLine = () => {
     setLines((prev) => [...prev, emptyLine()]);
@@ -186,6 +216,11 @@ export const PurchaseRequestManager = () => {
   }, [requests, searchTerm]);
 
   const handleCreateRequest = async () => {
+    if (!canCreatePurchaseRequest) {
+      toast.error('Seul le responsable commercial peut créer une demande d\'achat.');
+      return;
+    }
+
     const validLines = lines.filter((line) =>
       line.quantity > 0 &&
       (line.mode === 'inventory' ? line.product_id > 0 : line.custom_name.trim().length > 0) &&
@@ -200,6 +235,7 @@ export const PurchaseRequestManager = () => {
     try {
       const result = await documentService.createPurchaseRequest({
         requesterName: requesterName.trim() || undefined,
+        requesterRole: isResponsableCommercial ? 'responsable_commercial' : undefined,
         notes: notes.trim() || undefined,
         targetRole,
         items: validLines.map((line) => ({
@@ -226,6 +262,19 @@ export const PurchaseRequestManager = () => {
   };
 
   const handleStockDecision = async (request: UnifiedDocument, decision: 'available' | 'purchase_required') => {
+    const meta = (request.metadata as Record<string, unknown>) || {};
+    const isStockQueue = meta.target_role === 'responsable_stock' && meta.stock_review === 'pending';
+
+    if (isStockQueue && !isResponsableStock && !isAdmin) {
+      toast.error('Seul le responsable magasin peut traiter cette demande.');
+      return;
+    }
+
+    if (isResponsableStock && decision === 'available') {
+      toast.error('Le responsable magasin transfère la demande uniquement vers le responsable achat.');
+      return;
+    }
+
     const confirmMessage =
       decision === 'available'
         ? 'Confirmer que le stock est disponible et clôturer la demande ?'
@@ -270,7 +319,7 @@ export const PurchaseRequestManager = () => {
         <div>
           <h2 className="text-2xl font-bold">Demandes d'achat</h2>
           <p className="text-sm text-muted-foreground">
-            L'agent commercial envoie la demande, le stock vérifie, puis le dossier passe aux achats si nécessaire.
+            Le responsable commercial envoie la demande au responsable stock ou directement aux achats. Le responsable magasin ne peut que transférer vers les achats les demandes qui lui sont adressées.
           </p>
         </div>
 
@@ -285,29 +334,30 @@ export const PurchaseRequestManager = () => {
             />
           </div>
 
-          <Dialog
-            open={dialogOpen}
-            onOpenChange={(open) => {
-              setDialogOpen(open);
-              if (!open) resetForm();
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <ClipboardPlus className="h-4 w-4" />
-                Nouvelle demande
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Créer une demande d'achat</DialogTitle>
-              </DialogHeader>
+          {canCreatePurchaseRequest ? (
+            <Dialog
+              open={dialogOpen}
+              onOpenChange={(open) => {
+                setDialogOpen(open);
+                if (!open) resetForm();
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button className="gap-2">
+                  <ClipboardPlus className="h-4 w-4" />
+                  Nouvelle demande
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Créer une demande d'achat</DialogTitle>
+                </DialogHeader>
 
-              <div className="space-y-6 py-2">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="requesterName">Nom de l'agent commercial</Label>
-                    <Input
+                <div className="space-y-6 py-2">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="requesterName">Nom de l'agent commercial</Label>
+                      <Input
                       id="requesterName"
                       value={requesterName}
                       readOnly
@@ -320,8 +370,11 @@ export const PurchaseRequestManager = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="responsable_stock">Responsable stock</SelectItem>
-                        <SelectItem value="responsable_achat">Responsable achat</SelectItem>
+                        {purchaseRequestTargets.map((role) => (
+                          <SelectItem key={role} value={role}>
+                            {role === 'responsable_stock' ? 'Responsable stock' : 'Responsable achat'}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -494,7 +547,12 @@ export const PurchaseRequestManager = () => {
                 </Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          ) : (
+            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              Seul le responsable commercial peut créer une demande d'achat.
+            </div>
+          )}
         </div>
       </div>
 
@@ -553,24 +611,34 @@ export const PurchaseRequestManager = () => {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          {stockReview === 'pending' && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleStockDecision(request, 'available')}
-                              >
-                                <CheckCircle2 className="mr-2 h-4 w-4" />
-                                Stock OK
-                              </Button>
+                          {stockReview === 'pending' && metadata.target_role === 'responsable_stock' && (
+                            isResponsableStock ? (
                               <Button
                                 size="sm"
                                 onClick={() => handleStockDecision(request, 'purchase_required')}
                               >
-                                <XCircle className="mr-2 h-4 w-4" />
-                                Achat nécessaire
+                                <Send className="mr-2 h-4 w-4" />
+                                Transférer au responsable achat
                               </Button>
-                            </>
+                            ) : isAdmin ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleStockDecision(request, 'available')}
+                                >
+                                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                                  Stock OK
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleStockDecision(request, 'purchase_required')}
+                                >
+                                  <XCircle className="mr-2 h-4 w-4" />
+                                  Transférer aux achats
+                                </Button>
+                              </>
+                            ) : null
                           )}
 
                           {(stockReview === 'purchase_required' || stockReview === 'bypassed') && (
@@ -578,11 +646,15 @@ export const PurchaseRequestManager = () => {
                               <span className="inline-flex items-center rounded-md bg-blue-50 px-3 text-xs font-medium text-blue-700">
                                 Devis fournisseurs lancés
                               </span>
-                            ) : (
+                            ) : (isResponsableAchat || isAdmin) ? (
                               <Button size="sm" variant="secondary" onClick={() => setProcurementRequest(request)}>
                                 <ShoppingCart className="mr-2 h-4 w-4" />
                                 Demander devis fournisseurs
                               </Button>
+                            ) : (
+                              <span className="inline-flex items-center rounded-md bg-muted px-3 text-xs text-muted-foreground">
+                                En attente du responsable achat
+                              </span>
                             )
                           )}
 
