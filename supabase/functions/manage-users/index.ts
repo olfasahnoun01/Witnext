@@ -238,10 +238,17 @@ Deno.serve(async (req: Request) => {
           console.log('Password will be updated for user:', user_id)
         }
         if (full_name !== undefined || position !== undefined) {
-          updateData.user_metadata = {
-            full_name: full_name?.trim() || '',
-            position: position?.trim() || ''
+          const { data: existingAuth, error: getUserErr } = await supabaseAdmin.auth.admin.getUserById(user_id)
+          if (getUserErr || !existingAuth?.user) {
+            return new Response(JSON.stringify({ error: mapErrorToUserMessage(getUserErr) || 'Utilisateur introuvable' }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
           }
+          const prevMeta = { ...(existingAuth.user.user_metadata || {}) }
+          if (full_name !== undefined) prevMeta.full_name = (full_name ?? '').trim()
+          if (position !== undefined) prevMeta.position = (position ?? '').trim()
+          updateData.user_metadata = prevMeta
         }
 
         if (Object.keys(updateData).length > 0) {
@@ -277,6 +284,10 @@ Deno.serve(async (req: Request) => {
           const { error: deleteRoleError } = await supabaseAdmin.from('user_roles').delete().eq('user_id', user_id)
           if (deleteRoleError) {
             console.error('Error deleting old roles:', deleteRoleError.code)
+            return new Response(JSON.stringify({ error: mapErrorToUserMessage(deleteRoleError) }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
           }
           
           const { error: insertRoleError } = await supabaseAdmin.from('user_roles').insert({
@@ -285,9 +296,12 @@ Deno.serve(async (req: Request) => {
           })
           if (insertRoleError) {
             console.error('Error inserting new role:', insertRoleError.code)
-          } else {
-            console.log('Role updated to:', role, 'for user:', user_id)
+            return new Response(JSON.stringify({ error: mapErrorToUserMessage(insertRoleError) }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
           }
+          console.log('Role updated to:', role, 'for user:', user_id)
         }
 
         return new Response(JSON.stringify({ success: true }), {

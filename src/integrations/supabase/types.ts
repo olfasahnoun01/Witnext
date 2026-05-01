@@ -942,6 +942,7 @@ export type Database = {
       user_presence: {
         Row: {
           email: string | null
+          full_name: string | null
           id: string
           is_online: boolean
           last_seen: string
@@ -950,6 +951,7 @@ export type Database = {
         }
         Insert: {
           email?: string | null
+          full_name?: string | null
           id?: string
           is_online?: boolean
           last_seen?: string
@@ -958,6 +960,7 @@ export type Database = {
         }
         Update: {
           email?: string | null
+          full_name?: string | null
           id?: string
           is_online?: boolean
           last_seen?: string
@@ -1017,6 +1020,9 @@ export type Database = {
           modele: string
           matricule: string
           type: string | null
+          constructeur: string | null
+          type_carburant: string
+          kilometrage_actuel: number
           created_at: string
           updated_at: string
         }
@@ -1025,6 +1031,9 @@ export type Database = {
           modele: string
           matricule: string
           type?: string | null
+          constructeur?: string | null
+          type_carburant?: string
+          kilometrage_actuel?: number
           created_at?: string
           updated_at?: string
         }
@@ -1033,6 +1042,9 @@ export type Database = {
           modele?: string
           matricule?: string
           type?: string | null
+          constructeur?: string | null
+          type_carburant?: string
+          kilometrage_actuel?: number
           created_at?: string
           updated_at?: string
         }

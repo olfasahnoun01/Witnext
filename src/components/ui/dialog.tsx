@@ -46,8 +46,9 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, onCloseAutoFocus, ...props }, ref) => {
+  // Only clean up on unmount / close — running cleanup on mount races Radix body
+  // scroll-lock and can leave `pointer-events: none` on the document (no typing until reload).
   React.useEffect(() => {
-    scheduleLayerCleanup();
     return () => {
       scheduleLayerCleanup();
     };

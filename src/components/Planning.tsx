@@ -35,7 +35,7 @@ interface EmployeeRow {
   shifts: Record<string, string>; // dateKey → shift code
 }
 
-type PeriodType = 'weekly' | 'monthly';
+type PeriodType = 'weekly' | 'monthly' | 'custom';
 
 // Shift code → display / style
 const SHIFT_MAP: Record<string, { label: string; bg: string; text: string }> = {
@@ -91,6 +91,65 @@ function getWeekEnd(start: Date): Date {
   return end;
 }
 
+function toYmd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Old app export: meta + dates[].isoDate + agents|employees[].shifts[] (parallel to dates). */
+function isLegacyScheduleExport(data: unknown): data is {
+  meta: { clientName?: string; siteName?: string; startDate: string; endDate: string };
+  dates: { isoDate: string }[];
+  agents?: { id: string; name: string; shifts: string[] }[];
+  employees?: { id: string; name: string; shifts: string[] }[];
+} {
+  if (!data || typeof data !== 'object') return false;
+  const o = data as Record<string, unknown>;
+  const meta = o.meta as Record<string, unknown> | undefined;
+  if (!meta || typeof meta.startDate !== 'string') return false;
+  if (!Array.isArray(o.dates) || o.dates.length === 0) return false;
+  const firstDate = o.dates[0] as Record<string, unknown>;
+  if (!firstDate || typeof firstDate.isoDate !== 'string') return false;
+  const rawAgents = o.agents;
+  const rawEmp = o.employees;
+  const rows =
+    Array.isArray(rawAgents) && rawAgents.length > 0
+      ? rawAgents
+      : Array.isArray(rawEmp)
+        ? rawEmp
+        : [];
+  if (!Array.isArray(rows) || rows.length === 0) return false;
+  return Array.isArray((rows[0] as { shifts?: unknown })?.shifts);
+}
+
+function normalizeImportedShift(raw: unknown): string {
+  if (raw == null) return '';
+  const s = String(raw).trim().toUpperCase();
+  if (!s) return '';
+  if (SHIFT_MAP[s]) return s;
+  const last = s.slice(-1);
+  if (last === 'J' || last === 'N' || last === 'R') return last;
+  return '';
+}
+
+function mapLegacyRowsToEmployees(
+  dateRows: { isoDate: string }[],
+  agents: { id: string; name: string; shifts: string[] }[]
+): EmployeeRow[] {
+  return agents.map((a) => {
+    const shifts: Record<string, string> = {};
+    const n = Math.min(dateRows.length, a.shifts?.length ?? 0);
+    for (let i = 0; i < n; i++) {
+      const dk = String(dateRows[i].isoDate).slice(0, 10);
+      shifts[dk] = normalizeImportedShift(a.shifts[i]);
+    }
+    return {
+      id: String(a.id || crypto.randomUUID()),
+      name: String(a.name ?? '').trim(),
+      shifts,
+    };
+  });
+}
+
 // Arabic day full names
 const AR_DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
@@ -103,6 +162,12 @@ export const Planning = () => {
   const [referenceDate, setReferenceDate] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
+  const [customEndDate, setCustomEndDate] = useState(() => {
+    const now = new Date();
+    const end = new Date(now);
+    end.setDate(end.getDate() + 6);
+    return toYmd(end);
   });
 
   // Employees
@@ -151,6 +216,7 @@ export const Planning = () => {
       siteName,
       periodType,
       referenceDate,
+      ...(periodType === 'custom' ? { customEndDate } : {}),
       employeeCount,
       employees,
     };
@@ -162,7 +228,7 @@ export const Planning = () => {
     a.click();
     URL.revokeObjectURL(url);
     toast.success('تم تصدير البيانات (JSON)');
-  }, [companyName, siteName, periodType, referenceDate, employeeCount, employees]);
+  }, [companyName, siteName, periodType, referenceDate, customEndDate, employeeCount, employees]);
 
   const handleImportJSON = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -171,17 +237,59 @@ export const Planning = () => {
     reader.onload = (event) => {
       try {
         const json = JSON.parse(event.target?.result as string);
-        if (json.employees) {
-          if (json.companyName) setCompanyName(json.companyName);
-          if (json.siteName) setSiteName(json.siteName);
-          if (json.periodType) setPeriodType(json.periodType);
-          if (json.referenceDate) setReferenceDate(json.referenceDate);
-          if (json.employeeCount) setEmployeeCount(json.employeeCount);
-          setEmployees(json.employees);
+
+        if (isLegacyScheduleExport(json)) {
+          const rawAgents = json.agents;
+          const rawEmp = json.employees;
+          const rows =
+            Array.isArray(rawAgents) && rawAgents.length > 0
+              ? rawAgents
+              : (rawEmp ?? []);
+          const mapped = mapLegacyRowsToEmployees(json.dates, rows);
+          setCompanyName(String(json.meta.clientName ?? ''));
+          setSiteName(String(json.meta.siteName ?? ''));
+          setReferenceDate(String(json.meta.startDate).slice(0, 10));
+          const lastIso = json.dates[json.dates.length - 1]?.isoDate;
+          setCustomEndDate(
+            String(json.meta.endDate ?? lastIso ?? json.meta.startDate).slice(0, 10)
+          );
+          setPeriodType('custom');
+          setEmployees(mapped);
+          setEmployeeCount(mapped.length);
+          setIsGenerated(true);
+          toast.success('تم استيراد الجدول (JSON قديم)');
+          return;
+        }
+
+        const emps = json.employees;
+        const nativeOk =
+          Array.isArray(emps) &&
+          emps.length > 0 &&
+          emps[0]?.shifts != null &&
+          typeof emps[0].shifts === 'object' &&
+          !Array.isArray(emps[0].shifts);
+
+        if (nativeOk) {
+          if (json.companyName) setCompanyName(String(json.companyName));
+          if (json.siteName) setSiteName(String(json.siteName));
+          if (json.periodType === 'weekly' || json.periodType === 'monthly' || json.periodType === 'custom') {
+            setPeriodType(json.periodType);
+          }
+          if (json.referenceDate) setReferenceDate(String(json.referenceDate).slice(0, 10));
+          if (json.periodType === 'custom' && json.customEndDate) {
+            setCustomEndDate(String(json.customEndDate).slice(0, 10));
+          }
+          if (json.employeeCount != null && json.employeeCount !== '') {
+            setEmployeeCount(Number(json.employeeCount));
+          }
+          setEmployees(emps);
           setIsGenerated(true);
           toast.success('تم استيراد البيانات بنجاح');
+          return;
         }
-      } catch (err) {
+
+        toast.error('ملف غير صالح');
+      } catch {
         toast.error('ملف غير صالح');
       }
     };
@@ -192,31 +300,45 @@ export const Planning = () => {
   // Compute date range
   const { startDate, endDate, dates } = useMemo(() => {
     const ref = new Date(referenceDate + 'T00:00:00');
-    let s: Date, e: Date;
+    let s: Date;
+    let e: Date;
     if (periodType === 'weekly') {
       s = getWeekStart(ref);
       e = getWeekEnd(s);
-    } else {
+    } else if (periodType === 'monthly') {
       s = getMonthStart(ref);
       e = getMonthEnd(ref);
+    } else {
+      s = new Date(referenceDate + 'T00:00:00');
+      e = new Date(customEndDate + 'T00:00:00');
+      if (e < s) e = new Date(s);
     }
     return { startDate: s, endDate: e, dates: buildDateRange(s, e) };
-  }, [referenceDate, periodType]);
+  }, [referenceDate, periodType, customEndDate]);
 
   // Navigate period
   const navigatePeriod = useCallback(
     (dir: -1 | 1) => {
+      if (periodType === 'custom') {
+        const s = new Date(referenceDate + 'T00:00:00');
+        const e0 = new Date(customEndDate + 'T00:00:00');
+        const lenDays = Math.max(0, Math.round((e0.getTime() - s.getTime()) / 86400000));
+        s.setDate(s.getDate() + dir * 7);
+        const newE = new Date(s);
+        newE.setDate(newE.getDate() + lenDays);
+        setReferenceDate(toYmd(s));
+        setCustomEndDate(toYmd(newE));
+        return;
+      }
       const ref = new Date(referenceDate + 'T00:00:00');
       if (periodType === 'weekly') {
         ref.setDate(ref.getDate() + dir * 7);
       } else {
         ref.setMonth(ref.getMonth() + dir);
       }
-      setReferenceDate(
-        `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, '0')}-${String(ref.getDate()).padStart(2, '0')}`
-      );
+      setReferenceDate(toYmd(ref));
     },
-    [referenceDate, periodType]
+    [referenceDate, customEndDate, periodType]
   );
 
   const updateEmployeeName = useCallback((id: string, name: string) => {
@@ -342,6 +464,12 @@ export const Planning = () => {
     setCompanyName('');
     setSiteName('');
     setEmployeeCount('');
+    setPeriodType('monthly');
+    const now = new Date();
+    setReferenceDate(toYmd(now));
+    const end = new Date(now);
+    end.setDate(end.getDate() + 6);
+    setCustomEndDate(toYmd(end));
     toast.success('تم إعادة تعيين الجدول');
   }, []);
 
@@ -593,26 +721,52 @@ export const Planning = () => {
           {/* Period Type */}
           <div className="space-y-1.5">
             <Label className="text-sm">نوع الفترة</Label>
-            <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
+            <Select
+              value={periodType}
+              onValueChange={(v) => {
+                const next = v as PeriodType;
+                setPeriodType(next);
+                if (next === 'custom') {
+                  setCustomEndDate((prev) => {
+                    const s = new Date(referenceDate + 'T12:00:00');
+                    const e = new Date(prev + 'T12:00:00');
+                    if (e < s) return toYmd(new Date(s.getTime() + 6 * 86400000));
+                    return prev;
+                  });
+                }
+              }}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="weekly">أسبوعي</SelectItem>
                 <SelectItem value="monthly">شهري</SelectItem>
+                <SelectItem value="custom">فترة مخصصة</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {/* Date */}
           <div className="space-y-1.5">
-            <Label className="text-sm">تاريخ مرجعي</Label>
+            <Label className="text-sm">{periodType === 'custom' ? 'تاريخ البداية' : 'تاريخ مرجعي'}</Label>
             <Input
               type="date"
               value={referenceDate}
               onChange={(e) => setReferenceDate(e.target.value)}
               dir="ltr"
             />
+            {periodType === 'custom' && (
+              <>
+                <Label className="text-sm pt-1 block">تاريخ النهاية</Label>
+                <Input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  dir="ltr"
+                />
+              </>
+            )}
           </div>
 
           {/* Employee Count */}

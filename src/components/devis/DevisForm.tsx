@@ -215,10 +215,12 @@ export const DevisForm = memo(({
       setItemPrixTtc(priceHt);
       setItemPrixAchat(0); // Not needed for achat
     } else {
-      // For vente: auto-fill sale HT price from inventory price when available
-      const salePriceHt = product.price || 0;
+      // For vente: même base HT que la liste de recherche (prix_ttc produit = PU HT après remise catalogue)
+      const salePriceHt =
+        product.prix_ttc ||
+        (product.price || 0) * (1 - (product.remise || 0) / 100);
       setItemPrixTtc(salePriceHt);
-      setItemPrixAchat(0);
+      setItemPrixAchat(product.price || 0);
     }
     setItemRemise(product.remise || 0);
     setItemQuantity(1);
@@ -353,6 +355,9 @@ export const DevisForm = memo(({
 
   // Inline edit state for devis items
   const [editingItemIdx, setEditingItemIdx] = useState<number | null>(null);
+  const [editItemDesignation, setEditItemDesignation] = useState('');
+  const [editItemFournisseur, setEditItemFournisseur] = useState('');
+  const [editItemDescription, setEditItemDescription] = useState('');
   const [editItemPrix, setEditItemPrix] = useState<number>(0);
   const [editItemQty, setEditItemQty] = useState<number>(1);
   const [editItemPrixAchat, setEditItemPrixAchat] = useState<number>(0);
@@ -362,6 +367,9 @@ export const DevisForm = memo(({
   const startEditItem = useCallback((idx: number) => {
     const item = devisItems[idx];
     setEditingItemIdx(idx);
+    setEditItemDesignation(item.designation);
+    setEditItemFournisseur(item.fournisseur || '');
+    setEditItemDescription(item.description || '');
     setEditItemPrix(item.prix_ttc);
     setEditItemQty(item.quantity);
     setEditItemPrixAchat(item.prix_achat || 0);
@@ -371,8 +379,15 @@ export const DevisForm = memo(({
 
   const saveEditItem = useCallback(() => {
     if (editingItemIdx === null) return;
+    if (!editItemDesignation.trim()) {
+      toast.error('Nom d\'article requis');
+      return;
+    }
     setDevisItems(prev => prev.map((item, i) => i === editingItemIdx ? {
       ...item,
+      designation: editItemDesignation.trim(),
+      fournisseur: editItemFournisseur.trim(),
+      description: editItemDescription.trim() || undefined,
       prix_ttc: editItemPrix,
       quantity: editItemQty,
       remise: editItemRemise,
@@ -380,7 +395,7 @@ export const DevisForm = memo(({
       ...(devisType === 'vente' ? { prix_achat: editItemPrixAchat } : {}),
     } : item));
     setEditingItemIdx(null);
-  }, [editingItemIdx, editItemPrix, editItemQty, editItemRemise, editItemTva, editItemPrixAchat, devisType, setDevisItems]);
+  }, [editingItemIdx, editItemDesignation, editItemFournisseur, editItemDescription, editItemPrix, editItemQty, editItemRemise, editItemTva, editItemPrixAchat, devisType, setDevisItems]);
 
   const cancelEditItem = useCallback(() => {
     setEditingItemIdx(null);
@@ -1234,7 +1249,20 @@ export const DevisForm = memo(({
                 <div key={idx} className="p-4 rounded-lg bg-muted/50">
                   {editingItemIdx === idx ? (
                     <div className="space-y-3">
-                      <p className="font-medium text-foreground">{item.designation}</p>
+                      <div className="grid gap-3">
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Article / désignation</label>
+                          <input type="text" value={editItemDesignation} onChange={e => setEditItemDesignation(e.target.value)} className="form-input" placeholder="Nom de l'article" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Fournisseur</label>
+                          <input type="text" value={editItemFournisseur} onChange={e => setEditItemFournisseur(e.target.value)} className="form-input" placeholder="Fournisseur" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Description</label>
+                          <input type="text" value={editItemDescription} onChange={e => setEditItemDescription(e.target.value)} className="form-input" placeholder="Description (optionnel)" />
+                        </div>
+                      </div>
                       <div className={`grid gap-3 ${devisType === 'vente' ? (isTtc ? 'grid-cols-6' : 'grid-cols-4') : (isTtc ? 'grid-cols-5' : 'grid-cols-3')}`}>
                         <div>
                           <label className="text-xs text-muted-foreground mb-1 block">Qté</label>

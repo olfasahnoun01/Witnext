@@ -10,10 +10,19 @@ import { Badge } from '@/components/ui/badge';
 interface OnlineUser {
   user_id: string;
   email: string | null;
+  full_name?: string | null;
   role: string | null;
   last_seen: string;
   is_online: boolean;
 }
+
+const displayName = (user: OnlineUser) =>
+  (user.full_name && user.full_name.trim()) || user.email || 'Utilisateur';
+
+const displayInitial = (user: OnlineUser) => {
+  const n = displayName(user);
+  return n.charAt(0).toUpperCase();
+};
 
 interface OnlineUsersIndicatorProps {
   onlineUsers: OnlineUser[];
@@ -133,18 +142,23 @@ export const OnlineUsersIndicator = memo(({ onlineUsers, currentUserId }: Online
                     <div className="relative">
                       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
                         <span className="text-xs font-medium text-muted-foreground">
-                          {(user.email || 'U')[0].toUpperCase()}
+                          {displayInitial(user)}
                         </span>
                       </div>
                       <Circle className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 fill-green-500 text-green-500" />
                     </div>
                     <div className="min-w-0">
                       <span className="text-sm text-foreground truncate block">
-                        {user.email || 'Utilisateur'}
+                        {displayName(user)}
                         {user.user_id === currentUserId && (
                           <span className="text-muted-foreground ml-1">(vous)</span>
                         )}
                       </span>
+                      {user.email && displayName(user) !== user.email && (
+                        <span className="text-xs text-muted-foreground truncate block">
+                          {user.email}
+                        </span>
+                      )}
                       <span className="text-xs text-muted-foreground">
                         {getTimeSince(user.last_seen)}
                       </span>

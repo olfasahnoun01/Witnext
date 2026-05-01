@@ -69,7 +69,6 @@ interface SheetContentProps
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
   ({ side = "right", className, children, onCloseAutoFocus, ...props }, ref) => {
     React.useEffect(() => {
-      scheduleLayerCleanup();
       return () => {
         scheduleLayerCleanup();
       };

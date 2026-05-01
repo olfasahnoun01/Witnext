@@ -1,12 +1,26 @@
-import { useState, useMemo, useEffect } from 'react';
-import { BarChart3, Car, Fuel, Wrench, Receipt, Users, Calendar as CalendarIcon, TrendingUp, AlertCircle, CreditCard, Loader2 } from 'lucide-react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { BarChart3, Car, Fuel, Wrench, Receipt, Users, Calendar as CalendarIcon, TrendingUp, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+
+const CHART_COLORS = ['#10b981', '#f97316', '#3b82f6', '#ec4899', '#8b5cf6', '#eab308', '#06b6d4', '#64748b', '#ef4444', '#84cc16'];
 
 export const VehiculeStats = () => {
   const [activeTab, setActiveTab] = useState<'voiture' | 'chauffeur'>('voiture');
@@ -51,32 +65,30 @@ export const VehiculeStats = () => {
     fetchData();
   }, []);
 
-  // Helper function to check if a date falls within the selected range
-  const isWithinDateRange = (dateStr: string) => {
+  const isWithinDateRange = useCallback((dateStr: string) => {
     if (!dateDebut || !dateFin || !dateStr) return true;
     const d = new Date(dateStr);
     const start = new Date(dateDebut);
     const end = new Date(dateFin);
-    // Add 1 day to end date to make it inclusive
     end.setHours(23, 59, 59, 999);
     return d >= start && d <= end;
-  };
+  }, [dateDebut, dateFin]);
 
   // --- STATS PAR VOITURE ---
   const statsVoiture = useMemo(() => {
     const filterVehicule = (id: string) => selectedVehicule === 'all' || id === selectedVehicule;
 
-    const filteredBons = bons.filter((b: any) => filterVehicule(b.vehicule_id) && isWithinDateRange(b.date));
+    const filteredBons = bons.filter((b: any) => filterVehicule(b.vehicule_id) && isWithinDateRange(b.date as string));
     const filteredMaintenances = maintenances.filter((m: any) => {
       // Maintenances still use vehicle name string
       const veh = vehicules.find((v: any) => v.id === selectedVehicule);
       const vehName = veh ? `${veh.modele} (${veh.matricule})` : '';
-      return (selectedVehicule === 'all' || m.vehicule === vehName) && isWithinDateRange(m.dateDebut);
+      return (selectedVehicule === 'all' || m.vehicule === vehName) && isWithinDateRange(m.dateDebut as string);
     });
     const filteredCharges = charges.filter((c: any) => {
       const veh = vehicules.find((v: any) => v.id === selectedVehicule);
       const vehName = veh ? `${veh.modele} (${veh.matricule})` : '';
-      return (selectedVehicule === 'all' || c.vehicule === vehName) && isWithinDateRange(c.dateEcheance);
+      return (selectedVehicule === 'all' || c.vehicule === vehName) && isWithinDateRange(c.dateEcheance as string);
     });
 
     const totalCarburantTND = filteredBons.reduce((acc: number, b: any) => acc + (b.montant || 0), 0);
@@ -103,13 +115,13 @@ export const VehiculeStats = () => {
       totalGeneral,
       nbBons: filteredBons.length
     };
-  }, [selectedVehicule, dateDebut, dateFin, bons, maintenances, charges]);
+  }, [selectedVehicule, dateDebut, dateFin, bons, maintenances, charges, vehicules, isWithinDateRange]);
 
   // --- STATS PAR CHAUFFEUR ---
   const statsChauffeur = useMemo(() => {
     const filterChauffeur = (id: string) => selectedChauffeur === 'all' || id === selectedChauffeur;
 
-    const filteredBons = bons.filter((b: any) => filterChauffeur(b.conducteur_id) && isWithinDateRange(b.date));
+    const filteredBons = bons.filter((b: any) => filterChauffeur(b.conducteur_id) && isWithinDateRange(b.date as string));
 
     const totalCarburantTND = filteredBons.reduce((acc: number, b: any) => acc + (b.montant || 0), 0);
     const totalDistance = filteredBons.reduce((acc: number, b: any) => acc + (b.distance || 0), 0);
@@ -119,7 +131,103 @@ export const VehiculeStats = () => {
       distance: totalDistance,
       nbBons: filteredBons.length
     };
-  }, [selectedChauffeur, dateDebut, dateFin, bons]);
+  }, [selectedChauffeur, dateDebut, dateFin, bons, isWithinDateRange]);
+
+  const bonsFiltresVoiture = useMemo(() => {
+    const filterVehicule = (id: string) => selectedVehicule === 'all' || id === selectedVehicule;
+    return bons.filter((b: any) => filterVehicule(b.vehicule_id) && isWithinDateRange(b.date as string));
+  }, [bons, selectedVehicule, isWithinDateRange]);
+
+  const repartitionCoutsPie = useMemo(() => {
+    const s = statsVoiture;
+    const rows = [
+      { name: 'Carburant', value: s.carburant },
+      { name: 'Maintenance', value: s.maintenance },
+      { name: 'Assurance', value: s.charges.assurance || 0 },
+      { name: 'Vignette', value: s.charges.vignette || 0 },
+      { name: 'Visite technique', value: s.charges.visite_technique || 0 },
+      { name: 'Leasing', value: s.charges.leasing || 0 },
+    ].filter((r) => r.value > 0);
+    return rows;
+  }, [statsVoiture]);
+
+  const carburantParMoisVoiture = useMemo(() => {
+    const map = new Map<string, number>();
+    bonsFiltresVoiture.forEach((b: any) => {
+      const raw = b.date;
+      if (!raw) return;
+      const key = String(raw).slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(key)) return;
+      map.set(key, (map.get(key) || 0) + (Number(b.montant) || 0));
+    });
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([ym, montant]) => {
+        const [y, m] = ym.split('-');
+        return { label: `${m}/${y.slice(2)}`, montant };
+      });
+  }, [bonsFiltresVoiture]);
+
+  const bonsFiltresChauffeur = useMemo(() => {
+    const filterChauffeur = (id: string) => selectedChauffeur === 'all' || id === selectedChauffeur;
+    return bons.filter((b: any) => filterChauffeur(b.conducteur_id) && isWithinDateRange(b.date as string));
+  }, [bons, selectedChauffeur, isWithinDateRange]);
+
+  const carburantParChauffeur = useMemo(() => {
+    if (selectedChauffeur !== 'all') return [];
+    const map = new Map<string, { name: string; montant: number }>();
+    bonsFiltresChauffeur.forEach((b: any) => {
+      const id = b.conducteur_id || '—';
+      const name = b.employee ? `${b.employee.prenom} ${b.employee.nom}`.trim() : 'Conducteur';
+      const prev = map.get(id);
+      const add = Number(b.montant) || 0;
+      map.set(id, { name: prev?.name || name, montant: (prev?.montant || 0) + add });
+    });
+    return [...map.values()].sort((a, b) => b.montant - a.montant).slice(0, 10);
+  }, [bonsFiltresChauffeur, selectedChauffeur]);
+
+  const carburantParMoisChauffeur = useMemo(() => {
+    const map = new Map<string, number>();
+    bonsFiltresChauffeur.forEach((b: any) => {
+      const raw = b.date;
+      if (!raw) return;
+      const key = String(raw).slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(key)) return;
+      map.set(key, (map.get(key) || 0) + (Number(b.montant) || 0));
+    });
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([ym, montant]) => {
+        const [y, m] = ym.split('-');
+        return { label: `${m}/${y.slice(2)}`, montant };
+      });
+  }, [bonsFiltresChauffeur]);
+
+  const tndTooltip = (v: number | undefined) => [`${(v ?? 0).toLocaleString('fr-FR')} TND`, ''];
+
+  const carburantParTypeChauffeur = useMemo(() => {
+    let gasoil = 0;
+    let essence = 0;
+    bonsFiltresChauffeur.forEach((b: any) => {
+      const m = Number(b.montant) || 0;
+      const t = String(b.type_carburant || 'gasoil').toLowerCase();
+      if (t === 'essence') essence += m;
+      else gasoil += m;
+    });
+    return [
+      { name: 'Gasoil', value: gasoil },
+      { name: 'Essence', value: essence },
+    ].filter((r) => r.value > 0);
+  }, [bonsFiltresChauffeur]);
+
+  const tooltipTheme = {
+    contentStyle: {
+      backgroundColor: 'hsl(var(--card))',
+      border: '1px solid hsl(var(--border))',
+      borderRadius: '12px',
+      fontSize: '12px',
+    },
+  };
 
   return (
     <div className="space-y-8 animate-fade-in pb-10">
@@ -246,6 +354,71 @@ export const VehiculeStats = () => {
             </Card>
           </div>
 
+          {!isLoading && (
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card className="rounded-[2rem] border border-border shadow-sm bg-card">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg font-bold text-foreground">Répartition des coûts (TND)</CardTitle>
+                  <p className="text-xs text-muted-foreground font-medium">Carburant, maintenance et charges sur la période</p>
+                </CardHeader>
+                <CardContent className="h-[300px]">
+                  {repartitionCoutsPie.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                      Aucune donnée de coût sur cette période
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={repartitionCoutsPie}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={68}
+                          outerRadius={100}
+                          paddingAngle={2}
+                          strokeWidth={2}
+                          className="stroke-background"
+                        >
+                          {repartitionCoutsPie.map((_, i) => (
+                            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => tndTooltip(v)} {...tooltipTheme} />
+                        <Legend wrapperStyle={{ fontSize: '12px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-[2rem] border border-border shadow-sm bg-card">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg font-bold text-foreground">Carburant par mois (TND)</CardTitle>
+                  <p className="text-xs text-muted-foreground font-medium">Somme des bons sur la période filtrée</p>
+                </CardHeader>
+                <CardContent className="h-[300px]">
+                  {carburantParMoisVoiture.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                      Aucun bon de carburant sur cette période
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={carburantParMoisVoiture} margin={{ top: 8, right: 8, left: 8, bottom: 24 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                        <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${v}`} />
+                        <Tooltip formatter={(v: number) => tndTooltip(v)} labelFormatter={(l) => `Mois ${l}`} {...tooltipTheme} />
+                        <Bar dataKey="montant" fill="#f97316" radius={[6, 6, 0, 0]} name="Montant" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
           <Card className="rounded-[2.5rem] border-none shadow-md bg-card p-2">
             <CardHeader>
               <CardTitle className="text-xl font-bold flex items-center gap-2 text-foreground">
@@ -329,6 +502,91 @@ export const VehiculeStats = () => {
                </div>
             </Card>
           </div>
+
+          {!isLoading && (
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card className="rounded-[2rem] border border-border shadow-sm bg-card">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg font-bold text-foreground">Carburant par mois (TND)</CardTitle>
+                  <p className="text-xs text-muted-foreground font-medium">Bons filtrés (chauffeur / période)</p>
+                </CardHeader>
+                <CardContent className="h-[280px]">
+                  {carburantParMoisChauffeur.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                      Aucun bon sur cette période
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={carburantParMoisChauffeur} margin={{ top: 8, right: 8, left: 8, bottom: 24 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                        <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                        <Tooltip formatter={(v: number) => tndTooltip(v)} {...tooltipTheme} />
+                        <Bar dataKey="montant" fill="#3b82f6" radius={[6, 6, 0, 0]} name="Montant" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-[2rem] border border-border shadow-sm bg-card">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg font-bold text-foreground">
+                    {selectedChauffeur === 'all' ? 'Carburant par conducteur' : 'Répartition gasoil / essence'}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground font-medium">
+                    {selectedChauffeur === 'all' ? 'Top 10 (TND) sur la période' : 'Montants TND des bons sélectionnés'}
+                  </p>
+                </CardHeader>
+                <CardContent className="h-[280px]">
+                  {selectedChauffeur === 'all' ? (
+                    carburantParChauffeur.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                        Aucune donnée conducteur
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart layout="vertical" data={carburantParChauffeur} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                          <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                          <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+                          <Tooltip formatter={(v: number) => tndTooltip(v)} {...tooltipTheme} />
+                          <Bar dataKey="montant" fill="#10b981" radius={[0, 6, 6, 0]} name="Montant" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )
+                  ) : carburantParTypeChauffeur.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                      Aucune donnée
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={carburantParTypeChauffeur}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={62}
+                          outerRadius={92}
+                          paddingAngle={2}
+                          strokeWidth={2}
+                          className="stroke-background"
+                        >
+                          {carburantParTypeChauffeur.map((_, i) => (
+                            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => tndTooltip(v)} {...tooltipTheme} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

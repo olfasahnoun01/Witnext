@@ -1,18 +1,17 @@
 import { useEffect, useState, useCallback, useMemo, memo } from 'react';
-import { 
-  TrendingUp, 
-  Package, 
-  AlertTriangle, 
+import {
+  TrendingUp,
+  Package,
+  AlertTriangle,
   XCircle,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { getDashboardStats, getRecentTransactions } from '@/services/dbService';
 import { DashboardStats, Transaction } from '@/types';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
-
-const CHART_COLORS = ['hsl(217, 91%, 50%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(0, 84%, 60%)', 'hsl(262, 83%, 58%)'];
+import { useProductGroupCategoryStats } from '@/hooks/useProductGroupCategoryStats';
+import { InventoryCategoryChartsCards } from '@/components/inventory/InventoryCategoryChartsCards';
 
 // Memoized KPI Card component
 const KPICard = memo(({ 
@@ -99,6 +98,13 @@ const TransactionItem = memo(({ tx }: { tx: Transaction }) => (
 TransactionItem.displayName = 'TransactionItem';
 
 export const Dashboard = memo(() => {
+  const {
+    isLoading: categoryChartsLoading,
+    inventoryChartBarRows,
+    inventoryChartPieRows,
+    totalProducts: categoryGroupTotal,
+  } = useProductGroupCategoryStats();
+
   const [stats, setStats] = useState<DashboardStats>({
     totalValue: 0,
     totalProducts: 0,
@@ -178,34 +184,27 @@ export const Dashboard = memo(() => {
         ))}
       </div>
 
-      {/* Charts and Activity */}
+      {/* Charts (inventaire par catégorie) + activité */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Chart */}
-        <div className="lg:col-span-2 bg-card rounded-xl border border-border p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Valeur Stock par Catégorie</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.categoryValues} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis type="number" tickFormatter={(v) => `${v.toFixed(0)} TND`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis dataKey="category" type="category" width={100} stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                    fontSize: '12px'
-                  }}
-                  formatter={(value: number) => [`${value.toFixed(3)} TND`, 'Valeur']}
-                />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                  {stats.categoryValues.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+        <div className="lg:col-span-2 space-y-3">
+          <h3 className="text-lg font-semibold text-foreground px-1">
+            Inventaire par catégorie
+            {categoryGroupTotal > 0 && (
+              <span className="text-sm font-normal text-muted-foreground ms-2">
+                ({categoryGroupTotal} groupe{categoryGroupTotal !== 1 ? 's' : ''})
+              </span>
+            )}
+          </h3>
+          <InventoryCategoryChartsCards
+            barRows={inventoryChartBarRows}
+            pieRows={inventoryChartPieRows}
+            isLoading={categoryChartsLoading}
+          />
+          {!categoryChartsLoading && categoryGroupTotal === 0 && (
+            <p className="text-sm text-muted-foreground px-1 py-6 text-center rounded-xl border border-dashed border-border bg-muted/30">
+              Aucun groupe produit — les graphiques apparaîtront lorsque l&apos;inventaire contiendra des articles.
+            </p>
+          )}
         </div>
 
         {/* Recent Activity */}

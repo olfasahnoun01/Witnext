@@ -5,6 +5,7 @@ import { useAuth } from './useAuth';
 interface OnlineUser {
   user_id: string;
   email: string | null;
+  full_name?: string | null;
   role: string | null;
   last_seen: string;
   is_online: boolean;
@@ -34,11 +35,17 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
       if (!session) return;
 
       // Use atomic upsert to avoid 409 Conflict errors
+      const meta = user.user_metadata as Record<string, unknown> | undefined;
+      const fromMeta = meta?.full_name;
+      const fullName =
+        typeof fromMeta === 'string' && fromMeta.trim() ? fromMeta.trim() : null;
+
       const { error } = await supabase
         .from('user_presence')
         .upsert({
           user_id: user.id,
           email: user.email,
+          full_name: fullName,
           role: userRole,
           last_seen: new Date().toISOString(),
           is_online: isOnline
@@ -83,8 +90,35 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         console.warn('Fetching online users failed:', error.message);
         return;
       }
-      
-      setOnlineUsers(data || []);
+
+      const rows = (data || []) as OnlineUser[];
+      if (rows.length === 0) {
+        setOnlineUsers([]);
+        return;
+      }
+
+      const ids = rows.map((r) => r.user_id);
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('user_id, full_name')
+        .in('user_id', ids);
+
+      const profileNameByUser = new Map<string, string | null>(
+        (profs || []).map((p: { user_id: string; full_name: string | null }) => [
+          p.user_id,
+          p.full_name,
+        ])
+      );
+
+      setOnlineUsers(
+        rows.map((r) => ({
+          ...r,
+          full_name:
+            (r.full_name && String(r.full_name).trim()) ||
+            profileNameByUser.get(r.user_id)?.trim() ||
+            null,
+        }))
+      );
     } catch (err) {
       console.warn('Error fetching online users:', err);
     }

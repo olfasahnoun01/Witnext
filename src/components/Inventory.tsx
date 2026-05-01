@@ -1,12 +1,12 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Package, RefreshCw, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CategoryCard, getCategoryColor } from './inventory/CategoryCard';
 import { CategoryEditModal } from './inventory/CategoryEditModal';
 import { ProductGroupView } from './inventory/ProductGroupView';
-import { getProductGroupCountsByCategory } from '@/services/productGroupService';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useProductGroupCategoryStats } from '@/hooks/useProductGroupCategoryStats';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -18,39 +18,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-// Default main categories - user can add more
-const DEFAULT_CATEGORIES = [
-  'Pantalons',
-  'Blousons',
-  'Bordequin',
-  'Accessoires',
-  'Gants',
-  'Casques',
-  'Gilets',
-  'Polos & T-shirts',
-  'Parkas et manteaux',
-  'Tablier',
-];
-
-interface CategoryCount {
-  category: string;
-  count: number;
-}
-
-interface CategorySettingRow {
-  id: number;
-  category_name: string;
-  color: string | null;
-  is_custom: boolean;
-}
-
 export const Inventory = () => {
   const { isModerator } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [categoryCounts, setCategoryCounts] = useState<CategoryCount[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [uncategorizedCount, setUncategorizedCount] = useState(0);
-  const [categorySettings, setCategorySettings] = useState<CategorySettingRow[]>([]);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   
@@ -58,59 +28,17 @@ export const Inventory = () => {
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingCategoryCount, setEditingCategoryCount] = useState(0);
 
-  // Fetch category settings from DB
-  const fetchCategorySettings = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('category_settings')
-      .select('id, category_name, color, is_custom');
-    
-    if (!error && data) {
-      setCategorySettings(data as CategorySettingRow[]);
-    }
-  }, []);
-
-  // Migrate localStorage data to DB on first load (one-time)
-  const migrateLocalStorage = useCallback(async () => {
-    const migrated = localStorage.getItem('grosafe_categories_migrated_to_db');
-    if (migrated) return;
-
-    const rows: { category_name: string; color: string | null; is_custom: boolean }[] = [];
-
-    // Migrate custom categories
-    const savedV2 = localStorage.getItem('grosafe_custom_categories_v2');
-    if (savedV2) {
-      try {
-        const customs = JSON.parse(savedV2) as { name: string; color?: string }[];
-        customs.forEach(c => {
-          rows.push({ category_name: c.name, color: c.color || null, is_custom: true });
-        });
-      } catch { /* ignore */ }
-    }
-
-    // Migrate color overrides for default categories
-    const colorOverrides = JSON.parse(localStorage.getItem('grosafe_category_colors') || '{}');
-    Object.entries(colorOverrides).forEach(([name, color]) => {
-      if (!rows.find(r => r.category_name === name)) {
-        rows.push({ category_name: name, color: color as string, is_custom: false });
-      }
-    });
-
-    if (rows.length > 0) {
-      const { error } = await supabase
-        .from('category_settings')
-        .upsert(rows.map(r => ({
-          category_name: r.category_name,
-          color: r.color,
-          is_custom: r.is_custom,
-        })), { onConflict: 'category_name' });
-
-      if (!error) {
-        localStorage.setItem('grosafe_categories_migrated_to_db', 'true');
-      }
-    } else {
-      localStorage.setItem('grosafe_categories_migrated_to_db', 'true');
-    }
-  }, []);
+  const {
+    isLoading,
+    sortedCategories,
+    uncategorizedCount,
+    totalProducts,
+    customCategoryNames,
+    MAIN_CATEGORIES,
+    getCategoryDisplayColor,
+    refresh,
+    refreshCounts,
+  } = useProductGroupCategoryStats();
 
   // Handle deep linking from DevisHelper
   useEffect(() => {
@@ -120,106 +48,6 @@ export const Inventory = () => {
       localStorage.removeItem('grosafe_inventory_category');
     }
   }, []);
-
-  useEffect(() => {
-    const init = async () => {
-      await migrateLocalStorage();
-      await fetchCategorySettings();
-    };
-    init();
-  }, [migrateLocalStorage, fetchCategorySettings]);
-
-  // Subscribe to realtime changes
-  useEffect(() => {
-    const channel = supabase
-      .channel('category_settings_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'category_settings' }, () => {
-        fetchCategorySettings();
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchCategorySettings]);
-
-  // Derive custom category names from DB
-  const customCategoryNames = useMemo(() =>
-    categorySettings.filter(s => s.is_custom).map(s => s.category_name),
-    [categorySettings]
-  );
-
-  // Combine default and custom categories
-  const MAIN_CATEGORIES = useMemo(() => {
-    return [...DEFAULT_CATEGORIES, ...customCategoryNames];
-  }, [customCategoryNames]);
-
-  // Get color for a category from DB settings
-  const getCategoryDisplayColor = useCallback((categoryName: string): string | undefined => {
-    const setting = categorySettings.find(s => s.category_name === categoryName);
-    return setting?.color || undefined;
-  }, [categorySettings]);
-
-  // Fetch category counts from product_groups table
-  const fetchCategoryCounts = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const counts = await getProductGroupCountsByCategory();
-      
-      const countMap: Record<string, number> = {};
-      MAIN_CATEGORIES.forEach(cat => {
-        countMap[cat] = 0;
-      });
-      
-      let uncategorized = 0;
-      
-      Object.entries(counts).forEach(([category, count]) => {
-        if (!category || category === 'Non catégorisé') {
-          uncategorized += count;
-          return;
-        }
-        
-        const matchedCategory = MAIN_CATEGORIES.find(
-          cat => cat.toLowerCase() === category.toLowerCase()
-        );
-        
-        if (matchedCategory) {
-          countMap[matchedCategory] += count;
-        } else {
-          countMap[category] = (countMap[category] || 0) + count;
-        }
-      });
-      
-      setUncategorizedCount(uncategorized);
-      
-      const countArray = Object.entries(countMap).map(([category, count]) => ({
-        category,
-        count,
-      }));
-      
-      setCategoryCounts(countArray);
-    } catch (error) {
-      console.error('Error fetching category counts:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [MAIN_CATEGORIES]);
-
-  useEffect(() => {
-    fetchCategoryCounts();
-  }, [fetchCategoryCounts]);
-
-  // Sort categories
-  const sortedCategories = useMemo(() => {
-    const mainCats = MAIN_CATEGORIES.map(cat => {
-      const found = categoryCounts.find(c => c.category.toLowerCase() === cat.toLowerCase());
-      return { category: cat, count: found?.count || 0 };
-    });
-
-    const otherCats = categoryCounts
-      .filter(c => !MAIN_CATEGORIES.some(m => m.toLowerCase() === c.category.toLowerCase()))
-      .sort((a, b) => a.category.localeCompare(b.category));
-
-    return [...mainCats, ...otherCats];
-  }, [categoryCounts, MAIN_CATEGORIES]);
 
   const handleAddCategory = useCallback(async () => {
     if (!newCategoryName.trim()) return;
@@ -242,17 +70,17 @@ export const Inventory = () => {
       return;
     }
 
-    await fetchCategorySettings();
+    await refresh();
     setNewCategoryName('');
     setIsAddCategoryOpen(false);
     toast.success(`Catégorie "${newCategoryName.trim()}" ajoutée`);
-  }, [newCategoryName, MAIN_CATEGORIES, fetchCategorySettings]);
+  }, [newCategoryName, MAIN_CATEGORIES, refresh]);
 
   const handleEditCategory = useCallback((categoryName: string) => {
-    const categoryData = categoryCounts.find(c => c.category === categoryName);
+    const categoryData = sortedCategories.find(c => c.category === categoryName);
     setEditingCategory(categoryName);
     setEditingCategoryCount(categoryData?.count || 0);
-  }, [categoryCounts]);
+  }, [sortedCategories]);
 
   const handleSaveCategory = useCallback(async (newName: string, newColor: string) => {
     if (!editingCategory) return;
@@ -309,9 +137,8 @@ export const Inventory = () => {
       toast.success('Catégorie mise à jour');
     }
     
-    await fetchCategorySettings();
-    fetchCategoryCounts();
-  }, [editingCategory, editingCategoryCount, customCategoryNames, fetchCategoryCounts, fetchCategorySettings]);
+    await refresh();
+  }, [editingCategory, editingCategoryCount, customCategoryNames, refresh]);
 
   const handleDeleteCategory = useCallback(async () => {
     if (!editingCategory) return;
@@ -336,12 +163,12 @@ export const Inventory = () => {
       return;
     }
 
-    await fetchCategorySettings();
+    await refresh();
     toast.success(`Catégorie "${editingCategory}" supprimée`);
-  }, [editingCategory, editingCategoryCount, customCategoryNames, fetchCategorySettings]);
+  }, [editingCategory, editingCategoryCount, customCategoryNames, refresh]);
 
   const handleDirectDeleteCategory = useCallback((categoryName: string) => {
-    const categoryData = categoryCounts.find(c => c.category === categoryName);
+    const categoryData = sortedCategories.find(c => c.category === categoryName);
     const count = categoryData?.count || 0;
     
     if (!customCategoryNames.includes(categoryName)) {
@@ -356,11 +183,7 @@ export const Inventory = () => {
     
     setEditingCategory(categoryName);
     setEditingCategoryCount(count);
-  }, [categoryCounts, customCategoryNames]);
-
-  const totalProducts = useMemo(() => {
-    return categoryCounts.reduce((sum, c) => sum + c.count, 0) + uncategorizedCount;
-  }, [categoryCounts, uncategorizedCount]);
+  }, [sortedCategories, customCategoryNames]);
 
   const handleCategoryClick = useCallback((category: string) => {
     setSelectedCategory(category);
@@ -368,8 +191,8 @@ export const Inventory = () => {
 
   const handleBack = useCallback(() => {
     setSelectedCategory(null);
-    fetchCategoryCounts();
-  }, [fetchCategoryCounts]);
+    void refreshCounts();
+  }, [refreshCounts]);
 
   if (selectedCategory) {
     return <ProductGroupView category={selectedCategory} onBack={handleBack} />;
@@ -389,7 +212,7 @@ export const Inventory = () => {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={fetchCategoryCounts} disabled={isLoading}>
+          <Button variant="outline" onClick={() => void refreshCounts()} disabled={isLoading}>
             <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Actualiser
           </Button>

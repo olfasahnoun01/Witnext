@@ -84,6 +84,7 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     mainWindow.focus();
+    mainWindow.webContents.focus();
   });
 }
 
@@ -126,6 +127,13 @@ autoUpdater.on('update-downloaded', (info) => {
   };
 
   dialog.showMessageBox(mainWindow, dialogOpts).then((returnValue) => {
+    // Windows: native message boxes can leave the BrowserWindow without keyboard focus;
+    // restoring focus fixes "cannot type until app restart" for the web UI.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.focus();
+    }
     if (returnValue.response === 0) {
       autoUpdater.quitAndInstall();
     }

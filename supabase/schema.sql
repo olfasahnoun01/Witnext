@@ -90,6 +90,9 @@ CREATE TABLE IF NOT EXISTS public.vehicles (
   modele TEXT NOT NULL,
   matricule TEXT NOT NULL UNIQUE,
   type TEXT,
+  constructeur TEXT,
+  type_carburant TEXT NOT NULL DEFAULT 'gasoil',
+  kilometrage_actuel NUMERIC NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -204,6 +207,7 @@ CREATE TABLE IF NOT EXISTS public.user_presence (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
   email text,
+  full_name text,
   role text,
   last_seen timestamp with time zone NOT NULL DEFAULT now(),
   is_online boolean NOT NULL DEFAULT true,

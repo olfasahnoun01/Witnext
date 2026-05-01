@@ -40,6 +40,7 @@ interface FuelVoucher {
   notes: string | null;
   status: string | null;
   km: number | null;
+  km_initial: number | null;
   distance: number | null;
   proof_image_url: string | null;
   // Joined data
@@ -57,6 +58,9 @@ interface Vehicle {
   id: string;
   modele: string;
   matricule: string;
+  constructeur?: string | null;
+  kilometrage_actuel?: number | null;
+  type_carburant?: string | null;
 }
 
 export const BonCarburant = () => {
@@ -87,7 +91,7 @@ export const BonCarburant = () => {
           .select('*, employee:employees(prenom, nom), vehicle:vehicles(modele, matricule)')
           .order('created_at', { ascending: false }),
         supabase.from('employees').select('id, prenom, nom').order('prenom'),
-        supabase.from('vehicles').select('id, modele, matricule').order('modele'),
+        supabase.from('vehicles').select('id, modele, matricule, constructeur, kilometrage_actuel, type_carburant').order('modele'),
       ]);
 
       if (bonsRes.error) throw bonsRes.error;
@@ -117,6 +121,12 @@ export const BonCarburant = () => {
 
     setIsSubmitting(true);
     try {
+      const selectedVehicle = vehicles.find((v) => v.id === form.vehiculeId);
+      const kmInitial =
+        selectedVehicle?.kilometrage_actuel != null && !Number.isNaN(Number(selectedVehicle.kilometrage_actuel))
+          ? Number(selectedVehicle.kilometrage_actuel)
+          : null;
+
       const { error } = await supabase
         .from('fuel_vouchers')
         .insert([{
@@ -128,6 +138,7 @@ export const BonCarburant = () => {
           type_carburant: form.typeCarburant,
           notes: form.notes.trim() || null,
           status: 'pending',
+          ...(kmInitial != null ? { km_initial: kmInitial } : {}),
         }]);
 
       if (error) throw error;
@@ -329,7 +340,14 @@ export const BonCarburant = () => {
                 <Label htmlFor="vehicule" className="text-sm font-semibold text-foreground">Véhicule *</Label>
                 <Select
                   value={form.vehiculeId}
-                  onValueChange={(v) => setForm({ ...form, vehiculeId: v })}
+                  onValueChange={(v) => {
+                    const veh = vehicles.find((x) => x.id === v);
+                    const fuel =
+                      veh?.type_carburant === 'essence' || veh?.type_carburant === 'gasoil'
+                        ? veh.type_carburant
+                        : 'gasoil';
+                    setForm({ ...form, vehiculeId: v, typeCarburant: fuel });
+                  }}
                 >
                   <SelectTrigger className="rounded-xl border-border bg-background h-11 text-foreground">
                     <SelectValue placeholder="Sélectionner un véhicule" />
@@ -340,7 +358,7 @@ export const BonCarburant = () => {
                     ) : (
                       vehicles.map((v) => (
                         <SelectItem key={v.id} value={v.id}>
-                          {v.modele} - {v.matricule}
+                          {[v.constructeur, v.modele].filter(Boolean).join(' ') || v.modele} — {v.matricule}
                         </SelectItem>
                       ))
                     )}
