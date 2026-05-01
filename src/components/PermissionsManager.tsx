@@ -27,7 +27,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { BIG_SECTIONS } from '@/config/navigation';
 
-type Role = 'admin' | 'user';
+type Role = 'admin' | 'moderator' | 'user';
 
 interface ManagedUser {
   id: string;            // auth user id
@@ -60,6 +60,10 @@ const POSITION_OPTIONS = [
   'Operateur',
   'Chauffeur',
 ] as const;
+
+function isKnownPosition(value: string): boolean {
+  return (POSITION_OPTIONS as readonly string[]).includes(value);
+}
 
 export const PermissionsManager = () => {
   const { toast } = useToast();
@@ -310,7 +314,7 @@ export const PermissionsManager = () => {
       });
 
       closeModal();
-      load();
+      await load();
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: e.message });
     } finally {
@@ -342,6 +346,12 @@ export const PermissionsManager = () => {
           <ShieldCheck className="w-3 h-3" /> Admin
         </span>
       );
+    if (r === 'moderator')
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-500/15 text-amber-700 dark:text-amber-400">
+          <Shield className="w-3 h-3" /> Modérateur
+        </span>
+      );
     return (
       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
         Utilisateur
@@ -354,7 +364,7 @@ export const PermissionsManager = () => {
     const isDriverOrOp = pos === 'chauffeur' || pos === 'operateur' || pos === 'chauffer';
     
     if (activeTab === 'drivers') return isDriverOrOp;
-    if (activeTab === 'admins') return u.role === 'admin';
+    if (activeTab === 'admins') return u.role === 'admin' || u.role === 'moderator';
     if (activeTab === 'users') return u.role === 'user' && !isDriverOrOp;
     return true;
   });
@@ -397,7 +407,7 @@ export const PermissionsManager = () => {
               activeTab === 'admins' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            Administrateurs ({users.filter(u => u.role === 'admin').length})
+            Administrateurs ({users.filter(u => u.role === 'admin' || u.role === 'moderator').length})
           </button>
           <button
             onClick={() => setActiveTab('users')}
@@ -600,9 +610,17 @@ export const PermissionsManager = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="position">Poste</Label>
-                  <Select value={position} onValueChange={setPosition}>
+                  <Select value={isKnownPosition(position) ? position : position ? `__legacy__${position}` : 'Operateur'} onValueChange={(v) => {
+                    if (v.startsWith('__legacy__')) setPosition(v.slice('__legacy__'.length));
+                    else setPosition(v);
+                  }}>
                     <SelectTrigger id="position"><SelectValue /></SelectTrigger>
                     <SelectContent>
+                      {position && !isKnownPosition(position) && (
+                        <SelectItem value={`__legacy__${position}`}>
+                          {position} (valeur actuelle)
+                        </SelectItem>
+                      )}
                       {POSITION_OPTIONS.map((opt) => (
                         <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                       ))}
@@ -615,6 +633,7 @@ export const PermissionsManager = () => {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="user">Utilisateur</SelectItem>
+                      <SelectItem value="moderator">Modérateur</SelectItem>
                       <SelectItem value="admin">Administrateur</SelectItem>
                     </SelectContent>
                   </Select>

@@ -1,23 +1,25 @@
 // @ts-nocheck
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const ALLOWED_ORIGINS = [
-  'https://rnujsdxbkndvppjqjkdu.supabase.co',
+/** Known app origins; project Supabase URL is matched separately from SUPABASE_URL. */
+const STATIC_ALLOWED_ORIGINS = [
   'https://zfnhihbttwmrldcbaige.supabase.co',
   'https://grosafe-stock-website.lovable.app',
   'https://lptoakdzyuhkfvslgpsw.lovable.app',
   'https://grosafe-stock.lovable.app',
   'http://localhost:8080',
-  'http://localhost:5173'
+  'http://localhost:5173',
 ];
 
 function getCorsHeaders(origin: string | null): Record<string, string> {
+  const projectUrl = Deno.env.get('SUPABASE_URL') || ''
   const allowedOrigin = origin && (
-    ALLOWED_ORIGINS.some(allowed => origin === allowed) || 
+    (projectUrl && origin === projectUrl) ||
+    STATIC_ALLOWED_ORIGINS.some(allowed => origin === allowed) ||
     origin.startsWith('http://localhost') ||
-    origin.endsWith('.lovable.app') || 
+    origin.endsWith('.lovable.app') ||
     origin.endsWith('.lovableproject.com')
-  ) ? origin : ALLOWED_ORIGINS[0];
+  ) ? origin : (STATIC_ALLOWED_ORIGINS[0] || '*');
   
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
@@ -74,6 +76,37 @@ function validatePassword(password: string): boolean {
   return !!password && password.length >= 6 && password.length <= 128;
 }
 
+/** Only admin or moderator may list or mutate users via this Edge Function. */
+async function requireUserManagementRole(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  requestingUserId: string,
+  corsHeaders: Record<string, string>
+): Promise<Response | null> {
+  const { data: rows, error } = await supabaseAdmin
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', requestingUserId)
+
+  if (error) {
+    console.error('user_roles lookup failed:', error.message)
+    return new Response(JSON.stringify({ error: 'Impossible de vérifier les permissions' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
+  const allowed = (rows || []).some(
+    (r: { role: string }) => r.role === 'admin' || r.role === 'moderator'
+  )
+  if (!allowed) {
+    return new Response(JSON.stringify({ error: 'Accès refusé : droits administrateur requis' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+  return null
+}
+
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);
@@ -113,9 +146,10 @@ Deno.serve(async (req: Request) => {
 
     const requestingUserId = userData.user.id;
 
-    // Admin check bypassed for now (since user_roles table may not exist in this schema)
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
-    console.log('Access granted for:', requestingUserId)
+    const forbidden = await requireUserManagementRole(supabaseAdmin, requestingUserId, corsHeaders)
+    if (forbidden) return forbidden
+    console.log('User management allowed for:', requestingUserId)
 
     const { action, ...params } = await req.json()
 
@@ -237,7 +271,8 @@ Deno.serve(async (req: Request) => {
           updateData.password = password
           console.log('Password will be updated for user:', user_id)
         }
-        if (full_name !== undefined || position !== undefined) {
+        // Merge auth user_metadata whenever the client sent these keys (avoids skipping when values are empty strings).
+        if ('full_name' in params || 'position' in params) {
           const { data: existingAuth, error: getUserErr } = await supabaseAdmin.auth.admin.getUserById(user_id)
           if (getUserErr || !existingAuth?.user) {
             return new Response(JSON.stringify({ error: mapErrorToUserMessage(getUserErr) || 'Utilisateur introuvable' }), {
@@ -246,8 +281,8 @@ Deno.serve(async (req: Request) => {
             })
           }
           const prevMeta = { ...(existingAuth.user.user_metadata || {}) }
-          if (full_name !== undefined) prevMeta.full_name = (full_name ?? '').trim()
-          if (position !== undefined) prevMeta.position = (position ?? '').trim()
+          if ('full_name' in params) prevMeta.full_name = String(full_name ?? '').trim()
+          if ('position' in params) prevMeta.position = String(position ?? '').trim()
           updateData.user_metadata = prevMeta
         }
 
@@ -266,10 +301,10 @@ Deno.serve(async (req: Request) => {
           console.log('Auth user updated successfully:', updatedUser?.user?.id)
         }
 
-        if (full_name !== undefined) {
+        if ('full_name' in params) {
           const { error: profileError } = await supabaseAdmin
             .from('profiles')
-            .update({ full_name: full_name?.trim() || '', updated_at: new Date().toISOString() })
+            .update({ full_name: String(full_name ?? '').trim(), updated_at: new Date().toISOString() })
             .eq('user_id', user_id)
           
           if (profileError) {
@@ -279,7 +314,7 @@ Deno.serve(async (req: Request) => {
           }
         }
 
-        if (role) {
+        if ('role' in params && params.role != null && params.role !== '') {
           console.log('Updating role to:', role, 'for user:', user_id)
           const { error: deleteRoleError } = await supabaseAdmin.from('user_roles').delete().eq('user_id', user_id)
           if (deleteRoleError) {

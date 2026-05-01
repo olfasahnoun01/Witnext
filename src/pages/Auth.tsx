@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, supabaseProjectUrl } from '@/integrations/supabase/client';
+import { clearSupabaseBrowserSession } from '@/lib/supabaseAuthStorage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,8 +45,7 @@ export default function Auth() {
 
   // Function to clear browser cache and reload
   const handleClearCache = () => {
-    // Clear all auth-related storage
-    localStorage.removeItem('sb-rnujsdxbkndvppjqjkdu-auth-token');
+    clearSupabaseBrowserSession(supabaseProjectUrl);
     sessionStorage.clear();
     
     // Remove the expired param and reload
