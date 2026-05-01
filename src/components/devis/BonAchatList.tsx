@@ -381,7 +381,7 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
       </AlertDialog>
 
       {/* PDF Preview */}
-      <Dialog open={!!previewUrl} onOpenChange={closePreview}>
+      <Dialog open={!!previewUrl} onOpenChange={(open) => { if (!open) closePreview(); }}>
         <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>{previewTitle}</DialogTitle>

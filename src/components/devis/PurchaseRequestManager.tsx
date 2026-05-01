@@ -348,13 +348,13 @@ export const PurchaseRequestManager = () => {
                   Nouvelle demande
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="w-[96vw] max-w-6xl max-h-[92vh] overflow-y-auto p-4 sm:p-6">
                 <DialogHeader>
                   <DialogTitle>Créer une demande d'achat</DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-6 py-2">
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 lg:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="requesterName">Nom de l'agent commercial</Label>
                       <Input
@@ -402,7 +402,7 @@ export const PurchaseRequestManager = () => {
 
                     return (
                       <div key={`${index}-${line.product_id}-${line.mode}`} className="grid gap-3 rounded-xl border p-4">
-                        <div className="grid gap-3 md:grid-cols-[140px_1.4fr_140px_1.2fr_100px_1fr_80px]">
+                        <div className="grid gap-3 lg:grid-cols-[140px_minmax(220px,1.4fr)_140px_minmax(200px,1.2fr)_100px_minmax(180px,1fr)_90px]">
                           <div className="space-y-2">
                             <Label>Mode</Label>
                             <Select

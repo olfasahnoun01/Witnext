@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, useCallback, useEffect } from 'react';
-import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus } from 'lucide-react';
+import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus, Truck } from 'lucide-react';
 import { EchantillonModal } from './EchantillonModal';
 import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
@@ -17,6 +17,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface DevisHistoryProps {
   savedDevis: Devis[];
@@ -26,9 +28,43 @@ interface DevisHistoryProps {
   onEdit: (d: Devis) => void;
   onDelete: (d: Devis) => void;
   onConvertToBC?: (d: Devis) => void;
+  /** Crée un BC Fournisseur (documents v2) à partir d'un devis vente */
+  onConvertToBCFournisseur?: (d: Devis) => void;
   onAdd: () => void;
   defaultTypeFilter?: 'all' | 'achat' | 'vente';
 }
+
+const devisStatusLabel = (status: Devis['status'] | undefined | null) => {
+  const s = status || 'brouillon';
+  const labels: Record<Devis['status'], string> = {
+    brouillon: 'Brouillon',
+    envoyé: 'Envoyé',
+    accepté: 'Accepté',
+    refusé: 'Refusé',
+    confirmé: 'Confirmé',
+    reçu: 'Reçu',
+    intégré: 'Intégré',
+  };
+  return labels[s] || s;
+};
+
+const devisStatusBadgeClass = (status: Devis['status'] | undefined | null) => {
+  const s = status || 'brouillon';
+  switch (s) {
+    case 'accepté':
+    case 'intégré':
+      return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800';
+    case 'confirmé':
+    case 'reçu':
+      return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800';
+    case 'envoyé':
+      return 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800';
+    case 'refusé':
+      return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800';
+    default:
+      return 'bg-muted text-muted-foreground border-border';
+  }
+};
 
 const ITEMS_PER_PAGE = 10;
 
@@ -49,7 +85,7 @@ const toDevisPDFData = (d: Devis): DevisPDFData => ({
   is_ba: d.is_ba,
 });
 
-export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBC, onAdd, defaultTypeFilter }: DevisHistoryProps) => {
+export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBC, onConvertToBCFournisseur, onAdd, defaultTypeFilter }: DevisHistoryProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<Devis | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -257,7 +293,15 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                     </td>
                     <td className="py-3 px-4 text-sm text-foreground">{d.third_party_name || '-'}</td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">{d.creator_name || '-'}</td>
-                    <td className="py-3 px-4 text-sm text-foreground uppercase tracking-wide">{d.status || '-'}</td>
+                    <td className="py-3 px-4 text-sm">
+                      <Badge
+                        variant="outline"
+                        className={cn('font-medium normal-case', devisStatusBadgeClass(d.status))}
+                        title={d.status ? String(d.status) : undefined}
+                      >
+                        {devisStatusLabel(d.status)}
+                      </Badge>
+                    </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1.5">
                         <button
@@ -329,6 +373,12 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                           <Button size="sm" variant="secondary" onClick={() => onConvertToBC(d)}>
                             <FileText className="w-4 h-4" />
                             Créer BC
+                          </Button>
+                        )}
+                        {onConvertToBCFournisseur && d.type === 'vente' && (
+                          <Button size="sm" variant="outline" className="gap-1 border-primary/30" onClick={() => onConvertToBCFournisseur(d)}>
+                            <Truck className="w-4 h-4" />
+                            BC Fournisseur
                           </Button>
                         )}
                         {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && canEdit && d.status !== 'accepté' && (
@@ -466,7 +516,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
       </Dialog>
 
       {/* PDF Preview Dialog */}
-      <Dialog open={!!previewUrl} onOpenChange={() => closePreview()}>
+      <Dialog open={!!previewUrl} onOpenChange={(open) => { if (!open) closePreview(); }}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader className="flex-shrink-0 flex flex-row items-center justify-between">
             <DialogTitle>{previewTitle}</DialogTitle>

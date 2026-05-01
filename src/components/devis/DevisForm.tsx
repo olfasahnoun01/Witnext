@@ -54,6 +54,7 @@ interface DevisFormProps {
   thirdPartyTaxId: string;
   thirdPartyPhone: string;
   notes: string;
+  documentStatus: 'brouillon' | 'envoyé' | 'accepté' | 'refusé' | 'confirmé' | 'reçu' | 'intégré';
   devisItems: DevisItem[];
   editingDevis: Devis | null;
   isSaving: boolean;
@@ -66,6 +67,7 @@ interface DevisFormProps {
   setThirdPartyTaxId: (v: string) => void;
   setThirdPartyPhone: (v: string) => void;
   setNotes: (v: string) => void;
+  setDocumentStatus: (v: 'brouillon' | 'envoyé' | 'accepté' | 'refusé' | 'confirmé' | 'reçu' | 'intégré') => void;
   setDevisItems: React.Dispatch<React.SetStateAction<DevisItem[]>>;
   setIsTtc: (v: boolean) => void;
   onSave: () => void;
@@ -80,10 +82,10 @@ interface DevisFormProps {
 export const DevisForm = memo(({
   devisType, devisNumber, devisDate,
   thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone,
-  notes, devisItems, editingDevis, isSaving, isTtc,
+  notes, documentStatus, devisItems, editingDevis, isSaving, isTtc,
   setDevisType, setDevisNumber, setDevisDate,
   setThirdPartyName, setThirdPartyAddress, setThirdPartyTaxId, setThirdPartyPhone,
-  setNotes, setDevisItems, setIsTtc,
+  setNotes, setDocumentStatus, setDevisItems, setIsTtc,
   onSave, onUpdate, onCancel,
   docType, setDocType, lockDevisType, forceDocType,
 }: DevisFormProps) => {
@@ -933,6 +935,27 @@ export const DevisForm = memo(({
               <input type="date" value={devisDate} onChange={e => setDevisDate(e.target.value)} className="form-input" />
             </div>
           </div>
+
+          {docType === 'bc' && (
+            <div>
+              <label className="form-label">Statut BC</label>
+              <Select
+                value={documentStatus}
+                onValueChange={(v) => setDocumentStatus(v as 'brouillon' | 'envoyé' | 'accepté' | 'refusé' | 'confirmé' | 'reçu' | 'intégré')}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choisir un statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="brouillon">Brouillon</SelectItem>
+                  <SelectItem value="envoyé">Envoyé</SelectItem>
+                  <SelectItem value="confirmé">Confirmé</SelectItem>
+                  <SelectItem value="reçu">Reçu</SelectItem>
+                  <SelectItem value="intégré">Intégré</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Third Party */}
           <div className={`p-4 rounded-xl ${isAchat ? 'bg-success/5 border border-success/20' : 'bg-primary/5 border border-primary/20'}`}>

@@ -31,6 +31,7 @@ interface ProcurementDialogProps {
   onOpenChange: (open: boolean) => void;
   /** The source document that needs supplier sourcing */
   sourceBC: UnifiedDocument | null;
+  targetDocType?: 'DEVIS_FOURNISSEUR' | 'BC_FOURNISSEUR';
   onSuccess: () => void;
 }
 
@@ -38,6 +39,7 @@ export const ProcurementDialog = ({
   open,
   onOpenChange,
   sourceBC,
+  targetDocType = 'DEVIS_FOURNISSEUR',
   onSuccess,
 }: ProcurementDialogProps) => {
   const [allocations, setAllocations] = useState<Record<string, Allocation[]>>({});
@@ -152,10 +154,13 @@ export const ProcurementDialog = ({
       }
 
       // 2. Call service
-      const result = await documentService.createSupplierQuotesFromSource(sourceBC, supplierRequests);
+      const result = targetDocType === 'BC_FOURNISSEUR'
+        ? await documentService.createSupplierPurchaseOrdersFromSource(sourceBC, supplierRequests)
+        : await documentService.createSupplierQuotesFromSource(sourceBC, supplierRequests);
       
       if (result.success) {
-        toast.success(`${result.documents?.length} Devis Fournisseurs ont été créés.`);
+        const docLabel = targetDocType === 'BC_FOURNISSEUR' ? 'BC Fournisseurs' : 'Devis Fournisseurs';
+        toast.success(`${result.documents?.length} ${docLabel} ont été créés.`);
         onSuccess();
         onOpenChange(false);
       } else {
@@ -249,10 +254,10 @@ export const ProcurementDialog = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart className="w-5 h-5 text-primary" />
-            Approvisionnement pour {sourceBC.numero}
+            {targetDocType === 'BC_FOURNISSEUR' ? 'BC Fournisseur' : 'Devis Fournisseur'} pour {sourceBC.numero}
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Sélectionnez les fournisseurs pour chaque article de la {sourceLabel}.
+            Sélectionnez les fournisseurs pour chaque article de la {sourceLabel}, puis générez les documents d'achat.
           </p>
         </DialogHeader>
 
@@ -351,7 +356,7 @@ export const ProcurementDialog = ({
             {loading ? "Création..." : (
               <>
                 <FileSignature className="w-4 h-4" />
-                Générer {new Set(Object.values(allocations).flat().filter(a => a.fournisseur_id !== 0).map(a => a.fournisseur_id)).size} Devis Fournisseurs
+                Générer {new Set(Object.values(allocations).flat().filter(a => a.fournisseur_id !== 0).map(a => a.fournisseur_id)).size} {targetDocType === 'BC_FOURNISSEUR' ? 'BC Fournisseurs' : 'Devis Fournisseurs'}
               </>
             )}
           </Button>

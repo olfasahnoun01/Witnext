@@ -213,6 +213,66 @@ export const documentService = {
     return this.createSupplierQuotesFromSource(sourceDoc, allocations);
   },
 
+  /**
+   * Creates multiple BC_FOURNISSEUR directly from a parent BC_CLIENT
+   * (used when the team wants to skip supplier quote requests).
+   */
+  async createSupplierPurchaseOrdersFromSource(
+    sourceDoc: UnifiedDocument,
+    allocations: Array<{
+      fournisseur_id: number,
+      items: Array<{
+        product_id: number,
+        quantity: number,
+        unit_price: number,
+        description?: string
+      }>
+    }>
+  ) {
+    try {
+      const results = [];
+      const parentId = await this.ensureModernDocument(sourceDoc);
+
+      for (const allocation of allocations) {
+        const numero = await this.generateNextNumber('BC_FOURNISSEUR');
+        const { data: doc, error: docError } = await supabase
+          .from('documents')
+          .insert({
+            numero,
+            type: 'BC_FOURNISSEUR',
+            status: 'PENDING',
+            fournisseur_id: allocation.fournisseur_id,
+            parent_id: parentId,
+          })
+          .select()
+          .single();
+
+        if (docError) throw docError;
+
+        const linesToInsert = allocation.items.map(item => ({
+          document_id: doc.id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total_price: item.quantity * item.unit_price,
+          description: item.description
+        }));
+
+        const { error: linesError } = await supabase
+          .from('document_lines')
+          .insert(linesToInsert);
+
+        if (linesError) throw linesError;
+        results.push(doc);
+      }
+
+      return { success: true, documents: results };
+    } catch (error: any) {
+      console.error('Error in createSupplierPurchaseOrdersFromSource:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
   async createPurchaseRequest(params: {
     notes?: string;
     requesterName?: string;
@@ -699,7 +759,7 @@ export const documentService = {
     notes?: string;
     metadata?: any;
     lines: Array<{
-      product_id: number;
+      product_id: number | null;
       quantity: number;
       unit_price: number;
       description?: string;
@@ -727,7 +787,7 @@ export const documentService = {
 
       const linesToInsert = params.lines.map(line => ({
         document_id: doc.id,
-        product_id: line.product_id,
+        product_id: line.product_id ?? null,
         quantity: line.quantity,
         unit_price: line.unit_price,
         total_price: line.quantity * line.unit_price,
@@ -745,5 +805,40 @@ export const documentService = {
       console.error('Error in createDocument:', error);
       return { success: false, error: error.message };
     }
-  }
+  },
+
+  /**
+   * Creates a BC_FOURNISSEUR (documents v2) from a legacy vente `devis` row (client quote).
+   * Lines use product_id when present; otherwise description-only lines (product_id null).
+   */
+  async createBCFournisseurFromVenteDevis(
+    devis: { id: number; devis_number: string; third_party_name: string | null; notes: string | null; items: Array<{ designation: string; description?: string; product_id?: number; quantity: number; prix_ttc: number; remise?: number }> },
+    fournisseurId: number
+  ) {
+    if (!devis.items?.length) {
+      return { success: false as const, error: 'Aucune ligne sur ce devis.' };
+    }
+    const lines = devis.items.map((item) => {
+      const descParts = [item.designation, item.description].filter(Boolean);
+      return {
+        product_id: item.product_id ?? null,
+        quantity: Math.max(1, item.quantity),
+        unit_price: Math.max(0, item.prix_ttc),
+        description: descParts.join(' — ') || undefined,
+      };
+    });
+    return this.createDocument({
+      type: 'BC_FOURNISSEUR',
+      status: 'PENDING',
+      fournisseurId,
+      notes: devis.notes || null,
+      metadata: {
+        source: 'vente_devis',
+        vente_devis_id: devis.id,
+        vente_devis_number: devis.devis_number,
+        client_name: devis.third_party_name,
+      },
+      lines,
+    });
+  },
 };

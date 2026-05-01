@@ -98,10 +98,10 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
       }
 
       const ids = rows.map((r) => r.user_id);
-      const { data: profs } = await supabase
-        .from('profiles')
-        .select('user_id, full_name')
-        .in('user_id', ids);
+      const [{ data: profs }, { data: roleRows }] = await Promise.all([
+        supabase.from('profiles').select('user_id, full_name').in('user_id', ids),
+        supabase.from('user_roles').select('user_id, role').in('user_id', ids),
+      ]);
 
       const profileNameByUser = new Map<string, string | null>(
         (profs || []).map((p: { user_id: string; full_name: string | null }) => [
@@ -110,6 +110,21 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         ])
       );
 
+      const rolesByUser = new Map<string, Set<string>>();
+      (roleRows || []).forEach((row: { user_id: string; role: string }) => {
+        if (!rolesByUser.has(row.user_id)) rolesByUser.set(row.user_id, new Set());
+        rolesByUser.get(row.user_id)!.add(row.role);
+      });
+
+      const effectiveRole = (userId: string, presenceRole: string | null): string | null => {
+        const set = rolesByUser.get(userId);
+        if (set?.has('admin')) return 'admin';
+        if (set?.has('moderator')) return 'moderator';
+        if (presenceRole) return presenceRole;
+        if (set?.has('user')) return 'user';
+        return null;
+      };
+
       setOnlineUsers(
         rows.map((r) => ({
           ...r,
@@ -117,6 +132,7 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
             (r.full_name && String(r.full_name).trim()) ||
             profileNameByUser.get(r.user_id)?.trim() ||
             null,
+          role: effectiveRole(r.user_id, r.role),
         }))
       );
     } catch (err) {

@@ -10,6 +10,7 @@ import { DevisHistory } from './devis/DevisHistory';
 import { BonCommandeList } from './devis/BonCommandeList';
 import { DevisHelper } from './devis/DevisHelper';
 import { BCCreationDialog } from './devis/BCCreationDialog';
+import { DevisToSupplierBCDialog } from './devis/DevisToSupplierBCDialog';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -64,6 +65,7 @@ export const GestionDevis = ({
   const [editingDevis, setEditingDevis] = useState<Devis | null>(null);
   const [isBCReviewOpen, setIsBCReviewOpen] = useState(false);
   const [devisToConvert, setDevisToConvert] = useState<Devis | null>(null);
+  const [devisForSupplierBC, setDevisForSupplierBC] = useState<Devis | null>(null);
   const [docType, setDocType] = useState<'devis' | 'bc' | 'ba'>(
     (initialDocType as any) === 'ba' ? 'ba' : initialDocType
   );
@@ -80,6 +82,7 @@ export const GestionDevis = ({
   const [thirdPartyTaxId, setThirdPartyTaxId] = useState('');
   const [thirdPartyPhone, setThirdPartyPhone] = useState('');
   const [notes, setNotes] = useState('');
+  const [documentStatus, setDocumentStatus] = useState<'brouillon' | 'envoyé' | 'accepté' | 'refusé' | 'confirmé' | 'reçu' | 'intégré'>('brouillon');
   const [devisItems, setDevisItems] = useState<DevisItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isTtc, setIsTtc] = useState(true);
@@ -174,6 +177,7 @@ export const GestionDevis = ({
     setThirdPartyTaxId('');
     setThirdPartyPhone('');
     setNotes('');
+    setDocumentStatus('brouillon');
     if (clearItems) setDevisItems([]);
     setIsTtc(true);
   }, []);
@@ -229,6 +233,7 @@ export const GestionDevis = ({
         is_ttc: isTtc,
         is_bc: docType === 'bc',
         is_ba: false,
+        status: docType === 'bc' ? documentStatus : 'brouillon',
       } as any);
 
       if (error) {
@@ -245,7 +250,7 @@ export const GestionDevis = ({
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, devisType, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, loadAll, clearFormFields]);
+  }, [isSaving, devisType, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, docType, documentStatus, loadAll, clearFormFields]);
 
   const updateDevis = useCallback(async () => {
     if (!editingDevis) return;
@@ -266,6 +271,7 @@ export const GestionDevis = ({
       is_ttc: isTtc,
       is_bc: docType === 'bc',
       is_ba: false,
+      status: docType === 'bc' ? documentStatus : editingDevis.status,
     } as any).eq('id', editingDevis.id);
 
     if (error) {
@@ -275,7 +281,7 @@ export const GestionDevis = ({
       resetForm();
       loadAll();
     }
-  }, [editingDevis, docType, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, loadAll, resetForm]);
+  }, [editingDevis, docType, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, documentStatus, loadAll, resetForm]);
 
   const deleteDevis = useCallback(async (devis: Devis) => {
     const { error } = await supabase.from('devis').delete().eq('id', devis.id);
@@ -294,7 +300,11 @@ export const GestionDevis = ({
     setIsBCReviewOpen(true);
   }, []);
 
-  const handleConfirmBC = useCallback(async (modifiedItems: DevisItem[]) => {
+  const convertToBCFournisseur = useCallback((devis: Devis) => {
+    setDevisForSupplierBC(devis);
+  }, []);
+
+  const handleConfirmBC = useCallback(async (modifiedItems: DevisItem[], bcStatus: 'brouillon' | 'envoyé' | 'confirmé') => {
     if (!devisToConvert) return;
     
     try {
@@ -317,13 +327,17 @@ export const GestionDevis = ({
         is_ttc: devisToConvert.is_ttc,
         is_bc: true,
         created_by: user?.id,
-        status: 'confirmé',
+        status: bcStatus,
       } as any);
 
       if (error) {
         toast.error('Erreur lors de la création du BC');
         console.error(error);
       } else {
+        await supabase
+          .from('devis')
+          .update({ status: 'accepté' } as any)
+          .eq('id', devisToConvert.id);
         toast.success(`BC ${bcNumber} créé avec succès`);
         setIsBCReviewOpen(false);
         setDevisToConvert(null);
@@ -350,6 +364,7 @@ export const GestionDevis = ({
     setThirdPartyTaxId(d.third_party_tax_id || '');
     setThirdPartyPhone(d.third_party_phone || '');
     setNotes(d.notes || '');
+    setDocumentStatus(d.status || 'brouillon');
     setDevisItems(d.items);
     setIsTtc(d.is_ttc);
     setShowEditDialog(true);
@@ -447,6 +462,8 @@ export const GestionDevis = ({
           setThirdPartyTaxId={setThirdPartyTaxId}
           setThirdPartyPhone={setThirdPartyPhone}
           setNotes={setNotes}
+          documentStatus={documentStatus}
+          setDocumentStatus={setDocumentStatus}
           setDevisItems={setDevisItems}
           setIsTtc={setIsTtc}
           onSave={saveDevis}
@@ -466,6 +483,7 @@ export const GestionDevis = ({
           onEdit={startEdit}
           onDelete={deleteDevis}
           onConvertToBC={convertToBC}
+          onConvertToBCFournisseur={initialDevisType === 'vente' ? convertToBCFournisseur : undefined}
           onAdd={() => handleAddNew(sectionMode ?? 'devis')}
           defaultTypeFilter={initialDevisType ?? 'all'}
         />
@@ -520,6 +538,8 @@ export const GestionDevis = ({
                 setThirdPartyTaxId={setThirdPartyTaxId}
                 setThirdPartyPhone={setThirdPartyPhone}
                 setNotes={setNotes}
+                documentStatus={documentStatus}
+                setDocumentStatus={setDocumentStatus}
                 setDevisItems={setDevisItems}
                 setIsTtc={setIsTtc}
                 onSave={saveDevis}
@@ -537,6 +557,15 @@ export const GestionDevis = ({
         onOpenChange={setIsBCReviewOpen}
         sourceDevis={devisToConvert}
         onConfirm={handleConfirmBC}
+      />
+
+      <DevisToSupplierBCDialog
+        open={!!devisForSupplierBC}
+        onOpenChange={(open) => !open && setDevisForSupplierBC(null)}
+        devis={devisForSupplierBC}
+        onSuccess={() => {
+          loadAll();
+        }}
       />
 
 

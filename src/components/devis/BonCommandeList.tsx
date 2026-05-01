@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, memo } from 'react';
 import { toast } from 'sonner';
-import { FileText, Trash2, Download, Eye, Loader2, Search, X, FilePlus, Plus, Edit, Pencil, ShoppingCart } from 'lucide-react';
+import { FileText, Trash2, Download, Eye, Loader2, Search, X, Plus, Pencil, ShoppingCart, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BonCommande, UnifiedDocument, UnifiedDocumentLine } from '@/types';
@@ -18,6 +18,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Filter } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface BonCommandeListProps {
   bonsCommande: BonCommande[];
@@ -41,8 +47,9 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>('all');
   const [procurementBC, setProcurementBC] = useState<UnifiedDocument | null>(null);
+  const [procurementTargetDocType, setProcurementTargetDocType] = useState<'DEVIS_FOURNISSEUR' | 'BC_FOURNISSEUR'>('DEVIS_FOURNISSEUR');
 
-  const startProcurement = useCallback((bc: BonCommande) => {
+  const startProcurement = useCallback((bc: BonCommande, targetDocType: 'DEVIS_FOURNISSEUR' | 'BC_FOURNISSEUR') => {
     // Map legacy BC to UnifiedDocument (Simulated for Procurement flow)
     const unifiedBC: UnifiedDocument = {
       id: bc.id.toString(),
@@ -71,6 +78,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
       })),
       client_name: bc.third_party_name || undefined
     };
+    setProcurementTargetDocType(targetDocType);
     setProcurementBC(unifiedBC);
   }, []);
 
@@ -204,6 +212,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Tiers</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Créé par</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Statut</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">PDF</th>
@@ -230,6 +239,11 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                     </td>
                     <td className="py-3 px-4 text-sm text-foreground">{bc.third_party_name || '-'}</td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">{bc.creator_name || '-'}</td>
+                    <td className="py-3 px-4 text-sm">
+                      <span className="px-2 py-1 rounded text-xs font-medium bg-muted text-foreground uppercase">
+                        {bc.status || 'brouillon'}
+                      </span>
+                    </td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">
                       {bc.items.length} articles ({totalQty} unités)
                     </td>
@@ -262,16 +276,28 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
                         {bc.type === 'vente' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => startProcurement(bc)}
-                            className="flex items-center gap-1.5 h-8 px-2.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-200/50 transition-all font-bold text-xs"
-                            title="Lancer l'approvisionnement"
-                          >
-                            <ShoppingCart className="w-3.5 h-3.5" />
-                            Appros
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-1.5 h-8 px-2.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-200/50 transition-all font-bold text-xs"
+                                title="Convertir vers achats"
+                              >
+                                <ShoppingCart className="w-3.5 h-3.5" />
+                                Convertir
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-56">
+                              <DropdownMenuItem onClick={() => startProcurement(bc, 'DEVIS_FOURNISSEUR')}>
+                                Créer Devis Fournisseur
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => startProcurement(bc, 'BC_FOURNISSEUR')}>
+                                Créer BC Fournisseur
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
                         <button
                           onClick={() => handlePreview(bc)}
@@ -340,7 +366,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
       </AlertDialog>
 
       {/* PDF Preview */}
-      <Dialog open={!!previewUrl} onOpenChange={closePreview}>
+      <Dialog open={!!previewUrl} onOpenChange={(open) => { if (!open) closePreview(); }}>
         <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>{previewTitle}</DialogTitle>
@@ -355,6 +381,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
         open={!!procurementBC} 
         onOpenChange={(open) => !open && setProcurementBC(null)}
         sourceBC={procurementBC}
+        targetDocType={procurementTargetDocType}
         onSuccess={() => {
           onRefresh?.();
           toast.success("Approvisionnement lancé avec succès.");

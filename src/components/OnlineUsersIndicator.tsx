@@ -41,6 +41,8 @@ const roleColors: Record<string, string> = {
   user: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
 };
 
+const normRole = (role: string | null | undefined) => (role || 'user').toLowerCase().trim();
+
 export const OnlineUsersIndicator = memo(({ onlineUsers, currentUserId }: OnlineUsersIndicatorProps) => {
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [isUpdating, setIsUpdating] = useState(false);
@@ -53,10 +55,12 @@ export const OnlineUsersIndicator = memo(({ onlineUsers, currentUserId }: Online
     return () => clearTimeout(timer);
   }, [onlineUsers]);
 
+  /** Counts include the current user so an admin alone still sees "1" and their row as Admin. */
+  const totalOnline = onlineUsers.length;
   const otherUsers = onlineUsers.filter(u => u.user_id !== currentUserId);
-  const moderatorsOnline = otherUsers.filter(u => u.role === 'moderator');
-  const adminsOnline = otherUsers.filter(u => u.role === 'admin');
-  const usersOnline = otherUsers.filter(u => u.role === 'user');
+  const moderatorsOnline = onlineUsers.filter(u => normRole(u.role) === 'moderator');
+  const adminsOnline = onlineUsers.filter(u => normRole(u.role) === 'admin');
+  const usersOnline = onlineUsers.filter(u => normRole(u.role) === 'user');
 
   // Calculate time since last seen for each user
   const getTimeSince = (lastSeen: string) => {
@@ -78,13 +82,13 @@ export const OnlineUsersIndicator = memo(({ onlineUsers, currentUserId }: Online
           <div className="relative">
             <Users className="w-5 h-5 text-muted-foreground" />
             <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-background ${
-              otherUsers.length > 0 ? 'bg-green-500' : 'bg-muted-foreground'
+              totalOnline > 0 ? 'bg-green-500' : 'bg-muted-foreground'
             }`} />
           </div>
           <span className="text-sm font-medium text-foreground">
-            {otherUsers.length}
+            {totalOnline}
           </span>
-          {otherUsers.length > 0 && (
+          {totalOnline > 0 && (
             <Wifi className={`w-3 h-3 text-green-500 ${isUpdating ? 'animate-pulse' : ''}`} />
           )}
         </button>
@@ -102,17 +106,23 @@ export const OnlineUsersIndicator = memo(({ onlineUsers, currentUserId }: Online
           </div>
           
           {/* Summary stats */}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {adminsOnline.length > 0 && (
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-red-500" />
                 {adminsOnline.length} admin{adminsOnline.length > 1 ? 's' : ''}
+                {currentUserId && adminsOnline.some((u) => u.user_id === currentUserId) && (
+                  <span className="text-foreground/70">(vous inclus)</span>
+                )}
               </span>
             )}
             {moderatorsOnline.length > 0 && (
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-blue-500" />
                 {moderatorsOnline.length} modérateur{moderatorsOnline.length > 1 ? 's' : ''}
+                {currentUserId && moderatorsOnline.some((u) => u.user_id === currentUserId) && !adminsOnline.some((u) => u.user_id === currentUserId) && (
+                  <span className="text-foreground/70">(vous inclus)</span>
+                )}
               </span>
             )}
             {usersOnline.length > 0 && (
@@ -165,9 +175,9 @@ export const OnlineUsersIndicator = memo(({ onlineUsers, currentUserId }: Online
                     </div>
                   </div>
                   <Badge 
-                    className={`${roleColors[user.role || 'user']} border-0 text-xs flex-shrink-0`}
+                    className={`${roleColors[normRole(user.role)] || roleColors.user} border-0 text-xs flex-shrink-0`}
                   >
-                    {roleLabels[user.role || 'user']}
+                    {roleLabels[normRole(user.role)] || roleLabels.user}
                   </Badge>
                 </div>
               ))

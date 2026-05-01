@@ -22,7 +22,7 @@ interface BCCreationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sourceDevis: Devis | null;
-  onConfirm: (items: DevisItem[]) => void;
+  onConfirm: (items: DevisItem[], status: 'brouillon' | 'envoyé' | 'confirmé') => void;
 }
 
 export const BCCreationDialog = ({
@@ -32,6 +32,7 @@ export const BCCreationDialog = ({
   onConfirm,
 }: BCCreationDialogProps) => {
   const [items, setItems] = useState<DevisItem[]>([]);
+  const [bcStatus, setBcStatus] = useState<'brouillon' | 'envoyé' | 'confirmé'>('confirmé');
   const [productSearch, setProductSearch] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -41,6 +42,7 @@ export const BCCreationDialog = ({
   useEffect(() => {
     if (sourceDevis && open) {
       setItems(JSON.parse(JSON.stringify(sourceDevis.items)));
+      setBcStatus('confirmé');
     }
   }, [sourceDevis, open]);
 
@@ -135,6 +137,20 @@ export const BCCreationDialog = ({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto py-4 space-y-6 scrollbar-thin">
+          <div className="grid gap-2 max-w-sm">
+            <Label>Statut du BC à créer</Label>
+            <Select value={bcStatus} onValueChange={(value) => setBcStatus(value as 'brouillon' | 'envoyé' | 'confirmé')}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choisir un statut" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="brouillon">Brouillon</SelectItem>
+                <SelectItem value="envoyé">Envoyé</SelectItem>
+                <SelectItem value="confirmé">Confirmé</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Add Item Search */}
           <div className="relative">
             <Label className="mb-2 block">Ajouter un article supplémentaire</Label>
@@ -316,7 +332,7 @@ export const BCCreationDialog = ({
         <DialogFooter className="border-t pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
           <Button 
-            onClick={() => onConfirm(items)} 
+            onClick={() => onConfirm(items, bcStatus)} 
             disabled={items.length === 0}
             className="gap-2"
           >
