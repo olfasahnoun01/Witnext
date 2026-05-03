@@ -5,11 +5,15 @@ const { autoUpdater } = require('electron-updater');
 // Stability fix for Windows: prevents window from becoming unresponsive
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
-const isDev = process.env.NODE_ENV === 'development';
+// Rely on packaging, not NODE_ENV: npm/electron on Windows often runs the main
+// process without NODE_ENV=development, which used to load dist/ instead of Vite.
+const isDev = !app.isPackaged;
 
 if (isDev) {
   process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 }
+
+const devServerUrl = 'http://127.0.0.1:8080';
 
 let mainWindow;
 
@@ -74,8 +78,11 @@ function createWindow() {
   createDefaultMenu();
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:8080');
+    mainWindow.loadURL(devServerUrl);
     mainWindow.webContents.openDevTools();
+    mainWindow.webContents.on('did-fail-load', (_event, code, desc, url) => {
+      console.error('[electron] did-fail-load', { code, desc, url });
+    });
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }

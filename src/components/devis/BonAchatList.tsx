@@ -6,6 +6,7 @@ import { Devis, DevisItem } from '@/types';
 import { computeDevisTotals } from '@/lib/devisPricing';
 import { cn } from '@/lib/utils';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
+import { pdfPreviewDialogContentClassName } from '@/lib/pdfPreviewDialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -76,7 +77,7 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
   const toBAPDFData = (ba: Devis): DevisPDFData => ({
     devis_number: ba.devis_number,
     devis_date: ba.devis_date,
-    type: ba.type,
+    type: (ba.type === 'vente' || ba.type === 'sortant') ? 'sortant' : 'entrant',
     third_party_name: ba.third_party_name,
     third_party_address: ba.third_party_address,
     third_party_tax_id: ba.third_party_tax_id,
@@ -382,12 +383,12 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
 
       {/* PDF Preview */}
       <Dialog open={!!previewUrl} onOpenChange={(open) => { if (!open) closePreview(); }}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
+        <DialogContent className={pdfPreviewDialogContentClassName}>
           <DialogHeader>
             <DialogTitle>{previewTitle}</DialogTitle>
           </DialogHeader>
           {previewUrl && (
-            <iframe src={previewUrl} className="w-full h-[75vh] border rounded" title="Aperçu BA" />
+            <iframe src={`${previewUrl}#toolbar=0`} className="h-[75vh] w-full border rounded-lg bg-muted/30" title="Aperçu BA" />
           )}
         </DialogContent>
       </Dialog>

@@ -2,7 +2,7 @@
 /// <reference types="vite-plugin-pwa/client" />
 
 interface Window {
-  electronAPI: {
+  electronAPI?: {
     onUpdateMessage: (callback: (message: string) => void) => void;
   };
 }

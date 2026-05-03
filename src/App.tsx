@@ -9,7 +9,6 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
-import { UpdateAlert } from "@/components/UpdateAlert";
 import { AutoUpdateNotifier } from "@/components/AutoUpdateNotifier";
 
 const queryClient = new QueryClient({
@@ -80,7 +79,6 @@ const App = () => {
         storageKey="grosafe-theme"
       >
         <TooltipProvider>
-          <UpdateAlert />
           <AutoUpdateNotifier />
           <Toaster />
           <Sonner />

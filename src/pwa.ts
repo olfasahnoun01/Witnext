@@ -15,6 +15,11 @@ const clearRegistrationPoll = () => {
 export const initPWA = () => {
   if (typeof window === "undefined") return;
 
+  // Service workers in Electron often cache or intercept the dev server and cause a blank UI.
+  if (window.electronAPI) {
+    return;
+  }
+
   if (!pageHideListenerAttached) {
     pageHideListenerAttached = true;
     window.addEventListener("pagehide", clearRegistrationPoll);

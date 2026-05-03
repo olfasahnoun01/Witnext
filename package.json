@@ -16,7 +16,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:8080 && cross-env NODE_ENV=development electron .\"",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http-get://127.0.0.1:8080 && cross-env NODE_ENV=development electron .\"",
     "electron:build": "npm run build && npx electron-builder --publish always",
     "import:fiches": "node scripts/import-fiches-techniques.mjs",
     "import:fiches:apply": "node scripts/import-fiches-techniques.mjs --apply"

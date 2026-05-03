@@ -110,7 +110,7 @@ export interface DevisItem {
 
 export interface Devis {
   id: number;
-  type: 'entrant' | 'sortant';
+  type: 'entrant' | 'sortant' | 'achat' | 'vente';
   devis_number: string;
   devis_date: string;
   third_party_name: string | null;

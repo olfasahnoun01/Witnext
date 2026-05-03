@@ -174,14 +174,17 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
     };
   }, [user, heartbeatInterval, updatePresence, hasPermission]);
 
-  // Subscribe to presence changes (admin and moderator)
+  // Subscribe to presence changes (admin and moderator), with polling fallback
   useEffect(() => {
     if (!user || (!isAdmin && !isModerator) || !hasPermission) return;
 
-    // Initial fetch
-    fetchOnlineUsers();
+    void fetchOnlineUsers();
 
-    // Subscribe to realtime changes
+    const pollMs = 20000;
+    const pollId = window.setInterval(() => {
+      void fetchOnlineUsers();
+    }, pollMs);
+
     const channel = supabase
       .channel('presence-changes')
       .on(
@@ -192,12 +195,20 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
           table: 'user_presence'
         },
         () => {
-          fetchOnlineUsers();
+          void fetchOnlineUsers();
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        if (err) {
+          console.warn('[presence] Realtime subscribe error:', err);
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          void fetchOnlineUsers();
+        }
+      });
 
     return () => {
+      window.clearInterval(pollId);
       supabase.removeChannel(channel);
     };
   }, [user, isAdmin, isModerator, fetchOnlineUsers, hasPermission]);

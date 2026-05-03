@@ -40,7 +40,13 @@ const getLogoBase64 = (): Promise<string> => {
       ctx?.drawImage(img, 0, 0);
       resolve(canvas.toDataURL('image/png'));
     };
+    img.onerror = () => {
+      console.warn("Could not load logo for PDF, using fallback");
+      resolve("");
+    };
     img.src = grosafeLogo;
+    // Safety timeout to prevent hanging the entire PDF generation
+    setTimeout(() => resolve(""), 3000);
   });
 };
 
@@ -526,7 +532,9 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   const logoBase64 = await getLogoBase64();
 
   // Header: logo + company info
-  doc.addImage(logoBase64, 'PNG', 14, 10, 44, 12);
+  if (logoBase64) {
+    doc.addImage(logoBase64, 'PNG', 14, 10, 44, 12);
+  }
 
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
@@ -549,11 +557,12 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   doc.line(14, 32, pageWidth - 14, 32);
 
   // Title
+  const isVente = devis.type === 'sortant' || devis.type === 'vente' as any;
   const title = devis.is_ba
     ? "BON D'ACHAT"
     : devis.is_bc 
       ? 'BON DE COMMANDE' 
-      : (devis.type === 'sortant' ? 'OFFRE DE PRIX' : 'DEMANDE DE PRIX');
+      : (isVente ? 'OFFRE DE PRIX' : 'DEMANDE DE PRIX');
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 58, 95);
@@ -568,7 +577,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   doc.text(`Date: ${dateStr}`, pageWidth / 2 + 30, 54, { align: 'center' });
 
   // Client / Fournisseur box
-  const partyLabel = devis.type === 'sortant' ? 'CLIENT' : 'FOURNISSEUR';
+  const partyLabel = isVente ? 'CLIENT' : 'FOURNISSEUR';
   doc.setDrawColor(180, 180, 180);
   doc.setLineWidth(0.3);
   doc.roundedRect(14, 62, pageWidth - 28, 28, 2, 2);
@@ -596,8 +605,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
   // Items table
   const isTTC = devis.is_ttc;
-
-  const isSortantTTC = false; // All prices are HT — always treat as HT
+  const isSortantTTC = devis.is_ttc; // Link to actual document mode
 
   // For sortant TTC: prices are entered as HT, so sous-total should be HT too
   const isSortantWithTTC = devis.type === 'sortant' && isTTC;
@@ -762,6 +770,7 @@ export const downloadDevisPDF = async (devis: DevisPDFData) => {
 
 export const getDevisPDFBlobUrl = async (devis: DevisPDFData): Promise<string> => {
   const doc = await buildDevisPDF(devis);
-  const blob = doc.output('blob');
+  const buffer = doc.output("arraybuffer");
+  const blob = new Blob([buffer], { type: "application/pdf" });
   return URL.createObjectURL(blob);
 };

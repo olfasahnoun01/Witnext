@@ -6,6 +6,7 @@ import { Devis } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { computeDevisLine, computeDevisTotals } from '@/lib/devisPricing';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
+import { pdfPreviewDialogContentClassName } from '@/lib/pdfPreviewDialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -72,7 +73,7 @@ const ITEMS_PER_PAGE = 10;
 const toDevisPDFData = (d: Devis): DevisPDFData => ({
   devis_number: d.devis_number,
   devis_date: d.devis_date,
-  type: d.type,
+  type: (d.type === 'vente' || d.type === 'sortant') ? 'sortant' : 'entrant',
   third_party_name: d.third_party_name,
   third_party_address: d.third_party_address,
   third_party_tax_id: d.third_party_tax_id,
@@ -517,7 +518,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
 
       {/* PDF Preview Dialog */}
       <Dialog open={!!previewUrl} onOpenChange={(open) => { if (!open) closePreview(); }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogContent className={pdfPreviewDialogContentClassName}>
           <DialogHeader className="flex-shrink-0 flex flex-row items-center justify-between">
             <DialogTitle>{previewTitle}</DialogTitle>
             {previewUrl && (
@@ -532,8 +533,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
           <div className="flex-1 min-h-0">
             {previewUrl && (
               <iframe
-                src={previewUrl}
-                className="w-full h-[75vh] border rounded-lg"
+                src={`${previewUrl}#toolbar=0`}
+                className="h-[75vh] w-full border rounded-lg bg-muted/30"
                 title="Prévisualisation PDF"
               />
             )}
