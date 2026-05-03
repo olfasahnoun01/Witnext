@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle2, Check, ChevronsUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { mapLightRowToProduct, searchInventoryProductsLight } from '@/lib/inventoryProductSearch';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
@@ -171,31 +172,28 @@ export const BACreationDialog = ({
     }
   }, [sourceBC, open]);
 
-  // Search existing products
+  // Search existing products (name or sku contains; up to 150 merged)
   useEffect(() => {
-    if (!debouncedSearch.trim()) { setSearchResults([]); return; }
+    if (!debouncedSearch.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    let cancelled = false;
     const search = async () => {
       setIsSearching(true);
-      const { data } = await supabase
-        .from('products')
-        .select('id, name, sku, category, fournisseur, size, color, price, prix_ttc, remise, quantity, product_group_id')
-        .ilike('name', `${debouncedSearch}%`)
-        .limit(8);
-
-      setSearchResults((data || []).map(p => ({
-        ...p,
-        image: null,
-        fiche_technique_url: null,
-        fournisseur: p.fournisseur || '',
-        size: p.size || '',
-        remise: p.remise || 0,
-        prix_ttc: p.prix_ttc || p.price * (1 - (p.remise || 0) / 100),
-        color: p.color || null,
-        min_stock: 0,
-      })));
+      const rows = await searchInventoryProductsLight({
+        searchTerm: debouncedSearch,
+        perBranchLimit: 100,
+        maxResults: 150,
+      });
+      if (cancelled) return;
+      setSearchResults(rows.map(mapLightRowToProduct));
       setIsSearching(false);
     };
-    search();
+    void search();
+    return () => {
+      cancelled = true;
+    };
   }, [debouncedSearch]);
 
   const addItemFromProduct = useCallback((product: Product) => {

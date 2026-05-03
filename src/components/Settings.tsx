@@ -23,6 +23,7 @@ export const Settings = () => {
 
 
   const handleExport = async () => {
+    if (!isAdmin) return;
     setIsExporting(true);
     try {
       const blob = await exportDatabase((msg) => {
@@ -57,7 +58,7 @@ export const Settings = () => {
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !isAdmin) return;
 
     setIsImporting(true);
     try {
@@ -105,7 +106,7 @@ export const Settings = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Export */}
+          {/* Export — admin only (RLS still applies; UI must not suggest any user can snapshot the org). */}
           <div className="p-6 rounded-xl bg-success/5 border border-success/20">
             <div className="flex items-start gap-4">
               <div className="p-3 rounded-xl bg-success/10">
@@ -115,10 +116,15 @@ export const Settings = () => {
                 <h3 className="font-semibold text-foreground">Exporter (Sauvegarde)</h3>
                 <p className="text-sm text-muted-foreground mt-1">
                   Téléchargez une copie de toutes vos données pour les conserver en sécurité.
+                  {!isAdmin && (
+                    <span className="block mt-2 text-amber-700 dark:text-amber-400">
+                      Réservé aux administrateurs.
+                    </span>
+                  )}
                 </p>
                 <Button 
                   onClick={handleExport} 
-                  disabled={isExporting}
+                  disabled={isExporting || !isAdmin}
                   className="mt-4 bg-success hover:bg-success/90"
                 >
                   <Download className="w-4 h-4 mr-2" />
@@ -128,7 +134,7 @@ export const Settings = () => {
             </div>
           </div>
 
-          {/* Import */}
+          {/* Import — admin only */}
           <div className="p-6 rounded-xl bg-primary/5 border border-primary/20">
             <div className="flex items-start gap-4">
               <div className="p-3 rounded-xl bg-primary/10">
@@ -138,6 +144,11 @@ export const Settings = () => {
                 <h3 className="font-semibold text-foreground">Importer (Restaurer)</h3>
                 <p className="text-sm text-muted-foreground mt-1">
                   Restaurez vos données à partir d'un fichier de sauvegarde.
+                  {!isAdmin && (
+                    <span className="block mt-2 text-amber-700 dark:text-amber-400">
+                      Réservé aux administrateurs.
+                    </span>
+                  )}
                 </p>
                 <input
                   ref={fileInputRef}
@@ -149,7 +160,7 @@ export const Settings = () => {
                 <Button 
                   onClick={() => fileInputRef.current?.click()} 
                   variant="outline"
-                  disabled={isImporting}
+                  disabled={isImporting || !isAdmin}
                   className="mt-4"
                 >
                   <Upload className="w-4 h-4 mr-2" />

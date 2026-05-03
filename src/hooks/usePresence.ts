@@ -15,10 +15,13 @@ interface UsePresenceOptions {
   heartbeatInterval?: number; // in ms, default 30s
 }
 
+const sameUserId = (a: string, b: string) => a.replace(/-/g, '').toLowerCase() === b.replace(/-/g, '').toLowerCase();
+
 export const usePresence = (options: UsePresenceOptions = {}) => {
   const { heartbeatInterval = 30000 } = options;
   const { user, isAdmin, isModerator } = useAuth();
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
+  const presenceWriteOkRef = useRef(false);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [hasPermission, setHasPermission] = useState(true);
 
@@ -52,6 +55,7 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         }, { onConflict: 'user_id' });
 
       if (error) {
+        presenceWriteOkRef.current = false;
         // Circuit breaker: if we get a permission error or foreign key violation (stale session), stop trying
         if ((error as any).status === 403 || error.code === '42501' || error.code === '23503') {
           console.log(`Presence feature silenced: ${error.code === '23503' ? 'Session identity mismatch (migration effect)' : 'Insufficient permissions'}. Please re-login to restore status indicators.`);
@@ -59,6 +63,8 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
           return;
         }
         console.warn('Presence update failed (ignored):', error.message);
+      } else {
+        presenceWriteOkRef.current = true;
       }
     } catch (err) {
       console.warn('Presence update error (ignored):', err);
@@ -73,25 +79,49 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-      
+      const recentCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+
       const { data, error } = await supabase
         .from('user_presence')
         .select('*')
         .eq('is_online', true)
-        .gte('last_seen', twoMinutesAgo)
+        .gte('last_seen', recentCutoff)
         .order('last_seen', { ascending: false });
 
       if (error) {
-        if ((error as any).status === 403 || error.code === '42501') {
-          setHasPermission(false);
-          return;
-        }
+        // Do not disable heartbeats on read errors (RLS misconfig / transient); upsert path owns circuit-breaker.
         console.warn('Fetching online users failed:', error.message);
         return;
       }
 
-      const rows = (data || []) as OnlineUser[];
+      let rows = (data || []) as OnlineUser[];
+
+      // If our upsert succeeded but this SELECT still misses us (timing, RLS quirks), show self in the roster.
+      // Only while the tab is visible — otherwise we may have just written is_online: false on hide.
+      if (
+        typeof document !== 'undefined' &&
+        document.visibilityState === 'visible' &&
+        user &&
+        (isAdmin || isModerator) &&
+        presenceWriteOkRef.current &&
+        !rows.some((r) => sameUserId(r.user_id, user.id))
+      ) {
+        const meta = user.user_metadata as Record<string, unknown> | undefined;
+        const fromMeta = meta?.full_name;
+        const selfName = typeof fromMeta === 'string' && fromMeta.trim() ? fromMeta.trim() : null;
+        rows = [
+          {
+            user_id: user.id,
+            email: user.email,
+            full_name: selfName,
+            role: isAdmin ? 'admin' : isModerator ? 'moderator' : userRole,
+            last_seen: new Date().toISOString(),
+            is_online: true,
+          },
+          ...rows,
+        ];
+      }
+
       if (rows.length === 0) {
         setOnlineUsers([]);
         return;
@@ -138,41 +168,54 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
     } catch (err) {
       console.warn('Error fetching online users:', err);
     }
-  }, [user, isAdmin, isModerator, hasPermission]);
+  }, [user, isAdmin, isModerator, hasPermission, userRole]);
+
+  const fetchOnlineUsersRef = useRef(fetchOnlineUsers);
+  fetchOnlineUsersRef.current = fetchOnlineUsers;
+
+  const updatePresenceRef = useRef(updatePresence);
+  updatePresenceRef.current = updatePresence;
+
+  // Wrap upsert so staff refresh the roster as soon as their row is written (avoids racing fetch before upsert).
+  const updatePresenceAndRefreshStaffList = useCallback(async (isOnline: boolean) => {
+    await updatePresenceRef.current(isOnline);
+    if (isOnline && (isAdmin || isModerator)) {
+      void fetchOnlineUsersRef.current();
+    }
+  }, [isAdmin, isModerator]);
 
   // Set up heartbeat
   useEffect(() => {
     if (!user || !hasPermission) return;
 
-    // Initial presence update
-    const timer = setTimeout(() => updatePresence(true), 100);
+    void updatePresenceAndRefreshStaffList(true);
 
-    // Heartbeat
     heartbeatRef.current = setInterval(() => {
-      updatePresence(true);
+      void updatePresenceAndRefreshStaffList(true);
     }, heartbeatInterval);
 
     // Handle visibility change
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        updatePresence(false);
+        void updatePresenceRef.current(false);
       } else {
-        updatePresence(true);
+        void updatePresenceAndRefreshStaffList(true);
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      clearTimeout(timer);
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
       }
-      // Attempt to mark as offline on unmount
-      if (hasPermission) updatePresence(false);
+      // Do not call updatePresence(false) here: this effect re-runs when userRole flips after
+      // roles load (user → admin). Cleanup would mark you offline right before fetchOnlineUsers,
+      // so "Utilisateurs connectés" stays empty until the next poll.
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [user, heartbeatInterval, updatePresence, hasPermission]);
+  }, [user, heartbeatInterval, updatePresenceAndRefreshStaffList, hasPermission]);
 
   // Subscribe to presence changes (admin and moderator), with polling fallback
   useEffect(() => {

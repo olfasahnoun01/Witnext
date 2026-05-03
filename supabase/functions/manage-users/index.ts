@@ -107,6 +107,37 @@ async function requireUserManagementRole(
   return null
 }
 
+/** True if this user has an admin row in user_roles (service client; not RLS-filtered). */
+async function requesterHasAdminRole(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  requestingUserId: string
+): Promise<boolean> {
+  const { data: rows, error } = await supabaseAdmin
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', requestingUserId)
+  if (error) return false
+  return (rows || []).some((r: { role: string }) => r.role === 'admin')
+}
+
+/** Moderators must not grant admin — this path uses the service role and bypasses RLS. */
+function forbidAdminRoleIfNotRequesterAdmin(
+  roleToAssign: string | undefined | null,
+  requesterIsAdmin: boolean,
+  corsHeaders: Record<string, string>
+): Response | null {
+  const normalized = String(roleToAssign ?? 'user')
+    .trim()
+    .toLowerCase()
+  if (normalized === 'admin' && !requesterIsAdmin) {
+    return new Response(
+      JSON.stringify({ error: 'Seuls les administrateurs peuvent attribuer le rôle administrateur' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  return null
+}
+
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);
@@ -149,6 +180,7 @@ Deno.serve(async (req: Request) => {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
     const forbidden = await requireUserManagementRole(supabaseAdmin, requestingUserId, corsHeaders)
     if (forbidden) return forbidden
+    const requesterIsAdmin = await requesterHasAdminRole(supabaseAdmin, requestingUserId)
     console.log('User management allowed for:', requestingUserId)
 
     const { action, ...params } = await req.json()
@@ -200,6 +232,10 @@ Deno.serve(async (req: Request) => {
           })
         }
 
+        const userRole = role || 'user'
+        const adminRoleDenied = forbidAdminRoleIfNotRequesterAdmin(userRole, requesterIsAdmin, corsHeaders)
+        if (adminRoleDenied) return adminRoleDenied
+
         // 1. Create the Auth User
         const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
           email: email.trim(),
@@ -232,7 +268,6 @@ Deno.serve(async (req: Request) => {
           }
 
           // 3. Upsert the Role
-          const userRole = role || 'user'
           const { error: roleError } = await supabaseAdmin.from('user_roles').upsert({
             user_id: userId,
             role: userRole
@@ -315,6 +350,9 @@ Deno.serve(async (req: Request) => {
         }
 
         if ('role' in params && params.role != null && params.role !== '') {
+          const adminRoleDenied = forbidAdminRoleIfNotRequesterAdmin(role, requesterIsAdmin, corsHeaders)
+          if (adminRoleDenied) return adminRoleDenied
+
           console.log('Updating role to:', role, 'for user:', user_id)
           const { error: deleteRoleError } = await supabaseAdmin.from('user_roles').delete().eq('user_id', user_id)
           if (deleteRoleError) {

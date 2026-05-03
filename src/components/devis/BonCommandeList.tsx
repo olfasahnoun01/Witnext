@@ -1,6 +1,6 @@
-import { useState, useMemo, useCallback, memo } from 'react';
+import { useState, useMemo, useCallback, useEffect, memo } from 'react';
 import { toast } from 'sonner';
-import { FileText, Trash2, Download, Eye, Loader2, Search, X, Plus, Pencil, ShoppingCart, ChevronDown } from 'lucide-react';
+import { FileText, Trash2, Download, Eye, Loader2, Search, X, Plus, Pencil, ShoppingCart, ChevronDown, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BonCommande, UnifiedDocument, UnifiedDocumentLine } from '@/types';
@@ -25,6 +25,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { createFactureFromBonCommandeVente, fetchBcIdsHavingFactureVente } from '@/services/factureService';
 
 interface BonCommandeListProps {
   bonsCommande: BonCommande[];
@@ -49,6 +50,18 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
   const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>('all');
   const [procurementBC, setProcurementBC] = useState<UnifiedDocument | null>(null);
   const [procurementTargetDocType, setProcurementTargetDocType] = useState<'DEVIS_FOURNISSEUR' | 'BC_FOURNISSEUR'>('DEVIS_FOURNISSEUR');
+  const [bcIdsWithFacture, setBcIdsWithFacture] = useState<Set<number>>(new Set());
+  const [factureBusyId, setFactureBusyId] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchBcIdsHavingFactureVente().then((ids) => {
+      if (!cancelled) setBcIdsWithFacture(ids);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [bonsCommande]);
 
   const startProcurement = useCallback((bc: BonCommande, targetDocType: 'DEVIS_FOURNISSEUR' | 'BC_FOURNISSEUR') => {
     // Map legacy BC to UnifiedDocument (Simulated for Procurement flow)
@@ -147,6 +160,29 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
     setPreviewUrl(null);
     setPreviewTitle('');
   }, [previewUrl]);
+
+  const handleGenerateFacture = useCallback(async (bc: BonCommande) => {
+    if (bc.type !== 'vente') return;
+    if (bcIdsWithFacture.has(bc.id)) {
+      toast.info('Une facture existe déjà pour ce BC. Ouvrez Ventes → Factures.');
+      return;
+    }
+    const ok = window.confirm(`Générer la facture de vente à partir du BC ${bc.devis_number} ?`);
+    if (!ok) return;
+    setFactureBusyId(bc.id);
+    try {
+      const result = await createFactureFromBonCommandeVente(bc);
+      if (result.success) {
+        toast.success(`Facture ${result.numero} créée. Retrouvez-la dans Ventes → Factures.`);
+        setBcIdsWithFacture((prev) => new Set(prev).add(bc.id));
+        window.dispatchEvent(new CustomEvent('grosafe:factures-refresh'));
+      } else {
+        toast.error(result.error);
+      }
+    } finally {
+      setFactureBusyId(null);
+    }
+  }, [bcIdsWithFacture]);
 
   if (bonsCommande.length === 0) {
     return (
@@ -277,28 +313,50 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
                         {bc.type === 'vente' && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex items-center gap-1.5 h-8 px-2.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-200/50 transition-all font-bold text-xs"
-                                title="Convertir vers achats"
-                              >
-                                <ShoppingCart className="w-3.5 h-3.5" />
-                                Convertir
-                                <ChevronDown className="w-3.5 h-3.5" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-56">
-                              <DropdownMenuItem onClick={() => startProcurement(bc, 'DEVIS_FOURNISSEUR')}>
-                                Créer Devis Fournisseur
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => startProcurement(bc, 'BC_FOURNISSEUR')}>
-                                Créer BC Fournisseur
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="flex items-center gap-1.5 h-8 px-2.5 text-xs font-medium border-primary/30 text-primary hover:bg-primary/10"
+                              title={
+                                bcIdsWithFacture.has(bc.id)
+                                  ? 'Facture déjà générée pour ce BC'
+                                  : 'Générer la facture de vente (visible dans Ventes → Factures)'
+                              }
+                              disabled={bcIdsWithFacture.has(bc.id) || factureBusyId === bc.id}
+                              onClick={() => void handleGenerateFacture(bc)}
+                            >
+                              {factureBusyId === bc.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Receipt className="w-3.5 h-3.5" />
+                              )}
+                              {bcIdsWithFacture.has(bc.id) ? 'Facturé' : 'Facture'}
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex items-center gap-1.5 h-8 px-2.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-200/50 transition-all font-bold text-xs"
+                                  title="Convertir vers achats"
+                                >
+                                  <ShoppingCart className="w-3.5 h-3.5" />
+                                  Convertir
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start" className="w-56">
+                                <DropdownMenuItem onClick={() => startProcurement(bc, 'DEVIS_FOURNISSEUR')}>
+                                  Créer Devis Fournisseur
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => startProcurement(bc, 'BC_FOURNISSEUR')}>
+                                  Créer BC Fournisseur
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </>
                         )}
                         <button
                           onClick={() => handlePreview(bc)}

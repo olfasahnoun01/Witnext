@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/table';
 import { Plus, Trash2, Search, Package, AlertCircle } from 'lucide-react';
 import { computeDevisTotals, computeDevisLine } from '@/lib/devisPricing';
-import { supabase } from '@/integrations/supabase/client';
+import { mapLightRowToProduct, searchInventoryProductsLight } from '@/lib/inventoryProductSearch';
 import { useDebounce } from '@/hooks/useDebounce';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -46,32 +46,34 @@ export const BCCreationDialog = ({
     }
   }, [sourceDevis, open]);
 
-  // Search existing products
+  // Search existing products (name or sku contains; up to 150 merged)
   useEffect(() => {
-    if (!debouncedSearch.trim()) { setSearchResults([]); return; }
+    if (!debouncedSearch.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    let cancelled = false;
     const search = async () => {
       setIsSearching(true);
-      const { data } = await supabase
-        .from('products')
-        .select('id, name, sku, category, fournisseur, size, color, price, prix_ttc, remise, quantity, product_group_id')
-        .ilike('name', `${debouncedSearch}%`)
-        .limit(8);
-
-      setSearchResults((data || []).map(p => ({
-        ...p,
-        image: null,
-        fiche_technique_url: null,
-        fournisseur: p.fournisseur || '',
-        size: p.size || '',
-        remise: p.remise || 0,
-        prix_ttc: p.prix_ttc || p.price * (1 - (p.remise || 0) / 100),
-        color: p.color || null,
-        min_stock: 0,
-      })));
+      const isAchat = sourceDevis?.type === 'achat';
+      const rows = await searchInventoryProductsLight({
+        searchTerm: debouncedSearch,
+        perBranchLimit: 100,
+        maxResults: 150,
+        fournisseurExact:
+          isAchat && sourceDevis?.third_party_name?.trim()
+            ? sourceDevis.third_party_name.trim()
+            : null,
+      });
+      if (cancelled) return;
+      setSearchResults(rows.map(mapLightRowToProduct));
       setIsSearching(false);
     };
-    search();
-  }, [debouncedSearch]);
+    void search();
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedSearch, sourceDevis?.type, sourceDevis?.third_party_name]);
 
   const addItemFromProduct = useCallback((product: Product) => {
     const isAchat = sourceDevis?.type === 'achat';

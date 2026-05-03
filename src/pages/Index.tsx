@@ -38,6 +38,7 @@ const SuiviManager = lazy(() => import('@/components/commercial/SuiviManager').t
 const PermissionsManager = lazy(() => import('@/components/PermissionsManager').then(m => ({ default: m.PermissionsManager })));
 const RDV = lazy(() => import('@/components/commercial/RDV').then(m => ({ default: m.RDV })));
 const TeamChat = lazy(() => import('@/components/TeamChat').then(m => ({ default: m.TeamChat })));
+const FacturesVente = lazy(() => import('@/components/commercial/FacturesVente').then(m => ({ default: m.FacturesVente })));
 
 // Prefetch map: when user is on tab X, prefetch tab Y
 const prefetchMap: Record<string, () => void> = {
@@ -131,11 +132,9 @@ const Index = () => {
           />
         )}
         {activeTab === 'factures-vente' && (
-          <UnifiedDocumentList
-            title="Factures de Vente"
-            description="Retrouvez les factures générées depuis les bons de livraison client."
-            documentTypes={['FACTURE']}
-          />
+          <Suspense fallback={<ComponentLoader />}>
+            <FacturesVente />
+          </Suspense>
         )}
         {activeTab === 'suivi-clients' && <SuiviManager type="client" />}
         

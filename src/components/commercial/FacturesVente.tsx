@@ -1,13 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, FileText, CheckCircle, Clock, XCircle, FileEdit, Trash2, Eye } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Search, FileText, CheckCircle, Clock, XCircle, FileEdit, Trash2, Eye } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Facture } from '@/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
+const REFRESH_EVENT = 'grosafe:factures-refresh';
+
 export const FacturesVente = () => {
   const [factures, setFactures] = useState<Facture[]>([]);
+  const [bcNumberById, setBcNumberById] = useState<Map<number, string>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -21,8 +24,19 @@ export const FacturesVente = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setFactures(data || []);
-    } catch (err: any) {
+      const rows = (data || []) as Facture[];
+      setFactures(rows);
+
+      const bcIds = [...new Set(rows.map((f) => f.source_bc_id).filter((id): id is number => typeof id === 'number'))];
+      if (bcIds.length > 0) {
+        const { data: bcs } = await supabase.from('devis').select('id, devis_number').in('id', bcIds);
+        const map = new Map<number, string>();
+        (bcs || []).forEach((r: { id: number; devis_number: string }) => map.set(r.id, r.devis_number));
+        setBcNumberById(map);
+      } else {
+        setBcNumberById(new Map());
+      }
+    } catch (err: unknown) {
       console.error('Error fetching factures:', err);
       toast.error('Erreur lors du chargement des factures');
     } finally {
@@ -32,6 +46,14 @@ export const FacturesVente = () => {
 
   useEffect(() => {
     fetchFactures();
+  }, [fetchFactures]);
+
+  useEffect(() => {
+    const onRefresh = () => {
+      void fetchFactures();
+    };
+    window.addEventListener(REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(REFRESH_EVENT, onRefresh);
   }, [fetchFactures]);
 
   const getStatusBadge = (status: string) => {
@@ -49,34 +71,39 @@ export const FacturesVente = () => {
     }
   };
 
-  const filteredFactures = factures.filter(f => 
-    f.numero?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    f.third_party_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredFactures = useMemo(
+    () =>
+      factures.filter(
+        (f) =>
+          f.numero?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          f.third_party_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (f.source_bc_id &&
+            (bcNumberById.get(f.source_bc_id) || '')
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase()))
+      ),
+    [factures, searchQuery, bcNumberById]
   );
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h2 className="text-2xl font-bold tracking-tight">Factures de Vente</h2>
-        
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative flex-1 md:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Rechercher une facture..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-          </div>
-          <button
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
-            onClick={() => toast.info('Création de facture bientôt disponible')}
-          >
-            <Plus className="w-4 h-4" />
-            Créer Facture
-          </button>
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Factures de Vente</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Les factures sont générées depuis la liste des bons de commande (BC vente) : bouton « Facture ».
+          </p>
+        </div>
+
+        <div className="relative flex-1 md:w-72 w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="N° facture, client, N° BC…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
         </div>
       </div>
 
@@ -86,24 +113,25 @@ export const FacturesVente = () => {
             <thead className="bg-muted/50 text-muted-foreground">
               <tr>
                 <th className="px-6 py-4 font-medium">N° Facture</th>
+                <th className="px-6 py-4 font-medium">BC source</th>
                 <th className="px-6 py-4 font-medium">Client</th>
                 <th className="px-6 py-4 font-medium">Date</th>
                 <th className="px-6 py-4 font-medium">Échéance</th>
                 <th className="px-6 py-4 font-medium text-right">Montant TTC</th>
                 <th className="px-6 py-4 font-medium text-center">Statut</th>
-                <th className="px-6 py-4 font-medium text-right">Actions</th>
+                <th className="px-6 py-4 font-medium text-right w-28">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">
                     Chargement des factures...
                   </td>
                 </tr>
               ) : filteredFactures.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <FileText className="w-8 h-8 text-muted-foreground/50" />
                       <p>Aucune facture trouvée</p>
@@ -115,6 +143,11 @@ export const FacturesVente = () => {
                   <tr key={facture.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-6 py-4 font-medium text-foreground">
                       {facture.numero}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-muted-foreground">
+                      {facture.source_bc_id
+                        ? bcNumberById.get(facture.source_bc_id) || `BC #${facture.source_bc_id}`
+                        : '—'}
                     </td>
                     <td className="px-6 py-4">
                       {facture.third_party_name || '-'}

@@ -24,6 +24,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
+import { mapLightRowToProduct, searchInventoryProductsLight } from '@/lib/inventoryProductSearch';
 
 const DEFAULT_CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
@@ -173,38 +174,29 @@ export const DevisForm = memo(({
     load();
   }, []);
 
-  // Search products — light query excluding heavy columns (image, fiche_technique_url)
+  // Search products — substring on name or sku; merged list (not "starts with" only, not capped at 10).
   useEffect(() => {
-    if (!debouncedSearch.trim()) { setSearchResults([]); return; }
+    if (!debouncedSearch.trim()) {
+      setSearchResults([]);
+      return;
+    }
     let cancelled = false;
     const search = async () => {
       setIsSearching(true);
-      let query = supabase
-        .from('products')
-        .select('id, name, sku, category, fournisseur, size, color, price, prix_ttc, remise, quantity, min_stock, product_group_id')
-        .ilike('name', `${debouncedSearch}%`);
-
-      // Filter by selected fournisseur in devis achat
-      if (isAchat && thirdPartyName.trim()) {
-        query = query.eq('fournisseur', thirdPartyName.trim());
-      }
-
-      const { data } = await query.limit(10);
+      const rows = await searchInventoryProductsLight({
+        searchTerm: debouncedSearch,
+        perBranchLimit: 120,
+        maxResults: 150,
+        fournisseurExact: isAchat && thirdPartyName.trim() ? thirdPartyName.trim() : null,
+      });
       if (cancelled) return;
-      setSearchResults((data || []).map(p => ({
-        ...p,
-        image: null,
-        fiche_technique_url: null,
-        fournisseur: p.fournisseur || '',
-        size: p.size || '',
-        remise: p.remise || 0,
-        prix_ttc: p.prix_ttc || p.price * (1 - (p.remise || 0) / 100),
-        color: p.color || null,
-      })));
+      setSearchResults(rows.map(mapLightRowToProduct));
       setIsSearching(false);
     };
-    search();
-    return () => { cancelled = true; };
+    void search();
+    return () => {
+      cancelled = true;
+    };
   }, [debouncedSearch, isAchat, thirdPartyName]);
 
   const selectExistingProduct = useCallback((product: Product) => {
