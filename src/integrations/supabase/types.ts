@@ -1026,6 +1026,345 @@ export type Database = {
         }
         Relationships: []
       }
+      companies: {
+        Row: {
+          id: string
+          code: string
+          name: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          code: string
+          name: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          code?: string
+          name?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      invoices: {
+        Row: {
+          id: string
+          company_id: string
+          invoice_type: string
+          numero: string
+          counterpart_name: string | null
+          counterpart_tax_id: string | null
+          issue_date: string
+          due_date: string | null
+          currency: string
+          total_ht: number
+          total_ttc: number
+          vat_amount: number
+          amount_paid: number
+          status: string
+          notes: string | null
+          metadata: Json
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          invoice_type?: string
+          numero: string
+          counterpart_name?: string | null
+          counterpart_tax_id?: string | null
+          issue_date?: string
+          due_date?: string | null
+          currency?: string
+          total_ht?: number
+          total_ttc?: number
+          vat_amount?: number
+          amount_paid?: number
+          status?: string
+          notes?: string | null
+          metadata?: Json
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          invoice_type?: string
+          numero?: string
+          counterpart_name?: string | null
+          counterpart_tax_id?: string | null
+          issue_date?: string
+          due_date?: string | null
+          currency?: string
+          total_ht?: number
+          total_ttc?: number
+          vat_amount?: number
+          amount_paid?: number
+          status?: string
+          notes?: string | null
+          metadata?: Json
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      journal_entries: {
+        Row: {
+          id: string
+          company_id: string
+          entry_date: string
+          reference: string | null
+          memo: string | null
+          source: string
+          posted: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          entry_date?: string
+          reference?: string | null
+          memo?: string | null
+          source?: string
+          posted?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          entry_date?: string
+          reference?: string | null
+          memo?: string | null
+          source?: string
+          posted?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      journal_lines: {
+        Row: {
+          id: string
+          journal_entry_id: string
+          account_code: string
+          line_memo: string | null
+          debit: number
+          credit: number
+          vat_code: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          journal_entry_id: string
+          account_code: string
+          line_memo?: string | null
+          debit?: number
+          credit?: number
+          vat_code?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          journal_entry_id?: string
+          account_code?: string
+          line_memo?: string | null
+          debit?: number
+          credit?: number
+          vat_code?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      payment_invoice_allocations: {
+        Row: {
+          id: string
+          payment_id: string
+          invoice_id: string
+          amount: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          payment_id: string
+          invoice_id: string
+          amount: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          payment_id?: string
+          invoice_id?: string
+          amount?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          id: string
+          company_id: string
+          payment_date: string
+          amount: number
+          method: string
+          direction: string
+          counterparty_name: string | null
+          reference: string | null
+          notes: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          payment_date?: string
+          amount: number
+          method?: string
+          direction: string
+          counterparty_name?: string | null
+          reference?: string | null
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          payment_date?: string
+          amount?: number
+          method?: string
+          direction?: string
+          counterparty_name?: string | null
+          reference?: string | null
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tax_declarations: {
+        Row: {
+          id: string
+          company_id: string
+          period_start: string
+          period_end: string
+          vat_collected: number
+          vat_deductible_purchases: number
+          net_vat_due: number
+          withholding_supplier: number | null
+          withholding_at_source_other: number | null
+          status: string
+          notes: string | null
+          filed_at: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          period_start: string
+          period_end: string
+          vat_collected?: number
+          vat_deductible_purchases?: number
+          net_vat_due?: number
+          withholding_supplier?: number | null
+          withholding_at_source_other?: number | null
+          status?: string
+          notes?: string | null
+          filed_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          period_start?: string
+          period_end?: string
+          vat_collected?: number
+          vat_deductible_purchases?: number
+          net_vat_due?: number
+          withholding_supplier?: number | null
+          withholding_at_source_other?: number | null
+          status?: string
+          notes?: string | null
+          filed_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      treasury_movements: {
+        Row: {
+          id: string
+          company_id: string
+          movement_date: string
+          label: string
+          category: string
+          amount_signed: number
+          linked_payment_id: string | null
+          notes: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          movement_date?: string
+          label: string
+          category?: string
+          amount_signed: number
+          linked_payment_id?: string | null
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          movement_date?: string
+          label?: string
+          category?: string
+          amount_signed?: number
+          linked_payment_id?: string | null
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      user_companies: {
+        Row: {
+          user_id: string
+          company_id: string
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+          company_id: string
+          created_at?: string
+        }
+        Update: {
+          user_id?: string
+          company_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       vehicles: {
         Row: {
           id: string
@@ -1078,6 +1417,15 @@ export type Database = {
       update_product_fiche_technique: {
         Args: { _fiche_technique_url?: string; _product_id: number }
         Returns: undefined
+      }
+      finance_list_my_companies: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          code: string
+          name: string
+          created_at: string
+        }[]
       }
     }
     Enums: {

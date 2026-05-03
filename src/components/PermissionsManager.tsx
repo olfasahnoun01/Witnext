@@ -65,6 +65,39 @@ function isKnownPosition(value: string): boolean {
   return (POSITION_OPTIONS as readonly string[]).includes(value);
 }
 
+const ROLE_RANK: Record<Role, number> = { admin: 3, moderator: 2, user: 1 };
+
+function pickHigherRole(current: Role | undefined, next: Role): Role {
+  if (!current) return next;
+  return ROLE_RANK[next] > ROLE_RANK[current] ? next : current;
+}
+
+/** Liste utilisateurs sans Edge Function (ex. CORS Electron sur 127.0.0.1). */
+async function loadUsersFromDbFallback(): Promise<ManagedUser[]> {
+  const [{ data: profiles, error: pe }, { data: roles, error: re }] = await Promise.all([
+    supabase.from('profiles').select('user_id, email, full_name, created_at').order('created_at', { ascending: true }),
+    supabase.from('user_roles').select('user_id, role'),
+  ]);
+  if (pe) throw pe;
+  if (re) throw re;
+
+  const roleByUser = new Map<string, Role>();
+  for (const row of roles ?? []) {
+    const uid = (row as { user_id: string }).user_id;
+    const r = (row as { role: string }).role as Role;
+    roleByUser.set(uid, pickHigherRole(roleByUser.get(uid), r));
+  }
+
+  return (profiles ?? []).map((p: { user_id: string; email: string | null; full_name: string | null; created_at: string }) => ({
+    id: p.user_id,
+    email: p.email ?? '',
+    full_name: p.full_name ?? '',
+    position: undefined,
+    created_at: p.created_at,
+    role: roleByUser.get(p.user_id) ?? 'user',
+  }));
+}
+
 export const PermissionsManager = () => {
   const { toast } = useToast();
 
@@ -110,10 +143,33 @@ export const PermissionsManager = () => {
           .select('user_id, section_key, subsection_key'),
       ]);
 
-      if (usersRes.error) throw new Error(usersRes.error.message);
       if (permsRes.error) throw permsRes.error;
 
-      setUsers(usersRes.data?.users ?? []);
+      if (usersRes.error) {
+        const msg = usersRes.error.message || '';
+        console.warn('[PermissionsManager] manage-users list failed:', msg);
+        try {
+          const fallbackUsers = await loadUsersFromDbFallback();
+          setUsers(fallbackUsers);
+          if (fallbackUsers.length > 0) {
+            toast({
+              title: 'Mode restreint',
+              description:
+                'La fonction Edge « manage-users » est injoignable (souvent CORS avec Electron sur 127.0.0.1). ' +
+                'Liste chargee depuis la base. Redeployez la fonction avec les origines 127.0.0.1 pour le plein acces (creation / suppression comptes).',
+            });
+          } else {
+            throw new Error(msg);
+          }
+        } catch (inner) {
+          throw new Error(
+            `${msg || 'Edge function indisponible'}. ` +
+              "Depuis Electron, redeployez la fonction « manage-users » avec CORS pour http://127.0.0.1:8080, ou ouvrez l'app sur http://localhost:8080."
+          );
+        }
+      } else {
+        setUsers(usersRes.data?.users ?? []);
+      }
 
       const map: Record<string, Set<string>> = {};
       (permsRes.data as Perm[] ?? []).forEach((p) => {

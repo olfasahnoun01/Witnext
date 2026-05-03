@@ -9,6 +9,9 @@ const STATIC_ALLOWED_ORIGINS = [
   'https://grosafe-stock.lovable.app',
   'http://localhost:8080',
   'http://localhost:5173',
+  /* Electron dev (electron/main.cjs loads 127.0.0.1, not "localhost") */
+  'http://127.0.0.1:8080',
+  'http://127.0.0.1:5173',
 ];
 
 function getCorsHeaders(origin: string | null): Record<string, string> {
@@ -17,6 +20,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
     (projectUrl && origin === projectUrl) ||
     STATIC_ALLOWED_ORIGINS.some(allowed => origin === allowed) ||
     origin.startsWith('http://localhost') ||
+    origin.startsWith('http://127.0.0.1:') ||
     origin.endsWith('.lovable.app') ||
     origin.endsWith('.lovableproject.com')
   ) ? origin : (STATIC_ALLOWED_ORIGINS[0] || '*');

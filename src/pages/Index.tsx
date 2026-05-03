@@ -39,6 +39,7 @@ const PermissionsManager = lazy(() => import('@/components/PermissionsManager').
 const RDV = lazy(() => import('@/components/commercial/RDV').then(m => ({ default: m.RDV })));
 const TeamChat = lazy(() => import('@/components/TeamChat').then(m => ({ default: m.TeamChat })));
 const FacturesVente = lazy(() => import('@/components/commercial/FacturesVente').then(m => ({ default: m.FacturesVente })));
+const FinanceModule = lazy(() => import('@/modules/finance/FinanceModule').then(m => ({ default: m.FinanceModule })));
 
 // Prefetch map: when user is on tab X, prefetch tab Y
 const prefetchMap: Record<string, () => void> = {
@@ -167,6 +168,8 @@ const Index = () => {
           isAdmin ? <PermissionsManager /> : <div className="p-12 text-center text-muted-foreground font-medium">Accès réservé aux administrateurs</div>
         )}
         {activeTab === 'settings' && <Settings />}
+
+        {activeTab === 'finance-hub' && <FinanceModule />}
       </Suspense>
     );
   };

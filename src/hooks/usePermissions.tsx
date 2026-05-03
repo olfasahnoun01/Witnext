@@ -30,7 +30,7 @@ export const usePermissions = () => {
 
   useEffect(() => {
     if (!authLoading) load();
-  }, [authLoading, load]);
+  }, [authLoading, load, isAdmin]);
 
   const canAccessSection = useCallback(
     (sectionId: string): boolean => {

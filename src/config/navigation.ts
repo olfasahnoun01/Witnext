@@ -102,7 +102,9 @@ export const BIG_SECTIONS: BigSection[] = [
     id: 'finance',
     label: 'Finance',
     icon: Wallet,
-    subsections: [],
+    subsections: [
+      { id: 'finance-hub', label: 'Espace Finance', icon: Wallet },
+    ],
   },
   {
     id: 'vehicules',

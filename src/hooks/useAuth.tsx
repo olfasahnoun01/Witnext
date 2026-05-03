@@ -122,12 +122,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(session?.user ?? null);
       sessionExpiredRef.current = false;
       setSessionExpired(false);
-      setIsLoading(false);
 
       if (session?.user) {
-        checkUserRoles(session.user.id);
-        setupSessionTracking(session.user.id);
+        /* Resoudre admin/mod AVANT isLoading=false pour que la sidebar (Finance, etc.) soit correcte au 1er rendu */
+        await checkUserRoles(session.user.id);
+        void setupSessionTracking(session.user.id);
+      } else {
+        setIsAdmin(false);
+        setIsModerator(false);
       }
+      setIsLoading(false);
     };
 
     // Set up auth state listener
@@ -154,14 +158,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
 
-      // Check roles with setTimeout to avoid deadlock
       if (session?.user) {
         sessionExpiredRef.current = false;
         setSessionExpired(false);
-        setTimeout(() => {
-          checkUserRoles(session.user.id);
-          setupSessionTracking(session.user.id);
-        }, 0);
+        void (async () => {
+          await checkUserRoles(session.user.id);
+          void setupSessionTracking(session.user.id);
+        })();
       } else {
         setIsAdmin(false);
         setIsModerator(false);
