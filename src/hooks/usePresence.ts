@@ -22,6 +22,8 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
   const { user, isAdmin, isModerator } = useAuth();
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
   const presenceWriteOkRef = useRef(false);
+  /** Ignore stale fetch results when multiple fetchOnlineUsers overlap (poll + realtime + post-upsert). */
+  const fetchSeqRef = useRef(0);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [hasPermission, setHasPermission] = useState(true);
 
@@ -75,9 +77,11 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
   const fetchOnlineUsers = useCallback(async () => {
     if (!user || (!isAdmin && !isModerator) || !hasPermission) return;
 
+    const seq = ++fetchSeqRef.current;
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session || seq !== fetchSeqRef.current) return;
 
       const recentCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
 
@@ -88,6 +92,8 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         .gte('last_seen', recentCutoff)
         .order('last_seen', { ascending: false });
 
+      if (seq !== fetchSeqRef.current) return;
+
       if (error) {
         // Do not disable heartbeats on read errors (RLS misconfig / transient); upsert path owns circuit-breaker.
         console.warn('Fetching online users failed:', error.message);
@@ -96,14 +102,13 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
 
       let rows = (data || []) as OnlineUser[];
 
-      // If our upsert succeeded but this SELECT still misses us (timing, RLS quirks), show self in the roster.
-      // Only while the tab is visible — otherwise we may have just written is_online: false on hide.
+      // If the roster SELECT misses you (race before upsert, RLS timing, or silent upsert issues), still show
+      // yourself while the tab is visible so "Utilisateurs connectés" is not stuck at 0.
       if (
         typeof document !== 'undefined' &&
         document.visibilityState === 'visible' &&
         user &&
         (isAdmin || isModerator) &&
-        presenceWriteOkRef.current &&
         !rows.some((r) => sameUserId(r.user_id, user.id))
       ) {
         const meta = user.user_metadata as Record<string, unknown> | undefined;
@@ -123,7 +128,7 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
       }
 
       if (rows.length === 0) {
-        setOnlineUsers([]);
+        if (seq === fetchSeqRef.current) setOnlineUsers([]);
         return;
       }
 
@@ -132,6 +137,8 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         supabase.from('profiles').select('user_id, full_name').in('user_id', ids),
         supabase.from('user_roles').select('user_id, role').in('user_id', ids),
       ]);
+
+      if (seq !== fetchSeqRef.current) return;
 
       const profileNameByUser = new Map<string, string | null>(
         (profs || []).map((p: { user_id: string; full_name: string | null }) => [
@@ -154,6 +161,8 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         if (set?.has('user')) return 'user';
         return null;
       };
+
+      if (seq !== fetchSeqRef.current) return;
 
       setOnlineUsers(
         rows.map((r) => ({
