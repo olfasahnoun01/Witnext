@@ -64,6 +64,8 @@ CREATE TABLE IF NOT EXISTS public.fournisseurs (
   specialite text NOT NULL,
   phone text,
   location text,
+  patente_url text,
+  registre_commerce_url text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   code text UNIQUE,

@@ -27,6 +27,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Plus, Pencil, Trash2, Search, Building2, Phone, MapPin, FileText, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { DocumentUploader } from './shared/DocumentUploader';
+import { PhoneLinesEditor } from './shared/PhoneLinesEditor';
+import { formatPhonesDisplay, parsePhoneListFromStorage, serializePhoneList } from '@/lib/phoneList';
 import { toast } from 'sonner';
 import { SPECIALITES } from '@/constants/fournisseurs';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
@@ -41,6 +44,8 @@ interface Fournisseur {
   specialite: string;
   phone: string | null;
   location: string | null;
+  patente_url?: string | null;
+  registre_commerce_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -48,10 +53,13 @@ interface Fournisseur {
 const ITEMS_PER_PAGE = 15;
 
 const isFournisseurIncomplete = (f: Fournisseur) => {
-  return !f.matricule_fiscale?.trim() || 
-         !f.phone?.trim() || 
+  const phones = parsePhoneListFromStorage(f.phone);
+  return !f.matricule_fiscale?.trim() ||
+         phones.length === 0 ||
          !f.location?.trim() ||
-         !f.code?.trim();
+         !f.code?.trim() ||
+         !f.patente_url ||
+         !f.registre_commerce_url;
 };
 
 export const Fournisseurs = memo(() => {
@@ -71,7 +79,9 @@ export const Fournisseurs = memo(() => {
   const [code, setCode] = useState('');
   const [matriculeFiscale, setMatriculeFiscale] = useState('');
   const [specialite, setSpecialite] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phoneLines, setPhoneLines] = useState<string[]>(['']);
+  const [patenteUrl, setPatenteUrl] = useState<string | null>(null);
+  const [rneUrl, setRneUrl] = useState<string | null>(null);
   const [selectedGovernorate, setSelectedGovernorate] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   
@@ -104,7 +114,9 @@ export const Fournisseurs = memo(() => {
     setCode('');
     setMatriculeFiscale('');
     setSpecialite('');
-    setPhone('');
+    setPhoneLines(['']);
+    setPatenteUrl(null);
+    setRneUrl(null);
     setSelectedGovernorate('');
     setSelectedCity('');
     setEditingFournisseur(null);
@@ -125,16 +137,52 @@ export const Fournisseurs = memo(() => {
       return;
     }
 
+    const phoneStored = serializePhoneList(phoneLines);
+
+    if (!editingFournisseur) {
+      if (!specialite?.trim()) {
+        toast.error('La spécialité est requise');
+        return;
+      }
+      if (!phoneStored) {
+        toast.error('Au moins un numéro de téléphone est requis');
+        return;
+      }
+      if (!matriculeFiscale.trim()) {
+        toast.error('Le matricule fiscal est requis');
+        return;
+      }
+      if (!code.trim()) {
+        toast.error('Le code fournisseur est requis (pour nommer les documents)');
+        return;
+      }
+      if (!patenteUrl) {
+        toast.error('Le document Patente (PDF) est requis');
+        return;
+      }
+      if (!rneUrl) {
+        toast.error('Le document RNE (PDF) est requis');
+        return;
+      }
+      if (!selectedGovernorate || !selectedCity) {
+        toast.error('Le gouvernorat et la ville sont requis');
+        return;
+      }
+    }
+
     // Build location string defensively
     const locationParts = [selectedCity, selectedGovernorate].filter(Boolean);
     const locationValue = locationParts.length > 0 ? locationParts.join(', ') : null;
 
     const fournisseurData = {
       nom: nom.trim(),
+      code: code.trim() || null,
       matricule_fiscale: matriculeFiscale.trim(),
       specialite,
-      phone: phone.trim(),
-      location: locationValue
+      phone: phoneStored || null,
+      location: locationValue,
+      patente_url: patenteUrl,
+      registre_commerce_url: rneUrl,
     };
 
     if (editingFournisseur) {
@@ -167,7 +215,7 @@ export const Fournisseurs = memo(() => {
         loadFournisseurs();
       }
     }
-  }, [nom, specialite, selectedCity, selectedGovernorate, matriculeFiscale, phone, editingFournisseur, resetForm, loadFournisseurs]);
+  }, [nom, code, specialite, selectedCity, selectedGovernorate, matriculeFiscale, phoneLines, patenteUrl, rneUrl, editingFournisseur, resetForm, loadFournisseurs]);
 
   const handleEdit = useCallback((fournisseur: Fournisseur) => {
     setEditingFournisseur(fournisseur);
@@ -175,7 +223,10 @@ export const Fournisseurs = memo(() => {
     setCode(fournisseur.code || '');
     setMatriculeFiscale(fournisseur.matricule_fiscale || '');
     setSpecialite(fournisseur.specialite);
-    setPhone(fournisseur.phone || '');
+    const parsed = parsePhoneListFromStorage(fournisseur.phone);
+    setPhoneLines(parsed.length > 0 ? parsed : ['']);
+    setPatenteUrl(fournisseur.patente_url ?? null);
+    setRneUrl(fournisseur.registre_commerce_url ?? null);
     
     // Parse location back to governorate and city
     if (fournisseur.location) {
@@ -217,7 +268,7 @@ export const Fournisseurs = memo(() => {
       const matchesSearch = debouncedSearchQuery === '' || 
         f.nom.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         f.matricule_fiscale?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-        f.phone?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        formatPhonesDisplay(f.phone).toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         f.location?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         f.code?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
       
@@ -314,7 +365,7 @@ export const Fournisseurs = memo(() => {
                   Ajouter Fournisseur
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
                     {editingFournisseur ? 'Modifier le Fournisseur' : 'Nouveau Fournisseur'}
@@ -332,16 +383,30 @@ export const Fournisseurs = memo(() => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="matricule">Matricule Fiscale</Label>
+                    <Label htmlFor="codeFrn">Code Fournisseur *</Label>
+                    <Input
+                      id="codeFrn"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                      placeholder="Code unique (ex: FRN-001)"
+                      required={!editingFournisseur}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Obligatoire à l&apos;ajout : sert au nom des fichiers Patente et RNE.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="matricule">Matricule Fiscale *</Label>
                     <Input
                       id="matricule"
                       value={matriculeFiscale}
                       onChange={(e) => setMatriculeFiscale(e.target.value)}
                       placeholder="Ex: 1234567/A/B/C/000"
+                      required={!editingFournisseur}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="specialite">Spécialité</Label>
+                    <Label htmlFor="specialite">Spécialité *</Label>
                     <Select value={specialite} onValueChange={setSpecialite}>
                       <SelectTrigger>
                         <SelectValue placeholder="Sélectionner une spécialité" />
@@ -355,18 +420,16 @@ export const Fournisseurs = memo(() => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Téléphone</Label>
-                    <Input
-                      id="phone"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="Ex: +216 XX XXX XXX"
-                    />
-                  </div>
+                  <PhoneLinesEditor
+                    idPrefix="fournisseur"
+                    label="Téléphone(s)"
+                    required={!editingFournisseur}
+                    lines={phoneLines}
+                    onChange={setPhoneLines}
+                  />
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label>Gouvernorat</Label>
+                      <Label>Gouvernorat *</Label>
                       <Select 
                         value={selectedGovernorate} 
                         onValueChange={(val) => {
@@ -387,7 +450,7 @@ export const Fournisseurs = memo(() => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Ville</Label>
+                      <Label>Ville *</Label>
                       <Select 
                         value={selectedCity} 
                         onValueChange={setSelectedCity}
@@ -406,6 +469,37 @@ export const Fournisseurs = memo(() => {
                       </Select>
                     </div>
                   </div>
+
+                  <div className="space-y-3 pt-2 border-t border-dashed">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-blue-500" />
+                      Documents obligatoires à l&apos;ajout (PDF)
+                    </h3>
+                    {code.trim() ? (
+                      <div className="space-y-3">
+                        <DocumentUploader
+                          bucket="client-documents"
+                          entityCode={`FRN_${code.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`}
+                          documentType="patente"
+                          currentUrl={patenteUrl}
+                          onUploadSuccess={(url) => setPatenteUrl(url)}
+                        />
+                        <DocumentUploader
+                          bucket="client-documents"
+                          entityCode={`FRN_${code.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`}
+                          documentType="rc"
+                          titleOverride="RNE (Registre national des entreprises)"
+                          currentUrl={rneUrl}
+                          onUploadSuccess={(url) => setRneUrl(url)}
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">
+                        Saisissez le code fournisseur pour activer l&apos;envoi Patente et RNE.
+                      </p>
+                    )}
+                  </div>
+
                   <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="outline" onClick={() => {
                       setDialogOpen(false);
@@ -508,15 +602,17 @@ export const Fournisseurs = memo(() => {
                       <TableHead>Spécialité</TableHead>
                       <TableHead>Téléphone</TableHead>
                       <TableHead>Localisation</TableHead>
+                      <TableHead>Patente</TableHead>
+                      <TableHead>RNE</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedFournisseurs.map((fournisseur) => (
                       <TableRow key={fournisseur.id}>
-                        <TableHead className="font-mono text-xs font-bold text-muted-foreground whitespace-nowrap">
+                        <TableCell className="font-mono text-xs font-bold text-muted-foreground whitespace-nowrap">
                           {fournisseur.code}
-                        </TableHead>
+                        </TableCell>
                         <TableCell className="font-medium">{fournisseur.nom}</TableCell>
                         <TableCell className="font-mono text-sm">
                           {fournisseur.matricule_fiscale || '-'}
@@ -527,10 +623,10 @@ export const Fournisseurs = memo(() => {
                           </span>
                         </TableCell>
                         <TableCell>
-                          {fournisseur.phone ? (
-                            <span className="flex items-center gap-1">
-                              <Phone className="w-3 h-3" />
-                              {fournisseur.phone}
+                          {formatPhonesDisplay(fournisseur.phone) ? (
+                            <span className="flex items-center gap-1 text-xs">
+                              <Phone className="w-3 h-3 shrink-0" />
+                              {formatPhonesDisplay(fournisseur.phone)}
                             </span>
                           ) : '-'}
                         </TableCell>
@@ -541,6 +637,24 @@ export const Fournisseurs = memo(() => {
                               {fournisseur.location}
                             </span>
                           ) : '-'}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {fournisseur.patente_url ? (
+                            <Button variant="outline" size="sm" className="h-8" asChild>
+                              <a href={fournisseur.patente_url} target="_blank" rel="noreferrer">Voir</a>
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground italic">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {fournisseur.registre_commerce_url ? (
+                            <Button variant="outline" size="sm" className="h-8" asChild>
+                              <a href={fournisseur.registre_commerce_url} target="_blank" rel="noreferrer">Voir</a>
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground italic">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2 items-center">

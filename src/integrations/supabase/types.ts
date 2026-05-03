@@ -135,6 +135,7 @@ export type Database = {
       }
       clients: {
         Row: {
+          code: string | null
           created_at: string
           email: string | null
           id: number
@@ -147,6 +148,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          code?: string | null
           created_at?: string
           email?: string | null
           id?: number
@@ -159,6 +161,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          code?: string | null
           created_at?: string
           email?: string | null
           id?: number
@@ -584,32 +587,41 @@ export type Database = {
       }
       fournisseurs: {
         Row: {
+          code: string | null
           created_at: string
           id: number
           location: string | null
           matricule_fiscale: string | null
           nom: string
+          patente_url: string | null
           phone: string | null
+          registre_commerce_url: string | null
           specialite: string
           updated_at: string
         }
         Insert: {
+          code?: string | null
           created_at?: string
           id?: number
           location?: string | null
           matricule_fiscale?: string | null
           nom: string
+          patente_url?: string | null
           phone?: string | null
+          registre_commerce_url?: string | null
           specialite: string
           updated_at?: string
         }
         Update: {
+          code?: string | null
           created_at?: string
           id?: number
           location?: string | null
           matricule_fiscale?: string | null
           nom?: string
+          patente_url?: string | null
           phone?: string | null
+          registre_commerce_url?: string | null
           specialite?: string
           updated_at?: string
         }

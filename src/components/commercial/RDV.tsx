@@ -50,6 +50,8 @@ import { Calendar as UICalendar } from '@/components/ui/calendar';
 import { format, isSameDay, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
+import { PhoneLinesEditor } from '@/components/shared/PhoneLinesEditor';
+import { formatPhonesDisplay, parsePhoneListFromStorage, serializePhoneList } from '@/lib/phoneList';
 
 interface RDV {
   id: string;
@@ -73,7 +75,7 @@ interface RDVFormData {
   societe: string;
   activite: string;
   adresse: string;
-  telephone: string;
+  telephoneLines: string[];
   email: string;
   personneContactee: string;
   dateRDV: string;
@@ -88,7 +90,7 @@ const createEmptyFormData = (): RDVFormData => ({
   societe: '',
   activite: '',
   adresse: '',
-  telephone: '',
+  telephoneLines: [''],
   email: '',
   personneContactee: '',
   dateRDV: '',
@@ -176,7 +178,7 @@ export const RDV = () => {
         societe: formData.societe || '',
         activite: formData.activite || '',
         adresse: formData.adresse || '',
-        telephone: formData.telephone || '',
+        telephone: serializePhoneList(formData.telephoneLines) || '',
         email: formData.email || '',
         personne_contactee: formData.personneContactee || '',
         date_rdv: dateRDV,
@@ -221,12 +223,13 @@ export const RDV = () => {
     }
 
     setEditingRDV(rdv);
+    const telLines = parsePhoneListFromStorage(rdv.telephone);
     setFormData({
       dateCreation: rdv.dateCreation || new Date().toISOString().split('T')[0],
       societe: rdv.societe || '',
       activite: rdv.activite || '',
       adresse: rdv.adresse || '',
-      telephone: rdv.telephone || '',
+      telephoneLines: telLines.length > 0 ? telLines : [''],
       email: rdv.email || '',
       personneContactee: rdv.personneContactee || '',
       dateRDV: datePart,
@@ -384,18 +387,13 @@ export const RDV = () => {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="telephone">Téléphone</Label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input 
-                    id="telephone" 
-                    placeholder="XX XXX XXX" 
-                    className="pl-10"
-                    value={formData.telephone || ''}
-                    onChange={e => setFormData({...formData, telephone: e.target.value})}
-                  />
-                </div>
+              <div className="md:col-span-2 space-y-2">
+                <PhoneLinesEditor
+                  idPrefix="rdv"
+                  label="Téléphone(s) du contact"
+                  lines={formData.telephoneLines}
+                  onChange={(telephoneLines) => setFormData({ ...formData, telephoneLines })}
+                />
               </div>
 
               <div className="space-y-2">
@@ -551,7 +549,9 @@ export const RDV = () => {
                         <TableCell className="font-medium">{rdv.societe}</TableCell>
                         <TableCell className="text-xs">{rdv.activite}</TableCell>
                         <TableCell className="text-xs truncate max-w-[200px]" title={rdv.adresse}>{rdv.adresse}</TableCell>
-                        <TableCell className="text-xs whitespace-nowrap">{rdv.telephone}</TableCell>
+                        <TableCell className="text-xs max-w-[180px]" title={formatPhonesDisplay(rdv.telephone)}>
+                          {formatPhonesDisplay(rdv.telephone) || '—'}
+                        </TableCell>
                         <TableCell className="text-xs">{rdv.email}</TableCell>
                         <TableCell className="text-xs">{rdv.personneContactee}</TableCell>
                         <TableCell>
@@ -648,9 +648,9 @@ export const RDV = () => {
                             <User className="w-3 h-3 text-muted-foreground" />
                             <span>{rdv.personneContactee}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Phone className="w-3 h-3 text-muted-foreground" />
-                            <span>{rdv.telephone}</span>
+                          <div className="flex items-center gap-2 col-span-2">
+                            <Phone className="w-3 h-3 text-muted-foreground shrink-0" />
+                            <span className="break-words">{formatPhonesDisplay(rdv.telephone) || '—'}</span>
                           </div>
                           <div className="flex items-center gap-2 col-span-2">
                             <MapPin className="w-3 h-3 text-muted-foreground" />

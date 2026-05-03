@@ -9,6 +9,8 @@ interface DocumentUploaderProps {
   bucket: 'client-documents' | 'product-documents';
   entityCode: string; // SKU or Client Code
   documentType: 'patente' | 'rc' | 'fiche_technique';
+  /** Overrides the default title for this document type (e.g. RNE label). */
+  titleOverride?: string;
   currentUrl?: string | null;
   onUploadSuccess: (url: string) => void;
 }
@@ -17,6 +19,7 @@ export const DocumentUploader = ({
   bucket, 
   entityCode, 
   documentType, 
+  titleOverride,
   currentUrl,
   onUploadSuccess 
 }: DocumentUploaderProps) => {
@@ -81,9 +84,12 @@ export const DocumentUploader = ({
           </div>
           <div>
             <p className="text-sm font-medium leading-none">
-              {documentType === 'patente' && 'Patente Fiscale'}
-              {documentType === 'rc' && 'Registre du Commerce'}
-              {documentType === 'fiche_technique' && 'Fiche Technique'}
+              {titleOverride ||
+                (documentType === 'patente'
+                  ? 'Patente Fiscale'
+                  : documentType === 'rc'
+                    ? 'Registre du Commerce'
+                    : 'Fiche Technique')}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               Format requis : PDF uniquement

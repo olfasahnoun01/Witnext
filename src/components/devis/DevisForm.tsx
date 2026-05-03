@@ -1,7 +1,7 @@
 import { memo, useCallback, useState, useEffect, useMemo } from 'react';
 import { ProductGroupFournisseur } from '@/types';
 import { computeDevisTotals, computeDevisLine } from '@/lib/devisPricing';
-import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package, Layers, Truck, Check } from 'lucide-react';
+import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package, Layers, Truck, Check, AlertCircle, Upload, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,13 +18,15 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { Upload, ChevronsUpDown } from 'lucide-react';
 import { useRef } from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 import { mapLightRowToProduct, searchInventoryProductsLight } from '@/lib/inventoryProductSearch';
+import { DocumentUploader } from '@/components/shared/DocumentUploader';
+import { PhoneLinesEditor } from '@/components/shared/PhoneLinesEditor';
+import { formatPhonesDisplay, serializePhoneList } from '@/lib/phoneList';
 
 const DEFAULT_CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
@@ -36,6 +38,8 @@ interface Fournisseur {
   matricule_fiscale: string | null;
   location: string | null;
   phone: string | null;
+  patente_url?: string | null;
+  registre_commerce_url?: string | null;
 }
 
 interface Client {
@@ -102,10 +106,13 @@ export const DevisForm = memo(({
   const [showNewFournisseur, setShowNewFournisseur] = useState(false);
   const [newFournisseurName, setNewFournisseurName] = useState('');
   const [newFournisseurMatricule, setNewFournisseurMatricule] = useState('');
-  const [newFournisseurPhone, setNewFournisseurPhone] = useState('');
   const [newFournisseurSpecialite, setNewFournisseurSpecialite] = useState('');
   const [newFournisseurGovernorate, setNewFournisseurGovernorate] = useState('');
   const [newFournisseurCity, setNewFournisseurCity] = useState('');
+  const [newFournisseurCode, setNewFournisseurCode] = useState('');
+  const [newFournisseurPhoneLines, setNewFournisseurPhoneLines] = useState<string[]>(['']);
+  const [newFournisseurPatenteUrl, setNewFournisseurPatenteUrl] = useState<string | null>(null);
+  const [newFournisseurRneUrl, setNewFournisseurRneUrl] = useState<string | null>(null);
 
   // Article mode: 'search' | 'manual'
   const [articleMode, setArticleMode] = useState<'search' | 'manual'>('search');
@@ -159,7 +166,7 @@ export const DevisForm = memo(({
   useEffect(() => {
     const load = async () => {
       const [fRes, cRes, catSettingsRes] = await Promise.all([
-        supabase.from('fournisseurs').select('id, nom, matricule_fiscale, location, phone').order('nom'),
+        supabase.from('fournisseurs').select('id, nom, matricule_fiscale, location, phone, patente_url, registre_commerce_url').order('nom'),
         supabase.from('clients').select('id, nom, matricule_fiscale, location, phone').order('nom'),
         supabase.from('category_settings').select('category_name'),
       ]);
@@ -242,7 +249,7 @@ export const DevisForm = memo(({
     if (match) {
       setThirdPartyAddress(match.location || '');
       setThirdPartyTaxId(match.matricule_fiscale || '');
-      setThirdPartyPhone(match.phone || '');
+      setThirdPartyPhone(formatPhonesDisplay(match.phone) || '');
       setSelectedThirdPartyId(match.id.toString());
     } else {
       setThirdPartyAddress('');
@@ -265,7 +272,7 @@ export const DevisForm = memo(({
     setThirdPartyName(item.nom);
     setThirdPartyAddress(item.location || '');
     setThirdPartyTaxId(item.matricule_fiscale || '');
-    setThirdPartyPhone(item.phone || '');
+    setThirdPartyPhone(formatPhonesDisplay(item.phone) || '');
     setSelectedThirdPartyId(item.id.toString());
   }, [setThirdPartyName, setThirdPartyAddress, setThirdPartyTaxId, setThirdPartyPhone]);
 
@@ -278,26 +285,40 @@ export const DevisForm = memo(({
   const resetNewFournisseurForm = useCallback(() => {
     setNewFournisseurName('');
     setNewFournisseurMatricule('');
-    setNewFournisseurPhone('');
     setNewFournisseurSpecialite('');
     setNewFournisseurGovernorate('');
     setNewFournisseurCity('');
+    setNewFournisseurCode('');
+    setNewFournisseurPhoneLines(['']);
+    setNewFournisseurPatenteUrl(null);
+    setNewFournisseurRneUrl(null);
   }, []);
 
   const createFournisseur = useCallback(async () => {
     if (!newFournisseurName.trim()) { toast.error('Nom requis'); return; }
     if (!newFournisseurSpecialite) { toast.error('Spécialité requise'); return; }
+    if (!newFournisseurMatricule.trim()) { toast.error('Matricule fiscal requis'); return; }
+    const phoneStored = serializePhoneList(newFournisseurPhoneLines);
+    if (!phoneStored) { toast.error('Au moins un numéro de téléphone est requis'); return; }
+    if (!newFournisseurCode.trim()) { toast.error('Code fournisseur requis pour les documents'); return; }
+    if (!newFournisseurPatenteUrl) { toast.error('Patente (PDF) requise'); return; }
+    if (!newFournisseurRneUrl) { toast.error('RNE (PDF) requis'); return; }
+    if (!newFournisseurGovernorate || !newFournisseurCity) {
+      toast.error('Gouvernorat et ville requis');
+      return;
+    }
 
-    const locationValue = newFournisseurCity && newFournisseurGovernorate
-      ? `${newFournisseurCity}, ${newFournisseurGovernorate}`
-      : null;
+    const locationValue = `${newFournisseurCity}, ${newFournisseurGovernorate}`;
 
     const { data, error } = await supabase.from('fournisseurs').insert({
       nom: newFournisseurName.trim(),
-      matricule_fiscale: newFournisseurMatricule.trim() || null,
+      code: newFournisseurCode.trim(),
+      matricule_fiscale: newFournisseurMatricule.trim(),
       specialite: newFournisseurSpecialite,
-      phone: newFournisseurPhone.trim() || null,
+      phone: phoneStored,
       location: locationValue,
+      patente_url: newFournisseurPatenteUrl,
+      registre_commerce_url: newFournisseurRneUrl,
     }).select().single();
     if (error) {
       toast.error('Erreur création fournisseur');
@@ -306,15 +327,15 @@ export const DevisForm = memo(({
       setFournisseurs(prev => [...prev, data as Fournisseur].sort((a, b) => a.nom.localeCompare(b.nom)));
       if (isAchat) {
         setThirdPartyName(data.nom);
-        setThirdPartyPhone((data as any).phone || '');
-        setThirdPartyAddress((data as any).location || '');
-        setThirdPartyTaxId((data as any).matricule_fiscale || '');
+        setThirdPartyPhone(formatPhonesDisplay((data as Fournisseur).phone) || '');
+        setThirdPartyAddress((data as Fournisseur).location || '');
+        setThirdPartyTaxId((data as Fournisseur).matricule_fiscale || '');
         setSelectedThirdPartyId(data.id.toString());
       }
       setShowNewFournisseur(false);
       resetNewFournisseurForm();
     }
-  }, [newFournisseurName, newFournisseurMatricule, newFournisseurPhone, newFournisseurSpecialite, newFournisseurGovernorate, newFournisseurCity, isAchat, setThirdPartyName, setThirdPartyPhone, setThirdPartyAddress, setThirdPartyTaxId, resetNewFournisseurForm]);
+  }, [newFournisseurName, newFournisseurMatricule, newFournisseurSpecialite, newFournisseurGovernorate, newFournisseurCity, newFournisseurCode, newFournisseurPhoneLines, newFournisseurPatenteUrl, newFournisseurRneUrl, isAchat, setThirdPartyName, setThirdPartyPhone, setThirdPartyAddress, setThirdPartyTaxId, resetNewFournisseurForm]);
 
   const addItem = useCallback(() => {
     if (!itemDesignation.trim()) { toast.error('Nom d\'article requis'); return; }
@@ -1372,7 +1393,7 @@ export const DevisForm = memo(({
         setShowNewFournisseur(open);
         if (!open) resetNewFournisseurForm();
       }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nouveau Fournisseur</DialogTitle>
           </DialogHeader>
@@ -1382,7 +1403,11 @@ export const DevisForm = memo(({
               <Input value={newFournisseurName} onChange={e => setNewFournisseurName(e.target.value)} placeholder="Nom du fournisseur" />
             </div>
             <div className="space-y-2">
-              <Label>Matricule Fiscale</Label>
+              <Label>Code fournisseur *</Label>
+              <Input value={newFournisseurCode} onChange={e => setNewFournisseurCode(e.target.value)} placeholder="Ex: FRN-001" />
+            </div>
+            <div className="space-y-2">
+              <Label>Matricule Fiscale *</Label>
               <Input value={newFournisseurMatricule} onChange={e => setNewFournisseurMatricule(e.target.value)} placeholder="Ex: 1234567/A/B/C/000" />
             </div>
             <div className="space-y-2">
@@ -1398,13 +1423,16 @@ export const DevisForm = memo(({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Téléphone</Label>
-              <Input value={newFournisseurPhone} onChange={e => setNewFournisseurPhone(e.target.value)} placeholder="Ex: +216 XX XXX XXX" />
-            </div>
+            <PhoneLinesEditor
+              idPrefix="devis-fournisseur"
+              label="Téléphone(s)"
+              required
+              lines={newFournisseurPhoneLines}
+              onChange={setNewFournisseurPhoneLines}
+            />
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Gouvernorat</Label>
+                <Label>Gouvernorat *</Label>
                 <Select value={newFournisseurGovernorate} onValueChange={val => { setNewFournisseurGovernorate(val); setNewFournisseurCity(''); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Région" />
@@ -1417,7 +1445,7 @@ export const DevisForm = memo(({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Ville</Label>
+                <Label>Ville *</Label>
                 <Select value={newFournisseurCity} onValueChange={setNewFournisseurCity} disabled={!newFournisseurGovernorate}>
                   <SelectTrigger>
                     <SelectValue placeholder={newFournisseurGovernorate ? "Ville" : "Choisir région"} />
@@ -1429,6 +1457,33 @@ export const DevisForm = memo(({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-3 pt-2 border-t border-dashed">
+              <Label className="text-sm font-semibold">Documents (PDF) *</Label>
+              {newFournisseurCode.trim() ? (
+                <div className="space-y-3">
+                  <DocumentUploader
+                    bucket="client-documents"
+                    entityCode={`FRN_${newFournisseurCode.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`}
+                    documentType="patente"
+                    currentUrl={newFournisseurPatenteUrl}
+                    onUploadSuccess={(url) => setNewFournisseurPatenteUrl(url)}
+                  />
+                  <DocumentUploader
+                    bucket="client-documents"
+                    entityCode={`FRN_${newFournisseurCode.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`}
+                    documentType="rc"
+                    titleOverride="RNE (Registre national des entreprises)"
+                    currentUrl={newFournisseurRneUrl}
+                    onUploadSuccess={(url) => setNewFournisseurRneUrl(url)}
+                  />
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-100 flex items-start gap-2 text-amber-800 text-xs">
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <p>Saisissez le code fournisseur pour activer l&apos;envoi Patente et RNE.</p>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

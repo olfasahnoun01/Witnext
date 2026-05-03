@@ -33,6 +33,8 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { useAuth } from '@/hooks/useAuth';
 import { convertFileToWebp } from '@/lib/imageCompression';
 import { DocumentUploader } from './shared/DocumentUploader';
+import { PhoneLinesEditor } from './shared/PhoneLinesEditor';
+import { formatPhonesDisplay, parsePhoneListFromStorage, serializePhoneList } from '@/lib/phoneList';
 
 interface Client {
   id: number;
@@ -51,9 +53,10 @@ interface Client {
 const ITEMS_PER_PAGE = 15;
 
 const isClientIncomplete = (client: Client) => {
-  return !client.matricule_fiscale?.trim() || 
-         !client.phone?.trim() || 
-         !client.email?.trim() || 
+  const phones = parsePhoneListFromStorage(client.phone);
+  return !client.matricule_fiscale?.trim() ||
+         phones.length === 0 ||
+         !client.email?.trim() ||
          !client.location?.trim() ||
          !client.code?.trim() ||
          !client.patente_url ||
@@ -76,7 +79,7 @@ export const Clients = memo(() => {
   const [nom, setNom] = useState('');
   const [code, setCode] = useState('');
   const [matriculeFiscale, setMatriculeFiscale] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phoneLines, setPhoneLines] = useState<string[]>(['']);
   const [email, setEmail] = useState('');
   const [selectedGovernorate, setSelectedGovernorate] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
@@ -111,7 +114,7 @@ export const Clients = memo(() => {
     setNom('');
     setCode('');
     setMatriculeFiscale('');
-    setPhone('');
+    setPhoneLines(['']);
     setEmail('');
     setSelectedGovernorate('');
     setSelectedCity('');
@@ -140,14 +143,40 @@ export const Clients = memo(() => {
       return;
     }
 
+    const phoneStored = serializePhoneList(phoneLines);
+
+    if (!editingClient) {
+      if (!phoneStored) {
+        toast.error('Au moins un numéro de téléphone est requis');
+        return;
+      }
+      if (!matriculeFiscale.trim()) {
+        toast.error('Le matricule fiscal est requis');
+        return;
+      }
+      if (!code.trim()) {
+        toast.error('Le code client est requis (pour nommer les documents)');
+        return;
+      }
+      if (!patenteUrl) {
+        toast.error('Le document Patente (PDF) est requis');
+        return;
+      }
+      if (!rcUrl) {
+        toast.error('Le document RNE (PDF) est requis');
+        return;
+      }
+    }
+
     // Build location string defensively
     const locationParts = [exactLocation.trim(), selectedCity, selectedGovernorate].filter(Boolean);
     const locationValue = locationParts.length > 0 ? locationParts.join(', ') : null;
 
     const clientData = {
       nom: nom.trim(),
+      code: code.trim() || null,
       matricule_fiscale: matriculeFiscale.trim(),
-      phone: phone.trim(),
+      phone: phoneStored || null,
       email: email.trim(),
       location: locationValue,
       patente_url: patenteUrl,
@@ -184,14 +213,15 @@ export const Clients = memo(() => {
         loadClients();
       }
     }
-  }, [nom, selectedCity, selectedGovernorate, exactLocation, matriculeFiscale, phone, email, patenteUrl, rcUrl, editingClient, resetForm, loadClients]);
+  }, [nom, code, selectedCity, selectedGovernorate, exactLocation, matriculeFiscale, phoneLines, email, patenteUrl, rcUrl, editingClient, resetForm, loadClients]);
 
   const handleEdit = useCallback((client: Client) => {
     setEditingClient(client);
     setNom(client.nom);
     setCode(client.code || '');
     setMatriculeFiscale(client.matricule_fiscale || '');
-    setPhone(client.phone || '');
+    const parsed = parsePhoneListFromStorage(client.phone);
+    setPhoneLines(parsed.length > 0 ? parsed : ['']);
     setEmail(client.email || '');
     setPatenteUrl(client.patente_url);
     setRcUrl(client.registre_commerce_url);
@@ -249,7 +279,7 @@ export const Clients = memo(() => {
       const matchesSearch = debouncedSearchQuery === '' || 
         c.nom.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         c.matricule_fiscale?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-        c.phone?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        formatPhonesDisplay(c.phone).toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         c.email?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         c.location?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         c.code?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
@@ -316,7 +346,7 @@ export const Clients = memo(() => {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Avec Téléphone</p>
-              <p className="text-2xl font-bold">{clients.filter(c => c.phone).length}</p>
+              <p className="text-2xl font-bold">{clients.filter(c => parsePhoneListFromStorage(c.phone).length > 0).length}</p>
             </div>
           </CardContent>
         </Card>
@@ -358,23 +388,35 @@ export const Clients = memo(() => {
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="codeClient">Code Client *</Label>
+                    <Input
+                      id="codeClient"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                      placeholder="Code unique (ex: CLI-001)"
+                      required={!editingClient}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Obligatoire pour l&apos;ajout : sert au nom des fichiers Patente et RNE.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="matricule">Matricule Fiscale *</Label>
                     <Input
                       id="matricule"
                       value={matriculeFiscale}
                       onChange={(e) => setMatriculeFiscale(e.target.value)}
                       placeholder="Ex: 1234567/A/B/C/000"
+                      required={!editingClient}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Téléphone / Fix *</Label>
-                    <Input
-                      id="phone"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="Ex: +216 XX XXX XXX"
-                    />
-                  </div>
+                  <PhoneLinesEditor
+                    idPrefix="client"
+                    label="Téléphone(s)"
+                    required={!editingClient}
+                    lines={phoneLines}
+                    onChange={setPhoneLines}
+                  />
                   <div className="space-y-2">
                     <Label htmlFor="email">Email *</Label>
                     <Input
@@ -435,26 +477,28 @@ export const Clients = memo(() => {
                       onChange={(e) => setExactLocation(e.target.value)}
                       placeholder="Ex: Rue Ibn Khaldoun, N°15, Zone Industrielle..."
                     />
-                               {/* Document Management Section */}
-                  <div className="space-y-4 pt-4 border-t border-dashed mt-4">
+                  </div>
+
+                  <div className="space-y-4 pt-4 border-t border-dashed">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
                       <FileText className="w-4 h-4 text-blue-500" />
-                      Documents Obligatoires (PDF)
+                      Documents obligatoires à l&apos;ajout (PDF)
                     </h3>
-                    
+
                     {code.trim() ? (
                       <div className="space-y-3">
-                        <DocumentUploader 
+                        <DocumentUploader
                           bucket="client-documents"
                           entityCode={code}
                           documentType="patente"
                           currentUrl={patenteUrl}
                           onUploadSuccess={(url) => setPatenteUrl(url)}
                         />
-                        <DocumentUploader 
+                        <DocumentUploader
                           bucket="client-documents"
                           entityCode={code}
                           documentType="rc"
+                          titleOverride="RNE (Registre national des entreprises)"
                           currentUrl={rcUrl}
                           onUploadSuccess={(url) => setRcUrl(url)}
                         />
@@ -463,12 +507,11 @@ export const Clients = memo(() => {
                       <div className="p-3 rounded-lg bg-amber-50 border border-amber-100 flex items-start gap-2 text-amber-800 text-xs">
                         <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                         <p className="italic">
-                          Veuillez saisir un <strong>Code Client</strong> avant de charger les documents pour permettre le renommage automatique.
+                          Saisissez le <strong>code client</strong> ci-dessus pour activer l&apos;envoi Patente et RNE.
                         </p>
                       </div>
                     )}
                   </div>
-             </div>
 
                   <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="outline" onClick={() => {
@@ -559,7 +602,7 @@ export const Clients = memo(() => {
                       <TableHead>Téléphone</TableHead>
                       <TableHead>Localisation</TableHead>
                       <TableHead>Patente</TableHead>
-                      <TableHead>R.C.</TableHead>
+                      <TableHead>RNE</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -575,8 +618,8 @@ export const Clients = memo(() => {
                         </TableCell>
                         <TableCell>
                           <span className="flex items-center gap-1.5 text-xs">
-                            <Phone className="w-3.5 h-3.5 text-muted-foreground" />
-                            {client.phone || '-'}
+                            <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            {formatPhonesDisplay(client.phone) || '-'}
                           </span>
                         </TableCell>
                         <TableCell>

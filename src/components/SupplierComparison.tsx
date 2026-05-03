@@ -248,23 +248,12 @@ export const SupplierComparison = () => {
         .eq('nom', fournisseurNameTrimmed)
         .maybeSingle();
 
-      // If fournisseur doesn't exist, create it
       if (!existingFournisseur) {
-        const { error: createError } = await supabase
-          .from('fournisseurs')
-          .insert({
-            nom: fournisseurNameTrimmed,
-            specialite: 'Non spécifiée',
-          });
-
-        if (createError) {
-          console.warn('Could not create fournisseur in main table:', createError);
-          // Continue anyway - the product_group_fournisseurs entry will still work
-        } else {
-          // Update local list of fournisseurs for autocomplete
-          setExistingFournisseurs(prev => [...prev, fournisseurNameTrimmed].sort());
-          toast.info(`Nouveau fournisseur "${fournisseurNameTrimmed}" créé`);
-        }
+        toast.error(
+          'Ce fournisseur n\'existe pas dans l\'annuaire. Créez-le depuis la page Fournisseurs (téléphones, matricule fiscal, Patente et RNE) avant de l\'associer ici.'
+        );
+        setIsSaving(false);
+        return;
       }
 
       // Add to product_group_fournisseurs
@@ -284,7 +273,7 @@ export const SupplierComparison = () => {
         id: data.id,
         fournisseur_name: data.fournisseur_name,
         prix_ttc: data.prix_ttc,
-        phone: existingFournisseur?.phone || null,
+        phone: existingFournisseur.phone || null,
       };
 
       setFournisseurPrices(prev => 
