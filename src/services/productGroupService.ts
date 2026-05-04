@@ -157,7 +157,7 @@ export const getVariantsByGroupId = async (groupId: number): Promise<Product[]> 
   try {
     const { data, error } = await supabase
       .from('products')
-      .select('id,name,sku,category,fournisseur,size,color,quantity,price,remise,prix_ttc,min_stock,image,product_group_id,fiche_technique_url')
+      .select('id,name,sku,category,fournisseur,size,color,quantity,price,remise,prix_ttc,min_stock,image,product_group_id,fiche_technique_url,created_at')
       .eq('product_group_id', groupId)
       .order('size')
       .order('color');
@@ -179,7 +179,8 @@ export const getVariantsByGroupId = async (groupId: number): Promise<Product[]> 
       image: p.image || null,
       color: p.color || null,
       product_group_id: p.product_group_id,
-      fiche_technique_url: p.fiche_technique_url || null
+      fiche_technique_url: p.fiche_technique_url || null,
+      created_at: p.created_at ?? null,
     }));
   } catch (error) {
     console.error('Error fetching variants:', error);

@@ -18,6 +18,17 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
 import { useAuth } from '@/hooks/useAuth';
+import { format, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
+
+function formatVariantAddedAt(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  try {
+    return format(parseISO(iso), 'dd/MM/yyyy HH:mm', { locale: fr });
+  } catch {
+    return '—';
+  }
+}
 
 interface VariantViewProps {
   group: ProductGroup;
@@ -479,6 +490,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
             <TableHeader>
               <TableRow>
                 <TableHead>Code Article</TableHead>
+                <TableHead className="whitespace-nowrap">{"Date d'ajout"}</TableHead>
                 <TableHead>Taille</TableHead>
                 <TableHead>Couleur</TableHead>
                 <TableHead className="text-right">Quantité</TableHead>
@@ -500,6 +512,9 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                 return (
                   <TableRow key={variant.id}>
                     <TableCell className="font-mono text-sm">{variant.sku}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                      {formatVariantAddedAt(variant.created_at)}
+                    </TableCell>
                     <TableCell>{variant.size || '-'}</TableCell>
                     <TableCell>{variant.color || '-'}</TableCell>
                     <TableCell className="text-right font-medium">{variant.quantity}</TableCell>

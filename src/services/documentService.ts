@@ -74,10 +74,11 @@ export const documentService = {
         client_id: sourceDoc.client_id,
         fournisseur_id: sourceDoc.fournisseur_id,
         notes: sourceDoc.notes,
-        metadata: { 
+        metadata: {
+          ...(sourceDoc.metadata || {}),
           legacy_id: sourceDoc.id,
-          promoted_at: new Date().toISOString()
-        }
+          promoted_at: new Date().toISOString(),
+        },
       })
       .select()
       .single();
@@ -98,6 +99,52 @@ export const documentService = {
     }
 
     return newDoc.id;
+  },
+
+  /** True if this legacy devis (numeric id) already has supplier devis/BC children under its promoted parent document. */
+  async hasLegacyClientBcProcurementFollowups(legacyIdStr: string): Promise<boolean> {
+    if (!/^[0-9]+$/.test(legacyIdStr)) return false;
+    const { data: parent } = await supabase
+      .from('documents')
+      .select('id')
+      .eq('metadata->>legacy_id', legacyIdStr)
+      .maybeSingle();
+    if (!parent?.id) return false;
+    const { count, error } = await supabase
+      .from('documents')
+      .select('id', { count: 'exact', head: true })
+      .eq('parent_id', parent.id)
+      .in('type', ['BC_FOURNISSEUR', 'DEVIS_FOURNISSEUR']);
+    if (error) return false;
+    return (count ?? 0) > 0;
+  },
+
+  /**
+   * After procurement from a BC client (legacy `devis` row): set type to achat when still vente,
+   * append an audit line to notes.
+   */
+  async markLegacyClientBcConvertedToFournisseur(
+    legacyIdStr: string,
+    kind: 'DEVIS_FOURNISSEUR' | 'BC_FOURNISSEUR'
+  ): Promise<void> {
+    const id = parseInt(legacyIdStr, 10);
+    if (Number.isNaN(id)) return;
+    const { data: row, error: fetchErr } = await supabase
+      .from('devis')
+      .select('notes, type')
+      .eq('id', id)
+      .maybeSingle();
+    if (fetchErr || !row) return;
+    const stamp = new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+    const actionNote =
+      kind === 'BC_FOURNISSEUR'
+        ? `[${stamp}] Converti en BC fournisseur (approvisionnement).`
+        : `[${stamp}] Converti en devis fournisseur (approvisionnement).`;
+    const prevNotes = (row.notes || '').trim();
+    const nextNotes = prevNotes ? `${prevNotes}\n${actionNote}` : actionNote;
+    const payload: { notes: string; type?: string } = { notes: nextNotes };
+    if (row.type === 'vente') payload.type = 'achat';
+    await supabase.from('devis').update(payload).eq('id', id);
   },
 
   /**
@@ -191,6 +238,10 @@ export const documentService = {
         results.push(doc);
       }
 
+      if (/^[0-9]+$/.test(sourceDoc.id) && sourceDoc.metadata?.legacy_devis_type === 'vente') {
+        await this.markLegacyClientBcConvertedToFournisseur(sourceDoc.id, 'DEVIS_FOURNISSEUR');
+      }
+
       return { success: true, documents: results };
     } catch (error: any) {
       console.error('Error in createSupplierQuotesFromSource:', error);
@@ -264,6 +315,10 @@ export const documentService = {
 
         if (linesError) throw linesError;
         results.push(doc);
+      }
+
+      if (/^[0-9]+$/.test(sourceDoc.id) && sourceDoc.metadata?.legacy_devis_type === 'vente') {
+        await this.markLegacyClientBcConvertedToFournisseur(sourceDoc.id, 'BC_FOURNISSEUR');
       }
 
       return { success: true, documents: results };

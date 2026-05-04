@@ -122,7 +122,7 @@ const Index = () => {
           <GestionDevis onTabChange={handleTabChange} initialSection="history" initialDevisType="vente" lockDevisType sectionMode="devis" />
         )}
         {activeTab === 'bc-vente' && (
-          <GestionDevis onTabChange={handleTabChange} initialSection="bc" sectionMode="bc" />
+          <GestionDevis onTabChange={handleTabChange} initialSection="bc" initialDevisType="vente" sectionMode="bc" />
         )}
         {activeTab === 'bl-vente' && (
           <UnifiedDocumentList

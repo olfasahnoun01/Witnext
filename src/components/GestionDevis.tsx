@@ -91,7 +91,8 @@ export const GestionDevis = ({
   const savedDevis = useMemo(() => allDevis.filter(d => !d.is_bc && !d.is_ba), [allDevis]);
   const bonsCommande = useMemo(() => allDevis.filter(d => d.is_bc), [allDevis]);
   const bonsAchat = useMemo(() => allDevis.filter(d => d.is_ba), [allDevis]);
-  const isVenteOnly = initialDevisType === 'vente' || lockDevisType;
+  /** Hide "Liste BC" in nav only on locked Mes Devis pages (vente/achat); keep it on dedicated Liste BC routes (sectionMode bc). */
+  const hideListBcTab = Boolean(sectionMode === 'devis' && lockDevisType);
 
   const loadAll = useCallback(async () => {
     const { data, error } = await supabase
@@ -412,7 +413,7 @@ export const GestionDevis = ({
           <History className="w-4 h-4" />
           Liste Devis ({savedDevis.length})
         </button>
-        {!isVenteOnly && (
+        {!hideListBcTab && (
           <button
             onClick={() => setActiveSection('bc')}
             className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
@@ -497,7 +498,9 @@ export const GestionDevis = ({
           onEdit={startEdit}
           onDelete={deleteDevis}
           onAdd={() => handleAddNew('bc')}
+          onRefresh={loadAll}
           showAddButton={false}
+          defaultTypeFilter={initialDevisType ?? 'vente'}
         />
       )}
 

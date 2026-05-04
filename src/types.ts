@@ -14,6 +14,8 @@ export interface Product {
   color: string | null;
   product_group_id?: number | null;
   fiche_technique_url?: string | null;
+  /** When this product row (variant) was created */
+  created_at?: string | null;
 }
 
 export interface ProductGroupFournisseur {

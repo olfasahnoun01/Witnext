@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { createFactureFromBonCommandeVente, fetchBcIdsHavingFactureVente } from '@/services/factureService';
+import { documentService } from '@/services/documentService';
 
 interface BonCommandeListProps {
   bonsCommande: BonCommande[];
@@ -36,18 +37,20 @@ interface BonCommandeListProps {
   onAdd: () => void;
   onRefresh?: () => void;
   showAddButton?: boolean;
+  /** Default filter for BC type (Ventes → vente, Achats → achat). */
+  defaultTypeFilter?: 'all' | 'achat' | 'vente';
 }
 
 const ITEMS_PER_PAGE = 10;
 
-export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod, onEdit, onDelete, onAdd, onRefresh, showAddButton = true }: BonCommandeListProps) => {
+export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod, onEdit, onDelete, onAdd, onRefresh, showAddButton = true, defaultTypeFilter = 'all' }: BonCommandeListProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<BonCommande | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState('');
   const [isGenerating, setIsGenerating] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>('all');
+  const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>(defaultTypeFilter);
   const [procurementBC, setProcurementBC] = useState<UnifiedDocument | null>(null);
   const [procurementTargetDocType, setProcurementTargetDocType] = useState<'DEVIS_FOURNISSEUR' | 'BC_FOURNISSEUR'>('DEVIS_FOURNISSEUR');
   const [bcIdsWithFacture, setBcIdsWithFacture] = useState<Set<number>>(new Set());
@@ -63,7 +66,21 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
     };
   }, [bonsCommande]);
 
-  const startProcurement = useCallback((bc: BonCommande, targetDocType: 'DEVIS_FOURNISSEUR' | 'BC_FOURNISSEUR') => {
+  useEffect(() => {
+    setSelectedType(defaultTypeFilter);
+    setCurrentPage(1);
+  }, [defaultTypeFilter]);
+
+  const startProcurement = useCallback(async (bc: BonCommande, targetDocType: 'DEVIS_FOURNISSEUR' | 'BC_FOURNISSEUR') => {
+    if (bc.type === 'vente') {
+      const already = await documentService.hasLegacyClientBcProcurementFollowups(String(bc.id));
+      if (already) {
+        const ok = window.confirm(
+          'Ce BC vente a déjà été converti en approvisionnement fournisseur. Poursuivre va créer des devis/BC fournisseur supplémentaires et ajouter une nouvelle entrée dans les notes du BC (le type reste achat). Continuer ?'
+        );
+        if (!ok) return;
+      }
+    }
     // Map legacy BC to UnifiedDocument (Simulated for Procurement flow)
     const unifiedBC: UnifiedDocument = {
       id: bc.id.toString(),
@@ -74,7 +91,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
       fournisseur_id: null,
       parent_id: null,
       notes: bc.notes,
-      metadata: {},
+      metadata: { legacy_devis_type: bc.type },
       created_by: bc.created_by,
       created_at: bc.created_at,
       updated_at: bc.updated_at,
@@ -348,10 +365,10 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="start" className="w-56">
-                                <DropdownMenuItem onClick={() => startProcurement(bc, 'DEVIS_FOURNISSEUR')}>
+                                <DropdownMenuItem onClick={() => { void startProcurement(bc, 'DEVIS_FOURNISSEUR'); }}>
                                   Créer Devis Fournisseur
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => startProcurement(bc, 'BC_FOURNISSEUR')}>
+                                <DropdownMenuItem onClick={() => { void startProcurement(bc, 'BC_FOURNISSEUR'); }}>
                                   Créer BC Fournisseur
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
