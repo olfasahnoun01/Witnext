@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, useCallback, useEffect } from 'react';
-import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus, Truck } from 'lucide-react';
+import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus, Truck, ChevronDown, Inbox, ListChecks } from 'lucide-react';
 import { EchantillonModal } from './EchantillonModal';
 import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
@@ -20,6 +20,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { partitionDraftsAndRest, sortDevisListRecentFirst } from '@/lib/devisListLayout';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface DevisHistoryProps {
   savedDevis: Devis[];
@@ -67,9 +69,6 @@ const devisStatusBadgeClass = (status: Devis['status'] | undefined | null) => {
   }
 };
 
-const ITEMS_PER_PAGE = 10;
-
-
 const toDevisPDFData = (d: Devis): DevisPDFData => ({
   devis_number: d.devis_number,
   devis_date: d.devis_date,
@@ -87,7 +86,6 @@ const toDevisPDFData = (d: Devis): DevisPDFData => ({
 });
 
 export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBC, onConvertToBCFournisseur, onAdd, defaultTypeFilter }: DevisHistoryProps) => {
-  const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<Devis | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState('');
@@ -98,6 +96,10 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   const [echantillonDevis, setEchantillonDevis] = useState<{ id: number; number: string } | null>(null);
   const [echantillonCounts, setEchantillonCounts] = useState<Record<number, number>>({});
   const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>(defaultTypeFilter || 'all');
+
+  useEffect(() => {
+    if (defaultTypeFilter) setSelectedType(defaultTypeFilter);
+  }, [defaultTypeFilter]);
 
   // Fetch envoyé echantillon counts for all vente devis
   useEffect(() => {
@@ -155,12 +157,11 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     return result;
   }, [savedDevis, searchTerm, selectedFournisseur, selectedType]);
 
-  const paginatedDevis = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredDevis.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredDevis, currentPage]);
-
-  const totalPages = Math.ceil(filteredDevis.length / ITEMS_PER_PAGE);
+  const { draftsSorted, restSorted } = useMemo(() => {
+    const sorted = sortDevisListRecentFirst(filteredDevis);
+    const { drafts, rest } = partitionDraftsAndRest(sorted);
+    return { draftsSorted: drafts, restSorted: rest };
+  }, [filteredDevis]);
 
   const handlePreview = useCallback(async (d: Devis) => {
     setIsGenerating(d.id);
@@ -192,6 +193,153 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     setPreviewTitle('');
   }, [previewUrl]);
 
+  const devisTableHead = (
+    <thead>
+      <tr className="border-b border-border">
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Type</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">N°</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Tiers</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Créé par</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Statut</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Mode</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Échantillon</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">PDF</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
+      </tr>
+    </thead>
+  );
+
+  const renderDevisRow = (d: Devis) => {
+    const totalQty = d.items.reduce((s, i) => s + i.quantity, 0);
+    const generating = isGenerating === d.id;
+    return (
+      <tr key={d.id} className="border-b border-border/50 hover:bg-muted/30">
+        <td className="py-3 px-4">
+          <span className={`px-2 py-1 rounded text-xs font-medium ${
+            d.type === 'achat' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
+          }`}>
+            {d.type === 'achat' ? '📥 Achat' : '📤 Vente'}
+          </span>
+        </td>
+        <td className="py-3 px-4 text-sm font-medium text-foreground">{d.devis_number}</td>
+        <td className="py-3 px-4 text-sm text-muted-foreground">
+          {new Date(d.devis_date).toLocaleDateString('fr-FR')}
+        </td>
+        <td className="py-3 px-4 text-sm text-foreground">{d.third_party_name || '-'}</td>
+        <td className="py-3 px-4 text-sm text-muted-foreground">{d.creator_name || '-'}</td>
+        <td className="py-3 px-4 text-sm">
+          <Badge
+            variant="outline"
+            className={cn('font-medium normal-case', devisStatusBadgeClass(d.status))}
+            title={d.status ? String(d.status) : undefined}
+          >
+            {devisStatusLabel(d.status)}
+          </Badge>
+        </td>
+        <td className="py-3 px-4">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setItemsDevis(d)}
+              className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+              title="Voir les articles"
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <span className="text-sm text-muted-foreground">
+              {d.items.length} articles ({totalQty} unités)
+            </span>
+          </div>
+        </td>
+        <td className="py-3 px-4 text-sm font-medium text-foreground">
+          {(() => {
+            const totals = computeDevisTotals(d.items, false);
+            return totals.totalFinal > 1 ? `${totals.totalFinal.toFixed(3)} TND` : '-';
+          })()}
+        </td>
+        <td className="py-3 px-4">
+          <span className={`px-2 py-1 rounded text-xs font-medium ${
+            d.is_ttc ? 'bg-primary/10 text-primary' : 'bg-warning/10 text-warning'
+          }`}>
+            {d.is_ttc ? 'TTC' : 'HT'}
+          </span>
+        </td>
+        <td className="py-3 px-4">
+          {d.type === 'vente' ? (
+            <button
+              type="button"
+              onClick={() => setEchantillonDevis({ id: d.id, number: d.devis_number })}
+              className="relative p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+              title="Gérer les échantillons"
+            >
+              <Package className="w-4 h-4" />
+              {(echantillonCounts[d.id] || 0) > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-warning text-warning-foreground text-[10px] font-bold leading-none">
+                  {echantillonCounts[d.id]}
+                </span>
+              )}
+            </button>
+          ) : (
+            <span className="text-muted-foreground text-xs">—</span>
+          )}
+        </td>
+        <td className="py-3 px-4">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => handlePreview(d)}
+              disabled={generating}
+              className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+              title="Prévisualiser PDF"
+            >
+              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDownload(d)}
+              disabled={generating}
+              className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+              title="Télécharger PDF"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
+        </td>
+        <td className="py-3 px-4">
+          <div className="flex flex-wrap gap-2">
+            {onConvertToBC && d.type === 'vente' && (
+              <Button size="sm" variant="secondary" onClick={() => onConvertToBC(d)}>
+                <FileText className="w-4 h-4" />
+                Créer BC
+              </Button>
+            )}
+            {onConvertToBCFournisseur && d.type === 'vente' && (
+              <Button size="sm" variant="outline" className="gap-1 border-primary/30" onClick={() => onConvertToBCFournisseur(d)}>
+                <Truck className="w-4 h-4" />
+                BC Fournisseur
+              </Button>
+            )}
+            {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && canEdit && d.status !== 'accepté' && (
+              <Button size="sm" variant="outline" onClick={() => onEdit(d)}>
+                <Edit className="w-4 h-4" />
+                Modifier
+              </Button>
+            )}
+            {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && (
+              <Button size="sm" variant="destructive" onClick={() => setDeleteConfirm(d)}>
+                <Trash2 className="w-4 h-4" />
+                Supprimer
+              </Button>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
   if (savedDevis.length === 0) {
     return (
       <div className="bg-card rounded-xl border border-border p-6">
@@ -221,16 +369,16 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
               <Input
                 placeholder="Rechercher un article..."
                 value={searchTerm}
-                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                onChange={e => { setSearchTerm(e.target.value); }}
                 className="pl-9 pr-8 h-9 w-56"
               />
               {searchTerm && (
-                <button onClick={() => { setSearchTerm(''); setCurrentPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <button onClick={() => { setSearchTerm(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   <X className="w-4 h-4" />
                 </button>
               )}
             </div>
-            <Select value={selectedType} onValueChange={v => { setSelectedType(v as any); setCurrentPage(1); }}>
+            <Select value={selectedType} onValueChange={v => { setSelectedType(v as any); }}>
               <SelectTrigger className="h-9 w-32 bg-background">
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
@@ -240,7 +388,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 <SelectItem value="vente">📤 Vente</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={selectedFournisseur} onValueChange={v => { setSelectedFournisseur(v); setCurrentPage(1); }}>
+            <Select value={selectedFournisseur} onValueChange={v => { setSelectedFournisseur(v); }}>
               <SelectTrigger className="h-9 w-44 bg-background">
                 <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
                 <SelectValue placeholder="Fournisseur" />
@@ -256,166 +404,70 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Type</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">N°</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Tiers</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Créé par</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Statut</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Mode</th>
-                {/* Échantillon column only for vente */}
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Échantillon</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">PDF</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedDevis.map(d => {
-                const totalQty = d.items.reduce((s, i) => s + i.quantity, 0);
-                const generating = isGenerating === d.id;
-                return (
-                  <tr key={d.id} className="border-b border-border/50 hover:bg-muted/30">
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        d.type === 'achat' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
-                      }`}>
-                        {d.type === 'achat' ? '📥 Achat' : '📤 Vente'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-sm font-medium text-foreground">{d.devis_number}</td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground">
-                      {new Date(d.devis_date).toLocaleDateString('fr-FR')}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-foreground">{d.third_party_name || '-'}</td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground">{d.creator_name || '-'}</td>
-                    <td className="py-3 px-4 text-sm">
-                      <Badge
-                        variant="outline"
-                        className={cn('font-medium normal-case', devisStatusBadgeClass(d.status))}
-                        title={d.status ? String(d.status) : undefined}
-                      >
-                        {devisStatusLabel(d.status)}
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => setItemsDevis(d)}
-                          className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
-                          title="Voir les articles"
-                        >
-                          <List className="w-4 h-4" />
-                        </button>
-                        <span className="text-sm text-muted-foreground">
-                          {d.items.length} articles ({totalQty} unités)
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-sm font-medium text-foreground">
-                      {(() => {
-                        const totals = computeDevisTotals(d.items, false);
-                        return totals.totalFinal > 1 ? `${totals.totalFinal.toFixed(3)} TND` : '-';
-                      })()}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        d.is_ttc ? 'bg-primary/10 text-primary' : 'bg-warning/10 text-warning'
-                      }`}>
-                        {d.is_ttc ? 'TTC' : 'HT'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      {d.type === 'vente' ? (
-                        <button
-                          onClick={() => setEchantillonDevis({ id: d.id, number: d.devis_number })}
-                          className="relative p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
-                          title="Gérer les échantillons"
-                        >
-                          <Package className="w-4 h-4" />
-                          {(echantillonCounts[d.id] || 0) > 0 && (
-                            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-warning text-warning-foreground text-[10px] font-bold leading-none">
-                              {echantillonCounts[d.id]}
-                            </span>
-                          )}
-                        </button>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handlePreview(d)}
-                          disabled={generating}
-                          className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
-                          title="Prévisualiser PDF"
-                        >
-                          {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                        <button
-                          onClick={() => handleDownload(d)}
-                          disabled={generating}
-                          className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
-                          title="Télécharger PDF"
-                        >
-                          <Download className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex flex-wrap gap-2">
-                        {onConvertToBC && d.type === 'vente' && (
-                          <Button size="sm" variant="secondary" onClick={() => onConvertToBC(d)}>
-                            <FileText className="w-4 h-4" />
-                            Créer BC
-                          </Button>
-                        )}
-                        {onConvertToBCFournisseur && d.type === 'vente' && (
-                          <Button size="sm" variant="outline" className="gap-1 border-primary/30" onClick={() => onConvertToBCFournisseur(d)}>
-                            <Truck className="w-4 h-4" />
-                            BC Fournisseur
-                          </Button>
-                        )}
-                        {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && canEdit && d.status !== 'accepté' && (
-                          <Button size="sm" variant="outline" onClick={() => onEdit(d)}>
-                            <Edit className="w-4 h-4" />
-                            Modifier
-                          </Button>
-                        )}
-                        {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && (
-                          <Button size="sm" variant="destructive" onClick={() => setDeleteConfirm(d)}>
-                            <Trash2 className="w-4 h-4" />
-                            Supprimer
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          Classement type boîte mail : brouillons séparés des autres statuts ; le plus récent en haut dans chaque groupe.
+        </p>
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-4">
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm rounded border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed">
-              Précédent
-            </button>
-            <span className="text-sm text-muted-foreground">Page {currentPage} sur {totalPages}</span>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-              className="px-3 py-1.5 text-sm rounded border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed">
-              Suivant
-            </button>
-          </div>
-        )}
+        <div className="space-y-4">
+          <Collapsible defaultOpen={draftsSorted.length > 0}>
+            <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-lg border border-amber-200/60 bg-amber-500/5 px-3 py-2.5 text-left text-sm font-semibold text-foreground hover:bg-amber-500/10 dark:border-amber-900/50 dark:bg-amber-950/20">
+              <ChevronDown className="h-4 w-4 shrink-0 text-amber-700 transition-transform duration-200 group-data-[state=closed]:-rotate-90 dark:text-amber-400" />
+              <Inbox className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
+              <span>Brouillons</span>
+              <span className="ml-auto rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-900 dark:text-amber-200">
+                {draftsSorted.length}
+              </span>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2">
+              <div className="overflow-x-auto overflow-y-auto max-h-[min(50vh,28rem)] rounded-lg border border-border">
+                <table className="w-full">
+                  {devisTableHead}
+                  <tbody>
+                    {draftsSorted.length === 0 ? (
+                      <tr>
+                        <td colSpan={12} className="py-8 text-center text-sm text-muted-foreground">
+                          Aucun brouillon pour ces filtres.
+                        </td>
+                      </tr>
+                    ) : (
+                      draftsSorted.map(renderDevisRow)
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <Collapsible defaultOpen>
+            <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-left text-sm font-semibold text-foreground hover:bg-muted/50">
+              <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=closed]:-rotate-90" />
+              <ListChecks className="h-4 w-4 shrink-0 text-primary" />
+              <span>Confirmés et autres statuts</span>
+              <span className="text-muted-foreground font-normal text-xs hidden sm:inline">(confirmé, envoyé, accepté…)</span>
+              <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                {restSorted.length}
+              </span>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2">
+              <div className="overflow-x-auto overflow-y-auto max-h-[min(50vh,28rem)] rounded-lg border border-border">
+                <table className="w-full">
+                  {devisTableHead}
+                  <tbody>
+                    {restSorted.length === 0 ? (
+                      <tr>
+                        <td colSpan={12} className="py-8 text-center text-sm text-muted-foreground">
+                          Aucun document traité pour ces filtres.
+                        </td>
+                      </tr>
+                    ) : (
+                      restSorted.map(renderDevisRow)
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
       </div>
 
       {/* Items Detail Dialog */}

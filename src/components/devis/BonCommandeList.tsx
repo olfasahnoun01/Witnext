@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, memo } from 'react';
 import { toast } from 'sonner';
-import { FileText, Trash2, Download, Eye, Loader2, Search, X, Plus, Pencil, ShoppingCart, ChevronDown, Receipt } from 'lucide-react';
+import { FileText, Trash2, Download, Eye, Loader2, Search, X, Plus, Pencil, ShoppingCart, ChevronDown, Receipt, Inbox, ListChecks } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BonCommande, UnifiedDocument, UnifiedDocumentLine } from '@/types';
@@ -27,6 +27,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { createFactureFromBonCommandeVente, fetchBcIdsHavingFactureVente } from '@/services/factureService';
 import { documentService } from '@/services/documentService';
+import { partitionDraftsAndRest, sortDevisListRecentFirst } from '@/lib/devisListLayout';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface BonCommandeListProps {
   bonsCommande: BonCommande[];
@@ -41,10 +43,7 @@ interface BonCommandeListProps {
   defaultTypeFilter?: 'all' | 'achat' | 'vente';
 }
 
-const ITEMS_PER_PAGE = 10;
-
 export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod, onEdit, onDelete, onAdd, onRefresh, showAddButton = true, defaultTypeFilter = 'all' }: BonCommandeListProps) => {
-  const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<BonCommande | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState('');
@@ -68,7 +67,6 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
 
   useEffect(() => {
     setSelectedType(defaultTypeFilter);
-    setCurrentPage(1);
   }, [defaultTypeFilter]);
 
   const startProcurement = useCallback(async (bc: BonCommande, targetDocType: 'DEVIS_FOURNISSEUR' | 'BC_FOURNISSEUR') => {
@@ -129,12 +127,11 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
     return result;
   }, [bonsCommande, searchTerm, selectedType]);
 
-  const paginatedBC = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredBC.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredBC, currentPage]);
-
-  const totalPages = Math.ceil(filteredBC.length / ITEMS_PER_PAGE);
+  const { draftsSorted, restSorted } = useMemo(() => {
+    const sorted = sortDevisListRecentFirst(filteredBC);
+    const { drafts, rest } = partitionDraftsAndRest(sorted);
+    return { draftsSorted: drafts, restSorted: rest };
+  }, [filteredBC]);
 
   const toBCPDFData = (bc: BonCommande): DevisPDFData => ({
     devis_number: bc.devis_number,
@@ -201,6 +198,160 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
     }
   }, [bcIdsWithFacture]);
 
+  const bcTableHead = (
+    <thead>
+      <tr className="border-b border-border">
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Type</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">N° BC</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Devis Source</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Tiers</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Créé par</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Statut</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">PDF</th>
+        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
+      </tr>
+    </thead>
+  );
+
+  const renderBCRow = (bc: BonCommande) => {
+    const totalQty = bc.items.reduce((s, i) => s + i.quantity, 0);
+    const generating = isGenerating === bc.id;
+    return (
+      <tr key={bc.id} className="border-b border-border/50 hover:bg-muted/30">
+        <td className="py-3 px-4">
+          <span className={`px-2 py-1 rounded text-xs font-medium ${
+            bc.type === 'achat' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
+          }`}>
+            {bc.type === 'achat' ? '📥 Achat' : '📤 Vente'}
+          </span>
+        </td>
+        <td className="py-3 px-4 text-sm font-medium text-foreground">{bc.devis_number}</td>
+        <td className="py-3 px-4 text-sm text-muted-foreground">{bc.source_devis_number || '-'}</td>
+        <td className="py-3 px-4 text-sm text-muted-foreground">
+          {new Date(bc.devis_date).toLocaleDateString('fr-FR')}
+        </td>
+        <td className="py-3 px-4 text-sm text-foreground">{bc.third_party_name || '-'}</td>
+        <td className="py-3 px-4 text-sm text-muted-foreground">{bc.creator_name || '-'}</td>
+        <td className="py-3 px-4 text-sm">
+          <span className="px-2 py-1 rounded text-xs font-medium bg-muted text-foreground uppercase">
+            {bc.status || 'brouillon'}
+          </span>
+        </td>
+        <td className="py-3 px-4 text-sm text-muted-foreground">
+          {bc.items.length} articles ({totalQty} unités)
+        </td>
+        <td className="py-3 px-4 text-sm font-medium text-foreground">
+          {(() => {
+            const totals = computeDevisTotals(bc.items, false);
+            return totals.totalFinal > 1 ? `${totals.totalFinal.toFixed(3)} TND` : '-';
+          })()}
+        </td>
+        <td className="py-3 px-4">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => handlePreview(bc)}
+              disabled={generating}
+              className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+              title="Prévisualiser PDF"
+            >
+              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDownload(bc)}
+              disabled={generating}
+              className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+              title="Télécharger PDF"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
+        </td>
+        <td className="py-3 px-4">
+          <div className="flex items-center gap-2">
+            {bc.type === 'vente' && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-1.5 h-8 px-2.5 text-xs font-medium border-primary/30 text-primary hover:bg-primary/10"
+                  title={
+                    bcIdsWithFacture.has(bc.id)
+                      ? 'Facture déjà générée pour ce BC'
+                      : 'Générer la facture de vente (visible dans Ventes → Factures)'
+                  }
+                  disabled={bcIdsWithFacture.has(bc.id) || factureBusyId === bc.id}
+                  onClick={() => void handleGenerateFacture(bc)}
+                >
+                  {factureBusyId === bc.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Receipt className="w-3.5 h-3.5" />
+                  )}
+                  {bcIdsWithFacture.has(bc.id) ? 'Facturé' : 'Facture'}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-1.5 h-8 px-2.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-200/50 transition-all font-bold text-xs"
+                      title="Convertir vers achats"
+                    >
+                      <ShoppingCart className="w-3.5 h-3.5" />
+                      Convertir
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56">
+                    <DropdownMenuItem onClick={() => { void startProcurement(bc, 'DEVIS_FOURNISSEUR'); }}>
+                      Créer Devis Fournisseur
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { void startProcurement(bc, 'BC_FOURNISSEUR'); }}>
+                      Créer BC Fournisseur
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => handlePreview(bc)}
+              disabled={generating}
+              className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+              title="Prévisualiser PDF"
+            >
+              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => onEdit(bc)}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              title="Modifier"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              <span className="text-xs font-medium">Modif</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeleteConfirm(bc)}
+              className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+              title="Supprimer"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
   if (bonsCommande.length === 0) {
     return (
       <div className="bg-card rounded-xl border border-border p-6">
@@ -232,16 +383,16 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
               <Input
                 placeholder="Rechercher..."
                 value={searchTerm}
-                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                onChange={e => { setSearchTerm(e.target.value); }}
                 className="pl-9 pr-8 h-9 w-56"
               />
               {searchTerm && (
-                <button onClick={() => { setSearchTerm(''); setCurrentPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <button onClick={() => { setSearchTerm(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   <X className="w-4 h-4" />
                 </button>
               )}
             </div>
-            <Select value={selectedType} onValueChange={v => { setSelectedType(v as any); setCurrentPage(1); }}>
+            <Select value={selectedType} onValueChange={v => { setSelectedType(v as any); }}>
               <SelectTrigger className="h-9 w-32 bg-background">
                 <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
                 <SelectValue placeholder="Type" />
@@ -256,170 +407,70 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Type</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">N° BC</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Devis Source</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Tiers</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Créé par</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Statut</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">PDF</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedBC.map(bc => {
-                const totalQty = bc.items.reduce((s, i) => s + i.quantity, 0);
-                const generating = isGenerating === bc.id;
-                return (
-                  <tr key={bc.id} className="border-b border-border/50 hover:bg-muted/30">
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        bc.type === 'achat' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
-                      }`}>
-                        {bc.type === 'achat' ? '📥 Achat' : '📤 Vente'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-sm font-medium text-foreground">{bc.devis_number}</td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground">{bc.source_devis_number || '-'}</td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground">
-                      {new Date(bc.devis_date).toLocaleDateString('fr-FR')}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-foreground">{bc.third_party_name || '-'}</td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground">{bc.creator_name || '-'}</td>
-                    <td className="py-3 px-4 text-sm">
-                      <span className="px-2 py-1 rounded text-xs font-medium bg-muted text-foreground uppercase">
-                        {bc.status || 'brouillon'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground">
-                      {bc.items.length} articles ({totalQty} unités)
-                    </td>
-                    <td className="py-3 px-4 text-sm font-medium text-foreground">
-                      {(() => {
-                        const totals = computeDevisTotals(bc.items, false);
-                        return totals.totalFinal > 1 ? `${totals.totalFinal.toFixed(3)} TND` : '-';
-                      })()}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handlePreview(bc)}
-                          disabled={generating}
-                          className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
-                          title="Prévisualiser PDF"
-                        >
-                          {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                        <button
-                          onClick={() => handleDownload(bc)}
-                          disabled={generating}
-                          className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
-                          title="Télécharger PDF"
-                        >
-                          <Download className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        {bc.type === 'vente' && (
-                          <>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="flex items-center gap-1.5 h-8 px-2.5 text-xs font-medium border-primary/30 text-primary hover:bg-primary/10"
-                              title={
-                                bcIdsWithFacture.has(bc.id)
-                                  ? 'Facture déjà générée pour ce BC'
-                                  : 'Générer la facture de vente (visible dans Ventes → Factures)'
-                              }
-                              disabled={bcIdsWithFacture.has(bc.id) || factureBusyId === bc.id}
-                              onClick={() => void handleGenerateFacture(bc)}
-                            >
-                              {factureBusyId === bc.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <Receipt className="w-3.5 h-3.5" />
-                              )}
-                              {bcIdsWithFacture.has(bc.id) ? 'Facturé' : 'Facture'}
-                            </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="flex items-center gap-1.5 h-8 px-2.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-200/50 transition-all font-bold text-xs"
-                                  title="Convertir vers achats"
-                                >
-                                  <ShoppingCart className="w-3.5 h-3.5" />
-                                  Convertir
-                                  <ChevronDown className="w-3.5 h-3.5" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="start" className="w-56">
-                                <DropdownMenuItem onClick={() => { void startProcurement(bc, 'DEVIS_FOURNISSEUR'); }}>
-                                  Créer Devis Fournisseur
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => { void startProcurement(bc, 'BC_FOURNISSEUR'); }}>
-                                  Créer BC Fournisseur
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </>
-                        )}
-                        <button
-                          onClick={() => handlePreview(bc)}
-                          disabled={generating}
-                          className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
-                          title="Prévisualiser PDF"
-                        >
-                          {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                        <button
-                          onClick={() => onEdit(bc)}
-                          className="flex items-center gap-1 px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                          title="Modifier"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                          <span className="text-xs font-medium">Modif</span>
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirm(bc)}
-                          className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                          title="Supprimer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          Brouillons séparés des autres statuts ; le plus récent en haut dans chaque groupe.
+        </p>
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-4">
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm rounded border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed">
-              Précédent
-            </button>
-            <span className="text-sm text-muted-foreground">Page {currentPage} sur {totalPages}</span>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-              className="px-3 py-1.5 text-sm rounded border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed">
-              Suivant
-            </button>
-          </div>
-        )}
+        <div className="space-y-4">
+          <Collapsible defaultOpen={draftsSorted.length > 0}>
+            <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-lg border border-amber-200/60 bg-amber-500/5 px-3 py-2.5 text-left text-sm font-semibold text-foreground hover:bg-amber-500/10 dark:border-amber-900/50 dark:bg-amber-950/20">
+              <ChevronDown className="h-4 w-4 shrink-0 text-amber-700 transition-transform duration-200 group-data-[state=closed]:-rotate-90 dark:text-amber-400" />
+              <Inbox className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
+              <span>Brouillons</span>
+              <span className="ml-auto rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-900 dark:text-amber-200">
+                {draftsSorted.length}
+              </span>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2">
+              <div className="overflow-x-auto overflow-y-auto max-h-[min(50vh,28rem)] rounded-lg border border-border">
+                <table className="w-full">
+                  {bcTableHead}
+                  <tbody>
+                    {draftsSorted.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} className="py-8 text-center text-sm text-muted-foreground">
+                          Aucun brouillon pour ces filtres.
+                        </td>
+                      </tr>
+                    ) : (
+                      draftsSorted.map(renderBCRow)
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <Collapsible defaultOpen>
+            <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-left text-sm font-semibold text-foreground hover:bg-muted/50">
+              <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=closed]:-rotate-90" />
+              <ListChecks className="h-4 w-4 shrink-0 text-primary" />
+              <span>Confirmés et autres statuts</span>
+              <span className="text-muted-foreground font-normal text-xs hidden sm:inline">(confirmé, envoyé, accepté…)</span>
+              <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                {restSorted.length}
+              </span>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2">
+              <div className="overflow-x-auto overflow-y-auto max-h-[min(50vh,28rem)] rounded-lg border border-border">
+                <table className="w-full">
+                  {bcTableHead}
+                  <tbody>
+                    {restSorted.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} className="py-8 text-center text-sm text-muted-foreground">
+                          Aucun BC traité pour ces filtres.
+                        </td>
+                      </tr>
+                    ) : (
+                      restSorted.map(renderBCRow)
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
       </div>
 
       {/* Delete Confirmation */}
