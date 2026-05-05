@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Fuel, Plus, Search, Calendar, User, Car, Banknote, ClipboardList, Loader2, Image as ImageIcon, Eye } from 'lucide-react';
+import { Fuel, Plus, Search, Calendar, User, Car, Banknote, ClipboardList, Loader2, Image as ImageIcon, Eye, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -71,6 +71,7 @@ export const BonCarburant = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     numBon: '',
@@ -79,6 +80,7 @@ export const BonCarburant = () => {
     conducteurId: '',
     typeCarburant: 'gasoil' as string,
     vehiculeId: '',
+    kmFinal: '',
     notes: '',
   });
 
@@ -127,23 +129,26 @@ export const BonCarburant = () => {
           ? Number(selectedVehicle.kilometrage_actuel)
           : null;
 
-      const { error } = await supabase
-        .from('fuel_vouchers')
-        .insert([{
-          num_bon: form.numBon.trim(),
-          date: form.date,
-          montant: parseFloat(form.montant),
-          conducteur_id: form.conducteurId,
-          vehicule_id: form.vehiculeId,
-          type_carburant: form.typeCarburant,
-          notes: form.notes.trim() || null,
-          status: 'pending',
-          ...(kmInitial != null ? { km_initial: kmInitial } : {}),
-        }]);
+      const payload = {
+        num_bon: form.numBon.trim(),
+        date: form.date,
+        montant: parseFloat(form.montant),
+        conducteur_id: form.conducteurId,
+        vehicule_id: form.vehiculeId,
+        type_carburant: form.typeCarburant,
+        km: form.kmFinal ? Number(form.kmFinal) : null,
+        notes: form.notes.trim() || null,
+        ...(editingVoucherId ? {} : { status: 'pending' }),
+        ...(kmInitial != null ? { km_initial: kmInitial } : {}),
+      };
+      const query = editingVoucherId
+        ? supabase.from('fuel_vouchers').update(payload).eq('id', editingVoucherId)
+        : supabase.from('fuel_vouchers').insert([payload]);
+      const { error } = await query;
 
       if (error) throw error;
 
-      toast.success('Bon de carburant ajouté');
+      toast.success(editingVoucherId ? 'Bon de carburant modifié' : 'Bon de carburant ajouté');
       setForm({
         numBon: '',
         date: new Date().toISOString().split('T')[0],
@@ -151,8 +156,10 @@ export const BonCarburant = () => {
         conducteurId: '',
         typeCarburant: 'gasoil',
         vehiculeId: '',
+        kmFinal: '',
         notes: '',
       });
+      setEditingVoucherId(null);
       setIsDialogOpen(false);
       fetchData();
     } catch (error: any) {
@@ -161,6 +168,21 @@ export const BonCarburant = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const openEditDialog = (bon: FuelVoucher) => {
+    setEditingVoucherId(bon.id);
+    setForm({
+      numBon: bon.num_bon || '',
+      date: bon.date || new Date().toISOString().split('T')[0],
+      montant: bon.montant != null ? String(bon.montant) : '',
+      conducteurId: bon.conducteur_id || '',
+      typeCarburant: bon.type_carburant || 'gasoil',
+      vehiculeId: bon.vehicule_id || '',
+      kmFinal: bon.km != null ? String(bon.km) : '',
+      notes: bon.notes || '',
+    });
+    setIsDialogOpen(true);
   };
 
   const getDriverName = (bon: FuelVoucher) => {
@@ -232,12 +254,13 @@ export const BonCarburant = () => {
                 <TableHead className="font-semibold text-foreground">Status</TableHead>
                 <TableHead className="font-semibold text-foreground">Km / Distance</TableHead>
                 <TableHead className="font-semibold text-center text-foreground">Odomètre</TableHead>
+                <TableHead className="font-semibold text-center text-foreground">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {bons.length === 0 ? (
                 <TableRow className="border-border">
-                  <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Search className="w-8 h-8 opacity-20" />
                       <p>Aucun bon de carburant trouvé</p>
@@ -289,6 +312,12 @@ export const BonCarburant = () => {
                         <span className="text-muted-foreground text-xs italic">-</span>
                       )}
                     </TableCell>
+                    <TableCell className="text-center">
+                      <Button variant="outline" size="sm" onClick={() => openEditDialog(bon)} className="gap-1">
+                        <Pencil className="w-3 h-3" />
+                        Modifier
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -304,7 +333,7 @@ export const BonCarburant = () => {
               <div className="p-2 bg-white/20 rounded-lg">
                 <Fuel className="w-5 h-5" />
               </div>
-              Nouveau Bon de Carburant
+              {editingVoucherId ? 'Modifier Bon de Carburant' : 'Nouveau Bon de Carburant'}
             </DialogTitle>
           </DialogHeader>
           
@@ -422,6 +451,18 @@ export const BonCarburant = () => {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="kmFinal" className="text-sm font-semibold text-foreground">KM final (modifiable)</Label>
+              <Input
+                id="kmFinal"
+                type="number"
+                placeholder="Ex: 128450"
+                value={form.kmFinal}
+                onChange={(e) => setForm({ ...form, kmFinal: e.target.value })}
+                className="rounded-xl border-border bg-background h-11 text-foreground"
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="notes" className="text-sm font-semibold text-foreground">Notes / Commentaires</Label>
               <textarea
                 id="notes"
@@ -434,7 +475,7 @@ export const BonCarburant = () => {
           </div>
 
           <DialogFooter className="p-6 bg-muted/30 gap-3 border-t border-border">
-            <Button variant="ghost" onClick={() => setIsDialogOpen(false)} className="rounded-xl px-6 h-11 hover:bg-muted/50 text-muted-foreground transition-colors" disabled={isSubmitting}>
+            <Button variant="ghost" onClick={() => { setIsDialogOpen(false); setEditingVoucherId(null); }} className="rounded-xl px-6 h-11 hover:bg-muted/50 text-muted-foreground transition-colors" disabled={isSubmitting}>
               Annuler
             </Button>
             <Button onClick={handleSubmit} className="rounded-xl px-8 h-11 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all border-none" disabled={isSubmitting}>
@@ -444,7 +485,7 @@ export const BonCarburant = () => {
                   Enregistrement...
                 </>
               ) : (
-                'Enregistrer'
+                editingVoucherId ? 'Mettre à jour' : 'Enregistrer'
               )}
             </Button>
           </DialogFooter>

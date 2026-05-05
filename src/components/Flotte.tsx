@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Truck, Plus, Trash2, Hash, Loader2, Gauge, Fuel } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Truck, Plus, Trash2, Loader2, Bell, CheckCircle2, Pencil } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -22,13 +22,46 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface Vehicle {
   id: string;
-  modele: string;
+  modele: string; // Type commercial / nom voiture
   matricule: string;
-  type?: string | null;
   constructeur?: string | null;
   type_carburant?: string | null;
   kilometrage_actuel?: number | null;
+  leasing_company?: string | null;
+  leasing_contract_number?: string | null;
+  company_owner?: string | null;
+  mise_en_circulation?: string | null;
+  loyer_amount?: number | null;
+  leasing_due_date?: string | null;
+  leasing_remind_at?: string | null;
+  assureur?: string | null;
+  assurance_due_date?: string | null;
+  assurance_remind_at?: string | null;
+  vignette_due_date?: string | null;
+  vignette_remind_at?: string | null;
+  visite_technique_end_date?: string | null;
+  visite_technique_remind_at?: string | null;
+  contract_holder_name?: string | null;
+  contract_document_url?: string | null;
 }
+
+interface VehicleReminder {
+  id: string;
+  vehicle_id: string;
+  reminder_type: 'vignette' | 'assurance' | 'leasing' | 'visite_technique';
+  due_date: string;
+  remind_at: string;
+  is_done: boolean;
+  note: string | null;
+  vehicle?: Pick<Vehicle, 'modele' | 'matricule'> | null;
+}
+
+const reminderLabel: Record<VehicleReminder['reminder_type'], string> = {
+  vignette: 'Vignette',
+  assurance: 'Assurance',
+  leasing: 'Leasing',
+  visite_technique: 'Visite technique',
+};
 
 const CONSTRUCTEURS = [
   'Volkswagen',
@@ -42,8 +75,6 @@ const CONSTRUCTEURS = [
   'Audi',
   'BMW',
   'Mercedes',
-  'Mercedes-Benz',
-  'Land Rover',
   'Nissan',
   'Hyundai',
   'Kia',
@@ -57,58 +88,56 @@ const CONSTRUCTEURS = [
   'Autre',
 ] as const;
 
-const plateDigits = (raw: string, maxLen: number) => raw.replace(/\D/g, '').slice(0, maxLen);
-
-const buildMatriculeTunisie = (region: string, serial: string) => {
-  const r = plateDigits(region, 3);
-  const s = plateDigits(serial, 4);
-  return `${r} TUN ${s}`;
-};
-
-const vehicleTitle = (v: Vehicle) => {
-  const c = (v.constructeur || '').trim();
-  const m = (v.modele || '').trim();
-  if (c && m) return `${c} ${m}`;
-  return m || c || 'Véhicule';
-};
-
-const carburantLabel = (v: string | null | undefined) => {
-  if (!v) return '—';
-  if (v === 'gasoil') return 'Gasoil';
-  if (v === 'essence') return 'Essence';
-  return v;
-};
-
 export const Flotte = () => {
-  const modeleInputRef = useRef<HTMLInputElement | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [reminders, setReminders] = useState<VehicleReminder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [form, setForm] = useState({
-    constructeur: '' as string,
-    constructeurCustom: '',
+    constructeur: '',
     modele: '',
-    categorie: '',
+    matricule: '',
+    type_carburant: 'gasoil',
     kilometrage_actuel: '',
-    type_carburant: 'gasoil' as 'gasoil' | 'essence',
+    leasing_company: '',
+    leasing_contract_number: '',
+    company_owner: '',
+    mise_en_circulation: '',
+    loyer_amount: '',
+    leasing_due_date: '',
+    leasing_remind_at: '',
+    assureur: '',
+    assurance_due_date: '',
+    assurance_remind_at: '',
+    vignette_due_date: '',
+    vignette_remind_at: '',
+    visite_technique_end_date: '',
+    visite_technique_remind_at: '',
+    contract_holder_name: '',
+    contract_document_url: '',
   });
-  const [plateRegion, setPlateRegion] = useState('');
-  const [plateSerial, setPlateSerial] = useState('');
 
   const fetchVehicles = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [vehiclesRes, remindersRes] = await Promise.all([
+        supabase.from('vehicles').select('*').order('created_at', { ascending: false }),
+        supabase
+          .from('vehicle_reminders')
+          .select('*, vehicle:vehicles(modele, matricule)')
+          .eq('is_done', false)
+          .order('remind_at', { ascending: true }),
+      ]);
 
-      if (error) throw error;
-      setVehicles(data || []);
+      if (vehiclesRes.error) throw vehiclesRes.error;
+      if (remindersRes.error) throw remindersRes.error;
+      setVehicles((vehiclesRes.data || []) as Vehicle[]);
+      setReminders((remindersRes.data || []) as unknown as VehicleReminder[]);
     } catch (error: any) {
       console.error('Error fetching vehicles:', error);
-      toast.error('Erreur lors du chargement des véhicules');
+      toast.error('Erreur lors du chargement de la flotte');
     } finally {
       setIsLoading(false);
     }
@@ -118,93 +147,108 @@ export const Flotte = () => {
     fetchVehicles();
   }, []);
 
-  useEffect(() => {
-    if (!isDialogOpen) return;
-
-    const timeoutId = window.setTimeout(() => {
-      modeleInputRef.current?.focus();
-      modeleInputRef.current?.select();
-    }, 50);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [isDialogOpen]);
-
   const openAddDialog = () => {
     setForm({
       constructeur: '',
-      constructeurCustom: '',
       modele: '',
-      categorie: '',
-      kilometrage_actuel: '',
+      matricule: '',
       type_carburant: 'gasoil',
+      kilometrage_actuel: '',
+      leasing_company: '',
+      leasing_contract_number: '',
+      company_owner: '',
+      mise_en_circulation: '',
+      loyer_amount: '',
+      leasing_due_date: '',
+      leasing_remind_at: '',
+      assureur: '',
+      assurance_due_date: '',
+      assurance_remind_at: '',
+      vignette_due_date: '',
+      vignette_remind_at: '',
+      visite_technique_end_date: '',
+      visite_technique_remind_at: '',
+      contract_holder_name: '',
+      contract_document_url: '',
     });
-    setPlateRegion('');
-    setPlateSerial('');
+    setEditingVehicle(null);
     setIsDialogOpen(true);
   };
 
-  const resolvedConstructeur = () => {
-    if (!form.constructeur) return '';
-    if (form.constructeur === 'Autre') return form.constructeurCustom.trim();
-    return form.constructeur;
+  const openEditDialog = (vehicle: Vehicle) => {
+    setEditingVehicle(vehicle);
+    setForm({
+      constructeur: vehicle.constructeur || '',
+      modele: vehicle.modele || '',
+      matricule: vehicle.matricule || '',
+      type_carburant: vehicle.type_carburant || 'gasoil',
+      kilometrage_actuel: vehicle.kilometrage_actuel != null ? String(vehicle.kilometrage_actuel) : '',
+      leasing_company: vehicle.leasing_company || '',
+      leasing_contract_number: vehicle.leasing_contract_number || '',
+      company_owner: vehicle.company_owner || '',
+      mise_en_circulation: vehicle.mise_en_circulation || '',
+      loyer_amount: vehicle.loyer_amount != null ? String(vehicle.loyer_amount) : '',
+      leasing_due_date: vehicle.leasing_due_date || '',
+      leasing_remind_at: vehicle.leasing_remind_at || '',
+      assureur: vehicle.assureur || '',
+      assurance_due_date: vehicle.assurance_due_date || '',
+      assurance_remind_at: vehicle.assurance_remind_at || '',
+      vignette_due_date: vehicle.vignette_due_date || '',
+      vignette_remind_at: vehicle.vignette_remind_at || '',
+      visite_technique_end_date: vehicle.visite_technique_end_date || '',
+      visite_technique_remind_at: vehicle.visite_technique_remind_at || '',
+      contract_holder_name: vehicle.contract_holder_name || '',
+      contract_document_url: vehicle.contract_document_url || '',
+    });
+    setIsDialogOpen(true);
   };
 
   const handleSubmit = async () => {
-    const brand = resolvedConstructeur();
-    if (!brand) {
-      toast.error('Sélectionnez ou saisissez un constructeur');
-      return;
-    }
     if (!form.modele.trim()) {
-      toast.error('Le modèle est obligatoire');
+      toast.error('Type commercial requis');
       return;
     }
-    const r = plateDigits(plateRegion, 3);
-    const s = plateDigits(plateSerial, 4);
-    if (r.length < 2 || s.length < 2) {
-      toast.error('Indiquez le numéro régional (gauche) et le numéro d\'immatriculation (droite), ex. 123 TUN 4567');
+    if (!form.matricule.trim()) {
+      toast.error('Matricule requis');
       return;
     }
-    const matricule = buildMatriculeTunisie(r, s);
-    const kmRaw = form.kilometrage_actuel.trim().replace(',', '.');
-    const km = kmRaw === '' ? 0 : parseFloat(kmRaw);
-    if (Number.isNaN(km) || km < 0) {
-      toast.error('Kilométrage actuel invalide');
-      return;
-    }
-
     setIsSubmitting(true);
     try {
       const payload: Record<string, unknown> = {
-        constructeur: brand,
+        constructeur: form.constructeur || null,
         modele: form.modele.trim(),
-        matricule,
-        type_carburant: form.type_carburant,
-        kilometrage_actuel: km,
+        matricule: form.matricule.trim(),
+        type_carburant: form.type_carburant || 'gasoil',
+        kilometrage_actuel: form.kilometrage_actuel ? Number(form.kilometrage_actuel) : 0,
+        leasing_company: form.leasing_company.trim() || null,
+        leasing_contract_number: form.leasing_contract_number.trim() || null,
+        company_owner: form.company_owner.trim() || null,
+        mise_en_circulation: form.mise_en_circulation || null,
+        loyer_amount: form.loyer_amount ? Number(form.loyer_amount) : null,
+        leasing_due_date: form.leasing_due_date || null,
+        leasing_remind_at: form.leasing_remind_at || null,
+        assureur: form.assureur.trim() || null,
+        assurance_due_date: form.assurance_due_date || null,
+        assurance_remind_at: form.assurance_remind_at || null,
+        vignette_due_date: form.vignette_due_date || null,
+        vignette_remind_at: form.vignette_remind_at || null,
+        visite_technique_end_date: form.visite_technique_end_date || null,
+        visite_technique_remind_at: form.visite_technique_remind_at || null,
+        contract_holder_name: form.contract_holder_name.trim() || null,
+        contract_document_url: form.contract_document_url.trim() || null,
       };
-      const cat = form.categorie.trim();
-      if (cat) payload.type = cat;
-
-      const { error } = await supabase.from('vehicles').insert([payload as never]);
+      const query = editingVehicle
+        ? supabase.from('vehicles').update(payload).eq('id', editingVehicle.id)
+        : supabase.from('vehicles').insert([payload as never]);
+      const { error } = await query;
 
       if (error) throw error;
-
-      toast.success(`Véhicule « ${brand} ${form.modele.trim()} » ajouté`);
-      setForm({
-        constructeur: '',
-        constructeurCustom: '',
-        modele: '',
-        categorie: '',
-        kilometrage_actuel: '',
-        type_carburant: 'gasoil',
-      });
-      setPlateRegion('');
-      setPlateSerial('');
+      toast.success(editingVehicle ? 'Véhicule mis à jour' : 'Véhicule ajouté');
       setIsDialogOpen(false);
       fetchVehicles();
     } catch (error: any) {
       console.error('Error adding vehicle:', error);
-      toast.error(error.message || 'Erreur lors de l\'ajout du véhicule');
+      toast.error(error.message || 'Erreur lors de la sauvegarde du véhicule');
     } finally {
       setIsSubmitting(false);
     }
@@ -220,12 +264,63 @@ export const Flotte = () => {
         .eq('id', id);
 
       if (error) throw error;
-      setVehicles(vehicles.filter((v) => v.id !== id));
+      setVehicles((prev) => prev.filter((v) => v.id !== id));
       toast.success('Véhicule supprimé');
     } catch (error: any) {
       console.error('Error deleting vehicle:', error);
       toast.error('Erreur lors de la suppression');
     }
+  };
+
+  const handleCreateReminders = async (vehicle: Vehicle) => {
+    const defs: { type: VehicleReminder['reminder_type']; due?: string | null; remindAt?: string | null }[] = [
+      { type: 'vignette', due: vehicle.vignette_due_date, remindAt: vehicle.vignette_remind_at },
+      { type: 'assurance', due: vehicle.assurance_due_date, remindAt: vehicle.assurance_remind_at },
+      { type: 'leasing', due: vehicle.leasing_due_date, remindAt: vehicle.leasing_remind_at },
+      { type: 'visite_technique', due: vehicle.visite_technique_end_date, remindAt: vehicle.visite_technique_remind_at },
+    ];
+    const rows = defs
+      .filter((d) => d.due)
+      .map((d) => {
+        const dueDate = new Date(`${d.due}T00:00:00`);
+        const remindAt = d.remindAt
+          ? d.remindAt
+          : (() => {
+              const fallback = new Date(dueDate);
+              fallback.setDate(fallback.getDate() - 7);
+              return fallback.toISOString().split('T')[0];
+            })();
+        return {
+          vehicle_id: vehicle.id,
+          reminder_type: d.type,
+          due_date: d.due!,
+          remind_at: remindAt,
+          is_done: false,
+          note: null,
+        };
+      });
+    if (rows.length === 0) {
+      toast.error('Aucune échéance disponible pour créer les rappels');
+      return;
+    }
+    const { error } = await supabase.from('vehicle_reminders').upsert(rows as never, {
+      onConflict: 'vehicle_id,reminder_type,due_date',
+    });
+    if (error) {
+      toast.error('Erreur création rappels');
+      return;
+    }
+    toast.success('Rappels créés');
+    fetchVehicles();
+  };
+
+  const markReminderDone = async (id: string) => {
+    const { error } = await supabase.from('vehicle_reminders').update({ is_done: true }).eq('id', id);
+    if (error) {
+      toast.error('Erreur mise à jour rappel');
+      return;
+    }
+    setReminders((prev) => prev.filter((r) => r.id !== id));
   };
 
   return (
@@ -251,6 +346,34 @@ export const Flotte = () => {
         </Button>
       </div>
 
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Bell className="w-4 h-4 text-amber-500" />
+          <h3 className="font-semibold">Centre de notifications (Rappels véhicules)</h3>
+        </div>
+        {reminders.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Aucun rappel en attente.</p>
+        ) : (
+          <div className="space-y-2 max-h-52 overflow-y-auto">
+            {reminders.map((r) => (
+              <div key={r.id} className="flex items-center justify-between rounded-lg border border-border p-2">
+                <div className="text-sm">
+                  <span className="font-medium">{reminderLabel[r.reminder_type]}</span>
+                  {' · '}
+                  {(r.vehicle?.modele || 'Véhicule')} ({r.vehicle?.matricule || '-'})
+                  {' · Échéance: '}
+                  {new Date(r.due_date).toLocaleDateString('fr-FR')}
+                </div>
+                <Button size="sm" variant="outline" onClick={() => markReminderDone(r.id)} className="gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Traité
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-primary/60" />
@@ -270,167 +393,146 @@ export const Flotte = () => {
           </Button>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {vehicles.map((v, idx) => (
-            <div
-              key={v.id}
-              className="group relative p-5 rounded-2xl bg-card border border-border shadow-sm hover:shadow-lg hover:border-primary/30 transition-all duration-200"
-              style={{ animationDelay: `${idx * 50}ms` }}
-            >
-              <button
-                onClick={() => handleDelete(v.id)}
-                className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
-                title="Supprimer"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground shadow mb-3">
-                <Truck className="w-5 h-5" />
-              </div>
-
-              <h3 className="font-semibold text-foreground text-base truncate mb-2">{vehicleTitle(v)}</h3>
-
-              <div className="space-y-1.5 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Hash className="w-3.5 h-3.5 shrink-0" />
-                  <span className="inline-flex items-center rounded-md border-2 border-foreground/80 bg-white px-2 py-0.5 font-mono font-semibold tracking-wider text-foreground dark:bg-muted">
-                    {v.matricule}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-foreground/90">
-                  <Fuel className="w-3.5 h-3.5 shrink-0" />
-                  <span>{carburantLabel(v.type_carburant)}</span>
-                </div>
-                {v.kilometrage_actuel != null && (
-                  <div className="flex items-center gap-2 text-foreground/90">
-                    <Gauge className="w-3.5 h-3.5 shrink-0" />
-                    <span>{Number(v.kilometrage_actuel).toLocaleString('fr-FR')} km</span>
-                  </div>
-                )}
-                {v.type && (
-                  <div className="flex items-center gap-2">
-                    <Truck className="w-3.5 h-3.5" />
-                    <span>{v.type}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+        <div className="rounded-xl border border-border bg-card overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/40">
+                <th className="px-3 py-2 text-left">Type commercial</th>
+                <th className="px-3 py-2 text-left">Matricule</th>
+                <th className="px-3 py-2 text-left">Contrat leasing</th>
+                <th className="px-3 py-2 text-left">N° contract</th>
+                <th className="px-3 py-2 text-left">Société</th>
+                <th className="px-3 py-2 text-left">Mise en circulation</th>
+                <th className="px-3 py-2 text-left">Loyer</th>
+                <th className="px-3 py-2 text-left">Échéance leasing</th>
+                <th className="px-3 py-2 text-left">Assureur</th>
+                <th className="px-3 py-2 text-left">Échéance assurance</th>
+                <th className="px-3 py-2 text-left">Vignettes</th>
+                <th className="px-3 py-2 text-left">Fin visite technique</th>
+                <th className="px-3 py-2 text-left">Contrat au nom du</th>
+                <th className="px-3 py-2 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {vehicles.map((v) => (
+                <tr key={v.id} className="border-b border-border/60">
+                  <td className="px-3 py-2">{v.modele || '-'}</td>
+                  <td className="px-3 py-2">{v.matricule || '-'}</td>
+                  <td className="px-3 py-2">{v.leasing_company || '-'}</td>
+                  <td className="px-3 py-2">{v.leasing_contract_number || '-'}</td>
+                  <td className="px-3 py-2">{v.company_owner || '-'}</td>
+                  <td className="px-3 py-2">{v.mise_en_circulation ? new Date(v.mise_en_circulation).toLocaleDateString('fr-FR') : '-'}</td>
+                  <td className="px-3 py-2">{v.loyer_amount != null ? `${v.loyer_amount.toLocaleString()} TND` : '-'}</td>
+                  <td className="px-3 py-2">{v.leasing_due_date ? new Date(v.leasing_due_date).toLocaleDateString('fr-FR') : '-'}</td>
+                  <td className="px-3 py-2">{v.assureur || '-'}</td>
+                  <td className="px-3 py-2">{v.assurance_due_date ? new Date(v.assurance_due_date).toLocaleDateString('fr-FR') : '-'}</td>
+                  <td className="px-3 py-2">{v.vignette_due_date ? new Date(v.vignette_due_date).toLocaleDateString('fr-FR') : '-'}</td>
+                  <td className="px-3 py-2">{v.visite_technique_end_date ? new Date(v.visite_technique_end_date).toLocaleDateString('fr-FR') : '-'}</td>
+                  <td className="px-3 py-2">{v.contract_holder_name || '-'}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => openEditDialog(v)} className="gap-1">
+                        <Pencil className="w-3 h-3" />
+                        Modifier
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleCreateReminders(v)}>Rappels</Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleDelete(v.id)}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Truck className="w-5 h-5 text-primary" />
-              Ajouter un Véhicule
+              {editingVehicle ? 'Modifier véhicule' : 'Ajouter véhicule'}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>Constructeur *</Label>
-              <Select
-                value={form.constructeur || undefined}
-                onValueChange={(v) => setForm((f) => ({ ...f, constructeur: v, constructeurCustom: v === 'Autre' ? f.constructeurCustom : '' }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choisir une marque" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[280px]">
-                  {CONSTRUCTEURS.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {form.constructeur === 'Autre' && (
-                <Input
-                  placeholder="Nom du constructeur"
-                  value={form.constructeurCustom}
-                  onChange={(e) => setForm((f) => ({ ...f, constructeurCustom: e.target.value }))}
-                  className="mt-1"
-                />
-              )}
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="veh-modele">Modèle *</Label>
-              <Input
-                id="veh-modele"
-                ref={modeleInputRef}
-                placeholder="Ex: Golf 8, Hilux, Clio V…"
-                value={form.modele}
-                onChange={(e) => setForm((f) => ({ ...f, modele: e.target.value }))}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Type de carburant *</Label>
-              <Select
-                value={form.type_carburant}
-                onValueChange={(v) => setForm((f) => ({ ...f, type_carburant: v as 'gasoil' | 'essence' }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="gasoil">Gasoil</SelectItem>
-                  <SelectItem value="essence">Essence</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Immatriculation (Tunisie) *</Label>
-              <p className="text-xs text-muted-foreground">Format plaque : numéro régional · TUN · numéro (ex. 123 TUN 4567)</p>
-              <div className="flex items-stretch gap-2">
-                <Input
-                  id="veh-plate-region"
-                  inputMode="numeric"
-                  placeholder="123"
-                  className="text-center font-mono tracking-widest max-w-[5.5rem]"
-                  value={plateRegion}
-                  onChange={(e) => setPlateRegion(plateDigits(e.target.value, 3))}
-                  maxLength={3}
-                />
-                <div className="flex items-center justify-center rounded-md border-2 border-foreground/70 bg-muted/40 px-3 font-bold text-sm tracking-tight text-foreground shrink-0">
-                  TUN
+          <div className="space-y-5 py-4">
+            <div className="space-y-3 rounded-lg border border-border p-3">
+              <h4 className="text-sm font-semibold text-foreground">Informations voiture</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <Label>Constructeur *</Label>
+                  <Select value={form.constructeur} onValueChange={(v) => setForm((f) => ({ ...f, constructeur: v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisir une marque" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[260px]">
+                      {CONSTRUCTEURS.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Input
-                  id="veh-plate-serial"
-                  inputMode="numeric"
-                  placeholder="4567"
-                  className="text-center font-mono tracking-widest flex-1 min-w-0"
-                  value={plateSerial}
-                  onChange={(e) => setPlateSerial(plateDigits(e.target.value, 4))}
-                  maxLength={4}
-                />
+                <div className="grid gap-2">
+                  <Label>Type commercial *</Label>
+                  <Input value={form.modele} onChange={(e) => setForm((f) => ({ ...f, modele: e.target.value }))} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Matricule *</Label>
+                  <Input value={form.matricule} onChange={(e) => setForm((f) => ({ ...f, matricule: e.target.value }))} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Type carburant *</Label>
+                  <Select value={form.type_carburant} onValueChange={(v) => setForm((f) => ({ ...f, type_carburant: v }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gasoil">Gasoil</SelectItem>
+                      <SelectItem value="essence">Essence</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>KM actuelle</Label>
+                  <Input type="number" value={form.kilometrage_actuel} onChange={(e) => setForm((f) => ({ ...f, kilometrage_actuel: e.target.value }))} />
+                </div>
               </div>
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="veh-km">Kilométrage actuel (km) *</Label>
-              <Input
-                id="veh-km"
-                inputMode="decimal"
-                placeholder="Ex: 45230"
-                value={form.kilometrage_actuel}
-                onChange={(e) => setForm((f) => ({ ...f, kilometrage_actuel: e.target.value }))}
-              />
+            <div className="space-y-3 rounded-lg border border-border p-3">
+              <h4 className="text-sm font-semibold text-foreground">Informations leasing</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2"><Label>Contrat leasing</Label><Input value={form.leasing_company} onChange={(e) => setForm((f) => ({ ...f, leasing_company: e.target.value }))} /></div>
+                <div className="grid gap-2"><Label>N° contract</Label><Input value={form.leasing_contract_number} onChange={(e) => setForm((f) => ({ ...f, leasing_contract_number: e.target.value }))} /></div>
+                <div className="grid gap-2"><Label>Société</Label><Input value={form.company_owner} onChange={(e) => setForm((f) => ({ ...f, company_owner: e.target.value }))} /></div>
+                <div className="grid gap-2"><Label>Mise en circulation</Label><Input type="date" value={form.mise_en_circulation} onChange={(e) => setForm((f) => ({ ...f, mise_en_circulation: e.target.value }))} /></div>
+                <div className="grid gap-2"><Label>Loyer (montant)</Label><Input type="number" value={form.loyer_amount} onChange={(e) => setForm((f) => ({ ...f, loyer_amount: e.target.value }))} /></div>
+                <div className="grid gap-2"><Label>Échéance leasing</Label><Input type="date" value={form.leasing_due_date} onChange={(e) => setForm((f) => ({ ...f, leasing_due_date: e.target.value }))} /></div>
+                <div className="grid gap-2"><Label>Date rappel leasing</Label><Input type="date" value={form.leasing_remind_at} onChange={(e) => setForm((f) => ({ ...f, leasing_remind_at: e.target.value }))} /></div>
+              </div>
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="veh-categorie">Catégorie (optionnel)</Label>
-              <Input
-                id="veh-categorie"
-                placeholder="Ex: Camion, Fourgon, Voiture…"
-                value={form.categorie}
-                onChange={(e) => setForm((f) => ({ ...f, categorie: e.target.value }))}
-              />
+            <div className="space-y-3 rounded-lg border border-border p-3">
+              <h4 className="text-sm font-semibold text-foreground">Vignettes / Assurance</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2"><Label>Assureur</Label><Input value={form.assureur} onChange={(e) => setForm((f) => ({ ...f, assureur: e.target.value }))} /></div>
+                <div className="grid gap-2"><Label>Échéance assurance</Label><Input type="date" value={form.assurance_due_date} onChange={(e) => setForm((f) => ({ ...f, assurance_due_date: e.target.value }))} /></div>
+                <div className="grid gap-2"><Label>Date rappel assurance</Label><Input type="date" value={form.assurance_remind_at} onChange={(e) => setForm((f) => ({ ...f, assurance_remind_at: e.target.value }))} /></div>
+                <div className="grid gap-2"><Label>Vignettes</Label><Input type="date" value={form.vignette_due_date} onChange={(e) => setForm((f) => ({ ...f, vignette_due_date: e.target.value }))} /></div>
+                <div className="grid gap-2"><Label>Date rappel vignette</Label><Input type="date" value={form.vignette_remind_at} onChange={(e) => setForm((f) => ({ ...f, vignette_remind_at: e.target.value }))} /></div>
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-border p-3">
+              <h4 className="text-sm font-semibold text-foreground">Visite technique</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2"><Label>Fin visite technique</Label><Input type="date" value={form.visite_technique_end_date} onChange={(e) => setForm((f) => ({ ...f, visite_technique_end_date: e.target.value }))} /></div>
+                <div className="grid gap-2"><Label>Date rappel visite technique</Label><Input type="date" value={form.visite_technique_remind_at} onChange={(e) => setForm((f) => ({ ...f, visite_technique_remind_at: e.target.value }))} /></div>
+                <div className="grid gap-2"><Label>À charger les contrat au nom du</Label><Input value={form.contract_holder_name} onChange={(e) => setForm((f) => ({ ...f, contract_holder_name: e.target.value }))} /></div>
+                <div className="grid gap-2 col-span-2"><Label>URL contrat (optionnel)</Label><Input value={form.contract_document_url} onChange={(e) => setForm((f) => ({ ...f, contract_document_url: e.target.value }))} /></div>
+              </div>
             </div>
           </div>
 
@@ -442,13 +544,10 @@ export const Flotte = () => {
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Ajout...
+                  Sauvegarde...
                 </>
               ) : (
-                <>
-                  <Plus className="w-4 h-4" />
-                  Ajouter
-                </>
+                editingVehicle ? 'Mettre à jour' : 'Ajouter'
               )}
             </Button>
           </DialogFooter>

@@ -1365,6 +1365,53 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicle_reminders: {
+        Row: {
+          id: string
+          vehicle_id: string
+          reminder_type: string
+          due_date: string
+          remind_at: string
+          is_done: boolean
+          note: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          vehicle_id: string
+          reminder_type: string
+          due_date: string
+          remind_at: string
+          is_done?: boolean
+          note?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          vehicle_id?: string
+          reminder_type?: string
+          due_date?: string
+          remind_at?: string
+          is_done?: boolean
+          note?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_reminders_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicles: {
         Row: {
           id: string
@@ -1374,6 +1421,22 @@ export type Database = {
           constructeur: string | null
           type_carburant: string
           kilometrage_actuel: number
+          leasing_company: string | null
+          leasing_contract_number: string | null
+          company_owner: string | null
+          mise_en_circulation: string | null
+          loyer_amount: number | null
+          leasing_due_date: string | null
+          leasing_remind_at: string | null
+          assureur: string | null
+          assurance_due_date: string | null
+          assurance_remind_at: string | null
+          vignette_due_date: string | null
+          vignette_remind_at: string | null
+          visite_technique_end_date: string | null
+          visite_technique_remind_at: string | null
+          contract_holder_name: string | null
+          contract_document_url: string | null
           created_at: string
           updated_at: string
         }
@@ -1385,6 +1448,22 @@ export type Database = {
           constructeur?: string | null
           type_carburant?: string
           kilometrage_actuel?: number
+          leasing_company?: string | null
+          leasing_contract_number?: string | null
+          company_owner?: string | null
+          mise_en_circulation?: string | null
+          loyer_amount?: number | null
+          leasing_due_date?: string | null
+          leasing_remind_at?: string | null
+          assureur?: string | null
+          assurance_due_date?: string | null
+          assurance_remind_at?: string | null
+          vignette_due_date?: string | null
+          vignette_remind_at?: string | null
+          visite_technique_end_date?: string | null
+          visite_technique_remind_at?: string | null
+          contract_holder_name?: string | null
+          contract_document_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1396,6 +1475,22 @@ export type Database = {
           constructeur?: string | null
           type_carburant?: string
           kilometrage_actuel?: number
+          leasing_company?: string | null
+          leasing_contract_number?: string | null
+          company_owner?: string | null
+          mise_en_circulation?: string | null
+          loyer_amount?: number | null
+          leasing_due_date?: string | null
+          leasing_remind_at?: string | null
+          assureur?: string | null
+          assurance_due_date?: string | null
+          assurance_remind_at?: string | null
+          vignette_due_date?: string | null
+          vignette_remind_at?: string | null
+          visite_technique_end_date?: string | null
+          visite_technique_remind_at?: string | null
+          contract_holder_name?: string | null
+          contract_document_url?: string | null
           created_at?: string
           updated_at?: string
         }
