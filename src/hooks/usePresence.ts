@@ -73,9 +73,9 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
     }
   }, [user, userRole, hasPermission]);
 
-  // Fetch online users (admin and moderator)
+  // Fetch online users (all authenticated users)
   const fetchOnlineUsers = useCallback(async () => {
-    if (!user || (!isAdmin && !isModerator) || !hasPermission) return;
+    if (!user || !hasPermission) return;
 
     const seq = ++fetchSeqRef.current;
 
@@ -108,7 +108,6 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         typeof document !== 'undefined' &&
         document.visibilityState === 'visible' &&
         user &&
-        (isAdmin || isModerator) &&
         !rows.some((r) => sameUserId(r.user_id, user.id))
       ) {
         const meta = user.user_metadata as Record<string, unknown> | undefined;
@@ -177,7 +176,7 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
     } catch (err) {
       console.warn('Error fetching online users:', err);
     }
-  }, [user, isAdmin, isModerator, hasPermission, userRole]);
+  }, [user, hasPermission, isAdmin, isModerator, userRole]);
 
   const fetchOnlineUsersRef = useRef(fetchOnlineUsers);
   fetchOnlineUsersRef.current = fetchOnlineUsers;
@@ -188,10 +187,10 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
   // Wrap upsert so staff refresh the roster as soon as their row is written (avoids racing fetch before upsert).
   const updatePresenceAndRefreshStaffList = useCallback(async (isOnline: boolean) => {
     await updatePresenceRef.current(isOnline);
-    if (isOnline && (isAdmin || isModerator)) {
+    if (isOnline) {
       void fetchOnlineUsersRef.current();
     }
-  }, [isAdmin, isModerator]);
+  }, []);
 
   // Set up heartbeat
   useEffect(() => {
@@ -226,9 +225,9 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
     };
   }, [user, heartbeatInterval, updatePresenceAndRefreshStaffList, hasPermission]);
 
-  // Subscribe to presence changes (admin and moderator), with polling fallback
+  // Subscribe to presence changes (all authenticated users), with polling fallback
   useEffect(() => {
-    if (!user || (!isAdmin && !isModerator) || !hasPermission) return;
+    if (!user || !hasPermission) return;
 
     void fetchOnlineUsers();
 
@@ -263,7 +262,7 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
       window.clearInterval(pollId);
       supabase.removeChannel(channel);
     };
-  }, [user, isAdmin, isModerator, fetchOnlineUsers, hasPermission]);
+  }, [user, fetchOnlineUsers, hasPermission]);
 
   return {
     onlineUsers,

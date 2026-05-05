@@ -15,7 +15,7 @@ interface HeaderProps {
 
 export const Header = ({ title, onToggle, sidebarOpen }: HeaderProps) => {
   const [userName, setUserName] = useState<string | null>(null);
-  const { user, signOut, isAdmin, isModerator } = useAuth();
+  const { user, signOut } = useAuth();
   const { onlineUsers } = usePresence();
 
   // Fetch user's full name from profiles
@@ -63,13 +63,11 @@ export const Header = ({ title, onToggle, sidebarOpen }: HeaderProps) => {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Online Users (Admin and Moderator) */}
-          {(isAdmin || isModerator) && (
-            <OnlineUsersIndicator 
-              onlineUsers={onlineUsers} 
-              currentUserId={user?.id}
-            />
-          )}
+          {/* Online Users */}
+          <OnlineUsersIndicator 
+            onlineUsers={onlineUsers} 
+            currentUserId={user?.id}
+          />
 
           {/* Theme Toggle */}
           <ThemeToggle />

@@ -467,7 +467,7 @@ export const downloadUnifiedDocumentPDF = async (doc: UnifiedDocument) => {
   await generateOfficialPDF({
     docType: docType,
     docNumber: doc.numero,
-    docDate: doc.created_at,
+    docDate: (doc.metadata as any)?.document_date || doc.created_at,
     docValidity: doc.metadata?.validity || '',
     transportRef: doc.metadata?.transport_ref || '',
     thirdPartyName: doc.fournisseur_name || doc.client_name || doc.metadata?.third_party_name || '',

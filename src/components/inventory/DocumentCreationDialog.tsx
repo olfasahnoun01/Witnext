@@ -41,6 +41,7 @@ export const DocumentCreationDialog = ({
   const [notes, setNotes] = useState('');
   const [validity, setValidity] = useState('30 jours');
   const [transportRef, setTransportRef] = useState('');
+  const [documentDate, setDocumentDate] = useState(new Date().toISOString().split('T')[0]);
   const [clientId, setClientId] = useState<number | null>(null);
   const [fournisseurId, setFournisseurId] = useState<number | null>(null);
   const [selectedTier, setSelectedTier] = useState<any>(null);
@@ -75,6 +76,7 @@ export const DocumentCreationDialog = ({
     setNotes('');
     setValidity('30 jours');
     setTransportRef('');
+    setDocumentDate(new Date().toISOString().split('T')[0]);
     setClientId(null);
     setFournisseurId(null);
     setSelectedTier(null);
@@ -136,6 +138,7 @@ export const DocumentCreationDialog = ({
         notes,
         metadata: { 
           origin: 'magasin',
+          document_date: documentDate,
           validity,
           transport_ref: transportRef,
           third_party_name: selectedTier?.nom || selectedTier?.raison_sociale || '',
@@ -222,10 +225,10 @@ export const DocumentCreationDialog = ({
             <div className="space-y-2">
               <Label className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Date Document</Label>
               <Input 
-                type="text"
-                value={new Date().toLocaleDateString('fr-TN')}
-                disabled
-                className="bg-muted/50 cursor-not-allowed"
+                type="date"
+                value={documentDate}
+                onChange={(e) => setDocumentDate(e.target.value)}
+                className="bg-background"
               />
             </div>
           </div>

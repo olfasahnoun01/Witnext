@@ -32,6 +32,28 @@ const DEFAULT_CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires',
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
 const COLORS = ['Noir', 'Blanc', 'Bleu', 'Rouge', 'Vert', 'Jaune', 'Orange', 'Gris', 'Marron', 'Beige'];
 
+const parseDecimalInput = (rawValue: string): number => {
+  const value = rawValue.trim().replace(/\s/g, '');
+  if (!value) return 0;
+
+  const lastComma = value.lastIndexOf(',');
+  const lastDot = value.lastIndexOf('.');
+  let normalized = value;
+
+  if (lastComma !== -1 && lastDot !== -1) {
+    if (lastComma > lastDot) {
+      normalized = value.replace(/\./g, '').replace(',', '.');
+    } else {
+      normalized = value.replace(/,/g, '');
+    }
+  } else if (lastComma !== -1) {
+    normalized = value.replace(',', '.');
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 interface Fournisseur {
   id: number;
   nom: string;
@@ -165,16 +187,24 @@ export const DevisForm = memo(({
 
   useEffect(() => {
     const load = async () => {
-      const [fRes, cRes, catSettingsRes] = await Promise.all([
+      const [fRes, cRes, catSettingsRes, productsCatsRes, groupCatsRes] = await Promise.all([
         supabase.from('fournisseurs').select('id, nom, matricule_fiscale, location, phone, patente_url, registre_commerce_url').order('nom'),
         supabase.from('clients').select('id, nom, matricule_fiscale, location, phone').order('nom'),
         supabase.from('category_settings').select('category_name'),
+        supabase.from('products').select('category'),
+        supabase.from('product_groups').select('category'),
       ]);
       if (fRes.data) setFournisseurs(fRes.data);
       if (cRes.data) setClients(cRes.data);
       const allCats = new Set<string>(DEFAULT_CATEGORIES);
       (catSettingsRes.data || []).forEach((row: { category_name: string | null }) => {
         if (row.category_name) allCats.add(row.category_name);
+      });
+      (productsCatsRes.data || []).forEach((row: { category: string | null }) => {
+        if (row.category?.trim()) allCats.add(row.category.trim());
+      });
+      (groupCatsRes.data || []).forEach((row: { category: string | null }) => {
+        if (row.category?.trim()) allCats.add(row.category.trim());
       });
       setDbCategories([...allCats].sort());
     };
@@ -264,7 +294,10 @@ export const DevisForm = memo(({
     if (!query) return [];
     const list = isAchat ? fournisseurs : clients;
     return list
-      .filter(item => item.nom.trim().toLowerCase().includes(query))
+      .filter(item => {
+        const normalizedName = item.nom.trim().toLowerCase();
+        return normalizedName.includes(query) && normalizedName !== query;
+      })
       .slice(0, 8);
   }, [isAchat, fournisseurs, clients, thirdPartyName]);
 
@@ -1114,16 +1147,16 @@ export const DevisForm = memo(({
                     {devisType === 'vente' && (
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
-                        <input type="number" min="0" step="0.001" value={itemPrixAchat || ''} onChange={e => setItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
+                        <input type="text" inputMode="decimal" value={itemPrixAchat || ''} onChange={e => setItemPrixAchat(parseDecimalInput(e.target.value))} className="form-input" />
                       </div>
                     )}
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
-                      <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
+                      <input type="text" inputMode="decimal" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseDecimalInput(e.target.value))} className="form-input" />
                     </div>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
-                      <input type="number" min="0" max="100" step="0.1" value={itemRemise || ''} onChange={e => setItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
+                      <input type="text" inputMode="decimal" value={itemRemise || ''} onChange={e => setItemRemise(parseDecimalInput(e.target.value))} className="form-input" />
                     </div>
                     {isTtc && (
                       <div>
@@ -1138,8 +1171,8 @@ export const DevisForm = memo(({
                     {isTtc && (
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC' : 'Prix Vente TTC'}</label>
-                        <input type="number" min="0" step="0.001" value={parseFloat((itemPrixTtc * (1 - itemRemise / 100) * (1 + itemTva / 100)).toFixed(3)) || ''} onChange={e => {
-                          const ttcVal = parseFloat(e.target.value) || 0;
+                        <input type="text" inputMode="decimal" value={parseFloat((itemPrixTtc * (1 - itemRemise / 100) * (1 + itemTva / 100)).toFixed(3)) || ''} onChange={e => {
+                          const ttcVal = parseDecimalInput(e.target.value);
                           const remiseFactor = 1 - (itemRemise / 100);
                           const tvaFactor = 1 + (itemTva / 100);
                           setItemPrixTtc(remiseFactor > 0 ? ttcVal / (tvaFactor * remiseFactor) : 0);
@@ -1164,16 +1197,16 @@ export const DevisForm = memo(({
                     {devisType === 'vente' && (
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
-                        <input type="number" min="0" step="0.001" value={itemPrixAchat || ''} onChange={e => setItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
+                        <input type="text" inputMode="decimal" value={itemPrixAchat || ''} onChange={e => setItemPrixAchat(parseDecimalInput(e.target.value))} className="form-input" />
                       </div>
                     )}
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
-                      <input type="number" min="0" step="0.001" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseFloat(e.target.value) || 0)} className="form-input" />
+                      <input type="text" inputMode="decimal" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseDecimalInput(e.target.value))} className="form-input" />
                     </div>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
-                      <input type="number" min="0" max="100" step="0.1" value={itemRemise || ''} onChange={e => setItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
+                      <input type="text" inputMode="decimal" value={itemRemise || ''} onChange={e => setItemRemise(parseDecimalInput(e.target.value))} className="form-input" />
                     </div>
                     {isTtc && (
                       <div>
@@ -1188,8 +1221,8 @@ export const DevisForm = memo(({
                     {isTtc && (
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC' : 'Prix Vente TTC'}</label>
-                        <input type="number" min="0" step="0.001" value={parseFloat((itemPrixTtc * (1 - itemRemise / 100) * (1 + itemTva / 100)).toFixed(3)) || ''} onChange={e => {
-                          const ttcVal = parseFloat(e.target.value) || 0;
+                        <input type="text" inputMode="decimal" value={parseFloat((itemPrixTtc * (1 - itemRemise / 100) * (1 + itemTva / 100)).toFixed(3)) || ''} onChange={e => {
+                          const ttcVal = parseDecimalInput(e.target.value);
                           const remiseFactor = 1 - (itemRemise / 100);
                           const tvaFactor = 1 + (itemTva / 100);
                           setItemPrixTtc(remiseFactor > 0 ? ttcVal / (tvaFactor * remiseFactor) : 0);
@@ -1307,16 +1340,16 @@ export const DevisForm = memo(({
                         {devisType === 'vente' && (
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
-                            <input type="number" min="0" step="0.001" value={editItemPrixAchat || ''} onChange={e => setEditItemPrixAchat(parseFloat(e.target.value) || 0)} className="form-input" />
+                            <input type="text" inputMode="decimal" value={editItemPrixAchat || ''} onChange={e => setEditItemPrixAchat(parseDecimalInput(e.target.value))} className="form-input" />
                           </div>
                         )}
                         <div>
                           <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
-                          <input type="number" min="0" step="0.001" value={editItemPrix || ''} onChange={e => setEditItemPrix(parseFloat(e.target.value) || 0)} className="form-input" />
+                          <input type="text" inputMode="decimal" value={editItemPrix || ''} onChange={e => setEditItemPrix(parseDecimalInput(e.target.value))} className="form-input" />
                         </div>
                         <div>
                           <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
-                          <input type="number" min="0" max="100" step="0.1" value={editItemRemise || ''} onChange={e => setEditItemRemise(parseFloat(e.target.value) || 0)} className="form-input" />
+                          <input type="text" inputMode="decimal" value={editItemRemise || ''} onChange={e => setEditItemRemise(parseDecimalInput(e.target.value))} className="form-input" />
                         </div>
                         {isTtc && (
                           <div>
@@ -1331,8 +1364,8 @@ export const DevisForm = memo(({
                         {isTtc && (
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC' : 'Prix Vente TTC'}</label>
-                            <input type="number" min="0" step="0.001" value={parseFloat((editItemPrix * (1 - editItemRemise / 100) * (1 + editItemTva / 100)).toFixed(3)) || ''} onChange={e => {
-                              const ttcVal = parseFloat(e.target.value) || 0;
+                            <input type="text" inputMode="decimal" value={parseFloat((editItemPrix * (1 - editItemRemise / 100) * (1 + editItemTva / 100)).toFixed(3)) || ''} onChange={e => {
+                              const ttcVal = parseDecimalInput(e.target.value);
                               const remiseFactor = 1 - (editItemRemise / 100);
                               const tvaFactor = 1 + (editItemTva / 100);
                               setEditItemPrix(remiseFactor > 0 ? ttcVal / (tvaFactor * remiseFactor) : 0);
