@@ -59,10 +59,20 @@ CREATE TABLE IF NOT EXISTS public.invoices (
 
 CREATE INDEX IF NOT EXISTS invoices_company_issue_idx ON public.invoices (company_id, issue_date DESC);
 
+CREATE OR REPLACE FUNCTION public.finance_set_updated_at ()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS handle_invoices_updated_at ON public.invoices;
 CREATE TRIGGER handle_invoices_updated_at
   BEFORE UPDATE ON public.invoices
-  FOR EACH ROW EXECUTE FUNCTION moddatetime ('updated_at');
+  FOR EACH ROW EXECUTE FUNCTION public.finance_set_updated_at ();
 
 -- 4) Paiements
 CREATE TABLE IF NOT EXISTS public.payments (
@@ -87,7 +97,7 @@ CREATE INDEX IF NOT EXISTS payments_company_date_idx ON public.payments (company
 DROP TRIGGER IF EXISTS handle_payments_updated_at ON public.payments;
 CREATE TRIGGER handle_payments_updated_at
   BEFORE UPDATE ON public.payments
-  FOR EACH ROW EXECUTE FUNCTION moddatetime ('updated_at');
+  FOR EACH ROW EXECUTE FUNCTION public.finance_set_updated_at ();
 
 -- 5) Lettrage paiements ↔ factures (multi-factures, paiements partiels)
 CREATE TABLE IF NOT EXISTS public.payment_invoice_allocations (
@@ -142,7 +152,7 @@ CREATE INDEX IF NOT EXISTS journal_entries_company_date_idx ON public.journal_en
 DROP TRIGGER IF EXISTS handle_journal_entries_updated_at ON public.journal_entries;
 CREATE TRIGGER handle_journal_entries_updated_at
   BEFORE UPDATE ON public.journal_entries
-  FOR EACH ROW EXECUTE FUNCTION moddatetime ('updated_at');
+  FOR EACH ROW EXECUTE FUNCTION public.finance_set_updated_at ();
 
 CREATE TABLE IF NOT EXISTS public.journal_lines (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -181,7 +191,7 @@ CREATE TABLE IF NOT EXISTS public.tax_declarations (
 DROP TRIGGER IF EXISTS handle_tax_declarations_updated_at ON public.tax_declarations;
 CREATE TRIGGER handle_tax_declarations_updated_at
   BEFORE UPDATE ON public.tax_declarations
-  FOR EACH ROW EXECUTE FUNCTION moddatetime ('updated_at');
+  FOR EACH ROW EXECUTE FUNCTION public.finance_set_updated_at ();
 
 -- 8) Trésorerie (mouvements agrégés / prévisionnel)
 CREATE TABLE IF NOT EXISTS public.treasury_movements (

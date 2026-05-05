@@ -20,11 +20,26 @@ CREATE TABLE IF NOT EXISTS public.factures (
 );
 
 -- Set up triggers for updated_at
+CREATE OR REPLACE FUNCTION public.factures_set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = timezone('utc'::text, now());
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 DROP TRIGGER IF EXISTS handle_factures_updated_at ON public.factures;
-CREATE TRIGGER handle_factures_updated_at BEFORE UPDATE ON public.factures FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+CREATE TRIGGER handle_factures_updated_at
+BEFORE UPDATE ON public.factures
+FOR EACH ROW
+EXECUTE FUNCTION public.factures_set_updated_at();
 
 -- Policies for RLS
 ALTER TABLE public.factures ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Enable read access for all authenticated users" ON public.factures;
+DROP POLICY IF EXISTS "Enable insert access for authenticated users" ON public.factures;
+DROP POLICY IF EXISTS "Enable update access for authenticated users" ON public.factures;
+DROP POLICY IF EXISTS "Enable delete access for authenticated users" ON public.factures;
 CREATE POLICY "Enable read access for all authenticated users" ON public.factures FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Enable insert access for authenticated users" ON public.factures FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "Enable update access for authenticated users" ON public.factures FOR UPDATE TO authenticated USING (true);
