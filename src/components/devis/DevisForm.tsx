@@ -390,10 +390,19 @@ export const DevisForm = memo(({
     }));
 
     setDevisItems(prev => [...prev, ...newItems]);
-    
+
+    setItemDesignation('');
+    setItemFournisseur('');
+    setItemPrixTtc(0);
+    setItemRemise(0);
+    setItemQuantity(1);
+    setItemDescription('');
+    setItemPrixAchat(0);
     setItemTva(19);
+    setProductSearch('');
+    setSearchResults([]);
     setSelectedProduct(null);
-  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, itemTva, devisType, isAchat, setDevisItems]);
+  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, itemTva, devisType, setDevisItems]);
 
 
 

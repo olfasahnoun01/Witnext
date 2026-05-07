@@ -193,7 +193,7 @@ export const GestionDevis = ({
   }, [clearFormFields, defaultDevisType, generateNextNumber]);
 
   const clearInputsOnly = useCallback(() => {
-    clearFormFields(false);
+    clearFormFields(true);
     setDevisNumber(generateNextNumber(devisType, docType));
   }, [clearFormFields, generateNextNumber, devisType, docType]);
 
