@@ -120,10 +120,23 @@ autoUpdater.on('download-progress', (progressObj) => {
   log_message = log_message + ' - Downloaded ' + progressObj.percent + '%';
   log_message = log_message + ' (' + progressObj.transferred + "/" + progressObj.total + ')';
   console.log(log_message);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-progress', {
+      percent: progressObj.percent,
+      transferred: progressObj.transferred,
+      total: progressObj.total,
+      bytesPerSecond: progressObj.bytesPerSecond
+    });
+    mainWindow.setProgressBar(progressObj.percent / 100);
+  }
 });
 
 autoUpdater.on('update-downloaded', (info) => {
   console.log('Update downloaded:', info);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-progress', null);
+    mainWindow.setProgressBar(-1);
+  }
   
   const dialogOpts = {
     type: 'info',
