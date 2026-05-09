@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Edit, Trash2, Search, ChevronLeft, ChevronRight, List, Package } from 'lucide-react';
 import { Transaction, Product } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
@@ -25,6 +25,7 @@ export const TransactionHistory = ({
   onTransactionChange
 }: TransactionHistoryProps) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [totalTransactions, setTotalTransactions] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageInputValue, setPageInputValue] = useState('1');
@@ -38,11 +39,15 @@ export const TransactionHistory = ({
   const loadTransactions = useCallback(async () => {
     setIsLoading(true);
     try {
+      const from = (currentPage - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+
       let query = supabase
         .from('transactions')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('type', activeTab === 'in' ? 'IN' : 'OUT')
-        .order('date', { ascending: false });
+        .order('date', { ascending: false })
+        .range(from, to);
 
       // If in particular mode, filter by selected product/group
       if (historyMode === 'particular') {
@@ -54,6 +59,7 @@ export const TransactionHistory = ({
 
         if (productIdsToFetch.length === 0) {
           setTransactions([]);
+          setTotalTransactions(0);
           setIsLoading(false);
           return;
         }
@@ -61,20 +67,19 @@ export const TransactionHistory = ({
         query = query.in('product_id', productIdsToFetch);
       }
 
-      const { data, error } = await query;
+      const { data, error, count } = await query;
 
       if (error) throw error;
       
       setTransactions(data as Transaction[] || []);
-      setCurrentPage(1);
-      setPageInputValue('1');
+      setTotalTransactions(count ?? 0);
     } catch (error) {
       console.error('Error loading transactions:', error);
       toast.error('Erreur lors du chargement de l\'historique');
     } finally {
       setIsLoading(false);
     }
-  }, [selectedProduct, groupVariantIds, activeTab, historyMode]);
+  }, [selectedProduct, groupVariantIds, activeTab, historyMode, currentPage]);
 
   // Auto-load when dependencies change
   useEffect(() => {
@@ -84,15 +89,18 @@ export const TransactionHistory = ({
       loadTransactions();
     } else {
       setTransactions([]);
+      setTotalTransactions(0);
     }
-  }, [selectedProduct?.id, groupVariantIds, activeTab, historyMode, loadTransactions]);
+  }, [selectedProduct?.id, groupVariantIds, activeTab, historyMode, currentPage, loadTransactions]);
+
+  // Reset to first page when scope/filters change
+  useEffect(() => {
+    setCurrentPage(1);
+    setPageInputValue('1');
+  }, [selectedProduct?.id, groupVariantIds, activeTab, historyMode]);
 
   // Pagination
-  const totalPages = Math.ceil(transactions.length / ITEMS_PER_PAGE);
-  const paginatedTransactions = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return transactions.slice(start, start + ITEMS_PER_PAGE);
-  }, [transactions, currentPage]);
+  const totalPages = Math.max(1, Math.ceil(totalTransactions / ITEMS_PER_PAGE));
 
   const handlePageInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPageInputValue(e.target.value);
@@ -210,7 +218,7 @@ export const TransactionHistory = ({
       ) : (
         <>
           <div className="space-y-3 max-h-80 overflow-y-auto">
-            {paginatedTransactions.length === 0 ? (
+            {transactions.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
                 {historyMode === 'general' 
                   ? 'Aucun mouvement enregistré'
@@ -218,7 +226,7 @@ export const TransactionHistory = ({
                 }
               </p>
             ) : (
-              paginatedTransactions.map((tx) => (
+              transactions.map((tx) => (
                 <div
                   key={tx.id}
                   className="flex items-start gap-3 p-4 rounded-lg bg-muted/50"

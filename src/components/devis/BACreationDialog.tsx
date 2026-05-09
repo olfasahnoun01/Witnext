@@ -123,13 +123,30 @@ export const BACreationDialog = ({
   // Fetch providers
   useEffect(() => {
     const fetchProviders = async () => {
-      const { data } = await supabase
-        .from('fournisseurs')
-        .select('nom')
-        .order('nom');
-      if (data) {
-        setProviderList(Array.from(new Set(data.map(p => p.nom))));
+      const pageSize = 1000;
+      let from = 0;
+      const allNames: string[] = [];
+
+      while (true) {
+        const { data, error } = await supabase
+          .from('fournisseurs')
+          .select('nom')
+          .order('nom')
+          .range(from, from + pageSize - 1);
+
+        if (error) {
+          console.error('Failed to fetch fournisseurs list', error);
+          break;
+        }
+
+        if (!data || data.length === 0) break;
+
+        allNames.push(...data.map((p) => p.nom).filter((name): name is string => Boolean(name?.trim())));
+        if (data.length < pageSize) break;
+        from += pageSize;
       }
+
+      setProviderList(Array.from(new Set(allNames)));
     };
     fetchProviders();
   }, []);

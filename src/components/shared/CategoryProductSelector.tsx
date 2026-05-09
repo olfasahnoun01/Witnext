@@ -57,6 +57,8 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [selectedFournisseur, setSelectedFournisseur] = useState<string>('all');
   const countsLoaded = useRef(false);
+  const categoryRequestIdRef = useRef(0);
+  const variantsRequestIdRef = useRef(0);
 
   // Load category counts on mount (once)
   useEffect(() => {
@@ -80,9 +82,11 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
 
   // Load product groups when category is selected - with cache
   const handleCategorySelect = useCallback(async (category: string) => {
+    const requestId = ++categoryRequestIdRef.current;
     setSelectedCategory(category);
     setViewState('products');
     setSearchQuery('');
+    setSelectedFournisseur('all');
     
     const cached = getCachedGroups(category);
     if (cached) {
@@ -93,17 +97,21 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
     setIsLoading(true);
     try {
       const groups = await getProductGroupsByCategory(category);
+      if (requestId !== categoryRequestIdRef.current) return;
       setProductGroups(groups);
       groupsCache.set(category, { data: groups, ts: Date.now() });
     } catch (error) {
       console.error('Error loading product groups:', error);
     } finally {
-      setIsLoading(false);
+      if (requestId === categoryRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
   // Load variants when product group is selected - with cache
   const handleGroupSelect = useCallback(async (group: ProductGroup) => {
+    const requestId = ++variantsRequestIdRef.current;
     setSelectedGroup(group);
     setViewState('variants');
     setSearchQuery('');
@@ -118,13 +126,16 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
     setIsLoading(true);
     try {
       const variantsData = await getVariantsByGroupId(group.id);
+      if (requestId !== variantsRequestIdRef.current) return;
       setVariants(variantsData);
       variantsCache.set(group.id, { data: variantsData, ts: Date.now() });
       onGroupSelect?.(group, variantsData);
     } catch (error) {
       console.error('Error loading variants:', error);
     } finally {
-      setIsLoading(false);
+      if (requestId === variantsRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [onGroupSelect]);
 
