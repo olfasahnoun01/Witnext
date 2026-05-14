@@ -157,6 +157,39 @@ export const DevisForm = memo(({
   const [itemPrixAchat, setItemPrixAchat] = useState<number>(0);
   const [itemTva, setItemTva] = useState<number>(19);
 
+  /** Remplit prix d'achat HT depuis l'inventaire (fournisseurs du groupe) ; annulé si l'utilisateur change de sélection. */
+  const loadPrixAchatFromInventoryProduct = useCallback(
+    (product: { id: number; product_group_id?: number | null; fournisseur?: string | null }) => {
+      const req = ++achatPriceRequestRef.current;
+      void (async () => {
+        let groupId = product.product_group_id ?? null;
+        if (!groupId) {
+          const { data: row } = await supabase
+            .from('products')
+            .select('product_group_id')
+            .eq('id', product.id)
+            .maybeSingle();
+          groupId = row?.product_group_id ?? null;
+        }
+        if (achatPriceRequestRef.current !== req) return;
+        if (!groupId) return;
+        const { data } = await supabase
+          .from('product_group_fournisseurs')
+          .select('prix_ttc, fournisseur_name')
+          .eq('product_group_id', groupId);
+        if (achatPriceRequestRef.current !== req) return;
+        if (!data?.length) return;
+        const fn = (product.fournisseur || '').trim().toLowerCase();
+        const match = data.find(
+          r => (r.fournisseur_name || '').trim().toLowerCase() === fn
+        );
+        const row = match ?? data.reduce((a, b) => (Number(a.prix_ttc) <= Number(b.prix_ttc) ? a : b));
+        setItemPrixAchat(Number(row.prix_ttc) || 0);
+      })();
+    },
+    []
+  );
+
   // New article dialog (full product creation popup)
   const [showNewArticle, setShowNewArticle] = useState(false);
   const [newArticle, setNewArticle] = useState({
@@ -243,35 +276,19 @@ export const DevisForm = memo(({
       const priceHt = product.price || 0;
       setItemPrixTtc(priceHt);
       setItemPrixAchat(0);
+      setItemRemise(product.remise || 0);
     } else {
-      // PU vente HT catalogue (avant remise ligne) — la remise % s'applique une seule fois dans computeDevisLine
-      setItemPrixTtc(product.price || 0);
+      // Devis vente : PU vente HT saisi manuellement ; remise/TVA sur ce PU uniquement (computeDevisLine)
+      setItemPrixTtc(0);
       setItemPrixAchat(0);
-      const req = ++achatPriceRequestRef.current;
-      const gid = product.product_group_id;
-      if (gid) {
-        void (async () => {
-          const { data } = await supabase
-            .from('product_group_fournisseurs')
-            .select('prix_ttc, fournisseur_name')
-            .eq('product_group_id', gid);
-          if (achatPriceRequestRef.current !== req) return;
-          if (!data?.length) return;
-          const fn = (product.fournisseur || '').trim().toLowerCase();
-          const match = data.find(
-            r => (r.fournisseur_name || '').trim().toLowerCase() === fn
-          );
-          const row = match ?? data.reduce((a, b) => (Number(a.prix_ttc) <= Number(b.prix_ttc) ? a : b));
-          setItemPrixAchat(Number(row.prix_ttc) || 0);
-        })();
-      }
+      setItemRemise(0);
+      loadPrixAchatFromInventoryProduct(product);
     }
-    setItemRemise(product.remise || 0);
     setItemQuantity(1);
     setItemDescription(`${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`);
     setProductSearch('');
     setSearchResults([]);
-  }, [isAchat]);
+  }, [isAchat, loadPrixAchatFromInventoryProduct]);
 
   useEffect(() => { setSelectedThirdPartyId(''); }, [devisType]);
 
@@ -385,6 +402,10 @@ export const DevisForm = memo(({
 
   const addItem = useCallback(() => {
     if (!itemDesignation.trim()) { toast.error('Nom d\'article requis'); return; }
+    if (devisType === 'vente' && itemPrixTtc <= 0) {
+      toast.error('Indiquez le prix de vente HT');
+      return;
+    }
     
     const designations = itemDesignation.split(',').map(d => d.trim()).filter(d => d !== '');
     if (designations.length === 0) return;
@@ -655,8 +676,8 @@ export const DevisForm = memo(({
             line_id: Math.random().toString(36).substring(7),
             designation: d.name,
             fournisseur: d.fournisseur || '',
-            prix_ttc: d.price || 0,
-            remise: d.remise || 0,
+            prix_ttc: devisType === 'vente' ? 0 : (d.price || 0),
+            remise: devisType === 'vente' ? 0 : (d.remise || 0),
             quantity: 1,
             description: `${d.sku}${d.size ? ` - Taille: ${d.size}` : ''}${d.color ? ` - ${d.color}` : ''}`.trim() || undefined,
             product_id: d.id,
@@ -671,11 +692,22 @@ export const DevisForm = memo(({
         } else {
           setItemDesignation(first.name);
           setItemFournisseur(first.fournisseur || '');
-          setItemPrixTtc(first.price || 0);
-          setItemRemise(first.remise || 0);
           setItemQuantity(1);
           setItemDescription(description);
           setSelectedProduct(first as Product);
+          if (devisType === 'vente') {
+            setItemPrixTtc(0);
+            setItemRemise(0);
+            setItemPrixAchat(0);
+            loadPrixAchatFromInventoryProduct({
+              id: first.id,
+              product_group_id: (first as { product_group_id?: number | null }).product_group_id ?? null,
+              fournisseur: first.fournisseur,
+            });
+          } else {
+            setItemPrixTtc(first.price || 0);
+            setItemRemise(first.remise || 0);
+          }
         }
         setShowNewArticle(false);
         resetNewArticleForm();
@@ -683,7 +715,7 @@ export const DevisForm = memo(({
     } finally {
       setIsCreatingArticle(false);
     }
-  }, [newArticle, newArticleFournisseurs, newArticleFicheFiles, resetNewArticleForm]);
+  }, [newArticle, newArticleFournisseurs, newArticleFicheFiles, resetNewArticleForm, devisType, loadPrixAchatFromInventoryProduct]);
 
   // Load product groups when variant dialog opens
   useEffect(() => {
@@ -835,8 +867,8 @@ export const DevisForm = memo(({
         const group = productGroups.find(g => g.id.toString() === selectedGroupId);
         if (group) {
           setItemDesignation(group.name);
+          setItemFournisseur(group.fournisseur || '');
           setItemDescription(`${variantSku}${variantSize ? ` - Taille: ${variantSize}` : ''}${variantColor ? ` - ${variantColor}` : ''}`);
-          // Set selected product so addItem can capture the ID
           setSelectedProduct({
             id: result.id,
             name: group.name,
@@ -845,7 +877,18 @@ export const DevisForm = memo(({
             remise: variantRemise,
             quantity: variantQuantity,
             fournisseur: group.fournisseur || '',
+            product_group_id: Number(selectedGroupId),
           } as Product);
+          if (devisType === 'vente') {
+            setItemPrixTtc(0);
+            setItemRemise(0);
+            setItemPrixAchat(0);
+            loadPrixAchatFromInventoryProduct({
+              id: result.id,
+              product_group_id: Number(selectedGroupId),
+              fournisseur: group.fournisseur,
+            });
+          }
         }
         setShowAddVariant(false);
         setSelectedGroupId('');
@@ -861,7 +904,7 @@ export const DevisForm = memo(({
     } finally {
       setIsCreatingVariant(false);
     }
-  }, [selectedGroupId, variantSku, variantSize, variantColor, variantQuantity, productGroups, variantFicheFiles]);
+  }, [selectedGroupId, variantSku, variantSize, variantColor, variantQuantity, productGroups, variantFicheFiles, devisType, loadPrixAchatFromInventoryProduct]);
 
   const filteredGroups = useMemo(() => {
     if (!groupSearch.trim()) return productGroups;
@@ -1152,7 +1195,12 @@ export const DevisForm = memo(({
                   {selectedProduct && (
                     <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
                       <p className="text-sm font-medium text-foreground">{selectedProduct.name}</p>
-                      <p className="text-xs text-muted-foreground">{selectedProduct.sku} — PU {selectedProduct.price.toFixed(3)} HT</p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedProduct.sku}
+                        {isAchat
+                          ? ` — PU ${selectedProduct.price.toFixed(3)} HT`
+                          : ' — Prix d\'achat HT importé depuis l\'inventaire (fournisseurs article). Saisissez le prix de vente HT ci-dessous ; remise et TVA s\'appliquent au prix de vente uniquement.'}
+                      </p>
                     </div>
                   )}
 
@@ -1170,7 +1218,14 @@ export const DevisForm = memo(({
                     )}
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
-                      <input type="text" inputMode="decimal" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseDecimalInput(e.target.value))} className="form-input" />
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={itemPrixTtc || ''}
+                        onChange={e => setItemPrixTtc(parseDecimalInput(e.target.value))}
+                        className="form-input"
+                        placeholder={devisType === 'vente' ? 'Saisir le PU vente HT' : undefined}
+                      />
                     </div>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
@@ -1217,7 +1272,14 @@ export const DevisForm = memo(({
                     )}
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
-                      <input type="text" inputMode="decimal" value={itemPrixTtc || ''} onChange={e => setItemPrixTtc(parseDecimalInput(e.target.value))} className="form-input" />
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={itemPrixTtc || ''}
+                        onChange={e => setItemPrixTtc(parseDecimalInput(e.target.value))}
+                        className="form-input"
+                        placeholder={devisType === 'vente' ? 'Saisir le PU vente HT' : undefined}
+                      />
                     </div>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
