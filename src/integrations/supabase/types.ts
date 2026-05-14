@@ -651,9 +651,11 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string | null
+          fiches_techniques: Json
           id: number
           name: string
           photos: Json
+          prix_vente_ttc: number | null
           updated_at: string
         }
         Insert: {
@@ -661,9 +663,11 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          fiches_techniques?: Json
           id?: number
           name: string
           photos?: Json
+          prix_vente_ttc?: number | null
           updated_at?: string
         }
         Update: {
@@ -671,9 +675,11 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          fiches_techniques?: Json
           id?: number
           name?: string
           photos?: Json
+          prix_vente_ttc?: number | null
           updated_at?: string
         }
         Relationships: []

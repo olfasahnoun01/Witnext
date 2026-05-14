@@ -2,7 +2,10 @@ import { DevisItem } from '@/types';
 
 /**
  * Centralized devis line pricing calculation.
- * 
+ *
+ * - `item.prix_ttc` = PU vente saisi : en HT (`isSortantTTC=false`), remise appliquée sur ce HT, puis TVA sur le HT net → PU TTC unitaire ; total ligne TTC = PU TTC net × qté.
+ * - `item.prix_achat` = informatif / marge uniquement ; n'entre pas dans remise, TVA ni sous-totaux.
+ *
  * KEY SEMANTIC DIFFERENCE:
  * - HT mode (isTTC=false): item.prix_ttc = Prix U HT (base price before tax)
  * - TTC mode (isTTC=true):  item.prix_ttc = Prix U TTC (price INCLUDING tax)
@@ -27,20 +30,31 @@ export function computeDevisLine(
   const tvaRate = (item.tva ?? 19) / 100;
   const remiseFactor = item.remise > 0 ? (1 - item.remise / 100) : 1;
 
-  let unitHT: number, unitTTC: number;
+  let unitHT: number;
+  let unitTTC: number;
+  let unitAfterRemiseHT: number;
+  let unitAfterRemiseTTC: number;
 
   if (isSortantTTC) {
-    // TTC mode: user entered TTC price
+    // Saisie en PU TTC : on en déduit le HT, puis remise proportionnelle, lignes en qté
     unitTTC = item.prix_ttc;
     unitHT = unitTTC / (1 + tvaRate);
+    unitAfterRemiseHT = unitHT * remiseFactor;
+    unitAfterRemiseTTC = unitTTC * remiseFactor;
   } else {
-    // HT mode: user entered HT price
-    unitHT = item.prix_ttc;
-    unitTTC = unitHT * (1 + tvaRate);
-  }
+    // Saisie en PU vente HT (cas principal) :
+    // 1) remise % sur ce PU HT → PU HT net
+    // 2) TVA sur le PU HT net → PU TTC pour une unité
+    // 3) lignes : PU TTC × qté (et PU HT net × qté pour la partie HT)
+    const puVenteHtBrut = item.prix_ttc;
+    const puVenteHtNet = puVenteHtBrut * remiseFactor;
+    const puVenteTtcNet = puVenteHtNet * (1 + tvaRate);
 
-  const unitAfterRemiseHT = unitHT * remiseFactor;
-  const unitAfterRemiseTTC = unitTTC * remiseFactor;
+    unitHT = puVenteHtBrut;
+    unitTTC = puVenteHtBrut * (1 + tvaRate);
+    unitAfterRemiseHT = puVenteHtNet;
+    unitAfterRemiseTTC = puVenteTtcNet;
+  }
 
   const lineHT = unitAfterRemiseHT * item.quantity;
   const lineTTC = unitAfterRemiseTTC * item.quantity;

@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { fetchInventoryCategoryNames } from '@/lib/inventoryCategoryNames';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,13 +14,6 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Popover,
   PopoverContent,
@@ -47,10 +40,12 @@ import {
   Eye,
   Edit,
   FolderOpen,
-  Settings2,
   Tag,
   Check,
   ChevronsUpDown,
+  FileText,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -64,12 +59,33 @@ import {
 
 const ITEMS_PER_PAGE = 20;
 
+function parseUrlArray(raw: unknown): string[] {
+  if (raw == null) return [];
+  if (typeof raw === 'string') {
+    try {
+      const p = JSON.parse(raw) as unknown;
+      if (Array.isArray(p)) return p.filter((u): u is string => typeof u === 'string' && u.length > 0);
+    } catch {
+      return raw.trim() ? [raw] : [];
+    }
+    return [];
+  }
+  if (Array.isArray(raw)) return raw.filter((u): u is string => typeof u === 'string' && u.length > 0);
+  return [];
+}
+
+function formatTnd(n: number): string {
+  return `${n.toLocaleString('fr-FR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} TND TTC`;
+}
+
 interface GalleryItem {
   id: number;
   name: string;
   category: string;
   description: string | null;
   photos: string[];
+  fiches_techniques: string[];
+  prix_vente_ttc: number | null;
   created_at: string;
 }
 
@@ -79,12 +95,12 @@ interface GalleryCategory {
 }
 
 export const PhotoGallery = () => {
-  const { isAdmin, isModerator } = useAuth();
   const { toast } = useToast();
   const canEdit = true;
 
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [dbCategories, setDbCategories] = useState<GalleryCategory[]>([]);
+  const [inventoryCategories, setInventoryCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -102,18 +118,23 @@ export const PhotoGallery = () => {
   const [filterSearch, setFilterSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<GalleryItem | null>(null);
-  const [viewingItem, setViewingItem] = useState<GalleryItem | null>(null);
-  const [viewingPhotoIndex, setViewingPhotoIndex] = useState(0);
+  /** Vue rapide : photos, prix, fiches (réponses clients / réseaux sociaux) */
+  const [quickViewItem, setQuickViewItem] = useState<GalleryItem | null>(null);
+  const [quickViewPhotoIndex, setQuickViewPhotoIndex] = useState(0);
 
   // Form states
   const [formName, setFormName] = useState('');
-  const [formCategory, setFormCategory] = useState('Général');
+  const [formCategory, setFormCategory] = useState('');
   const [formDescription, setFormDescription] = useState('');
+  const [formPrixTtc, setFormPrixTtc] = useState('');
   const [formPhotos, setFormPhotos] = useState<string[]>([]);
+  const [formFiches, setFormFiches] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadingFiche, setUploadingFiche] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const ficheInputRef = useRef<HTMLInputElement>(null);
 
   const fetchCategories = useCallback(async () => {
     const { data } = await supabase
@@ -123,6 +144,15 @@ export const PhotoGallery = () => {
     if (data) setDbCategories(data);
   }, []);
 
+  const fetchInventoryCategories = useCallback(async () => {
+    try {
+      const names = await fetchInventoryCategoryNames();
+      setInventoryCategories(names);
+    } catch {
+      setInventoryCategories([]);
+    }
+  }, []);
+
   const fetchItems = useCallback(async () => {
     const { data, error } = await supabase
       .from('gallery_items')
@@ -130,11 +160,18 @@ export const PhotoGallery = () => {
       .order('created_at', { ascending: false });
 
     if (!error && data) {
-      setItems(data.map(d => ({
-        ...d,
-        photos: (d.photos as any) || [],
-        description: d.description || null,
-      })));
+      setItems(
+        data.map(d => ({
+          ...d,
+          photos: parseUrlArray(d.photos),
+          fiches_techniques: parseUrlArray((d as { fiches_techniques?: unknown }).fiches_techniques),
+          prix_vente_ttc:
+            (d as { prix_vente_ttc?: number | string | null }).prix_vente_ttc != null
+              ? Number((d as { prix_vente_ttc?: number | string | null }).prix_vente_ttc)
+              : null,
+          description: d.description || null,
+        }))
+      );
     }
     setLoading(false);
   }, []);
@@ -142,6 +179,7 @@ export const PhotoGallery = () => {
   useEffect(() => {
     fetchItems();
     fetchCategories();
+    void fetchInventoryCategories();
 
     const channel = supabase
       .channel('gallery-realtime')
@@ -154,14 +192,38 @@ export const PhotoGallery = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [fetchItems, fetchCategories]);
+  }, [fetchItems, fetchCategories, fetchInventoryCategories]);
 
-  const categories = dbCategories.map(c => c.name);
+  /** Liste déroulante formulaire / filtres : catégories inventaire + galerie (sans « Général »). */
+  const categoryChoices = useMemo(() => {
+    const s = new Set<string>();
+    inventoryCategories.forEach(c => {
+      if (c && c !== 'Général') s.add(c);
+    });
+    dbCategories.forEach(c => {
+      if (c.name && c.name !== 'Général') s.add(c.name);
+    });
+    return [...s].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+  }, [inventoryCategories, dbCategories]);
+
+  /** Inclut la valeur courante du formulaire si elle n’est pas dans la liste (édition / saisie libre). */
+  const choicesForForm = useMemo(() => {
+    const s = new Set(categoryChoices);
+    if (formCategory && formCategory !== 'Général') s.add(formCategory);
+    return [...s].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+  }, [categoryChoices, formCategory]);
 
   const filtered = items.filter(item => {
-    const matchesSearch = !searchQuery || 
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const q = searchQuery.toLowerCase();
+    const prixStr =
+      item.prix_vente_ttc != null && Number.isFinite(item.prix_vente_ttc)
+        ? String(item.prix_vente_ttc)
+        : '';
+    const matchesSearch =
+      !searchQuery ||
+      item.name.toLowerCase().includes(q) ||
+      (item.description || '').toLowerCase().includes(q) ||
+      prixStr.includes(q.replace(',', '.'));
     const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
     return matchesSearch && matchesCategory;
   });
@@ -177,15 +239,25 @@ export const PhotoGallery = () => {
 
   const resetForm = () => {
     setFormName('');
-    setFormCategory('Général');
+    setFormCategory('');
     setFormDescription('');
+    setFormPrixTtc('');
     setFormPhotos([]);
+    setFormFiches([]);
   };
 
   // Category CRUD
   const handleAddCategory = async () => {
     const name = newCategoryName.trim();
     if (!name) return;
+    if (name === 'Général') {
+      toast({
+        variant: 'destructive',
+        title: 'Catégorie non autorisée',
+        description: '« Général » n’est plus utilisée dans la galerie. Choisissez une catégorie inventaire ou un autre nom.',
+      });
+      return;
+    }
     const { error } = await supabase.from('gallery_categories').insert({ name });
     if (error) {
       toast({ variant: 'destructive', title: 'Erreur', description: error.message });
@@ -197,8 +269,16 @@ export const PhotoGallery = () => {
 
   const handleUpdateCategory = async () => {
     if (!editingCategory || !editCategoryName.trim()) return;
-    const oldName = editingCategory.name;
     const newName = editCategoryName.trim();
+    if (newName === 'Général') {
+      toast({
+        variant: 'destructive',
+        title: 'Non autorisé',
+        description: '« Général » n’est plus utilisée dans la galerie.',
+      });
+      return;
+    }
+    const oldName = editingCategory.name;
     
     const { error } = await supabase.from('gallery_categories').update({ name: newName }).eq('id', editingCategory.id);
     if (error) {
@@ -232,20 +312,70 @@ export const PhotoGallery = () => {
 
   const openAdd = () => {
     resetForm();
-    if (filterCategory && filterCategory !== 'all') {
-      setFormCategory(filterCategory);
-    }
+    const fromFilter =
+      filterCategory !== 'all' && filterCategory !== 'Général' && categoryChoices.includes(filterCategory)
+        ? filterCategory
+        : categoryChoices[0] ?? '';
+    setFormCategory(fromFilter);
     setEditingItem(null);
     setShowAddModal(true);
   };
 
   const openEdit = (item: GalleryItem) => {
     setFormName(item.name);
-    setFormCategory(item.category);
+    setFormCategory(
+      item.category === 'Général' ? (categoryChoices[0] ?? '') : item.category
+    );
     setFormDescription(item.description || '');
+    setFormPrixTtc(
+      item.prix_vente_ttc != null && Number.isFinite(item.prix_vente_ttc) ? String(item.prix_vente_ttc) : ''
+    );
     setFormPhotos([...item.photos]);
+    setFormFiches([...item.fiches_techniques]);
     setEditingItem(item);
     setShowAddModal(true);
+  };
+
+  const openQuickView = (item: GalleryItem) => {
+    setQuickViewItem(item);
+    setQuickViewPhotoIndex(0);
+  };
+
+  const parsePrixInput = (raw: string): number | null => {
+    const v = raw.trim().replace(/\s/g, '').replace(',', '.');
+    if (!v) return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+
+  const handleFicheUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    setUploadingFiche(true);
+    const newUrls: string[] = [];
+    for (const file of Array.from(files)) {
+      if (!allowed.includes(file.type)) {
+        toast({ variant: 'destructive', title: 'Format refusé', description: `${file.name} : PDF, JPG, PNG ou WebP uniquement` });
+        continue;
+      }
+      const safe = file.name.replace(/[^\w.\-]+/g, '_');
+      const path = `gallery/${Date.now()}-${Math.random().toString(36).slice(2)}-${safe}`;
+      const { error } = await supabase.storage.from('fiches-techniques').upload(path, file, { upsert: true });
+      if (!error) {
+        const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(path);
+        newUrls.push(urlData.publicUrl);
+      } else {
+        toast({ variant: 'destructive', title: 'Upload fiche', description: error.message });
+      }
+    }
+    setFormFiches(prev => [...prev, ...newUrls]);
+    setUploadingFiche(false);
+    if (ficheInputRef.current) ficheInputRef.current.value = '';
+  };
+
+  const removeFiche = (index: number) => {
+    setFormFiches(prev => prev.filter((_, i) => i !== index));
   };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -286,13 +416,25 @@ export const PhotoGallery = () => {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Le nom est obligatoire' });
       return;
     }
+    const catTrim = formCategory.trim();
+    if (!catTrim || catTrim === 'Général') {
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: 'Choisissez une catégorie (liste alignée sur l’inventaire).',
+      });
+      return;
+    }
 
     setSaving(true);
+    const prixParsed = parsePrixInput(formPrixTtc);
     const payload = {
       name: formName.trim(),
-      category: formCategory,
+      category: catTrim,
       description: formDescription.trim() || null,
       photos: formPhotos,
+      fiches_techniques: formFiches,
+      prix_vente_ttc: prixParsed,
     };
 
     if (editingItem) {
@@ -342,6 +484,14 @@ export const PhotoGallery = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+        <p className="font-medium text-foreground">Galerie commerciale (réseaux sociaux, messages clients)</p>
+        <p className="mt-1">
+          Ajoutez des photos, le <strong className="text-foreground">prix vente TTC</strong> et les{' '}
+          <strong className="text-foreground">fiches techniques</strong> pour répondre vite sur Facebook, WhatsApp, etc.
+        </p>
+      </div>
+
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="flex flex-col sm:flex-row gap-3 flex-1 w-full">
@@ -374,7 +524,7 @@ export const PhotoGallery = () => {
                       <Check className={cn("mr-2 h-4 w-4", filterCategory === 'all' ? "opacity-100" : "opacity-0")} />
                       Toutes les catégories
                     </CommandItem>
-                    {categories.map(c => (
+                    {categoryChoices.map(c => (
                       <CommandItem
                         key={c}
                         value={c}
@@ -411,7 +561,9 @@ export const PhotoGallery = () => {
           <FolderOpen className="w-16 h-16 mb-4 opacity-50" />
           <p className="text-lg font-medium">Aucun élément</p>
           <p className="text-sm">
-            {items.length === 0 ? 'Ajoutez votre premier élément à la galerie' : 'Aucun résultat pour cette recherche'}
+            {items.length === 0
+              ? 'Ajoutez une fiche avec photos, prix TTC et fiches techniques pour répondre vite aux clients.'
+              : 'Aucun résultat pour cette recherche'}
           </p>
         </div>
       ) : (
@@ -419,17 +571,12 @@ export const PhotoGallery = () => {
           {paginatedItems.map(item => (
             <div
               key={item.id}
-              className="group bg-card rounded-xl border border-border overflow-hidden hover:shadow-lg transition-all duration-200"
+              className="group bg-card rounded-xl border border-border overflow-hidden hover:shadow-lg transition-all duration-200 flex flex-col"
             >
-              {/* Thumbnail */}
-              <div
-                className="relative aspect-square bg-muted cursor-pointer overflow-hidden"
-                onClick={() => {
-                  if (item.photos.length > 0) {
-                    setViewingItem(item);
-                    setViewingPhotoIndex(0);
-                  }
-                }}
+              <button
+                type="button"
+                className="relative aspect-square bg-muted cursor-pointer overflow-hidden w-full text-left border-0 p-0"
+                onClick={() => openQuickView(item)}
               >
                 {item.photos.length > 0 ? (
                   <img
@@ -439,8 +586,9 @@ export const PhotoGallery = () => {
                     loading="lazy"
                   />
                 ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <ImageIcon className="w-12 h-12 text-muted-foreground/30" />
+                  <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
+                    <ImageIcon className="w-12 h-12 opacity-30" />
+                    <span className="text-xs px-2 text-center">Vue rapide (prix / fiches)</span>
                   </div>
                 )}
                 {item.photos.length > 1 && (
@@ -448,36 +596,55 @@ export const PhotoGallery = () => {
                     {item.photos.length} photos
                   </Badge>
                 )}
-                <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors flex items-center justify-center">
-                  {item.photos.length > 0 && (
-                    <Eye className="w-8 h-8 text-background opacity-0 group-hover:opacity-80 transition-opacity" />
-                  )}
+                {item.prix_vente_ttc != null && Number.isFinite(item.prix_vente_ttc) && item.prix_vente_ttc > 0 && (
+                  <Badge className="absolute bottom-2 left-2 bg-primary text-primary-foreground text-xs font-semibold shadow-md">
+                    {formatTnd(item.prix_vente_ttc)}
+                  </Badge>
+                )}
+                {item.fiches_techniques.length > 0 && (
+                  <Badge variant="secondary" className="absolute top-2 left-2 text-xs gap-1">
+                    <FileText className="w-3 h-3" />
+                    {item.fiches_techniques.length} fiche{item.fiches_techniques.length > 1 ? 's' : ''}
+                  </Badge>
+                )}
+                <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors flex items-center justify-center pointer-events-none">
+                  <Eye className="w-8 h-8 text-background opacity-0 group-hover:opacity-80 transition-opacity drop-shadow-md" />
                 </div>
-              </div>
+              </button>
 
-              {/* Info */}
-              <div className="p-3">
-                <div className="flex items-start justify-between gap-2">
+              <div className="p-3 flex-1 flex flex-col">
+                <div className="flex items-start justify-between gap-2 min-h-0">
                   <div className="min-w-0 flex-1">
                     <h3 className="font-semibold text-foreground truncate">{item.name}</h3>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{item.category}</p>
                     {item.description && (
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{item.description}</p>
                     )}
                   </div>
-                  
                 </div>
 
-                {canEdit && (
-                  <div className="flex gap-2 mt-3">
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => openEdit(item)}>
-                      <Edit className="w-3 h-3 mr-1" />
-                      Modifier
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(item)}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                )}
+                <div className="mt-auto pt-3 flex flex-col gap-2">
+                  <Button variant="secondary" size="sm" className="w-full" onClick={() => openQuickView(item)}>
+                    <Eye className="w-3 h-3 mr-1" />
+                    Vue rapide
+                  </Button>
+                  {canEdit && (
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => openEdit(item)}>
+                        <Edit className="w-3 h-3 mr-1" />
+                        Modifier
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:text-destructive shrink-0"
+                        onClick={() => handleDelete(item)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -535,18 +702,18 @@ export const PhotoGallery = () => {
 
       {/* Add/Edit Modal */}
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingItem ? 'Modifier l\'élément' : 'Ajouter un élément'}</DialogTitle>
+            <DialogTitle>{editingItem ? 'Modifier la fiche' : 'Nouvelle fiche produit'}</DialogTitle>
             <DialogDescription>
-              {editingItem ? 'Modifiez les informations de cet élément' : 'Ajoutez un nouvel élément à la galerie'}
+              Photos, prix TTC et fiches techniques pour réponses rapides aux clients.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
               <Label>Nom *</Label>
-              <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Nom de l'élément" />
+              <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Nom du produit (visible en galerie)" />
             </div>
 
             <div>
@@ -567,7 +734,16 @@ export const PhotoGallery = () => {
                           <button
                             className="w-full px-2 py-1.5 text-sm text-left hover:bg-accent rounded cursor-pointer"
                             onClick={() => {
-                              setFormCategory(categorySearch.trim());
+                              const v = categorySearch.trim();
+                              if (v === 'Général') {
+                                toast({
+                                  variant: 'destructive',
+                                  title: 'Non autorisé',
+                                  description: 'Utilisez une catégorie inventaire ou un autre nom.',
+                                });
+                                return;
+                              }
+                              setFormCategory(v);
                               setCategorySearch('');
                               setCategoryPopoverOpen(false);
                             }}
@@ -577,7 +753,7 @@ export const PhotoGallery = () => {
                         ) : "Aucune catégorie trouvée"}
                       </CommandEmpty>
                       <CommandGroup>
-                        {categories.map(c => (
+                        {choicesForForm.map(c => (
                           <CommandItem
                             key={c}
                             value={c}
@@ -600,7 +776,54 @@ export const PhotoGallery = () => {
 
             <div>
               <Label>Description</Label>
-              <Input value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Description optionnelle" />
+              <Input value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Référence, remarque pour l’équipe…" />
+            </div>
+
+            <div>
+              <Label>Prix vente TTC (TND)</Label>
+              <Input
+                value={formPrixTtc}
+                onChange={e => setFormPrixTtc(e.target.value)}
+                inputMode="decimal"
+                placeholder="ex. 58,500 (laisser vide si pas de prix public)"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Affiché en vue rapide — pratique pour copier-coller vers les réseaux sociaux.</p>
+            </div>
+
+            {/* Fiches techniques */}
+            <div>
+              <Label>Fiches techniques (PDF ou image)</Label>
+              <div className="mt-2 space-y-2 rounded-lg border border-border p-3 bg-muted/20">
+                {formFiches.map((url, i) => (
+                  <div key={`${url}-${i}`} className="flex items-center gap-2 text-sm">
+                    <FileText className="w-4 h-4 shrink-0 text-muted-foreground" />
+                    <a href={url} target="_blank" rel="noopener noreferrer" className="truncate text-primary hover:underline flex-1 min-w-0">
+                      Fiche {i + 1}
+                    </a>
+                    <Button type="button" variant="ghost" size="sm" className="shrink-0 h-8 w-8 p-0" onClick={() => removeFiche(i)}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={uploadingFiche}
+                  onClick={() => ficheInputRef.current?.click()}
+                >
+                  {uploadingFiche ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
+                  Ajouter une fiche
+                </Button>
+                <input
+                  ref={ficheInputRef}
+                  type="file"
+                  accept=".pdf,application/pdf,image/jpeg,image/png,image/webp"
+                  multiple
+                  className="hidden"
+                  onChange={handleFicheUpload}
+                />
+              </div>
             </div>
 
             {/* Photos */}
@@ -684,76 +907,134 @@ export const PhotoGallery = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Photo Viewer */}
-      <Dialog open={!!viewingItem} onOpenChange={() => setViewingItem(null)}>
-        <DialogContent className="max-w-4xl p-0 overflow-hidden bg-foreground/95">
-          <DialogHeader className="sr-only">
-            <DialogTitle>{viewingItem?.name}</DialogTitle>
-            <DialogDescription>Visualisation des photos</DialogDescription>
+      {/* Vue rapide : prix, fiches, photos */}
+      <Dialog open={!!quickViewItem} onOpenChange={open => { if (!open) setQuickViewItem(null); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="pr-6">{quickViewItem?.name}</DialogTitle>
+            <DialogDescription>
+              {quickViewItem?.category ? `${quickViewItem.category} · ` : ''}
+              Prix et fiches pour réponse client (Facebook, WhatsApp…)
+            </DialogDescription>
           </DialogHeader>
-          {viewingItem && (
-            <div className="flex flex-col">
-              <div className="relative">
-                <div className="flex items-center justify-center min-h-[60vh]">
-                  <img
-                    src={viewingItem.photos[viewingPhotoIndex]}
-                    alt={viewingItem.name}
-                    className="max-w-full max-h-[70vh] object-contain"
-                  />
-                </div>
-
-                {/* Navigation */}
-                {viewingItem.photos.length > 1 && (
-                  <>
-                    <button
-                      onClick={() => setViewingPhotoIndex(i => (i - 1 + viewingItem.photos.length) % viewingItem.photos.length)}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/20 hover:bg-background/40 text-background transition-colors"
-                    >
-                      <ChevronLeft className="w-6 h-6" />
-                    </button>
-                    <button
-                      onClick={() => setViewingPhotoIndex(i => (i + 1) % viewingItem.photos.length)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/20 hover:bg-background/40 text-background transition-colors"
-                    >
-                      <ChevronRight className="w-6 h-6" />
-                    </button>
-                  </>
-                )}
-
-                {/* Bottom info */}
-                <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-foreground/80 to-transparent">
-                  <h3 className="text-background font-semibold text-lg">{viewingItem.name}</h3>
-                  {viewingItem.description && (
-                    <p className="text-background/70 text-sm">{viewingItem.description}</p>
+          {quickViewItem && (
+            <div className="space-y-5">
+              {quickViewItem.photos.length > 0 ? (
+                <div className="relative rounded-xl overflow-hidden border border-border bg-muted">
+                  <div className="flex items-center justify-center min-h-[220px] max-h-[50vh]">
+                    <img
+                      src={quickViewItem.photos[quickViewPhotoIndex]}
+                      alt={quickViewItem.name}
+                      className="max-w-full max-h-[50vh] object-contain"
+                    />
+                  </div>
+                  {quickViewItem.photos.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setQuickViewPhotoIndex(i =>
+                            (i - 1 + quickViewItem.photos.length) % quickViewItem.photos.length
+                          )
+                        }
+                        className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/90 border shadow-sm hover:bg-accent"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setQuickViewPhotoIndex(i => (i + 1) % quickViewItem.photos.length)
+                        }
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/90 border shadow-sm hover:bg-accent"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </>
+                  )}
+                  {quickViewItem.photos.length > 1 && (
+                    <div className="flex gap-2 overflow-x-auto p-3 border-t border-border bg-card justify-center">
+                      {quickViewItem.photos.map((photo, i) => (
+                        <button
+                          type="button"
+                          key={i}
+                          onClick={() => setQuickViewPhotoIndex(i)}
+                          className={cn(
+                            'flex-shrink-0 w-14 h-14 rounded-md overflow-hidden border-2 transition-all',
+                            i === quickViewPhotoIndex ? 'border-primary ring-2 ring-primary/30' : 'border-transparent opacity-70 hover:opacity-100'
+                          )}
+                        >
+                          <img src={photo} alt="" className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
-              </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground text-sm">
+                  Aucune photo — vous pouvez en ajouter via « Modifier ».
+                </div>
+              )}
 
-              {/* Thumbnail strip - below the image */}
-              {viewingItem.photos.length > 1 && (
-                <div className="px-4 py-3 h-24">
-                  <div className="flex gap-3 overflow-x-auto h-full items-center justify-center scrollbar-thin">
-                    {viewingItem.photos.map((photo, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setViewingPhotoIndex(i)}
-                        className={cn(
-                          "flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all shadow-lg",
-                          i === viewingPhotoIndex
-                            ? "border-white scale-110 shadow-xl opacity-100"
-                            : "opacity-50 border-transparent hover:opacity-80 hover:scale-105"
-                        )}
+              {quickViewItem.prix_vente_ttc != null &&
+                Number.isFinite(quickViewItem.prix_vente_ttc) &&
+                quickViewItem.prix_vente_ttc > 0 && (
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4">
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prix vente TTC</p>
+                      <p className="text-2xl font-bold text-foreground tabular-nums">{formatTnd(quickViewItem.prix_vente_ttc)}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="default"
+                      className="shrink-0"
+                      onClick={async () => {
+                        const text = formatTnd(quickViewItem.prix_vente_ttc!);
+                        try {
+                          await navigator.clipboard.writeText(text);
+                          toast({ title: 'Copié', description: 'Prix collé dans le presse-papiers.' });
+                        } catch {
+                          toast({ variant: 'destructive', title: 'Copie impossible', description: 'Sélectionnez le prix manuellement.' });
+                        }
+                      }}
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      Copier le prix
+                    </Button>
+                  </div>
+                )}
+
+              {quickViewItem.fiches_techniques.length > 0 && (
+                <div>
+                  <Label className="text-base">Fiches techniques</Label>
+                  <div className="mt-2 flex flex-col gap-2">
+                    {quickViewItem.fiches_techniques.map((url, i) => (
+                      <Button
+                        key={`${url}-${i}`}
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-start h-auto py-3"
+                        onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
                       >
-                        <img
-                          src={photo}
-                          alt={`${viewingItem.name} ${i + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
+                        <ExternalLink className="w-4 h-4 mr-2 shrink-0" />
+                        <span className="truncate text-left">Ouvrir la fiche {i + 1}</span>
+                      </Button>
                     ))}
                   </div>
                 </div>
               )}
+
+              {quickViewItem.description && (
+                <p className="text-sm text-muted-foreground border-t border-border pt-4">{quickViewItem.description}</p>
+              )}
+
+              {(!quickViewItem.prix_vente_ttc || quickViewItem.prix_vente_ttc <= 0) &&
+                quickViewItem.fiches_techniques.length === 0 &&
+                quickViewItem.photos.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Ajoutez au moins un prix, une fiche ou une photo via « Modifier » pour utiliser cette fiche en réponse rapide.
+                  </p>
+                )}
             </div>
           )}
         </DialogContent>

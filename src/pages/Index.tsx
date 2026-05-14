@@ -114,7 +114,6 @@ const Index = () => {
         {activeTab === 'comparison' && <SupplierComparison />}
         {activeTab === 'transactions' && <Transactions />}
         {activeTab === 'reports' && <Reports />}
-        {activeTab === 'gallery' && <PhotoGallery />}
         
         {/* Commerciale */}
         {activeTab === 'commerciale-clients' && <Clients />}
@@ -138,6 +137,8 @@ const Index = () => {
           </Suspense>
         )}
         {activeTab === 'suivi-clients' && <SuiviManager type="client" />}
+        {/* Galerie commerciale (Ventes) */}
+        {activeTab === 'gallery' && <PhotoGallery />}
         
         {(activeTab === 'demande-achat' || activeTab === 'demande-achat-magasin') && <PurchaseRequestManager />}
         {activeTab === 'commerciale-fournisseurs' && <Fournisseurs />}

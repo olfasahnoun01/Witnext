@@ -57,6 +57,7 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'bl-vente', label: 'Bons de Livraison', icon: Truck },
       { id: 'factures-vente', label: 'Factures', icon: Receipt },
       { id: 'suivi-clients', label: 'Suivi Clients', icon: UserCheck },
+      { id: 'gallery', label: 'Galerie commerciale', icon: ImageIcon },
       { id: 'rdv', label: 'Rendez-vous', icon: CalendarClock },
     ],
   },
@@ -86,7 +87,6 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'comparison', label: 'Comparaison Prix', icon: GitCompare },
       { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
       { id: 'reports', label: 'Rapports & Documents', icon: FileText },
-      { id: 'gallery', label: 'Galerie Photos', icon: ImageIcon },
     ],
   },
   {

@@ -497,7 +497,6 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                 <TableHead className="text-right">Prix</TableHead>
                 <TableHead className="text-right">Remise %</TableHead>
                 <TableHead className="text-right">Net HT</TableHead>
-                <TableHead className="text-right">Prix TTC</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead>Fiches Techniques</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -521,7 +520,6 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                     <TableCell className="text-right">{variant.price.toFixed(3)} TND</TableCell>
                     <TableCell className="text-right">{variant.remise ? `${variant.remise}%` : '-'}</TableCell>
                     <TableCell className="text-right">{(variant.price * (1 - (variant.remise || 0) / 100)).toFixed(3)} TND</TableCell>
-                    <TableCell className="text-right font-medium text-primary">{(variant.price * (1 - (variant.remise || 0) / 100) * 1.19).toFixed(3)} TND</TableCell>
                     <TableCell>
                       <Badge className={`${style.bg} ${style.text} border-0`}>{style.label}</Badge>
                     </TableCell>
@@ -634,19 +632,11 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="remise">Remise (%)</Label>
-                    <Input id="remise" type="number" min="0" max="100" step="0.1" value={formData.remise}
-                      onChange={(e) => setFormData(prev => ({ ...prev, remise: parseFloat(e.target.value) || 0 }))}
-                      placeholder="0" />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Prix TTC (calculé)</Label>
-                    <div className="h-10 px-3 py-2 rounded-md border border-input bg-muted/50 text-sm font-medium text-primary flex items-center">
-                      {(formData.price * (1 - formData.remise / 100) * 1.19).toFixed(3)} TND
-                    </div>
-                  </div>
+                <div className="grid gap-2 max-w-xs">
+                  <Label htmlFor="remise">Remise (%)</Label>
+                  <Input id="remise" type="number" min="0" max="100" step="0.1" value={formData.remise}
+                    onChange={(e) => setFormData(prev => ({ ...prev, remise: parseFloat(e.target.value) || 0 }))}
+                    placeholder="0" />
                 </div>
               </>
             )}

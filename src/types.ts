@@ -13,6 +13,8 @@ export interface Product {
   image: string | null;
   color: string | null;
   product_group_id?: number | null;
+  /** Prix d’achat HT (fournisseurs du groupe), rempli par la recherche inventaire / chargement devis vente */
+  prix_achat_ht?: number;
   fiche_technique_url?: string | null;
   /** When this product row (variant) was created */
   created_at?: string | null;
