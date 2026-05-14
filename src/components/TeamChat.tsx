@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { MessageCircle, Send, X, Minimize2, Maximize2, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -37,7 +37,7 @@ export const TeamChat = () => {
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastReadRef = useRef<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const isOpenRef = useRef(false);
@@ -167,12 +167,19 @@ export const TeamChat = () => {
     }
   }, [isOpen, canAccess, fetchMessages]);
 
-  // Scroll to bottom on new messages
-  useEffect(() => {
-    if (scrollRef.current && isOpen) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, isOpen]);
+  const scrollToLatest = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+  }, []);
+
+  // Scroll viewport to latest message (Radix ScrollArea scrolls the inner viewport, not the root ref)
+  useLayoutEffect(() => {
+    if (!isOpen || isMinimized) return;
+    scrollToLatest();
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(scrollToLatest);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [isOpen, isMinimized, messages, scrollToLatest]);
 
   // Mark as read when opening chat
   useEffect(() => {
@@ -305,7 +312,7 @@ export const TeamChat = () => {
           {!isMinimized && (
             <>
               {/* Messages */}
-              <ScrollArea className="h-[380px] p-4" ref={scrollRef}>
+              <ScrollArea className="h-[380px] p-4">
                 {messages.length === 0 ? (
                   <div className="text-center text-muted-foreground text-sm py-12">
                     Aucun message. Commencez la conversation !
@@ -356,6 +363,7 @@ export const TeamChat = () => {
                         </div>
                       );
                     })}
+                    <div ref={messagesEndRef} className="h-px shrink-0" aria-hidden />
                   </div>
                 )}
               </ScrollArea>

@@ -605,15 +605,13 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
   // Items table
   const isTTC = devis.is_ttc;
-  const isSortantTTC = devis.is_ttc; // Link to actual document mode
-
-  // For sortant TTC: prices are entered as HT, so sous-total should be HT too
-  const isSortantWithTTC = devis.type === 'sortant' && isTTC;
+  /** Lignes enregistrées en PU HT (avant remise) ; TVA/remise via computeDevisLine */
+  const linePricesAreUnitHt = false;
 
   const tableData = devis.items.map((item, idx) => {
-    const line = computeDevisLine(item, isSortantTTC);
+    const line = computeDevisLine(item, linePricesAreUnitHt);
     const sousTotal = line.lineHT;
-    const prixUnitDisplay = (isSortantTTC ? line.unitHT : item.prix_ttc).toFixed(3);
+    const prixUnitDisplay = line.unitHT.toFixed(3);
     return [
       (idx + 1).toString(),
       item.designation,
@@ -671,7 +669,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   });
 
   // Compute detailed totals using shared helper
-  const totals = computeDevisTotals(devis.items, isSortantTTC);
+  const totals = computeDevisTotals(devis.items, linePricesAreUnitHt);
   const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
 
   const tableEndY = devisTableEndY;

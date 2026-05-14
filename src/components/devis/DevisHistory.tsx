@@ -256,7 +256,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
         </td>
         <td className="py-3 px-4 text-sm font-medium text-foreground">
           {(() => {
-            const totals = computeDevisTotals(d.items, d.is_ttc);
+            const totals = computeDevisTotals(d.items, false);
             return totals.totalFinal > 1 ? `${totals.totalFinal.toFixed(3)} TND` : '-';
           })()}
         </td>
@@ -496,7 +496,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </thead>
                 <tbody>
                   {itemsDevis.items.map((item, idx) => {
-                    const line = computeDevisLine(item, itemsDevis.is_ttc);
+                    const line = computeDevisLine(item, false);
                     return (
                       <tr key={idx} className="border-b border-border/50">
                         <td className="py-2 px-3 text-muted-foreground">{idx + 1}</td>
@@ -516,7 +516,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </tbody>
                 <tfoot>
                   {(() => {
-                    const totals = computeDevisTotals(itemsDevis.items, itemsDevis.is_ttc);
+                    const totals = computeDevisTotals(itemsDevis.items, false);
                     const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
                     const colSpan = itemsDevis.type === 'vente' ? 7 : 6;
                     return (

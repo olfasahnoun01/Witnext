@@ -83,7 +83,7 @@ export async function createFactureFromBonCommandeVente(bc: BonCommande): Promis
     return { success: false, error: msg };
   }
 
-  const totals = computeDevisTotals(bc.items, bc.is_ttc);
+  const totals = computeDevisTotals(bc.items, false);
   const totalAmount =
     Number(bc.total_amount) > 0 ? Number(bc.total_amount) : Number(totals.totalFinal.toFixed(3));
 

@@ -145,8 +145,7 @@ export const DevisForm = memo(({
   const [isSearching, setIsSearching] = useState(false);
   const debouncedSearch = useDebounce(productSearch, 300);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-
-
+  const achatPriceRequestRef = useRef(0);
 
   // Item form (manual or from selected product)
   const [itemDesignation, setItemDesignation] = useState('');
@@ -241,17 +240,31 @@ export const DevisForm = memo(({
     setItemDesignation(product.name);
     setItemFournisseur(product.fournisseur || '');
     if (isAchat) {
-      // For achat: retrieved price is HT (product.price), TTC is calculated from it
       const priceHt = product.price || 0;
       setItemPrixTtc(priceHt);
-      setItemPrixAchat(0); // Not needed for achat
+      setItemPrixAchat(0);
     } else {
-      // For vente: même base HT que la liste de recherche (prix_ttc produit = PU HT après remise catalogue)
-      const salePriceHt =
-        product.prix_ttc ||
-        (product.price || 0) * (1 - (product.remise || 0) / 100);
-      setItemPrixTtc(salePriceHt);
-      setItemPrixAchat(product.price || 0);
+      // PU vente HT catalogue (avant remise ligne) — la remise % s'applique une seule fois dans computeDevisLine
+      setItemPrixTtc(product.price || 0);
+      setItemPrixAchat(0);
+      const req = ++achatPriceRequestRef.current;
+      const gid = product.product_group_id;
+      if (gid) {
+        void (async () => {
+          const { data } = await supabase
+            .from('product_group_fournisseurs')
+            .select('prix_ttc, fournisseur_name')
+            .eq('product_group_id', gid);
+          if (achatPriceRequestRef.current !== req) return;
+          if (!data?.length) return;
+          const fn = (product.fournisseur || '').trim().toLowerCase();
+          const match = data.find(
+            r => (r.fournisseur_name || '').trim().toLowerCase() === fn
+          );
+          const row = match ?? data.reduce((a, b) => (Number(a.prix_ttc) <= Number(b.prix_ttc) ? a : b));
+          setItemPrixAchat(Number(row.prix_ttc) || 0);
+        })();
+      }
     }
     setItemRemise(product.remise || 0);
     setItemQuantity(1);
@@ -646,7 +659,6 @@ export const DevisForm = memo(({
             remise: d.remise || 0,
             quantity: 1,
             description: `${d.sku}${d.size ? ` - Taille: ${d.size}` : ''}${d.color ? ` - ${d.color}` : ''}`.trim() || undefined,
-            ...(devisType === 'vente' ? { prix_achat: d.price || 0 } : {}),
             product_id: d.id,
           }));
           setDevisItems(prev => [...prev, ...newItems]);
@@ -857,11 +869,8 @@ export const DevisForm = memo(({
     return productGroups.filter(g => g.name.toLowerCase().includes(q));
   }, [productGroups, groupSearch]);
 
-  // All prices in the system are HT — always pass false so the engine adds TVA on top
-  const isVenteTTC = false;
-  const devisTotals = useMemo(() => {
-    return computeDevisTotals(devisItems, false);
-  }, [devisItems, isTtc, devisType]);
+  // Lignes devis: `prix_ttc` = PU HT avant remise ; remise % et TVA s'appliquent sur ce PU vente HT uniquement
+  const devisTotals = useMemo(() => computeDevisTotals(devisItems, false), [devisItems]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyList = isAchat ? fournisseurs : clients;
   const ThirdPartyIcon = isAchat ? Building2 : Users;
@@ -1129,7 +1138,7 @@ export const DevisForm = memo(({
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-foreground truncate">{p.name}</p>
                               <p className="text-xs text-muted-foreground">
-                                {p.sku} • {p.category}{p.size ? ` • ${p.size}` : ''}{p.color ? ` • ${p.color}` : ''} • {p.prix_ttc?.toFixed(3) || p.price.toFixed(3)} TND
+                                {p.sku} • {p.category}{p.size ? ` • ${p.size}` : ''}{p.color ? ` • ${p.color}` : ''} • {p.price.toFixed(3)} HT
                               </p>
                             </div>
                           </div>
@@ -1143,7 +1152,7 @@ export const DevisForm = memo(({
                   {selectedProduct && (
                     <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
                       <p className="text-sm font-medium text-foreground">{selectedProduct.name}</p>
-                      <p className="text-xs text-muted-foreground">{selectedProduct.sku} — {selectedProduct.prix_ttc?.toFixed(3)} TND</p>
+                      <p className="text-xs text-muted-foreground">{selectedProduct.sku} — PU {selectedProduct.price.toFixed(3)} HT</p>
                     </div>
                   )}
 
@@ -1179,13 +1188,10 @@ export const DevisForm = memo(({
                     )}
                     {isTtc && (
                       <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC' : 'Prix Vente TTC'}</label>
-                        <input type="text" inputMode="decimal" value={parseFloat((itemPrixTtc * (1 - itemRemise / 100) * (1 + itemTva / 100)).toFixed(3)) || ''} onChange={e => {
-                          const ttcVal = parseDecimalInput(e.target.value);
-                          const remiseFactor = 1 - (itemRemise / 100);
-                          const tvaFactor = 1 + (itemTva / 100);
-                          setItemPrixTtc(remiseFactor > 0 ? ttcVal / (tvaFactor * remiseFactor) : 0);
-                        }} className="form-input" />
+                        <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC unit.' : 'Prix Vente TTC unit. (après remise)'}</label>
+                        <div className="form-input bg-muted/40 text-sm text-foreground tabular-nums flex items-center min-h-9">
+                          {(itemPrixTtc * (1 - itemRemise / 100) * (1 + itemTva / 100)).toFixed(3)}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1229,13 +1235,10 @@ export const DevisForm = memo(({
                     )}
                     {isTtc && (
                       <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC' : 'Prix Vente TTC'}</label>
-                        <input type="text" inputMode="decimal" value={parseFloat((itemPrixTtc * (1 - itemRemise / 100) * (1 + itemTva / 100)).toFixed(3)) || ''} onChange={e => {
-                          const ttcVal = parseDecimalInput(e.target.value);
-                          const remiseFactor = 1 - (itemRemise / 100);
-                          const tvaFactor = 1 + (itemTva / 100);
-                          setItemPrixTtc(remiseFactor > 0 ? ttcVal / (tvaFactor * remiseFactor) : 0);
-                        }} className="form-input" />
+                        <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC unit.' : 'Prix Vente TTC unit. (après remise)'}</label>
+                        <div className="form-input bg-muted/40 text-sm text-foreground tabular-nums flex items-center min-h-9">
+                          {(itemPrixTtc * (1 - itemRemise / 100) * (1 + itemTva / 100)).toFixed(3)}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1372,13 +1375,10 @@ export const DevisForm = memo(({
                         )}
                         {isTtc && (
                           <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC' : 'Prix Vente TTC'}</label>
-                            <input type="text" inputMode="decimal" value={parseFloat((editItemPrix * (1 - editItemRemise / 100) * (1 + editItemTva / 100)).toFixed(3)) || ''} onChange={e => {
-                              const ttcVal = parseDecimalInput(e.target.value);
-                              const remiseFactor = 1 - (editItemRemise / 100);
-                              const tvaFactor = 1 + (editItemTva / 100);
-                              setEditItemPrix(remiseFactor > 0 ? ttcVal / (tvaFactor * remiseFactor) : 0);
-                            }} className="form-input" />
+                            <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC unit.' : 'Prix Vente TTC unit. (après remise)'}</label>
+                            <div className="form-input bg-muted/40 text-sm text-foreground tabular-nums flex items-center min-h-9">
+                              {(editItemPrix * (1 - editItemRemise / 100) * (1 + editItemTva / 100)).toFixed(3)}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1395,20 +1395,22 @@ export const DevisForm = memo(({
                           {item.fournisseur && `${item.fournisseur} • `}
                           Qté: {item.quantity}
                           {item.prix_achat != null && item.prix_achat > 0 && ` • Achat HT: ${item.prix_achat.toFixed(3)}`}
-                          {item.prix_achat != null && item.prix_achat > 0 && isTtc && !isAchat && ` (TTC: ${(item.prix_achat * (1 + (item.tva ?? 19) / 100)).toFixed(3)})`}
-                          {` • ${isAchat ? 'Achat' : 'P.U'} HT: ${item.prix_ttc.toFixed(3)}`}
-                          {isTtc && !isAchat && ` (TTC: ${(item.prix_ttc * (1 + (item.tva ?? 19) / 100)).toFixed(3)})`}
+                          {item.prix_achat != null && item.prix_achat > 0 && isTtc && !isAchat && ` (achat TTC indic.: ${(item.prix_achat * (1 + (item.tva ?? 19) / 100)).toFixed(3)})`}
+                          {` • ${isAchat ? 'PU achat' : 'PU vente'} HT: ${item.prix_ttc.toFixed(3)}`}
                           {isTtc && ` • TVA: ${item.tva ?? 19}%`}
                           {(() => {
-                            const line = computeDevisLine(item, isVenteTTC);
-                            const unitAfter = isVenteTTC ? line.unitAfterRemiseTTC : line.unitAfterRemiseHT;
-                            const lineTotal = isVenteTTC ? line.lineTTC : line.lineHT;
-                            return (
-                              <>
-                                {item.remise > 0 && ` • Remise: ${item.remise}% → ${unitAfter.toFixed(3)} TND`}
-                                {item.quantity > 1 ? ` = ${lineTotal.toFixed(3)} TND` : ''}
-                              </>
-                            );
+                            const line = computeDevisLine(item, false);
+                            const bits: string[] = [];
+                            if (item.remise > 0) {
+                              bits.push(`remise ${item.remise}% sur PU HT → net HT unit. ${line.unitAfterRemiseHT.toFixed(3)}`);
+                            }
+                            if (isTtc && !isAchat) {
+                              bits.push(`PU TTC unit. ${line.unitAfterRemiseTTC.toFixed(3)}`);
+                            }
+                            const lineLabel = isTtc ? 'Total ligne TTC' : 'Total ligne HT';
+                            const lineVal = isTtc ? line.lineTTC : line.lineHT;
+                            bits.push(`${lineLabel}: ${lineVal.toFixed(3)} TND`);
+                            return bits.length ? ` • ${bits.join(' • ')}` : '';
                           })()}
                         </p>
                         {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}
