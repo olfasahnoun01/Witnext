@@ -1,6 +1,8 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
+const { refreshWindowsShortcuts } = require('./refreshWindowsShortcuts.cjs');
 
 // Stability fix for Windows: prevents window from becoming unresponsive
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
@@ -16,6 +18,24 @@ if (isDev) {
 const devServerUrl = 'http://127.0.0.1:8080';
 
 let mainWindow;
+
+/** Same icon as embedded in Alpha.exe (build/icon.ico) for taskbar consistency. */
+function getAppIconPath() {
+  if (process.platform === 'win32' && app.isPackaged) {
+    const resourceIco = path.join(process.resourcesPath, 'icon.ico');
+    if (fs.existsSync(resourceIco)) {
+      return resourceIco;
+    }
+    return process.execPath;
+  }
+  if (app.isPackaged) {
+    const distIcon = path.join(__dirname, '../dist/favicon.png');
+    if (fs.existsSync(distIcon)) {
+      return distIcon;
+    }
+  }
+  return path.join(__dirname, '../public/favicon.png');
+}
 
 function createDefaultMenu() {
   const template = [
@@ -72,7 +92,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs')
     },
     title: "Alpha",
-    icon: path.join(__dirname, '../public/favicon.png')
+    icon: getAppIconPath(),
   });
 
   createDefaultMenu();
@@ -131,13 +151,19 @@ autoUpdater.on('download-progress', (progressObj) => {
   }
 });
 
-autoUpdater.on('update-downloaded', (info) => {
+autoUpdater.on('update-downloaded', async (info) => {
   console.log('Update downloaded:', info);
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('update-progress', null);
     mainWindow.setProgressBar(-1);
   }
-  
+
+  try {
+    await refreshWindowsShortcuts(app.getPath('exe'));
+  } catch (err) {
+    console.warn('Shortcut icon refresh failed (non-fatal):', err);
+  }
+
   const dialogOpts = {
     type: 'info',
     buttons: ['Redémarrer', 'Plus tard'],

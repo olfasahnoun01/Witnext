@@ -3,7 +3,7 @@
   "productName": "Alpha Installer",
   "directories": {
     "app": "installer-app",
-    "output": "release",
+    "output": ".build-cache/installer",
     "buildResources": "build"
   },
   "files": [

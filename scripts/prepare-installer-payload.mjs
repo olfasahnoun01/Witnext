@@ -7,12 +7,16 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
-const src = path.join(root, 'release', 'win-unpacked');
+const srcCandidates = [
+  path.join(root, '.build-cache', 'win-unpacked'),
+  path.join(root, 'release', 'win-unpacked'),
+];
+const src = srcCandidates.find((p) => fs.existsSync(p));
 const dest = path.join(root, 'installer-app', 'resources', 'payload');
 
-if (!fs.existsSync(src)) {
+if (!src) {
   console.error(
-    'Missing release/win-unpacked. Run first:\n  npm run build\n  npx electron-builder --config electron-builder.dir.json --win'
+    'Missing win-unpacked. Run first:\n  npm run electron:build:dir'
   );
   process.exit(1);
 }

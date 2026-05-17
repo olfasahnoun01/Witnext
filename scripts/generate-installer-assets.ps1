@@ -78,11 +78,17 @@ Get-ChildItem (Join-Path $assetsDir 'logo-app*.png') -ErrorAction SilentlyContin
 Save-ResizedImage -SourcePath $sidebarSrc -DestPath (Join-Path $assetsDir 'logo-app.png') -Width 144 -Height 276
 Save-ResizedImage -SourcePath $sidebarSrc -DestPath (Join-Path $assetsDir 'logo-app-2x.png') -Width 288 -Height 552
 
-# --- 3) App icon (favicon, Electron, taskbar) ---
+# --- 3) App icon (favicon, Electron .exe, desktop shortcut) ---
+# Prefer dedicated square source; fallback crops installer sidebar (legacy).
+$iconSrc = Join-Path $root 'build\installer\source\app-icon.png'
+if (-not (Test-Path $iconSrc)) {
+  $iconSrc = $sidebarSrc
+  Write-Host 'Tip: add build/installer/source/app-icon.png (square) for exact desktop/taskbar icon.'
+}
 Get-ChildItem (Join-Path $assetsDir 'logo-icon*.png') -ErrorAction SilentlyContinue | Remove-Item -Force
-Save-SquareIcon -SourcePath $sidebarSrc -DestPath (Join-Path $assetsDir 'logo-icon-256.png') -Size 256
-Save-SquareIcon -SourcePath $sidebarSrc -DestPath (Join-Path $assetsDir 'logo-icon-512.png') -Size 512
-Save-SquareIcon -SourcePath $sidebarSrc -DestPath (Join-Path $assetsDir 'logo-icon-1024.png') -Size 1024
+Save-SquareIcon -SourcePath $iconSrc -DestPath (Join-Path $assetsDir 'logo-icon-256.png') -Size 256
+Save-SquareIcon -SourcePath $iconSrc -DestPath (Join-Path $assetsDir 'logo-icon-512.png') -Size 512
+Save-SquareIcon -SourcePath $iconSrc -DestPath (Join-Path $assetsDir 'logo-icon-1024.png') -Size 1024
 Copy-Item (Join-Path $assetsDir 'logo-icon-512.png') (Join-Path $root 'public\favicon.png') -Force
 
 # Legacy filenames (remove to avoid confusion)
@@ -96,7 +102,7 @@ Copy-Item (Join-Path $assetsDir 'logo-icon-512.png') (Join-Path $root 'public\fa
   if (Test-Path $p) { Remove-Item $p -Force }
 }
 
-Write-Host 'Generating NSIS .ico from logo-icon-256.png...'
-& powershell -ExecutionPolicy Bypass -File (Join-Path $root 'scripts\generate-icon-ico.ps1')
+Write-Host 'Generating build/icon.ico from logo-icon-512.png...'
+node (Join-Path $root 'scripts\generate-icon-ico.mjs')
 
 Write-Host 'Done: installer BMP + logo-app (UI) + logo-icon (app icon) + build/icon.ico.'

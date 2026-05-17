@@ -18,14 +18,15 @@
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http-get://127.0.0.1:8080 && cross-env NODE_ENV=development electron .\"",
     "installer:assets": "powershell -ExecutionPolicy Bypass -File scripts/generate-installer-assets.ps1",
+    "icon:ico": "node scripts/generate-icon-ico.mjs",
     "electron:build": "npm run installer:assets && npm run build && npx electron-builder --publish always",
     "electron:build:win": "npm run installer:assets && npm run build && npx electron-builder --win --publish never",
-    "electron:build:dir": "npm run build && npx electron-builder --config electron-builder.dir.json --win --publish never",
+    "electron:build:dir": "powershell -ExecutionPolicy Bypass -File scripts/clean-electron-build.ps1 && npm run build && npx electron-builder --config electron-builder.dir.json --win --publish never",
     "installer:prepare-payload": "node scripts/prepare-installer-payload.mjs",
     "installer:ui:build": "vite build --config installer-app/vite.config.ts",
     "installer:ui:dev": "vite --config installer-app/vite.config.ts",
-    "installer:electron:dev": "concurrently \"npm run installer:ui:dev\" \"wait-on http-get://127.0.0.1:5174 && cross-env ALPHA_INSTALLER_PAYLOAD=release/win-unpacked electron installer-app/electron/main.cjs\"",
-    "electron:build:installer": "npm run installer:assets && npm run build && npx electron-builder --config electron-builder.dir.json --win --publish never && npm run installer:prepare-payload && npm run installer:ui:build && npx electron-builder --config electron-builder.installer.json --win --publish never",
+    "installer:electron:dev": "concurrently \"npm run installer:ui:dev\" \"wait-on http-get://127.0.0.1:5174 && cross-env ALPHA_INSTALLER_PAYLOAD=.build-cache/win-unpacked electron installer-app/electron/main.cjs\"",
+    "electron:build:installer": "npm run installer:assets && npm run build && npx electron-builder --config electron-builder.dir.json --win --publish never && npm run installer:prepare-payload && npm run installer:ui:build && powershell -ExecutionPolicy Bypass -File scripts/clean-electron-build.ps1 && npx electron-builder --config electron-builder.installer.json --win --publish never && node scripts/copy-installer-artifact.mjs",
     "import:fiches": "node scripts/import-fiches-techniques.mjs",
     "import:fiches:apply": "node scripts/import-fiches-techniques.mjs --apply"
   },
@@ -105,6 +106,7 @@
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
     "lovable-tagger": "^1.1.11",
+    "png-to-ico": "^3.0.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
@@ -129,6 +131,12 @@
     "files": [
       "dist/**/*",
       "electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      }
     ],
     "win": {
       "target": [

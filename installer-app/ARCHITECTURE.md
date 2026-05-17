@@ -63,7 +63,7 @@ npm run electron:build:installer
 
 1. `installer:assets` — icons + NSIS bitmaps (legacy optional installer)  
 2. `vite build` — main ERP app  
-3. `electron-builder --config electron-builder.dir.json` → `release/win-unpacked`  
+3. `electron-builder --config electron-builder.dir.json` → `.build-cache/win-unpacked`  
 4. `prepare-installer-payload.mjs` → `installer-app/resources/payload`  
 5. `vite build` (installer-app)  
 6. `electron-builder --config electron-builder.installer.json` → `release/Installer.exe`  
@@ -73,7 +73,7 @@ npm run electron:build:installer
 ```bash
 # Terminal 1 — build main app unpacked once
 npm run build
-npx electron-builder --config electron-builder.dir.json --win
+npm run electron:build:dir
 
 # Copy payload + run installer UI
 npm run installer:prepare-payload
