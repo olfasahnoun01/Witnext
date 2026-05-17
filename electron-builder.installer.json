@@ -1,0 +1,33 @@
+{
+  "appId": "com.grosafe.hub.installer",
+  "productName": "Alpha Installer",
+  "directories": {
+    "app": "installer-app",
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "installer-app/resources/payload",
+      "to": "payload",
+      "filter": ["**/*"]
+    }
+  ],
+  "asar": true,
+  "win": {
+    "target": [
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "build/icon.ico",
+    "artifactName": "Installer.${ext}"
+  },
+  "npmRebuild": false
+}

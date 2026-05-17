@@ -1,0 +1,8 @@
+{
+  "name": "alpha-custom-installer",
+  "private": true,
+  "version": "4.0.2",
+  "description": "Alpha custom Windows installer shell",
+  "main": "electron/main.cjs",
+  "installerPayloadVersion": "4.0.2"
+}

@@ -20,6 +20,8 @@ dist-ssr
 
 # Electron build artifacts
 release/
+installer-app/resources/payload/*
+!installer-app/resources/payload/.gitkeep
 *.exe
 *.blockmap
 
