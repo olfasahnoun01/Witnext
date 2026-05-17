@@ -19,8 +19,9 @@
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http-get://127.0.0.1:8080 && cross-env NODE_ENV=development electron .\"",
     "installer:assets": "powershell -ExecutionPolicy Bypass -File scripts/generate-installer-assets.ps1",
     "icon:ico": "node scripts/generate-icon-ico.mjs",
-    "electron:build": "npm run installer:assets && npm run build && npx electron-builder --publish always",
-    "electron:build:win": "npm run installer:assets && npm run build && npx electron-builder --win --publish never",
+    "electron:clean": "powershell -ExecutionPolicy Bypass -File scripts/clean-electron-build.ps1",
+    "electron:build": "npm run installer:assets && npm run build && npm run electron:clean && npx electron-builder --publish always && node scripts/copy-release-artifacts.mjs",
+    "electron:build:win": "npm run installer:assets && npm run build && npm run electron:clean && npx electron-builder --win --publish never && node scripts/copy-release-artifacts.mjs",
     "electron:build:dir": "powershell -ExecutionPolicy Bypass -File scripts/clean-electron-build.ps1 && npm run build && npx electron-builder --config electron-builder.dir.json --win --publish never",
     "installer:prepare-payload": "node scripts/prepare-installer-payload.mjs",
     "installer:ui:build": "vite build --config installer-app/vite.config.ts",
@@ -126,7 +127,7 @@
       }
     ],
     "directories": {
-      "output": "release"
+      "output": ".build-cache"
     },
     "files": [
       "dist/**/*",
