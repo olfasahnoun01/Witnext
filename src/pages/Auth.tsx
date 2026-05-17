@@ -124,7 +124,7 @@ export default function Auth() {
         {/* Logo */}
         <div className="flex flex-col items-center mb-6">
           <div className="mb-3 flex justify-center">
-            <AlphaLogoBanner variant="auth" className="drop-shadow-md" />
+            <AlphaLogoBanner variant="auth" />
           </div>
           <p className="text-muted-foreground text-sm mt-1">
             Système de gestion d&apos;entreprise

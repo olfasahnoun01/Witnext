@@ -1,14 +1,6 @@
 import { cn } from '@/lib/utils';
-import logoApp from '@/assets/logo-app.png';
-import logoApp2x from '@/assets/logo-app-2x.png';
-
-const BANNER_ASPECT = '164 / 314';
-
-/** Auth login */
-const AUTH_WIDTH = 'w-24 sm:w-28';
-
-/** Sidebar / in-app header */
-const APP_WIDTH = 'w-11';
+import logoIcon from '@/assets/logo-icon-512.png';
+import logoIcon2x from '@/assets/logo-icon-1024.png';
 
 type AlphaLogoBannerProps = {
   className?: string;
@@ -16,25 +8,41 @@ type AlphaLogoBannerProps = {
   variant?: 'auth' | 'app';
 };
 
+const variantStyles = {
+  auth: {
+    box: 'h-14 w-14 sm:h-16 sm:w-16 rounded-2xl shadow-lg ring-1 ring-border/60',
+    img: 64,
+  },
+  app: {
+    box: 'h-10 w-10 rounded-xl shadow-md ring-1 ring-border/50',
+    img: 40,
+  },
+} as const;
+
 /**
- * Vertical Alpha banner for UI (not the installer or square icon).
+ * Compact rounded app mark (square icon) for login and sidebar — not the tall installer banner.
  */
 export const AlphaLogoBanner = ({ className, variant = 'app' }: AlphaLogoBannerProps) => {
-  const widthClass = variant === 'auth' ? AUTH_WIDTH : APP_WIDTH;
-  const intrinsicW = variant === 'auth' ? 112 : 44;
-  const intrinsicH = Math.round(intrinsicW * (314 / 164));
+  const styles = variantStyles[variant];
 
   return (
-    <img
-      src={logoApp}
-      srcSet={`${logoApp} 1x, ${logoApp2x} 2x`}
-      alt="Alpha"
-      width={intrinsicW}
-      height={intrinsicH}
-      decoding="async"
-      draggable={false}
-      className={cn('h-auto max-w-full shrink-0 object-contain', widthClass, className)}
-      style={{ aspectRatio: BANNER_ASPECT }}
-    />
+    <div
+      className={cn(
+        'shrink-0 overflow-hidden bg-card',
+        styles.box,
+        className,
+      )}
+    >
+      <img
+        src={logoIcon}
+        srcSet={`${logoIcon} 1x, ${logoIcon2x} 2x`}
+        alt="Alpha"
+        width={styles.img}
+        height={styles.img}
+        decoding="async"
+        draggable={false}
+        className="h-full w-full object-cover"
+      />
+    </div>
   );
 };
