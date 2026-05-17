@@ -2,7 +2,7 @@
   "name": "vite_react_shadcn_ts",
   "private": true,
   "version": "4.0.1",
-  "description": "Alpha — système de gestion d'entreprise (ERP)",
+  "description": "Alpha - systeme de gestion d'entreprise (ERP)",
   "author": "Alpha",
   "repository": {
     "type": "git",
@@ -132,7 +132,7 @@
           ]
         }
       ],
-      "icon": "src/assets/logo-icon-512.png",
+      "icon": "build/icon.ico",
       "requestedExecutionLevel": "asInvoker",
       "legalTrademarks": "Alpha ERP"
     },
@@ -144,7 +144,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Alpha",
-      "uninstallDisplayName": "Alpha — Gestion d'entreprise",
+      "uninstallDisplayName": "Alpha - Gestion d'entreprise",
       "menuCategory": "Alpha",
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false,
@@ -157,8 +157,8 @@
       "artifactName": "${productName}-Setup-${version}.${ext}",
       "installerSidebar": "build/installer/installerSidebar.bmp",
       "installerHeader": "build/installer/installerHeader.bmp",
-      "installerIcon": "src/assets/logo-icon-512.png",
-      "uninstallerIcon": "src/assets/logo-icon-512.png",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
       "include": "build/installer/installer.nsh",
       "warningsAsErrors": false
     },

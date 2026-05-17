@@ -96,4 +96,7 @@ Copy-Item (Join-Path $assetsDir 'logo-icon-512.png') (Join-Path $root 'public\fa
   if (Test-Path $p) { Remove-Item $p -Force }
 }
 
-Write-Host 'Done: installer BMP + logo-app (UI) + logo-icon (app icon).'
+Write-Host 'Generating NSIS .ico from logo-icon-256.png...'
+& powershell -ExecutionPolicy Bypass -File (Join-Path $root 'scripts\generate-icon-ico.ps1')
+
+Write-Host 'Done: installer BMP + logo-app (UI) + logo-icon (app icon) + build/icon.ico.'
