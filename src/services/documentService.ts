@@ -1,4 +1,8 @@
 import { supabase } from '@/integrations/supabase/client';
+import {
+  notifyPurchaseRequestCreated,
+  notifyPurchaseRequestForwardedToAchat,
+} from '@/services/notificationService';
 import { 
   UnifiedDocument, 
   UnifiedDocumentType, 
@@ -384,6 +388,14 @@ export const documentService = {
       const { error: linesError } = await supabase.from('document_lines').insert(lines);
       if (linesError) throw linesError;
 
+      const targetRole = params.targetRole || 'responsable_stock';
+      void notifyPurchaseRequestCreated({
+        documentId: doc.id,
+        numero: doc.numero,
+        requesterName: params.requesterName,
+        targetRole,
+      }).catch((e) => console.warn('[createPurchaseRequest] notify:', e));
+
       return { success: true, document: doc };
     } catch (error: any) {
       console.error('Error in createPurchaseRequest:', error);
@@ -403,7 +415,7 @@ export const documentService = {
 
       const { data: current, error: loadError } = await supabase
         .from('documents')
-        .select('metadata')
+        .select('metadata, numero')
         .eq('id', requestId)
         .single();
 
@@ -430,6 +442,13 @@ export const documentService = {
         .eq('id', requestId);
 
       if (error) throw error;
+
+      if (decision === 'purchase_required') {
+        void notifyPurchaseRequestForwardedToAchat({
+          documentId: requestId,
+          numero: current.numero || requestId,
+        }).catch((e) => console.warn('[reviewPurchaseRequest] notify:', e));
+      }
 
       return { success: true };
     } catch (error: any) {

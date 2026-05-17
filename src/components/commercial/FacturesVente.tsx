@@ -1,18 +1,48 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Search, FileText, CheckCircle, Clock, XCircle, FileEdit, Trash2, Eye } from 'lucide-react';
+import { Search, FileText, CheckCircle, Clock, XCircle, FileEdit, Trash2, Eye, Download, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Facture } from '@/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
+import { pdfPreviewDialogContentClassName } from '@/lib/pdfPreviewDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 const REFRESH_EVENT = 'grosafe:factures-refresh';
+
+const toFacturePDFData = (facture: Facture): DevisPDFData => ({
+  devis_number: facture.numero,
+  devis_date: facture.date_creation,
+  type: 'sortant',
+  third_party_name: facture.third_party_name,
+  third_party_address: facture.third_party_address,
+  third_party_tax_id: facture.third_party_tax_id,
+  third_party_phone: facture.third_party_phone,
+  items: facture.items,
+  total_amount: facture.total_amount,
+  notes: facture.notes,
+  is_ttc: facture.is_ttc,
+  is_bc: false,
+  is_ba: false,
+  is_facture: true,
+  date_echeance: facture.date_echeance,
+});
 
 export const FacturesVente = () => {
   const [factures, setFactures] = useState<Facture[]>([]);
   const [bcNumberById, setBcNumberById] = useState<Map<number, string>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewTitle, setPreviewTitle] = useState('');
+  const [busyFactureId, setBusyFactureId] = useState<string | null>(null);
 
   const fetchFactures = useCallback(async () => {
     setIsLoading(true);
@@ -55,6 +85,38 @@ export const FacturesVente = () => {
     window.addEventListener(REFRESH_EVENT, onRefresh);
     return () => window.removeEventListener(REFRESH_EVENT, onRefresh);
   }, [fetchFactures]);
+
+  const closePreview = useCallback(() => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setPreviewTitle('');
+  }, [previewUrl]);
+
+  const handlePreview = useCallback(async (facture: Facture) => {
+    setBusyFactureId(facture.id);
+    try {
+      const url = await getDevisPDFBlobUrl(toFacturePDFData(facture));
+      setPreviewTitle(`Facture ${facture.numero}`);
+      setPreviewUrl(url);
+    } catch (err) {
+      console.error('Error generating facture preview:', err);
+      toast.error('Impossible de générer l\'aperçu de la facture');
+    } finally {
+      setBusyFactureId(null);
+    }
+  }, []);
+
+  const handleDownload = useCallback(async (facture: Facture) => {
+    setBusyFactureId(facture.id);
+    try {
+      await downloadDevisPDF(toFacturePDFData(facture));
+    } catch (err) {
+      console.error('Error downloading facture PDF:', err);
+      toast.error('Impossible de télécharger la facture');
+    } finally {
+      setBusyFactureId(null);
+    }
+  }, []);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -119,7 +181,7 @@ export const FacturesVente = () => {
                 <th className="px-6 py-4 font-medium">Échéance</th>
                 <th className="px-6 py-4 font-medium text-right">Montant TTC</th>
                 <th className="px-6 py-4 font-medium text-center">Statut</th>
-                <th className="px-6 py-4 font-medium text-right w-28">Actions</th>
+                <th className="px-6 py-4 font-medium text-right w-36">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -167,12 +229,29 @@ export const FacturesVente = () => {
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          className="p-2 text-muted-foreground hover:text-primary transition-colors rounded-lg hover:bg-primary/10"
-                          title="Voir"
+                          type="button"
+                          className="p-2 text-muted-foreground hover:text-primary transition-colors rounded-lg hover:bg-primary/10 disabled:opacity-50"
+                          title="Aperçu PDF"
+                          disabled={busyFactureId === facture.id}
+                          onClick={() => void handlePreview(facture)}
                         >
-                          <Eye className="w-4 h-4" />
+                          {busyFactureId === facture.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
                         </button>
                         <button
+                          type="button"
+                          className="p-2 text-muted-foreground hover:text-primary transition-colors rounded-lg hover:bg-primary/10 disabled:opacity-50"
+                          title="Télécharger PDF"
+                          disabled={busyFactureId === facture.id}
+                          onClick={() => void handleDownload(facture)}
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
                           className="p-2 text-muted-foreground hover:text-destructive transition-colors rounded-lg hover:bg-destructive/10"
                           title="Supprimer"
                         >
@@ -187,6 +266,31 @@ export const FacturesVente = () => {
           </table>
         </div>
       </div>
+
+      <Dialog open={!!previewUrl} onOpenChange={(open) => { if (!open) closePreview(); }}>
+        <DialogContent className={pdfPreviewDialogContentClassName}>
+          <DialogHeader className="flex-shrink-0 flex flex-row items-center justify-between">
+            <DialogTitle>{previewTitle}</DialogTitle>
+            {previewUrl && (
+              <a href={previewUrl} download={`${previewTitle}.pdf`}>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Download className="w-4 h-4" />
+                  Télécharger
+                </Button>
+              </a>
+            )}
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            {previewUrl && (
+              <iframe
+                src={`${previewUrl}#toolbar=0`}
+                className="h-[75vh] w-full border rounded-lg bg-muted/30"
+                title="Aperçu facture"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

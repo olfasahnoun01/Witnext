@@ -2,7 +2,10 @@ import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { Product, DocumentItem, UnifiedDocument } from '@/types';
 import { computeDevisLine, computeDevisTotals } from '@/lib/devisPricing';
-import grosafeLogo from '@/assets/grosafe-logo.webp';
+import appIcon from '@/assets/logo-icon-512.png';
+
+/** Square app logo size in PDF headers (mm). */
+const PDF_LOGO_SIZE = 16;
 
 export interface SavedDocument {
   id: number;
@@ -44,7 +47,7 @@ const getLogoBase64 = (): Promise<string> => {
       console.warn("Could not load logo for PDF, using fallback");
       resolve("");
     };
-    img.src = grosafeLogo;
+    img.src = appIcon;
     // Safety timeout to prevent hanging the entire PDF generation
     setTimeout(() => resolve(""), 3000);
   });
@@ -256,18 +259,20 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   const logoBase64 = await getLogoBase64();
   
   // Add logo
-  doc.addImage(logoBase64, 'PNG', 14, 10, 44, 12);
-  
+  if (logoBase64) {
+    doc.addImage(logoBase64, 'PNG', 14, 10, PDF_LOGO_SIZE, PDF_LOGO_SIZE);
+  }
+
   // Company name next to logo
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 58, 95);
-  doc.text('GROSAFE ÉQUIPEMENT', 60, 20);
+  doc.text('GROSAFE ÉQUIPEMENT', 14 + PDF_LOGO_SIZE + 6, 20);
   
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 100, 100);
-  doc.text('RIB : 03 700 019 0115 008703 50', 60, 26);
+  doc.text('RIB : 03 700 019 0115 008703 50', 14 + PDF_LOGO_SIZE + 6, 26);
   
   // Horizontal line under header
   doc.setDrawColor(199, 62, 62);
@@ -523,6 +528,8 @@ export interface DevisPDFData {
   is_ttc: boolean;
   is_bc: boolean;
   is_ba: boolean;
+  is_facture?: boolean;
+  date_echeance?: string | null;
 }
 
 const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
@@ -533,7 +540,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
   // Header: logo + company info
   if (logoBase64) {
-    doc.addImage(logoBase64, 'PNG', 14, 10, 44, 12);
+    doc.addImage(logoBase64, 'PNG', 14, 10, PDF_LOGO_SIZE, PDF_LOGO_SIZE);
   }
 
   doc.setFontSize(14);
@@ -558,11 +565,15 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
   // Title
   const isVente = devis.type === 'sortant' || devis.type === 'vente' as any;
-  const title = devis.is_ba
-    ? "BON D'ACHAT"
-    : devis.is_bc 
-      ? 'BON DE COMMANDE' 
-      : (isVente ? 'OFFRE DE PRIX' : 'DEMANDE DE PRIX');
+  const title = devis.is_facture
+    ? 'FACTURE'
+    : devis.is_ba
+      ? "BON D'ACHAT"
+      : devis.is_bc
+        ? 'BON DE COMMANDE'
+        : isVente
+          ? 'OFFRE DE PRIX'
+          : 'DEMANDE DE PRIX';
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 58, 95);
@@ -573,8 +584,17 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(80, 80, 80);
   const dateStr = new Date(devis.devis_date).toLocaleDateString('fr-FR');
-  doc.text(`N° ${devis.devis_number}`, pageWidth / 2 - 30, 54, { align: 'center' });
-  doc.text(`Date: ${dateStr}`, pageWidth / 2 + 30, 54, { align: 'center' });
+  const metaY = devis.is_facture && devis.date_echeance ? 52 : 54;
+  if (devis.is_facture && devis.date_echeance) {
+    const dueStr = new Date(devis.date_echeance).toLocaleDateString('fr-FR');
+    const metaMargin = 18;
+    doc.text(`N° ${devis.devis_number}`, metaMargin, metaY);
+    doc.text(`Date : ${dateStr}`, pageWidth / 2, metaY, { align: 'center' });
+    doc.text(`Échéance : ${dueStr}`, pageWidth - metaMargin, metaY, { align: 'right' });
+  } else {
+    doc.text(`N° ${devis.devis_number}`, pageWidth / 2 - 30, metaY, { align: 'center' });
+    doc.text(`Date : ${dateStr}`, pageWidth / 2 + 30, metaY, { align: 'center' });
+  }
 
   // Client / Fournisseur box
   const partyLabel = isVente ? 'CLIENT' : 'FOURNISSEUR';
@@ -755,7 +775,12 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 100, 100);
-  doc.text('Cette offre est valable 30 jours à compter de la date d\'émission.', pageWidth / 2, footerY + 2, { align: 'center' });
+  const footerNote = devis.is_facture
+    ? (devis.date_echeance
+      ? `Paiement attendu au plus tard le ${new Date(devis.date_echeance).toLocaleDateString('fr-FR')}.`
+      : 'Merci de votre confiance.')
+    : 'Cette offre est valable 30 jours à compter de la date d\'émission.';
+  doc.text(footerNote, pageWidth / 2, footerY + 2, { align: 'center' });
 
 
   return doc;

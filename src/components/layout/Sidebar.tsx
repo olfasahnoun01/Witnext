@@ -8,7 +8,7 @@ import {
   Phone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import grosafeLogo from '@/assets/grosafe-logo-new.png';
+import { AlphaLogoBanner } from '@/components/AlphaLogoBanner';
 import { BIG_SECTIONS, SUBSECTION_TO_SECTION } from '@/config/navigation';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -69,15 +69,9 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
       >
         <div className="flex flex-col h-full">
           {/* Logo Section */}
-          <div className="flex items-center justify-between p-5 border-b border-sidebar-border/50">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border/50">
             <div className="flex items-center gap-3">
-              <div className="rounded-xl p-2">
-                <img 
-                  src={grosafeLogo} 
-                  alt="Alpha" 
-                  className="h-16 w-auto object-contain"
-                />
-              </div>
+              <AlphaLogoBanner variant="app" />
             </div>
             <button 
               onClick={onToggle}

@@ -189,6 +189,7 @@ const Index = () => {
           title={SUBSECTION_LABELS[activeTab] || 'Alpha'} 
           onToggle={() => setSidebarOpen(!sidebarOpen)}
           sidebarOpen={sidebarOpen}
+          onNavigateTab={handleTabChange}
         />
         <main className="p-6">
           {renderContent()}

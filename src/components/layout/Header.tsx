@@ -5,15 +5,17 @@ import { usePresence } from '@/hooks/usePresence';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { OnlineUsersIndicator } from '@/components/OnlineUsersIndicator';
+import { NotificationCenter } from '@/components/notifications/NotificationCenter';
 import { supabase } from '@/integrations/supabase/client';
 
 interface HeaderProps {
   title: string;
   onToggle?: () => void;
   sidebarOpen?: boolean;
+  onNavigateTab?: (tabId: string) => void;
 }
 
-export const Header = ({ title, onToggle, sidebarOpen }: HeaderProps) => {
+export const Header = ({ title, onToggle, sidebarOpen, onNavigateTab }: HeaderProps) => {
   const [userName, setUserName] = useState<string | null>(null);
   const { user, signOut } = useAuth();
   const { onlineUsers } = usePresence();
@@ -68,6 +70,8 @@ export const Header = ({ title, onToggle, sidebarOpen }: HeaderProps) => {
             onlineUsers={onlineUsers} 
             currentUserId={user?.id}
           />
+
+          <NotificationCenter onNavigate={onNavigateTab} />
 
           {/* Theme Toggle */}
           <ThemeToggle />

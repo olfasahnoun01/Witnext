@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Mail, Lock, LogIn, AlertCircle, RefreshCw } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import grosafeLogo from '@/assets/grosafe-logo-new.png';
+import { AlphaLogoBanner } from '@/components/AlphaLogoBanner';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -98,7 +98,7 @@ export default function Auth() {
         
         toast({
           title: `Bienvenue, ${userName} ! 👋`,
-          description: 'Connexion réussie. Ravi de vous revoir sur Grosafe Gestion.',
+          description: 'Connexion réussie. Ravi de vous revoir sur Alpha.',
         });
       }
     } catch (error: any) {
@@ -122,16 +122,12 @@ export default function Auth() {
       
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="rounded-2xl p-4 mb-4">
-            <img 
-              src={grosafeLogo} 
-              alt="Grosafe Équipement" 
-              className="h-40 w-auto object-contain"
-            />
+        <div className="flex flex-col items-center mb-6">
+          <div className="mb-3 flex justify-center">
+            <AlphaLogoBanner variant="auth" className="drop-shadow-md" />
           </div>
           <p className="text-muted-foreground text-sm mt-1">
-            Système de gestion d'entreprise
+            Système de gestion d&apos;entreprise
           </p>
         </div>
 
@@ -219,7 +215,7 @@ export default function Auth() {
         {/* Footer */}
         <div className="text-center space-y-2 mt-6">
           <p className="text-sm text-muted-foreground">
-            © 2026 Grosafe Équipement. Tous droits réservés.
+            © 2026 Alpha. Tous droits réservés.
           </p>
           <div className="pt-2 border-t border-border/50">
             <p className="text-xs text-muted-foreground font-medium">

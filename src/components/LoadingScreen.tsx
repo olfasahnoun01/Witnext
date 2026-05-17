@@ -1,4 +1,4 @@
-import grosafeLogo from '@/assets/grosafe-logo.png';
+import { AlphaLogoBanner } from '@/components/AlphaLogoBanner';
 
 export const LoadingScreen = () => {
   return (
@@ -19,21 +19,17 @@ export const LoadingScreen = () => {
           
           {/* Logo with scale animation */}
           <div className="relative z-10 animate-pulse">
-            <img 
-              src={grosafeLogo} 
-              alt="Grosafe Logo" 
-              className="w-24 h-24 mx-auto drop-shadow-lg"
-            />
+            <AlphaLogoBanner variant="auth" className="mx-auto drop-shadow-md" />
           </div>
         </div>
         
         {/* Loading text with fade animation */}
         <div className="animate-fade-in">
           <h2 className="text-2xl font-bold text-foreground mb-2">
-            GROSAFE ÉQUIPEMENT
+            Alpha
           </h2>
           <p className="text-muted-foreground mb-6">
-            Système de Gestion d'Inventaire
+            Système de gestion d&apos;entreprise
           </p>
         </div>
         

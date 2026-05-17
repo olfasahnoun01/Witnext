@@ -2,8 +2,8 @@
   "name": "vite_react_shadcn_ts",
   "private": true,
   "version": "4.0.0",
-  "description": "Système de Gestion d'Entreprise pour Grosafe Équipement",
-  "author": "Grosafe",
+  "description": "Alpha — système de gestion d'entreprise (ERP)",
+  "author": "Alpha",
   "repository": {
     "type": "git",
     "url": "https://github.com/olfasahnoun01/remix-of-grosafe-inventory-hub-de9c3b04.git"
@@ -17,7 +17,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http-get://127.0.0.1:8080 && cross-env NODE_ENV=development electron .\"",
-    "electron:build": "npm run build && npx electron-builder --publish always",
+    "installer:assets": "powershell -ExecutionPolicy Bypass -File scripts/generate-installer-assets.ps1",
+    "electron:build": "npm run installer:assets && npm run build && npx electron-builder --publish always",
+    "electron:build:win": "npm run installer:assets && npm run build && npx electron-builder --win --publish never",
     "import:fiches": "node scripts/import-fiches-techniques.mjs",
     "import:fiches:apply": "node scripts/import-fiches-techniques.mjs --apply"
   },
@@ -122,18 +124,45 @@
       "electron/**/*"
     ],
     "win": {
-      "target": "nsis",
-      "icon": "public/favicon.png",
-      "requestedExecutionLevel": "asInvoker"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "src/assets/logo-icon-512.png",
+      "requestedExecutionLevel": "asInvoker",
+      "legalTrademarks": "Alpha ERP"
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Alpha"
+      "shortcutName": "Alpha",
+      "uninstallDisplayName": "Alpha — Gestion d'entreprise",
+      "menuCategory": "Alpha",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "unicode": true,
+      "language": "1036",
+      "installerLanguages": [
+        "fr_FR"
+      ],
+      "multiLanguageInstaller": false,
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "installerSidebar": "build/installer/installerSidebar.bmp",
+      "installerHeader": "build/installer/installerHeader.bmp",
+      "installerIcon": "src/assets/logo-icon-512.png",
+      "uninstallerIcon": "src/assets/logo-icon-512.png",
+      "include": "build/installer/installer.nsh",
+      "warningsAsErrors": false
     },
-    "copyright": "Copyright © 2026 Grosafe Équipement",
+    "copyright": "Copyright © 2026 Alpha",
     "npmRebuild": false
   }
 }
