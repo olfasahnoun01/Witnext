@@ -33,7 +33,9 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { useAuth } from '@/hooks/useAuth';
 import { convertFileToWebp } from '@/lib/imageCompression';
 import { DocumentUploader } from './shared/DocumentUploader';
+import { ClientDocumentPreviewDialog } from './shared/ClientDocumentPreviewDialog';
 import { PhoneLinesEditor } from './shared/PhoneLinesEditor';
+import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { formatPhonesDisplay, parsePhoneListFromStorage, serializePhoneList } from '@/lib/phoneList';
 
 interface Client {
@@ -66,7 +68,9 @@ const isClientIncomplete = (client: Client) => {
 export const Clients = memo(() => {
   const { isAdmin, isModerator } = useAuth();
   const canDelete = isAdmin || isModerator;
-  
+  const { preview: documentPreview, openDocumentPreview, closePreview: closeDocumentPreview } =
+    useClientDocumentPreview();
+
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -131,10 +135,6 @@ export const Clients = memo(() => {
       : [];
   }, [selectedGovernorate]);
 
-  const handleViewDocument = (url: string | null) => {
-    if (url) window.open(url, '_blank');
-  };
-
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -156,14 +156,6 @@ export const Clients = memo(() => {
       }
       if (!code.trim()) {
         toast.error('Le code client est requis (pour nommer les documents)');
-        return;
-      }
-      if (!patenteUrl) {
-        toast.error('Le document Patente (PDF) est requis');
-        return;
-      }
-      if (!rcUrl) {
-        toast.error('Le document RNE (PDF) est requis');
         return;
       }
     }
@@ -482,7 +474,7 @@ export const Clients = memo(() => {
                   <div className="space-y-4 pt-4 border-t border-dashed">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
                       <FileText className="w-4 h-4 text-blue-500" />
-                      Documents obligatoires à l&apos;ajout (PDF)
+                      Documents (PDF) — optionnel
                     </h3>
 
                     {code.trim() ? (
@@ -493,6 +485,7 @@ export const Clients = memo(() => {
                           documentType="patente"
                           currentUrl={patenteUrl}
                           onUploadSuccess={(url) => setPatenteUrl(url)}
+                          onConsult={(url) => void openDocumentPreview(url, `Patente — ${nom.trim() || code}`)}
                         />
                         <DocumentUploader
                           bucket="client-documents"
@@ -501,6 +494,7 @@ export const Clients = memo(() => {
                           titleOverride="RNE (Registre national des entreprises)"
                           currentUrl={rcUrl}
                           onUploadSuccess={(url) => setRcUrl(url)}
+                          onConsult={(url) => void openDocumentPreview(url, `RNE — ${nom.trim() || code}`)}
                         />
                       </div>
                     ) : (
@@ -634,7 +628,7 @@ export const Clients = memo(() => {
                               variant="outline" 
                               size="sm" 
                               className="h-8 gap-1.5"
-                              onClick={() => handleViewDocument(client.patente_url!)}
+                              onClick={() => void openDocumentPreview(client.patente_url, `Patente — ${client.nom}`)}
                             >
                               <FileText className="w-3.5 h-3.5" />
                               Voir
@@ -649,7 +643,7 @@ export const Clients = memo(() => {
                               variant="outline" 
                               size="sm" 
                               className="h-8 gap-1.5"
-                              onClick={() => handleViewDocument(client.registre_commerce_url!)}
+                              onClick={() => void openDocumentPreview(client.registre_commerce_url, `RNE — ${client.nom}`)}
                             >
                               <FileText className="w-3.5 h-3.5" />
                               Voir
@@ -727,6 +721,7 @@ export const Clients = memo(() => {
         </CardContent>
       </Card>
 
+      <ClientDocumentPreviewDialog preview={documentPreview} onClose={closeDocumentPreview} />
     </div>
   );
 });

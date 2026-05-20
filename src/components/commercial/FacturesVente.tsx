@@ -14,6 +14,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { deleteFactureVente } from '@/services/factureService';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const REFRESH_EVENT = 'grosafe:factures-refresh';
 
@@ -43,6 +54,8 @@ export const FacturesVente = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState('');
   const [busyFactureId, setBusyFactureId] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Facture | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchFactures = useCallback(async () => {
     setIsLoading(true);
@@ -117,6 +130,24 @@ export const FacturesVente = () => {
       setBusyFactureId(null);
     }
   }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteConfirm) return;
+    setIsDeleting(true);
+    try {
+      const result = await deleteFactureVente(deleteConfirm.id);
+      if (!result.success) {
+        toast.error(result.error || 'Erreur lors de la suppression');
+        return;
+      }
+      toast.success('Facture supprimée');
+      setDeleteConfirm(null);
+      await fetchFactures();
+      window.dispatchEvent(new CustomEvent(REFRESH_EVENT));
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [deleteConfirm, fetchFactures]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -252,8 +283,10 @@ export const FacturesVente = () => {
                         </button>
                         <button
                           type="button"
-                          className="p-2 text-muted-foreground hover:text-destructive transition-colors rounded-lg hover:bg-destructive/10"
+                          className="p-2 text-muted-foreground hover:text-destructive transition-colors rounded-lg hover:bg-destructive/10 disabled:opacity-50"
                           title="Supprimer"
+                          disabled={busyFactureId === facture.id || isDeleting}
+                          onClick={() => setDeleteConfirm(facture)}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -266,6 +299,33 @@ export const FacturesVente = () => {
           </table>
         </div>
       </div>
+
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer la facture ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              La facture <strong>{deleteConfirm?.numero}</strong> sera supprimée définitivement.
+              {deleteConfirm?.source_bc_id && (
+                <> Le bouton « Facture » redeviendra disponible sur le BC source.</>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleting}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConfirmDelete();
+              }}
+            >
+              {isDeleting ? 'Suppression…' : 'Supprimer'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={!!previewUrl} onOpenChange={(open) => { if (!open) closePreview(); }}>
         <DialogContent className={pdfPreviewDialogContentClassName}>

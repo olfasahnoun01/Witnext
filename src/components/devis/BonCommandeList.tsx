@@ -28,6 +28,7 @@ import {
 import { createFactureFromBonCommandeVente, fetchBcIdsHavingFactureVente } from '@/services/factureService';
 import { documentService } from '@/services/documentService';
 import { partitionDraftsAndRest, sortDevisListRecentFirst } from '@/lib/devisListLayout';
+import { documentAuditTableHeadCells, DocumentAuditTableCells } from '@/components/devis/DocumentAuditTableColumns';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface BonCommandeListProps {
@@ -55,15 +56,19 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
   const [bcIdsWithFacture, setBcIdsWithFacture] = useState<Set<number>>(new Set());
   const [factureBusyId, setFactureBusyId] = useState<number | null>(null);
 
+  const refreshBcIdsWithFacture = useCallback(() => {
+    void fetchBcIdsHavingFactureVente().then((ids) => setBcIdsWithFacture(ids));
+  }, []);
+
   useEffect(() => {
-    let cancelled = false;
-    void fetchBcIdsHavingFactureVente().then((ids) => {
-      if (!cancelled) setBcIdsWithFacture(ids);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [bonsCommande]);
+    refreshBcIdsWithFacture();
+  }, [bonsCommande, refreshBcIdsWithFacture]);
+
+  useEffect(() => {
+    const onFacturesRefresh = () => refreshBcIdsWithFacture();
+    window.addEventListener('grosafe:factures-refresh', onFacturesRefresh);
+    return () => window.removeEventListener('grosafe:factures-refresh', onFacturesRefresh);
+  }, [refreshBcIdsWithFacture]);
 
   useEffect(() => {
     setSelectedType(defaultTypeFilter);
@@ -207,6 +212,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Tiers</th>
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Créé par</th>
+        {documentAuditTableHeadCells}
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Statut</th>
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
@@ -235,6 +241,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
         </td>
         <td className="py-3 px-4 text-sm text-foreground">{bc.third_party_name || '-'}</td>
         <td className="py-3 px-4 text-sm text-muted-foreground">{bc.creator_name || '-'}</td>
+        <DocumentAuditTableCells doc={bc} />
         <td className="py-3 px-4 text-sm">
           <span className="px-2 py-1 rounded text-xs font-medium bg-muted text-foreground uppercase">
             {bc.status || 'brouillon'}

@@ -5,6 +5,7 @@ import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Packag
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Devis, DevisItem, Product } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -418,8 +419,6 @@ export const DevisForm = memo(({
     const phoneStored = serializePhoneList(newFournisseurPhoneLines);
     if (!phoneStored) { toast.error('Au moins un numéro de téléphone est requis'); return; }
     if (!newFournisseurCode.trim()) { toast.error('Code fournisseur requis pour les documents'); return; }
-    if (!newFournisseurPatenteUrl) { toast.error('Patente (PDF) requise'); return; }
-    if (!newFournisseurRneUrl) { toast.error('RNE (PDF) requis'); return; }
     if (!newFournisseurGovernorate || !newFournisseurCity) {
       toast.error('Gouvernorat et ville requis');
       return;
@@ -461,19 +460,28 @@ export const DevisForm = memo(({
       return;
     }
     
-    const designations = itemDesignation.split(',').map(d => d.trim()).filter(d => d !== '');
-    if (designations.length === 0) return;
+    const designationLines =
+      articleMode === 'manual'
+        ? [itemDesignation.trim()].filter(Boolean)
+        : itemDesignation.split(',').map(d => d.trim()).filter(d => d !== '');
+    if (designationLines.length === 0) return;
 
-    const newItems = designations.map(name => ({
+    const lineFournisseur =
+      articleMode === 'manual' && isAchat
+        ? thirdPartyName.trim()
+        : itemFournisseur.trim();
+
+    const newItems = designationLines.map(name => ({
       line_id: Math.random().toString(36).substring(7),
       designation: name,
-      fournisseur: itemFournisseur.trim(),
+      fournisseur: lineFournisseur,
       prix_ttc: itemPrixTtc,
       remise: itemRemise,
       quantity: itemQuantity,
       description: itemDescription.trim() || undefined,
       tva: itemTva,
       ...(devisType === 'vente' ? { prix_achat: itemPrixAchat } : {}),
+      ...(selectedProduct?.sku ? { sku: selectedProduct.sku } : {}),
       product_id: selectedProduct?.id,
     }));
 
@@ -492,7 +500,7 @@ export const DevisForm = memo(({
     setSelectedProduct(null);
     setItemPrixVenteDraft(null);
     achatPriceRequestRef.current += 1;
-  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, itemTva, devisType, setDevisItems]);
+  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, itemTva, devisType, articleMode, isAchat, thirdPartyName, setDevisItems]);
 
 
 
@@ -736,6 +744,7 @@ export const DevisForm = memo(({
             remise: devisType === 'vente' ? 0 : (d.remise || 0),
             quantity: 1,
             description: `${d.sku}${d.size ? ` - Taille: ${d.size}` : ''}${d.color ? ` - ${d.color}` : ''}`.trim() || undefined,
+            sku: d.sku || undefined,
             product_id: d.id,
           }));
           setDevisItems(prev => [...prev, ...newItems]);
@@ -1193,6 +1202,7 @@ export const DevisForm = memo(({
             {/* Mode toggle */}
             <div className="grid grid-cols-2 gap-2 mb-3">
               <button
+                type="button"
                 onClick={() => {
                   achatPriceRequestRef.current += 1;
                   setArticleMode('search');
@@ -1209,6 +1219,7 @@ export const DevisForm = memo(({
                 <Search className="w-3.5 h-3.5" /> Sélectionner existant
               </button>
               <button
+                type="button"
                 onClick={() => {
                   achatPriceRequestRef.current += 1;
                   setArticleMode('manual');
@@ -1352,26 +1363,57 @@ export const DevisForm = memo(({
                 </>
               ) : (
                 <>
-                  {/* Manual entry */}
-                  <input type="text" value={itemDesignation} onChange={e => setItemDesignation(e.target.value)} className="form-input" placeholder="Nom de l'article *" />
-                  <div className="grid grid-cols-2 gap-3">
-                    <input type="text" value={itemFournisseur} onChange={e => setItemFournisseur(e.target.value)} className="form-input" placeholder="Fournisseur" />
-                    <input type="text" value={itemDescription} onChange={e => setItemDescription(e.target.value)} className="form-input" placeholder="Description (opt.)" />
+                  {/* Manual entry — multiline fields + natural Tab / Shift+Tab order */}
+                  <div className="space-y-3">
+                    <div>
+                      <Label htmlFor="manual-item-designation" className="text-xs text-muted-foreground mb-1 block">
+                        Nom de l&apos;article *
+                      </Label>
+                      <Textarea
+                        id="manual-item-designation"
+                        rows={2}
+                        value={itemDesignation}
+                        onChange={e => setItemDesignation(e.target.value)}
+                        className="form-input min-h-[2.5rem] resize-y"
+                        placeholder="Nom de l'article"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="manual-item-description" className="text-xs text-muted-foreground mb-1 block">
+                        Description (opt.)
+                      </Label>
+                      <Textarea
+                        id="manual-item-description"
+                        rows={2}
+                        value={itemDescription}
+                        onChange={e => setItemDescription(e.target.value)}
+                        className="form-input min-h-[2.5rem] resize-y"
+                        placeholder="Description"
+                      />
+                    </div>
                   </div>
                   <div className={`grid gap-3 ${devisType === 'vente' ? (isTtc ? 'grid-cols-6' : 'grid-cols-4') : (isTtc ? 'grid-cols-5' : 'grid-cols-3')}`}>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Quantité</label>
-                      <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
+                      <label htmlFor="manual-item-qty" className="text-xs text-muted-foreground mb-1 block">Quantité</label>
+                      <input
+                        id="manual-item-qty"
+                        type="text"
+                        inputMode="numeric"
+                        value={itemQuantity}
+                        onChange={e => setItemQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                        className="form-input"
+                      />
                     </div>
                     {devisType === 'vente' && (
                       <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
-                        <input type="text" inputMode="decimal" value={formatDecimalFieldValue(itemPrixAchat)} onChange={e => setItemPrixAchat(parseDecimalInput(e.target.value))} className="form-input" />
+                        <label htmlFor="manual-item-prix-achat" className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
+                        <input id="manual-item-prix-achat" type="text" inputMode="decimal" value={formatDecimalFieldValue(itemPrixAchat)} onChange={e => setItemPrixAchat(parseDecimalInput(e.target.value))} className="form-input" />
                       </div>
                     )}
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
+                      <label htmlFor="manual-item-prix-ht" className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
                       <input
+                        id="manual-item-prix-ht"
                         type="text"
                         inputMode="decimal"
                         value={
@@ -1401,13 +1443,13 @@ export const DevisForm = memo(({
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
-                      <input type="text" inputMode="decimal" value={itemRemise || ''} onChange={e => setItemRemise(parseDecimalInput(e.target.value))} className="form-input" />
+                      <label htmlFor="manual-item-remise" className="text-xs text-muted-foreground mb-1 block">Remise %</label>
+                      <input id="manual-item-remise" type="text" inputMode="decimal" value={itemRemise || ''} onChange={e => setItemRemise(parseDecimalInput(e.target.value))} className="form-input" />
                     </div>
                     {isTtc && (
                       <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
-                        <select value={String(itemTva)} onChange={e => setItemTva(Number(e.target.value))} className="form-input">
+                        <label htmlFor="manual-item-tva" className="text-xs text-muted-foreground mb-1 block">TVA %</label>
+                        <select id="manual-item-tva" value={String(itemTva)} onChange={e => setItemTva(Number(e.target.value))} className="form-input">
                           <option value="7">7%</option>
                           <option value="13">13%</option>
                           <option value="19">19%</option>
@@ -1416,8 +1458,12 @@ export const DevisForm = memo(({
                     )}
                     {isTtc && (
                       <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC unit.' : 'Prix Vente TTC unit. (après remise)'}</label>
-                        <div className="form-input bg-muted/40 text-sm text-foreground tabular-nums flex items-center min-h-9">
+                        <span className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC unit.' : 'Prix Vente TTC unit. (après remise)'}</span>
+                        <div
+                          className="form-input bg-muted/40 text-sm text-foreground tabular-nums flex items-center min-h-9"
+                          tabIndex={-1}
+                          aria-hidden
+                        >
                           {(itemPrixTtc * (1 - itemRemise / 100) * (1 + itemTva / 100)).toFixed(3)}
                         </div>
                       </div>
@@ -1684,7 +1730,7 @@ export const DevisForm = memo(({
               </div>
             </div>
             <div className="space-y-3 pt-2 border-t border-dashed">
-              <Label className="text-sm font-semibold">Documents (PDF) *</Label>
+              <Label className="text-sm font-semibold">Documents (PDF) — optionnel</Label>
               {newFournisseurCode.trim() ? (
                 <div className="space-y-3">
                   <DocumentUploader

@@ -3,6 +3,7 @@ import { FileText, History, Plus, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Devis, DevisItem, BonCommande } from '@/types';
+import { buildProfilesMap, collectUserIdsForProfiles } from '@/lib/documentListAudit';
 import { useAuth } from '@/hooks/useAuth';
 import { computeDevisTotals } from '@/lib/devisPricing';
 import { DevisForm } from './devis/DevisForm';
@@ -34,6 +35,8 @@ const parseDevisRow = (d: any, profilesMap: Record<string, string>, sourceDevisM
     is_ba: d.is_ba ?? false,
     source_devis_id: d.source_devis_id ?? null,
     creator_name: d.created_by ? (profilesMap[d.created_by] || null) : null,
+    updated_by: d.updated_by ?? null,
+    modifier_name: d.updated_by ? (profilesMap[d.updated_by] || null) : null,
     source_devis_number: d.source_devis_id && sourceDevisMap ? (sourceDevisMap[d.source_devis_id] || null) : null,
   };
 };
@@ -102,17 +105,15 @@ export const GestionDevis = ({
       .limit(1000);
 
     if (!error && data) {
-      const creatorIds = [...new Set(data.map(d => d.created_by).filter(Boolean))] as string[];
+      const userIds = collectUserIdsForProfiles(data);
       let profilesMap: Record<string, string> = {};
-      if (creatorIds.length > 0) {
+      if (userIds.length > 0) {
         const { data: profiles } = await supabase
           .from('profiles')
           .select('user_id, full_name, email')
-          .in('user_id', creatorIds);
+          .in('user_id', userIds);
         if (profiles) {
-          profiles.forEach(p => {
-            profilesMap[p.user_id] = p.full_name || p.email || 'Inconnu';
-          });
+          profilesMap = buildProfilesMap(profiles);
         }
       }
 

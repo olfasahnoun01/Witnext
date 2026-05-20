@@ -105,6 +105,8 @@ export interface DevisItem {
   prix_ttc: number;
   remise: number;
   quantity: number;
+  /** Code article (SKU) — affiché avant la désignation dans les PDF. */
+  sku?: string;
   description?: string;
   prix_achat?: number;
   tva?: number; // 7, 13, or 19 (default 19)
@@ -130,7 +132,9 @@ export interface Devis {
   is_ba: boolean;
   source_devis_id: number | null;
   created_by: string | null;
+  updated_by?: string | null;
   creator_name?: string | null;
+  modifier_name?: string | null;
   source_devis_number?: string | null;
   created_at: string;
   updated_at: string;
@@ -208,6 +212,9 @@ export interface UnifiedDocument {
   notes: string | null;
   metadata: Record<string, any>;
   created_by: string | null;
+  updated_by?: string | null;
+  creator_name?: string | null;
+  modifier_name?: string | null;
   created_at: string;
   updated_at: string;
   

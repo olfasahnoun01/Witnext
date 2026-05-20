@@ -35,6 +35,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
+import {
+  attachProfileNames,
+  buildProfilesMap,
+  collectUserIdsForProfiles,
+  formatDerniereModification,
+  formatModifieePar,
+} from '@/lib/documentListAudit';
 
 interface UnifiedDocumentListProps {
   title?: string;
@@ -93,13 +100,25 @@ export const UnifiedDocumentList = ({
 
       if (error) throw error;
       
-      const mapped = data.map(d => ({
+      let mapped = data.map(d => ({
         ...d,
         fournisseur_name: d.fournisseurs?.nom,
         client_name: d.clients?.nom,
-        lines: d.document_lines
+        lines: d.document_lines,
       })) as UnifiedDocument[];
-      
+
+      const userIds = collectUserIdsForProfiles(mapped);
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, email')
+          .in('user_id', userIds);
+        if (profiles?.length) {
+          const profilesMap = buildProfilesMap(profiles);
+          mapped = mapped.map((doc) => attachProfileNames(doc, profilesMap));
+        }
+      }
+
       setDocuments(mapped);
     } catch (error: any) {
       toast.error("Erreur lors du chargement : " + error.message);
@@ -297,7 +316,15 @@ export const UnifiedDocumentList = ({
                 <span className="text-muted-foreground">Articles :</span>
                 <span>{doc.lines?.length || 0} articles</span>
               </div>
-              
+              <div className="flex justify-between text-sm gap-2">
+                <span className="text-muted-foreground shrink-0">Dernière modification :</span>
+                <span className="text-right text-xs">{formatDerniereModification(doc)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Modifiée par :</span>
+                <span className="font-medium">{formatModifieePar(doc)}</span>
+              </div>
+
               <div className="pt-2 space-y-2">
                 <Button 
                   variant="outline" 

@@ -178,6 +178,7 @@ CREATE TABLE IF NOT EXISTS public.devis (
   notes text,
   status text NOT NULL DEFAULT 'brouillon'::text,
   created_by uuid,
+  updated_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   is_ttc boolean NOT NULL DEFAULT true,

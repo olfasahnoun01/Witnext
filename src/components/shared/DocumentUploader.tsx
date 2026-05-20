@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileUp, Loader2, CheckCircle, FileText } from 'lucide-react';
+import { Upload, FileUp, Loader2, FileText } from 'lucide-react';
 import { toast } from 'sonner';
+import { loadStorageDocumentPdf } from '@/lib/clientDocumentStorage';
 
 interface DocumentUploaderProps {
   bucket: 'client-documents' | 'product-documents';
@@ -13,6 +14,8 @@ interface DocumentUploaderProps {
   titleOverride?: string;
   currentUrl?: string | null;
   onUploadSuccess: (url: string) => void;
+  /** When set, opens in-app preview instead of a new tab (recommended in Electron). */
+  onConsult?: (url: string) => void;
 }
 
 export const DocumentUploader = ({ 
@@ -21,10 +24,32 @@ export const DocumentUploader = ({
   documentType, 
   titleOverride,
   currentUrl,
-  onUploadSuccess 
+  onUploadSuccess,
+  onConsult,
 }: DocumentUploaderProps) => {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [consulting, setConsulting] = useState(false);
+
+  const handleConsult = async () => {
+    if (!currentUrl) return;
+    if (onConsult) {
+      onConsult(currentUrl);
+      return;
+    }
+    setConsulting(true);
+    try {
+      const loaded = await loadStorageDocumentPdf(currentUrl);
+      if (!loaded) {
+        toast.error('Impossible d\'ouvrir le document');
+        return;
+      }
+      window.open(loaded.downloadUrl, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(loaded.downloadUrl), 60_000);
+    } finally {
+      setConsulting(false);
+    }
+  };
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
@@ -99,13 +124,15 @@ export const DocumentUploader = ({
         
         <div className="flex items-center gap-2">
           {currentUrl && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              asChild
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               className="h-8 text-xs"
+              disabled={consulting}
+              onClick={() => void handleConsult()}
             >
-              <a href={currentUrl} target="_blank" rel="noreferrer">Consulter</a>
+              {consulting ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Consulter'}
             </Button>
           )}
           

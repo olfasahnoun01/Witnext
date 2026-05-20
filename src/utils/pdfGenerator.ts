@@ -2,10 +2,18 @@ import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { Product, DocumentItem, UnifiedDocument } from '@/types';
 import { computeDevisLine, computeDevisTotals } from '@/lib/devisPricing';
-import appIcon from '@/assets/logo-icon-512.png';
+import { getDevisItemArticleCode, getDevisItemDetailDescription } from '@/lib/devisItemPdf';
+import companyLogo from '@/assets/grosafe-logo.webp';
 
-/** Square app logo size in PDF headers (mm). */
-const PDF_LOGO_SIZE = 16;
+/** Company logo bounds in PDF headers (mm). */
+const PDF_LOGO_MAX_HEIGHT = 18;
+const PDF_LOGO_MAX_WIDTH = 50;
+
+interface PdfLogoAsset {
+  dataUrl: string;
+  widthMm: number;
+  heightMm: number;
+}
 
 export interface SavedDocument {
   id: number;
@@ -30,27 +38,50 @@ export const documentTypes: { value: DocumentType; label: string; color: string 
   { value: 'bon_entree', label: "Bon d'Entrée", color: 'success' }
 ];
 
-// Convert image to base64 for PDF embedding
-const getLogoBase64 = (): Promise<string> => {
+/** Load company logo (webp) and convert to PNG for jsPDF embedding. */
+const getCompanyLogoForPdf = (): Promise<PdfLogoAsset | null> => {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'Anonymous';
+    let settled = false;
+    const finish = (result: PdfLogoAsset | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
     img.onload = () => {
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
       canvas.height = img.height;
       const ctx = canvas.getContext('2d');
       ctx?.drawImage(img, 0, 0);
-      resolve(canvas.toDataURL('image/png'));
+      const aspect = img.width / img.height;
+      let heightMm = PDF_LOGO_MAX_HEIGHT;
+      let widthMm = heightMm * aspect;
+      if (widthMm > PDF_LOGO_MAX_WIDTH) {
+        widthMm = PDF_LOGO_MAX_WIDTH;
+        heightMm = widthMm / aspect;
+      }
+      finish({
+        dataUrl: canvas.toDataURL('image/png'),
+        widthMm,
+        heightMm,
+      });
     };
     img.onerror = () => {
-      console.warn("Could not load logo for PDF, using fallback");
-      resolve("");
+      console.warn('Could not load company logo for PDF');
+      finish(null);
     };
-    img.src = appIcon;
-    // Safety timeout to prevent hanging the entire PDF generation
-    setTimeout(() => resolve(""), 3000);
+    img.src = companyLogo;
+    setTimeout(() => finish(null), 3000);
   });
+};
+
+const drawPdfCompanyLogo = (doc: jsPDF, logo: PdfLogoAsset | null, x = 14, y = 10) => {
+  if (logo?.dataUrl) {
+    doc.addImage(logo.dataUrl, 'PNG', x, y, logo.widthMm, logo.heightMm);
+  }
+  return logo ? logo.widthMm : 0;
 };
 
 export const generateInventoryPDF = (products: Product[], filterName?: string) => {
@@ -256,23 +287,19 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   
-  const logoBase64 = await getLogoBase64();
-  
-  // Add logo
-  if (logoBase64) {
-    doc.addImage(logoBase64, 'PNG', 14, 10, PDF_LOGO_SIZE, PDF_LOGO_SIZE);
-  }
+  const logo = await getCompanyLogoForPdf();
+  const logoWidth = drawPdfCompanyLogo(doc, logo);
 
   // Company name next to logo
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 58, 95);
-  doc.text('GROSAFE ÉQUIPEMENT', 14 + PDF_LOGO_SIZE + 6, 20);
+  doc.text('GROSAFE ÉQUIPEMENT', 14 + logoWidth + 6, 20);
   
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 100, 100);
-  doc.text('RIB : 03 700 019 0115 008703 50', 14 + PDF_LOGO_SIZE + 6, 26);
+  doc.text('RIB : 03 700 019 0115 008703 50', 14 + logoWidth + 6, 26);
   
   // Horizontal line under header
   doc.setDrawColor(199, 62, 62);
@@ -522,7 +549,7 @@ export interface DevisPDFData {
   third_party_address: string | null;
   third_party_tax_id: string | null;
   third_party_phone: string | null;
-  items: { designation: string; fournisseur: string; prix_ttc: number; quantity: number; remise: number; description?: string; prix_achat?: number; tva?: number }[];
+  items: { designation: string; fournisseur: string; prix_ttc: number; quantity: number; remise: number; sku?: string; description?: string; prix_achat?: number; tva?: number }[];
   total_amount: number;
   notes: string | null;
   is_ttc: boolean;
@@ -536,12 +563,8 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const logoBase64 = await getLogoBase64();
-
-  // Header: logo + company info
-  if (logoBase64) {
-    doc.addImage(logoBase64, 'PNG', 14, 10, PDF_LOGO_SIZE, PDF_LOGO_SIZE);
-  }
+  const logo = await getCompanyLogoForPdf();
+  drawPdfCompanyLogo(doc, logo);
 
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
@@ -634,7 +657,9 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     const prixUnitDisplay = line.unitHT.toFixed(3);
     return [
       (idx + 1).toString(),
+      getDevisItemArticleCode(item),
       item.designation,
+      getDevisItemDetailDescription(item),
       item.quantity.toString(),
       `${prixUnitDisplay} TND`,
       item.remise > 0 ? `${item.remise}%` : '-',
@@ -646,8 +671,8 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
   const sousTotalLabel = 'Montant HT';
   const headRow = isTTC
-    ? ['#', 'Désignation', 'Qté', 'Prix U HT', 'Remise', 'Net U HT', 'TVA', sousTotalLabel]
-    : ['#', 'Désignation', 'Qté', 'Prix U HT', 'Remise', 'Net U HT', sousTotalLabel];
+    ? ['#', 'Code article', 'Désignation', 'Description', 'Qté', 'Prix U HT', 'Remise', 'Net U HT', 'TVA', sousTotalLabel]
+    : ['#', 'Code article', 'Désignation', 'Description', 'Qté', 'Prix U HT', 'Remise', 'Net U HT', sousTotalLabel];
 
   let devisTableEndY = 120;
   autoTable(doc, {
@@ -665,21 +690,25 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     rowPageBreak: 'avoid',
     columnStyles: isTTC ? {
       0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 'auto' },
-      2: { halign: 'center' },
-      3: { halign: 'right' },
+      1: { cellWidth: 22 },
+      2: { cellWidth: 'auto' },
+      3: { cellWidth: 28 },
       4: { halign: 'center' },
       5: { halign: 'right' },
       6: { halign: 'center' },
       7: { halign: 'right' },
+      8: { halign: 'center' },
+      9: { halign: 'right' },
     } : {
       0: { cellWidth: 12, halign: 'center' },
-      1: { cellWidth: 'auto' },
-      2: { halign: 'center' },
-      3: { halign: 'right' },
+      1: { cellWidth: 22 },
+      2: { cellWidth: 'auto' },
+      3: { cellWidth: 28 },
       4: { halign: 'center' },
       5: { halign: 'right' },
-      6: { halign: 'right' },
+      6: { halign: 'center' },
+      7: { halign: 'right' },
+      8: { halign: 'right' },
     },
     alternateRowStyles: { fillColor: [245, 247, 250] },
     margin: { left: 14, right: 14, bottom: 35 },
@@ -761,6 +790,32 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     ty += rowHeight;
   });
 
+  const notesText = devis.notes?.trim();
+  if (notesText) {
+    ty += 12;
+    if (ty > pageHeight - 45) {
+      doc.addPage();
+      ty = 25;
+    }
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text('Notes', 14, ty);
+    ty += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(60, 60, 60);
+    doc.setFontSize(9);
+    const noteLines = doc.splitTextToSize(notesText, pageWidth - 28);
+    for (const line of noteLines) {
+      if (ty > pageHeight - 22) {
+        doc.addPage();
+        ty = 25;
+      }
+      doc.text(line, 14, ty);
+      ty += 5;
+    }
+  }
+
   // Footer
   const footerY = pageHeight - 10;
   doc.setDrawColor(199, 62, 62);
@@ -771,17 +826,6 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 58, 95);
   doc.text('Grosafe Équipement - Sécurité & Équipement Professionnel', pageWidth / 2, footerY - 4, { align: 'center' });
-
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 100, 100);
-  const footerNote = devis.is_facture
-    ? (devis.date_echeance
-      ? `Paiement attendu au plus tard le ${new Date(devis.date_echeance).toLocaleDateString('fr-FR')}.`
-      : 'Merci de votre confiance.')
-    : 'Cette offre est valable 30 jours à compter de la date d\'émission.';
-  doc.text(footerNote, pageWidth / 2, footerY + 2, { align: 'center' });
-
 
   return doc;
 };

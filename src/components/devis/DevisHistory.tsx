@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { partitionDraftsAndRest, sortDevisListRecentFirst } from '@/lib/devisListLayout';
+import { documentAuditTableHeadCells, DocumentAuditTableCells } from '@/components/devis/DocumentAuditTableColumns';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface DevisHistoryProps {
@@ -140,6 +141,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
         d.devis_number.toLowerCase().includes(term) ||
         d.third_party_name?.toLowerCase().includes(term) ||
         d.creator_name?.toLowerCase().includes(term) ||
+        d.modifier_name?.toLowerCase().includes(term) ||
         d.items.some(item =>
           item.designation.toLowerCase().includes(term) ||
           item.fournisseur?.toLowerCase().includes(term)
@@ -201,6 +203,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Tiers</th>
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Créé par</th>
+        {documentAuditTableHeadCells}
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Statut</th>
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
@@ -230,6 +233,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
         </td>
         <td className="py-3 px-4 text-sm text-foreground">{d.third_party_name || '-'}</td>
         <td className="py-3 px-4 text-sm text-muted-foreground">{d.creator_name || '-'}</td>
+        <DocumentAuditTableCells doc={d} />
         <td className="py-3 px-4 text-sm">
           <Badge
             variant="outline"

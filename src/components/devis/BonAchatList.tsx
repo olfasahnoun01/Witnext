@@ -7,6 +7,7 @@ import { computeDevisTotals } from '@/lib/devisPricing';
 import { cn } from '@/lib/utils';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
 import { pdfPreviewDialogContentClassName } from '@/lib/pdfPreviewDialog';
+import { documentAuditTableHeadCells, DocumentAuditTableCells } from '@/components/devis/DocumentAuditTableColumns';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -200,6 +201,7 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Tiers</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Créé par</th>
+                {documentAuditTableHeadCells}
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
                 <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">Statut</th>
@@ -227,6 +229,7 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
                     </td>
                     <td className="py-3 px-4 text-sm text-foreground">{ba.third_party_name || '-'}</td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">{ba.creator_name || '-'}</td>
+                    <DocumentAuditTableCells doc={ba} />
                     <td className="py-3 px-4 text-sm text-muted-foreground">
                       {ba.items.length} articles ({totalQty} unités)
                     </td>

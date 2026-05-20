@@ -196,6 +196,7 @@ export type Database = {
           total_amount: number | null
           type: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           created_at?: string
@@ -217,6 +218,7 @@ export type Database = {
           total_amount?: number | null
           type: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           created_at?: string
@@ -238,6 +240,7 @@ export type Database = {
           total_amount?: number | null
           type?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -286,6 +289,7 @@ export type Database = {
           status: Database["public"]["Enums"]["doc_status"]
           type: Database["public"]["Enums"]["doc_type"]
           updated_at: string
+          updated_by: string | null
           fournisseur_id: number | null
         }
         Insert: {
@@ -300,6 +304,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["doc_status"]
           type: Database["public"]["Enums"]["doc_type"]
           updated_at?: string
+          updated_by?: string | null
           fournisseur_id?: number | null
         }
         Update: {
@@ -314,6 +319,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["doc_status"]
           type?: Database["public"]["Enums"]["doc_type"]
           updated_at?: string
+          updated_by?: string | null
           fournisseur_id?: number | null
         }
         Relationships: [

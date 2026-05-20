@@ -26,9 +26,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Search, Building2, Phone, MapPin, FileText, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Building2, Phone, MapPin, FileText, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Eye } from 'lucide-react';
 import { DocumentUploader } from './shared/DocumentUploader';
+import { ClientDocumentPreviewDialog } from './shared/ClientDocumentPreviewDialog';
 import { PhoneLinesEditor } from './shared/PhoneLinesEditor';
+import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { formatPhonesDisplay, parsePhoneListFromStorage, serializePhoneList } from '@/lib/phoneList';
 import { toast } from 'sonner';
 import { SPECIALITES } from '@/constants/fournisseurs';
@@ -65,7 +67,9 @@ const isFournisseurIncomplete = (f: Fournisseur) => {
 export const Fournisseurs = memo(() => {
   const { isAdmin, isModerator } = useAuth();
   const canDelete = isAdmin || isModerator;
-  
+  const { preview: documentPreview, openDocumentPreview, closePreview: closeDocumentPreview } =
+    useClientDocumentPreview();
+
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -154,14 +158,6 @@ export const Fournisseurs = memo(() => {
       }
       if (!code.trim()) {
         toast.error('Le code fournisseur est requis (pour nommer les documents)');
-        return;
-      }
-      if (!patenteUrl) {
-        toast.error('Le document Patente (PDF) est requis');
-        return;
-      }
-      if (!rneUrl) {
-        toast.error('Le document RNE (PDF) est requis');
         return;
       }
       if (!selectedGovernorate || !selectedCity) {
@@ -473,7 +469,7 @@ export const Fournisseurs = memo(() => {
                   <div className="space-y-3 pt-2 border-t border-dashed">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
                       <FileText className="w-4 h-4 text-blue-500" />
-                      Documents obligatoires à l&apos;ajout (PDF)
+                      Documents (PDF) — optionnel
                     </h3>
                     {code.trim() ? (
                       <div className="space-y-3">
@@ -483,6 +479,7 @@ export const Fournisseurs = memo(() => {
                           documentType="patente"
                           currentUrl={patenteUrl}
                           onUploadSuccess={(url) => setPatenteUrl(url)}
+                          onConsult={(url) => void openDocumentPreview(url, `Patente — ${nom.trim() || code}`)}
                         />
                         <DocumentUploader
                           bucket="client-documents"
@@ -491,6 +488,7 @@ export const Fournisseurs = memo(() => {
                           titleOverride="RNE (Registre national des entreprises)"
                           currentUrl={rneUrl}
                           onUploadSuccess={(url) => setRneUrl(url)}
+                          onConsult={(url) => void openDocumentPreview(url, `RNE — ${nom.trim() || code}`)}
                         />
                       </div>
                     ) : (
@@ -640,8 +638,14 @@ export const Fournisseurs = memo(() => {
                         </TableCell>
                         <TableCell className="text-xs">
                           {fournisseur.patente_url ? (
-                            <Button variant="outline" size="sm" className="h-8" asChild>
-                              <a href={fournisseur.patente_url} target="_blank" rel="noreferrer">Voir</a>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 gap-1.5"
+                              onClick={() => void openDocumentPreview(fournisseur.patente_url, `Patente — ${fournisseur.nom}`)}
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Voir
                             </Button>
                           ) : (
                             <span className="text-muted-foreground italic">—</span>
@@ -649,8 +653,14 @@ export const Fournisseurs = memo(() => {
                         </TableCell>
                         <TableCell className="text-xs">
                           {fournisseur.registre_commerce_url ? (
-                            <Button variant="outline" size="sm" className="h-8" asChild>
-                              <a href={fournisseur.registre_commerce_url} target="_blank" rel="noreferrer">Voir</a>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 gap-1.5"
+                              onClick={() => void openDocumentPreview(fournisseur.registre_commerce_url, `RNE — ${fournisseur.nom}`)}
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Voir
                             </Button>
                           ) : (
                             <span className="text-muted-foreground italic">—</span>
@@ -720,6 +730,7 @@ export const Fournisseurs = memo(() => {
           )}
         </CardContent>
       </Card>
+      <ClientDocumentPreviewDialog preview={documentPreview} onClose={closeDocumentPreview} />
     </div>
   );
 });
