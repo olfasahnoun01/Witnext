@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload, FileText, Eye, Download, X, FileDown, DownloadCloud, FileIcon, Loader2 } from 'lucide-react';
 import { ProductGroup, Product, StockStatus } from '@/types';
 import { getVariantsByGroupId, createVariant } from '@/services/productGroupService';
-import { updateProduct, deleteProduct } from '@/services/dbService';
+import { updateProduct, deleteProduct, applyProductQuantityChange } from '@/services/dbService';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -275,11 +275,22 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         } as any);
         toast.success('Fiches techniques mises à jour');
       } else if (editingVariant) {
+        if (formData.quantity !== editingVariant.quantity) {
+          const qtyResult = await applyProductQuantityChange(
+            editingVariant.id,
+            editingVariant.name,
+            editingVariant.quantity,
+            formData.quantity
+          );
+          if (!qtyResult.success) {
+            toast.error(qtyResult.error || 'Erreur lors de la mise à jour du stock');
+            return;
+          }
+        }
         await updateProduct(editingVariant.id, {
           sku: formData.sku,
           size: formData.size || undefined,
           color: formData.color || undefined,
-          quantity: formData.quantity,
           price: formData.price,
           remise: formData.remise,
           image: formData.image

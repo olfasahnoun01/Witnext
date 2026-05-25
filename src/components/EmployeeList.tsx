@@ -107,7 +107,8 @@ export const EmployeeList = () => {
             email: form.email,
             password: form.password,
             full_name: `${form.prenom} ${form.nom}`,
-            role: 'user' // Default to user role, permissions managed in account tab
+            position: form.poste,
+            role: 'user', // permissions managed in Administration > comptes
           },
           headers: {
             Authorization: `Bearer ${session?.access_token}`

@@ -60,16 +60,21 @@ Deno.serve(async (req) => {
       })
     }
 
-    // If SETUP_ADMIN_TOKEN is configured, require it
-    if (setupToken) {
-      const providedToken = req.headers.get('X-Setup-Token')
-      if (!providedToken || providedToken !== setupToken) {
-        console.warn('Invalid setup token attempt')
-        return new Response(JSON.stringify({ error: 'Token de configuration invalide' }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
+    if (!setupToken) {
+      console.error('SETUP_ADMIN_TOKEN is not configured — refusing bootstrap')
+      return new Response(JSON.stringify({ error: 'Configuration serveur incomplète' }), {
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const providedToken = req.headers.get('X-Setup-Token')
+    if (!providedToken || providedToken !== setupToken) {
+      console.warn('Invalid setup token attempt')
+      return new Response(JSON.stringify({ error: 'Token de configuration invalide' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
     const body = await req.json()

@@ -135,13 +135,14 @@ export const TransactionHistory = ({
   const handleSaveEdit = async () => {
     if (!editingTransaction) return;
 
-    const { error } = await supabase
-      .from('transactions')
-      .update({ quantity: editQuantity, note: editNote })
-      .eq('id', editingTransaction.id);
+    const { error } = await supabase.rpc('update_stock_transaction', {
+      p_transaction_id: editingTransaction.id,
+      p_quantity: editQuantity,
+      p_note: editNote || null,
+    });
 
     if (error) {
-      toast.error('Erreur lors de la modification');
+      toast.error(error.message.includes('insufficient') ? 'Stock insuffisant' : 'Erreur lors de la modification');
       return;
     }
 
@@ -154,13 +155,12 @@ export const TransactionHistory = ({
   const handleDeleteTransaction = async (transactionId: number) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette transaction ?')) return;
 
-    const { error } = await supabase
-      .from('transactions')
-      .delete()
-      .eq('id', transactionId);
+    const { error } = await supabase.rpc('delete_stock_transaction', {
+      p_transaction_id: transactionId,
+    });
 
     if (error) {
-      toast.error('Erreur lors de la suppression');
+      toast.error(error.message || 'Erreur lors de la suppression');
       return;
     }
 

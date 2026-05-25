@@ -24,7 +24,6 @@ Start-Sleep -Seconds 2
 
 $dirs = @(
   (Join-Path $root '.build-cache\win-unpacked'),
-  (Join-Path $root '.build-cache\installer\win-unpacked'),
   (Join-Path $root 'release\win-unpacked')
 )
 

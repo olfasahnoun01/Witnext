@@ -472,7 +472,7 @@ export const documentService = {
       .select('*, document_lines(*)')
       .eq('parent_id', bcId)
       .eq('type', 'BE')
-      .neq('status', 'REJECTED');
+      .eq('status', 'VALIDATED');
 
     const receivedMap: Record<number, number> = {};
     receipts?.forEach(r => {

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ArrowLeft, Plus, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Product, StockStatus } from '@/types';
-import { createProduct, updateProduct, deleteProduct } from '@/services/dbService';
+import { createProduct, updateProduct, deleteProduct, applyProductQuantityChange } from '@/services/dbService';
 import { Button } from '@/components/ui/button';
 import { InventoryFilters } from './InventoryFilters';
 import { ProductTable } from './ProductTable';
@@ -269,7 +269,20 @@ export const CategoryView = ({ category, onBack }: CategoryViewProps) => {
     setIsSubmitting(true);
     try {
       if (editingProduct) {
-        await updateProduct(editingProduct.id, data);
+        const { quantity: newQty, ...rest } = data;
+        if (newQty !== editingProduct.quantity) {
+          const qtyResult = await applyProductQuantityChange(
+            editingProduct.id,
+            editingProduct.name,
+            editingProduct.quantity,
+            newQty
+          );
+          if (!qtyResult.success) {
+            alert(qtyResult.error || 'Erreur lors de la mise à jour du stock');
+            return;
+          }
+        }
+        await updateProduct(editingProduct.id, rest);
         handleCloseModal();
         fetchProducts();
       } else {

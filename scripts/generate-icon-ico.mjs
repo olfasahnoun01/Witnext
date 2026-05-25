@@ -12,7 +12,7 @@ const pngPath = path.join(root, 'src', 'assets', 'logo-icon-512.png');
 
 if (!fs.existsSync(pngPath)) {
   console.error(
-    `Missing ${pngPath}. Add the square app icon PNG or run: npm run installer:assets`
+    `Missing ${pngPath}. Run: npm run installer:assets`
   );
   process.exit(1);
 }

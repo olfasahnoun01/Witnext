@@ -2,6 +2,7 @@ import { memo, useRef, useCallback } from 'react';
 import { X, Upload, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Product } from '@/types';
+import { priceTtcFromHt } from '@/lib/tva';
 
 const CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
@@ -225,7 +226,7 @@ export const ProductModal = memo(({
             <div>
               <label className="form-label">Prix TTC (calculé)</label>
               <div className="h-10 px-3 rounded-lg bg-muted/50 border border-border text-primary font-medium flex items-center">
-                {(formData.price * (1 - formData.remise / 100) * 1.19).toFixed(3)} TND
+                {priceTtcFromHt(formData.price, formData.remise).toFixed(3)} TND
               </div>
             </div>
 

@@ -191,6 +191,13 @@ Deno.serve(async (req: Request) => {
 
     switch (action) {
       case 'list': {
+        if (!requesterIsAdmin) {
+          return new Response(
+            JSON.stringify({ error: 'Seuls les administrateurs peuvent lister les comptes Auth' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
         const { data: users, error } = await supabaseAdmin.auth.admin.listUsers()
         
         if (error) {
@@ -388,6 +395,14 @@ Deno.serve(async (req: Request) => {
 
       case 'delete': {
         const { user_id } = params
+
+        const requesterIsAdmin = await requesterHasAdminRole(supabaseAdmin, requestingUserId)
+        if (!requesterIsAdmin) {
+          return new Response(JSON.stringify({ error: 'Seuls les administrateurs peuvent supprimer un compte' }), {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
 
         if (!user_id) {
           return new Response(JSON.stringify({ error: 'ID utilisateur requis' }), {

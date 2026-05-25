@@ -50,6 +50,16 @@ export default defineConfig(({ mode }) => {
 
     plugins: [
       react(),
+      {
+        name: "csp-dev-eval",
+        transformIndexHtml(html) {
+          if (mode !== "development") return html;
+          return html.replace(
+            "script-src 'self' 'unsafe-inline'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+          );
+        },
+      },
       mode === "development" && componentTagger(),
       VitePWA({
         registerType: "autoUpdate",

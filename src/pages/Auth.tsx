@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase, supabaseProjectUrl } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { clearSupabaseBrowserSession } from '@/lib/supabaseAuthStorage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,29 +20,23 @@ export default function Auth() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const { session, isLoading: authLoading } = useAuth();
 
   useEffect(() => {
-    // Check if redirected due to session expiration
     const params = new URLSearchParams(location.search);
     if (params.get('expired') === 'true') {
       setShowSessionExpiredAlert(true);
     }
-    
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setShowSessionExpiredAlert(false);
-        navigate('/', { replace: true });
-      }
-    });
+  }, [location.search]);
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        navigate('/', { replace: true });
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate, location.search]);
+  // Navigate only after AuthProvider has synced session (avoids empty home screen)
+  useEffect(() => {
+    if (authLoading) return;
+    if (session?.user) {
+      setShowSessionExpiredAlert(false);
+      navigate('/', { replace: true });
+    }
+  }, [authLoading, session, navigate]);
 
   // Function to clear browser cache and reload
   const handleClearCache = () => {
@@ -58,7 +53,7 @@ export default function Auth() {
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim().toLowerCase(),
         password,
       });
 

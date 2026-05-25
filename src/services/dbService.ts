@@ -55,7 +55,7 @@ export const getAllProducts = async (): Promise<Product[]> => {
     
     if (error) {
       console.error('Erreur lors de la récupération des produits:', error);
-      break;
+      throw new Error(error.message || 'Erreur lors de la récupération des produits');
     }
 
     const batch = data || [];
@@ -123,15 +123,20 @@ export const createProduct = async (product: Omit<Product, 'id' | 'prix_ttc'>): 
       return { success: false, error: error.message };
     }
     
-    // Create initial transaction
-    await supabase.from('transactions').insert({
+    const { error: txError } = await supabase.from('transactions').insert({
       product_id: data.id,
       product_name: product.name,
       type: 'IN',
       quantity: product.quantity,
-      note: 'Stock initial'
+      note: 'Stock initial',
     });
-    
+
+    if (txError) {
+      console.error('Erreur transaction initiale:', txError);
+      await supabase.from('products').delete().eq('id', data.id);
+      return { success: false, error: txError.message };
+    }
+
     return { success: true, id: data.id };
   } catch (error: any) {
     console.error('Erreur lors de la création du produit:', error);
@@ -140,6 +145,10 @@ export const createProduct = async (product: Omit<Product, 'id' | 'prix_ttc'>): 
 };
 
 export const updateProduct = async (id: number, product: Partial<Product>): Promise<void> => {
+  if (product.quantity !== undefined) {
+    throw new Error('La quantité doit être modifiée via une transaction stock (createTransaction).');
+  }
+
   const updateData: Record<string, unknown> = {};
   
   if (product.name !== undefined) updateData.name = product.name;
@@ -147,7 +156,6 @@ export const updateProduct = async (id: number, product: Partial<Product>): Prom
   if (product.category !== undefined) updateData.category = product.category;
   if (product.fournisseur !== undefined) updateData.fournisseur = product.fournisseur || null;
   if (product.size !== undefined) updateData.size = product.size || null;
-  if (product.quantity !== undefined) updateData.quantity = product.quantity;
   if (product.price !== undefined) updateData.price = product.price;
   if (product.remise !== undefined) updateData.remise = product.remise;
   if (product.min_stock !== undefined) updateData.min_stock = product.min_stock;
@@ -161,6 +169,7 @@ export const updateProduct = async (id: number, product: Partial<Product>): Prom
   
   if (error) {
     console.error('Erreur lors de la mise à jour du produit:', error);
+    throw new Error(error.message);
   }
 };
 
@@ -201,43 +210,64 @@ export const getAllTransactions = async (): Promise<Transaction[]> => {
 };
 
 export const createTransaction = async (tx: Omit<Transaction, 'id'>): Promise<{ success: boolean; error?: string }> => {
-  // Get current product quantity
-  const product = await getProductById(tx.product_id);
-  if (!product) {
-    return { success: false, error: 'Produit non trouvé' };
-  }
-  
-  let newQuantity = product.quantity;
-  if (tx.type === 'IN') {
-    newQuantity += tx.quantity;
-  } else if (tx.type === 'OUT') {
-    newQuantity -= tx.quantity;
-    if (newQuantity < 0) {
-      return { success: false, error: 'Stock insuffisant' };
-    }
-  } else {
-    newQuantity = tx.quantity;
-  }
-  
-  // Update product quantity
-  await updateProduct(tx.product_id, { quantity: newQuantity });
-  
-  // Create transaction
-  const { error } = await supabase.from('transactions').insert({
-    product_id: tx.product_id,
-    product_name: tx.product_name,
-    type: tx.type,
-    quantity: tx.quantity,
-    date: tx.date,
-    note: tx.note || null
+  const dateIso =
+    typeof tx.date === 'string' && tx.date.length <= 10
+      ? `${tx.date}T12:00:00.000Z`
+      : tx.date;
+
+  const { data, error } = await supabase.rpc('create_stock_transaction', {
+    p_product_id: tx.product_id,
+    p_product_name: tx.product_name,
+    p_type: tx.type,
+    p_quantity: tx.quantity,
+    p_date: dateIso,
+    p_note: tx.note ?? null,
   });
-  
+
   if (error) {
     console.error('Erreur lors de la création de la transaction:', error);
+    const msg = error.message || '';
+    if (msg.includes('insufficient stock')) {
+      return { success: false, error: 'Stock insuffisant' };
+    }
+    if (msg.includes('product not found')) {
+      return { success: false, error: 'Produit non trouvé' };
+    }
     return { success: false, error: error.message };
   }
-  
+
+  const result = data as { success?: boolean } | null;
+  if (result?.success === false) {
+    return { success: false, error: 'Échec transaction stock' };
+  }
   return { success: true };
+};
+
+/** Stock change via transaction ledger (avoids silent quantity-only updates). */
+export const applyProductQuantityChange = async (
+  productId: number,
+  productName: string,
+  fromQty: number,
+  toQty: number
+): Promise<{ success: boolean; error?: string }> => {
+  if (toQty === fromQty) return { success: true };
+  const date = new Date().toISOString().slice(0, 10);
+  if (toQty > fromQty) {
+    return createTransaction({
+      product_id: productId,
+      product_name: productName,
+      type: 'IN',
+      quantity: toQty - fromQty,
+      date,
+    });
+  }
+  return createTransaction({
+    product_id: productId,
+    product_name: productName,
+    type: 'OUT',
+    quantity: fromQty - toQty,
+    date,
+  });
 };
 
 // Dashboard Stats - uses server-side aggregation
@@ -245,11 +275,11 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
   const { data, error } = await supabase.rpc('get_dashboard_stats');
   
   if (error) {
-    console.error('Error fetching dashboard stats:', error);
-    return { totalValue: 0, totalProducts: 0, lowStockCount: 0, outOfStockCount: 0, categoryValues: [] };
+    console.error('[Dashboard] get_dashboard_stats failed:', error.message, error);
+    throw new Error(error.message || 'Impossible de charger les statistiques du tableau de bord');
   }
   
-  const stats = data as any;
+  const stats = data as Record<string, unknown>;
   return {
     totalValue: Number(stats.totalValue) || 0,
     totalProducts: Number(stats.totalProducts) || 0,
@@ -670,25 +700,13 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
       product_groups = [],
       product_group_fournisseurs = [],
       devis = [],
-      profiles = [],
-      user_roles = [],
-      user_presence = [],
-      team_chat_messages = []
     } = dataToImport;
 
-    // Delete in correct order (respecting foreign key constraints)
-    onProgress?.('Suppression des données existantes...');
-    await (supabase.from('team_chat_messages' as any).delete() as any).gte('created_at', '1970-01-01');
-    await (supabase.from('user_presence' as any).delete() as any).gte('last_seen', '1970-01-01');
-    await supabase.from('transactions').delete().gte('id', 0);
-    await supabase.from('product_group_fournisseurs').delete().gte('id', 0);
-    await supabase.from('products').delete().gte('id', 0);
-    await supabase.from('product_groups').delete().gte('id', 0);
-    await supabase.from('documents').delete().gte('id', 0);
-    await supabase.from('devis').delete().gte('id', 0);
-    await supabase.from('orders').delete().gte('id', 0);
-    await supabase.from('clients').delete().gte('id', 0);
-    await supabase.from('fournisseurs').delete().gte('id', 0);
+    onProgress?.('Suppression des données inventaire (admin)...');
+    const { error: clearError } = await supabase.rpc('restore_inventory_clear_tables');
+    if (clearError) {
+      throw new Error(clearError.message || 'Restauration refusée (droits administrateur requis)');
+    }
 
     // Insert in correct order (preserving original IDs to maintain foreign key links)
     onProgress?.('Importation des clients...');
@@ -717,27 +735,6 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
 
     onProgress?.('Importation des transactions...');
     await insertTableData('transactions', transactions, false);
-
-    // Import user-related data (profiles, roles, presence, chat)
-    if (profiles.length > 0) {
-      onProgress?.('Importation des profils...');
-      await insertTableData('profiles', profiles, false);
-    }
-
-    if (user_roles.length > 0) {
-      onProgress?.('Importation des rôles...');
-      await insertTableData('user_roles', user_roles, false);
-    }
-
-    if (user_presence.length > 0) {
-      onProgress?.('Importation de la présence...');
-      await insertTableData('user_presence', user_presence, false);
-    }
-
-    if (team_chat_messages.length > 0) {
-      onProgress?.('Importation des messages...');
-      await insertTableData('team_chat_messages', team_chat_messages, false);
-    }
 
     // Upload storage files — rebuild original paths from data.json URLs
     if (storageFiles.length > 0) {

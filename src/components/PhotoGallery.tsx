@@ -348,6 +348,8 @@ export const PhotoGallery = () => {
     return Number.isFinite(n) && n >= 0 ? n : null;
   };
 
+  const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
   const handleFicheUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length) return;
@@ -355,6 +357,10 @@ export const PhotoGallery = () => {
     setUploadingFiche(true);
     const newUrls: string[] = [];
     for (const file of Array.from(files)) {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        toast({ variant: 'destructive', title: 'Fichier trop volumineux', description: `${file.name} : max 10 Mo` });
+        continue;
+      }
       if (!allowed.includes(file.type)) {
         toast({ variant: 'destructive', title: 'Format refusé', description: `${file.name} : PDF, JPG, PNG ou WebP uniquement` });
         continue;
@@ -386,6 +392,10 @@ export const PhotoGallery = () => {
     const newUrls: string[] = [];
 
     for (const file of Array.from(files)) {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        toast({ variant: 'destructive', title: 'Fichier trop volumineux', description: `${file.name} : max 10 Mo` });
+        continue;
+      }
       const ext = file.name.split('.').pop();
       const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 

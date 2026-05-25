@@ -11,6 +11,9 @@ import { getDashboardStats, getRecentTransactions } from '@/services/dbService';
 import { DashboardStats, Transaction } from '@/types';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
 import { useProductGroupCategoryStats } from '@/hooks/useProductGroupCategoryStats';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { waitForSupabaseSession } from '@/lib/waitForSupabaseSession';
 import { InventoryCategoryChartsCards } from '@/components/inventory/InventoryCategoryChartsCards';
 
 // Memoized KPI Card component
@@ -98,6 +101,7 @@ const TransactionItem = memo(({ tx }: { tx: Transaction }) => (
 TransactionItem.displayName = 'TransactionItem';
 
 export const Dashboard = memo(() => {
+  const { user, isLoading: authLoading } = useAuth();
   const {
     isLoading: categoryChartsLoading,
     inventoryChartBarRows,
@@ -115,18 +119,43 @@ export const Dashboard = memo(() => {
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
 
   const loadData = useCallback(async () => {
-    const [statsData, transactionsData] = await Promise.all([
-      getDashboardStats(),
-      getRecentTransactions(8)
-    ]);
-    setStats(statsData);
-    setRecentTransactions(transactionsData);
+    try {
+      const ready = await waitForSupabaseSession();
+      if (!ready) return;
+
+      const [statsData, transactionsData] = await Promise.all([
+        getDashboardStats(),
+        getRecentTransactions(8),
+      ]);
+      setStats(statsData);
+      setRecentTransactions(transactionsData);
+    } catch (err) {
+      console.error('[Dashboard] loadData failed:', err);
+    }
   }, []);
 
-  // Initial load
+  // Load KPI / activity after auth (category charts load in useProductGroupCategoryStats)
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (authLoading || !user?.id) return;
+
+    let cancelled = false;
+
+    const run = async () => {
+      if (!cancelled) await loadData();
+    };
+
+    void run();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (cancelled || event !== 'SIGNED_IN' || !nextSession?.user?.id) return;
+      void run();
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [authLoading, user?.id, loadData]);
 
   // Subscribe to realtime updates
   useRealtimeData({

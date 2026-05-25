@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { Edit2, Trash2, Image as ImageIcon } from 'lucide-react';
 import { Product, StockStatus } from '@/types';
+import { priceTtcFromHt } from '@/lib/tva';
 import {
   Table,
   TableBody,
@@ -94,7 +95,7 @@ export const ProductTable = memo(({ products, onEdit, onDelete, isLoading }: Pro
                 <TableCell className="text-right font-medium">{product.quantity}</TableCell>
                 <TableCell className="text-right font-medium">{product.price.toFixed(3)}</TableCell>
                 <TableCell className="text-right font-medium text-muted-foreground">{(product.price * (1 - (product.remise || 0) / 100)).toFixed(3)}</TableCell>
-                <TableCell className="text-right font-medium">{(product.price * (1 - (product.remise || 0) / 100) * 1.19).toFixed(3)}</TableCell>
+                <TableCell className="text-right font-medium">{priceTtcFromHt(product.price, product.remise || 0).toFixed(3)}</TableCell>
                 <TableCell>
                   <span className={`status-badge ${statusInfo.class}`}>
                     {statusInfo.label}

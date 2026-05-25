@@ -1,10 +1,11 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const {
   getDefaultInstallDir,
   getPayloadDir,
   runInstallation,
   launchApp,
+  assertAllowedExePath,
   PRODUCT_NAME,
 } = require('./install/installEngine.cjs');
 
@@ -100,9 +101,21 @@ ipcMain.handle('installer:cancel', () => {
   return { ok: true };
 });
 
-ipcMain.handle('installer:launch', (_event, exePath) => {
-  if (exePath) launchApp(exePath);
-  return { ok: true };
+ipcMain.handle('installer:launch', async (_event, exePath) => {
+  if (!exePath) {
+    return { ok: false, error: 'Chemin Alpha.exe manquant' };
+  }
+  try {
+    const safeExe = assertAllowedExePath(exePath);
+    if (process.platform === 'win32') {
+      const openErr = await shell.openPath(safeExe);
+      if (!openErr) return { ok: true };
+    }
+    launchApp(safeExe);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
 });
 
 ipcMain.handle('installer:quit', () => {

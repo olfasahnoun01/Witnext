@@ -113,6 +113,21 @@ export const BonCarburant = () => {
 
   useEffect(() => {
     fetchData();
+
+    const channel = supabase
+      .channel('fuel_vouchers_desktop')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'fuel_vouchers' },
+        () => {
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleSubmit = async () => {
@@ -138,7 +153,7 @@ export const BonCarburant = () => {
         type_carburant: form.typeCarburant,
         km: form.kmFinal ? Number(form.kmFinal) : null,
         notes: form.notes.trim() || null,
-        ...(editingVoucherId ? {} : { status: 'pending' }),
+        ...(editingVoucherId ? {} : { status: 'pending', voucher_type: 'bon_carburant' }),
         ...(kmInitial != null ? { km_initial: kmInitial } : {}),
       };
       const query = editingVoucherId

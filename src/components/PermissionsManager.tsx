@@ -11,6 +11,8 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Mail,
+  Lock,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -57,12 +59,40 @@ const POSITION_OPTIONS = [
   'Responsable informatique',
   'Responsable ressources humaines',
   'Responsable administrative',
+  'Responsable financier',
+  'Directeur Generale',
   'Operateur',
   'Chauffeur',
 ] as const;
 
+type AccountTab = 'admins' | 'users' | 'drivers';
+
 function isKnownPosition(value: string): boolean {
   return (POSITION_OPTIONS as readonly string[]).includes(value);
+}
+
+function normalizePosition(pos: string | undefined): string {
+  return (pos || '').trim().toLowerCase();
+}
+
+function isDriverPosition(pos: string | undefined): boolean {
+  const p = normalizePosition(pos);
+  return p === 'chauffeur' || p === 'operateur' || p === 'chauffer';
+}
+
+function tabForUser(u: Pick<ManagedUser, 'role' | 'position'>): AccountTab {
+  if (u.role === 'admin' || u.role === 'moderator') return 'admins';
+  if (isDriverPosition(u.position)) return 'drivers';
+  return 'users';
+}
+
+function splitFullName(full: string): { prenom: string; nom: string } {
+  const trimmed = full.trim();
+  const space = trimmed.indexOf(' ');
+  if (space === -1) {
+    return { prenom: trimmed || 'Employé', nom: trimmed || 'Alpha' };
+  }
+  return { prenom: trimmed.slice(0, space), nom: trimmed.slice(space + 1).trim() || trimmed };
 }
 
 const ROLE_RANK: Record<Role, number> = { admin: 3, moderator: 2, user: 1 };
@@ -120,7 +150,9 @@ export const PermissionsManager = () => {
   
   // Permissions chosen inline in the create/edit modal
   const [modalPerms, setModalPerms] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<'admins' | 'users' | 'drivers'>('admins');
+  const [activeTab, setActiveTab] = useState<AccountTab>('admins');
+  const [mobilePhone, setMobilePhone] = useState('');
+  const [mobileCin, setMobileCin] = useState('');
 
   const getAuthToken = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -267,15 +299,27 @@ export const PermissionsManager = () => {
       setPosition(user.position || 'Operateur');
       setRole(user.role);
       setPassword('');
+      setMobilePhone('');
+      setMobileCin('');
       setModalPerms(new Set(perms[user.id] ?? []));
     } else {
       setEditingUser(null);
       setEmail('');
       setPassword('');
       setFullName('');
-      setPosition('Operateur');
-      setRole('user');
+      setMobilePhone('');
+      setMobileCin('');
       setModalPerms(new Set());
+      if (activeTab === 'admins') {
+        setRole('admin');
+        setPosition('Responsable administrative');
+      } else if (activeTab === 'drivers') {
+        setRole('user');
+        setPosition('Chauffeur');
+      } else {
+        setRole('user');
+        setPosition('Responsable commerciale');
+      }
     }
     setIsModalOpen(true);
   };
@@ -288,6 +332,8 @@ export const PermissionsManager = () => {
     setFullName('');
     setPosition('Operateur');
     setRole('user');
+    setMobilePhone('');
+    setMobileCin('');
     setModalPerms(new Set());
   };
 
@@ -349,6 +395,15 @@ export const PermissionsManager = () => {
           setSubmitting(false);
           return;
         }
+        if (isDriverPosition(position) && !email.trim()) {
+          toast({
+            variant: 'destructive',
+            title: 'Erreur',
+            description: "L'email de connexion mobile est requis pour un chauffeur / opérateur",
+          });
+          setSubmitting(false);
+          return;
+        }
         const response = await supabase.functions.invoke('manage-users', {
           body: { action: 'create', email, password, full_name: fullName, position, role },
           headers: { Authorization: `Bearer ${token}` },
@@ -356,21 +411,70 @@ export const PermissionsManager = () => {
         if (response.error) throw new Error(response.error.message);
         if (response.data?.error) throw new Error(response.data.error);
         targetUserId = response.data?.user?.id ?? response.data?.user_id ?? null;
+
+        if (targetUserId && isDriverPosition(position)) {
+          const { prenom, nom } = splitFullName(fullName);
+          const { error: empErr } = await supabase.from('employees').insert({
+            prenom,
+            nom,
+            email: email.trim(),
+            phone: mobilePhone.trim() || null,
+            cin: mobileCin.trim() || null,
+            role: position,
+            user_id: targetUserId,
+          } as never);
+          if (empErr) {
+            console.warn('[PermissionsManager] employees insert:', empErr.message);
+            toast({
+              title: 'Compte créé',
+              description:
+                "Le compte a été créé mais l'enregistrement employé RH n'a pas pu être ajouté. Vérifiez la liste employés.",
+            });
+          }
+        }
       }
 
       if (targetUserId && role !== 'admin') {
         await persistPermissions(targetUserId, modalPerms);
       }
 
+      const createdOrUpdated: ManagedUser = editingUser
+        ? { ...editingUser, full_name: fullName, position, role }
+        : {
+            id: targetUserId!,
+            email,
+            full_name: fullName,
+            position,
+            role,
+            created_at: new Date().toISOString(),
+          };
+
+      if (!editingUser && targetUserId) {
+        setUsers((prev) => {
+          if (prev.some((u) => u.id === targetUserId)) return prev;
+          return [...prev, createdOrUpdated];
+        });
+        setActiveTab(tabForUser(createdOrUpdated));
+      }
+
       toast({
         title: editingUser ? 'Utilisateur modifié' : 'Utilisateur créé',
         description: editingUser
           ? 'Informations et permissions mises à jour'
-          : `Le compte ${email} a été créé avec ses permissions`,
+          : `Le compte ${email} a été créé — visible dans l'onglet ${
+              tabForUser(createdOrUpdated) === 'admins'
+                ? 'Administrateurs'
+                : tabForUser(createdOrUpdated) === 'drivers'
+                  ? 'Chauffeurs'
+                  : 'Utilisateurs'
+            }`,
       });
 
       closeModal();
       await load();
+      if (!editingUser && targetUserId) {
+        setActiveTab(tabForUser(createdOrUpdated));
+      }
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: e.message });
     } finally {
@@ -415,15 +519,7 @@ export const PermissionsManager = () => {
     );
   };
 
-  const filteredUsers = users.filter((u) => {
-    const pos = (u.position || '').toLowerCase();
-    const isDriverOrOp = pos === 'chauffeur' || pos === 'operateur' || pos === 'chauffer';
-    
-    if (activeTab === 'drivers') return isDriverOrOp;
-    if (activeTab === 'admins') return u.role === 'admin' || u.role === 'moderator';
-    if (activeTab === 'users') return u.role === 'user' && !isDriverOrOp;
-    return true;
-  });
+  const filteredUsers = users.filter((u) => tabForUser(u) === activeTab);
 
   if (loading) {
     return (
@@ -463,7 +559,7 @@ export const PermissionsManager = () => {
               activeTab === 'admins' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            Administrateurs ({users.filter(u => u.role === 'admin' || u.role === 'moderator').length})
+            Administrateurs ({users.filter((u) => tabForUser(u) === 'admins').length})
           </button>
           <button
             onClick={() => setActiveTab('users')}
@@ -471,10 +567,7 @@ export const PermissionsManager = () => {
               activeTab === 'users' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            Utilisateurs ({users.filter(u => {
-              const pos = (u.position || '').toLowerCase();
-              return u.role === 'user' && pos !== 'chauffeur' && pos !== 'operateur' && pos !== 'chauffer';
-            }).length})
+            Utilisateurs ({users.filter((u) => tabForUser(u) === 'users').length})
           </button>
           <button
             onClick={() => setActiveTab('drivers')}
@@ -482,10 +575,7 @@ export const PermissionsManager = () => {
               activeTab === 'drivers' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            Chauffeurs ({users.filter(u => {
-              const pos = (u.position || '').toLowerCase();
-              return pos === 'chauffeur' || pos === 'operateur' || pos === 'chauffer';
-            }).length})
+            Chauffeurs ({users.filter((u) => tabForUser(u) === 'drivers').length})
           </button>
         </div>
 
@@ -695,6 +785,51 @@ export const PermissionsManager = () => {
                   </Select>
                 </div>
               </div>
+
+              {!editingUser && isDriverPosition(position) && (
+                <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 space-y-4 animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
+                    <Shield className="w-4 h-4" />
+                    Accès Mobile App
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Identifiants pour l&apos;application mobile Flutter (chauffeur / opérateur). L&apos;email ci-dessus sert de connexion.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label className="flex items-center gap-2 text-muted-foreground">
+                        <Mail className="w-3 h-3" /> Email de connexion *
+                      </Label>
+                      <p className="text-sm text-foreground font-medium truncate">
+                        {email || "— renseignez l'email du compte ci-dessus —"}
+                      </p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Lock className="w-3 h-3" /> Utilisez le mot de passe du formulaire ci-dessus pour l&apos;app mobile.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mobile-phone">Téléphone</Label>
+                      <Input
+                        id="mobile-phone"
+                        placeholder="55 123 456"
+                        value={mobilePhone}
+                        onChange={(e) => setMobilePhone(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mobile-cin">CIN</Label>
+                      <Input
+                        id="mobile-cin"
+                        inputMode="numeric"
+                        maxLength={8}
+                        placeholder="8 chiffres"
+                        value={mobileCin}
+                        onChange={(e) => setMobileCin(e.target.value.replace(/[^0-9]/g, ''))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {role !== 'admin' && (
                 <div className="space-y-3 pt-4 border-t border-border">

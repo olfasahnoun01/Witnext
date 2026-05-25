@@ -61,13 +61,15 @@ function createDefaultMenu() {
     },
     {
       label: 'Affichage',
-      submenu: [
-        { label: 'Actualiser', role: 'reload' },
-        { label: 'Actualiser (forcé)', role: 'forceReload' },
-        { label: 'Outils de développement', role: 'toggleDevTools' },
-        { type: 'separator' },
-        { label: 'Plein écran', role: 'togglefullscreen' }
-      ]
+      submenu: isDev
+        ? [
+            { label: 'Actualiser', role: 'reload' },
+            { label: 'Actualiser (forcé)', role: 'forceReload' },
+            { label: 'Outils de développement', role: 'toggleDevTools' },
+            { type: 'separator' },
+            { label: 'Plein écran', role: 'togglefullscreen' }
+          ]
+        : [{ label: 'Plein écran', role: 'togglefullscreen' }]
     },
     {
       label: 'Fenêtre',
@@ -89,6 +91,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
       preload: path.join(__dirname, 'preload.cjs')
     },
     title: "Alpha",
@@ -96,6 +99,20 @@ function createWindow() {
   });
 
   createDefaultMenu();
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('file://') || url.startsWith('blob:') || url.startsWith('about:')) {
+      return { action: 'allow' };
+    }
+    return { action: 'deny' };
+  });
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (isDev) return;
+    if (!url.startsWith('file://')) {
+      event.preventDefault();
+    }
+  });
 
   if (isDev) {
     mainWindow.loadURL(devServerUrl);

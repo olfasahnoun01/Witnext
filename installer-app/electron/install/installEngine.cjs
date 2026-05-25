@@ -17,6 +17,51 @@ function getDefaultInstallDir() {
   return path.join(process.env.LOCALAPPDATA || '', 'Programs', PRODUCT_NAME);
 }
 
+function getAllowedInstallRoots() {
+  const roots = [
+    path.resolve(process.env.LOCALAPPDATA || '', 'Programs'),
+    path.resolve(process.env.ProgramFiles || ''),
+    path.resolve(process.env['ProgramFiles(x86)'] || ''),
+  ].filter((r) => r && r.length > 1);
+  return roots;
+}
+
+/** Reject paths outside user Programs / Program Files (blocks arbitrary write targets). */
+function assertAllowedInstallPath(installPath) {
+  if (!installPath || typeof installPath !== 'string') {
+    throw new Error('Invalid installation path');
+  }
+  const resolved = path.resolve(installPath);
+  if (resolved.includes('\0')) {
+    throw new Error('Invalid installation path');
+  }
+  const allowed = getAllowedInstallRoots();
+  const ok = allowed.some(
+    (root) => resolved === root || resolved.startsWith(root + path.sep)
+  );
+  if (!ok) {
+    throw new Error('Installation path is not allowed');
+  }
+  return resolved;
+}
+
+function assertAllowedExePath(exePath) {
+  if (!exePath || typeof exePath !== 'string') {
+    throw new Error('Invalid application path');
+  }
+  const resolved = path.resolve(exePath);
+  const base = path.basename(resolved);
+  if (base.toLowerCase() !== APP_EXE.toLowerCase()) {
+    throw new Error('Invalid application executable');
+  }
+  const installDir = path.dirname(resolved);
+  assertAllowedInstallPath(installDir);
+  if (!fs.existsSync(resolved)) {
+    throw new Error(`Application introuvable: ${resolved}`);
+  }
+  return resolved;
+}
+
 async function pathExists(p) {
   try {
     await fs.promises.access(p);
@@ -110,7 +155,9 @@ async function writeInstallMetadata(installDir, options) {
 async function runInstallation(options, sendProgress, isCancelled) {
   const cancelled = () => isCancelled();
   const payloadDir = getPayloadDir();
-  const installDir = options.installPath || getDefaultInstallDir();
+  const installDir = assertAllowedInstallPath(
+    options.installPath || getDefaultInstallDir()
+  );
 
   if (!(await pathExists(payloadDir))) {
     throw new Error(
@@ -144,7 +191,28 @@ async function runInstallation(options, sendProgress, isCancelled) {
 
 function launchApp(exePath) {
   const { spawn } = require('child_process');
-  spawn(exePath, [], { detached: true, stdio: 'ignore' }).unref();
+
+  const resolvedExe = assertAllowedExePath(exePath);
+  const installDir = path.dirname(resolvedExe);
+
+  if (process.platform === 'win32') {
+    // "start" handles paths with spaces and keeps Alpha running after the installer exits.
+    const child = spawn('cmd.exe', ['/d', '/c', 'start', '""', resolvedExe], {
+      cwd: installDir,
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    child.unref();
+    return;
+  }
+
+  const child = spawn(resolvedExe, [], {
+    cwd: installDir,
+    detached: true,
+    stdio: 'ignore',
+  });
+  child.unref();
 }
 
 module.exports = {
@@ -152,6 +220,8 @@ module.exports = {
   PRODUCT_NAME,
   getPayloadDir,
   getDefaultInstallDir,
+  assertAllowedInstallPath,
+  assertAllowedExePath,
   runInstallation,
   launchApp,
 };

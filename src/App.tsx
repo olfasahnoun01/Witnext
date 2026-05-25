@@ -10,6 +10,8 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { AutoUpdateNotifier } from "@/components/AutoUpdateNotifier";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,7 +29,11 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, isLoading } = useAuth();
 
   if (isLoading) {
-    return null; // Or a loading spinner
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   if (!session) {
@@ -83,9 +89,11 @@ const App = () => {
           <Toaster />
           <Sonner />
           <AuthProvider>
-            <HashRouter>
-              <AppRoutes />
-            </HashRouter>
+            <ErrorBoundary title="Erreur de l'application">
+              <HashRouter>
+                <AppRoutes />
+              </HashRouter>
+            </ErrorBoundary>
           </AuthProvider>
         </TooltipProvider>
       </ThemeProvider>

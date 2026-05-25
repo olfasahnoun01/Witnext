@@ -47,6 +47,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [sessionExpired, setSessionExpired] = useState(false);
   const userRef = useRef<User | null>(null);
   const sessionExpiredRef = useRef(false);
+  const sessionChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const authInitDoneRef = useRef(false);
 
   useEffect(() => {
     userRef.current = user;
@@ -99,79 +101,133 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    // Check if this is a new browser session (browser was closed and reopened)
-    const isNewBrowserSession = !sessionStorage.getItem('browser_session_active');
-    
-    const initializeAuth = async () => {
-      if (isNewBrowserSession) {
-        sessionStorage.setItem('browser_session_active', 'true');
-      }
-      
-      // Normal session initialization
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      // Handle session retrieval errors
-      if (error) {
-        console.error('Failed to get session:', error);
-        await handleSessionExpired(error.message);
-        setIsLoading(false);
-        return;
-      }
-      
-      setSession(session);
-      setUser(session?.user ?? null);
-      sessionExpiredRef.current = false;
-      setSessionExpired(false);
+    authInitDoneRef.current = false;
+    setIsLoading(true);
 
-      if (session?.user) {
-        /* Resoudre admin/mod AVANT isLoading=false pour que la sidebar (Finance, etc.) soit correcte au 1er rendu */
-        await checkUserRoles(session.user.id);
-        void setupSessionTracking(session.user.id);
-      } else {
-        setIsAdmin(false);
-        setIsModerator(false);
-      }
+    if (!sessionStorage.getItem('browser_session_active')) {
+      sessionStorage.setItem('browser_session_active', 'true');
+    }
+
+    let cancelled = false;
+    let deferredRolesUserId: string | null = null;
+
+    const finishAuthInit = () => {
+      authInitDoneRef.current = true;
       setIsLoading(false);
     };
 
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state change:', event);
-      
-      // Handle specific auth events
-      if (event === 'TOKEN_REFRESHED') {
-        sessionExpiredRef.current = false;
-        setSessionExpired(false);
+    const removeSessionChannel = () => {
+      if (sessionChannelRef.current) {
+        supabase.removeChannel(sessionChannelRef.current);
+        sessionChannelRef.current = null;
       }
-      
-      // Handle session expiration events
-      if (event === 'SIGNED_OUT') {
-        // Check if this was an automatic sign out (session expired)
-        // vs a user-initiated sign out
-        if (sessionExpiredRef.current) {
-          // Already handled
-          return;
-        }
-      }
-      
-      setSession(session);
-      setUser(session?.user ?? null);
-      setIsLoading(false);
+    };
 
-      if (session?.user) {
-        sessionExpiredRef.current = false;
-        setSessionExpired(false);
-        void (async () => {
-          await checkUserRoles(session.user.id);
-          void setupSessionTracking(session.user.id);
-        })();
-      } else {
+    // Sync only — never await RPC/network inside onAuthStateChange (blocks JWT attachment).
+    const syncAuthSession = (nextSession: Session | null) => {
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+
+      if (!nextSession?.user) {
+        deferredRolesUserId = null;
         setIsAdmin(false);
         setIsModerator(false);
+        removeSessionChannel();
+        return;
       }
+
+      sessionExpiredRef.current = false;
+      setSessionExpired(false);
+    };
+
+    const runDeferredAuthWork = (
+      nextSession: Session,
+      options?: { announceLogin?: boolean }
+    ) => {
+      const userId = nextSession.user.id;
+      const shouldLoadRoles = deferredRolesUserId !== userId;
+      if (shouldLoadRoles) deferredRolesUserId = userId;
+
+      void (async () => {
+        if (cancelled) return;
+        if (shouldLoadRoles) await checkUserRoles(userId);
+        if (cancelled || userRef.current?.id !== userId) return;
+        if (options?.announceLogin) void setupSessionTracking(userId);
+      })();
+    };
+
+    const completeInitialAuth = (nextSession: Session | null) => {
+      if (cancelled) return;
+      syncAuthSession(nextSession);
+      if (!authInitDoneRef.current) {
+        finishAuthInit();
+      }
+      if (nextSession?.user) {
+        runDeferredAuthWork(nextSession);
+      }
+    };
+
+    // INITIAL_SESSION can fire only once per client; Strict Mode remounts may miss it.
+    void supabase.auth.getSession().then(({ data: { session: stored }, error }) => {
+      if (cancelled) return;
+      if (error) {
+        console.error('[Auth] getSession failed:', error);
+        if (!authInitDoneRef.current) finishAuthInit();
+        return;
+      }
+      completeInitialAuth(stored);
     });
 
-    initializeAuth();
+    const safetyTimer = window.setTimeout(() => {
+      if (!cancelled && !authInitDoneRef.current) {
+        if (import.meta.env.DEV) {
+          console.warn('[Auth] Initialization timeout — releasing UI');
+        }
+        finishAuthInit();
+      }
+    }, 8000);
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (import.meta.env.DEV && event !== 'INITIAL_SESSION') {
+        console.log('Auth state change:', event);
+      }
+
+      try {
+        if (event === 'INITIAL_SESSION') {
+          completeInitialAuth(nextSession);
+          return;
+        }
+
+        if (event === 'TOKEN_REFRESHED') {
+          sessionExpiredRef.current = false;
+          setSessionExpired(false);
+          setSession(nextSession);
+          setUser(nextSession?.user ?? null);
+          return;
+        }
+
+        if (event === 'SIGNED_OUT') {
+          if (sessionExpiredRef.current) return;
+          syncAuthSession(null);
+          finishAuthInit();
+          return;
+        }
+
+        if (event === 'SIGNED_IN') {
+          syncAuthSession(nextSession);
+          finishAuthInit();
+          if (nextSession?.user) runDeferredAuthWork(nextSession, { announceLogin: true });
+          return;
+        }
+
+        syncAuthSession(nextSession);
+        finishAuthInit();
+        if (nextSession?.user) runDeferredAuthWork(nextSession);
+      } catch (err) {
+        console.error('[Auth] onAuthStateChange error:', err);
+        finishAuthInit();
+      }
+    });
 
     // Set up periodic session validation (every 5 minutes)
     const sessionCheckInterval = setInterval(async () => {
@@ -192,8 +248,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }, 5 * 60 * 1000); // Check every 5 minutes
 
     return () => {
+      cancelled = true;
+      window.clearTimeout(safetyTimer);
       subscription.unsubscribe();
       clearInterval(sessionCheckInterval);
+      removeSessionChannel();
     };
   }, []);
 
@@ -201,7 +260,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const deviceId = getDeviceId();
     const channelName = `session_${userId}`;
 
-    // Update active device in profiles (fails silently if migration not run)
+    if (sessionChannelRef.current) {
+      supabase.removeChannel(sessionChannelRef.current);
+      sessionChannelRef.current = null;
+    }
+
     try {
       await supabase.from('profiles').update({ active_device_id: deviceId }).eq('user_id', userId);
     } catch (e) {
@@ -209,12 +272,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const channel = supabase.channel(channelName);
-    
+    sessionChannelRef.current = channel;
+
     channel
       .on('broadcast', { event: 'new_login' }, (payload) => {
         if (payload.payload?.device_id && payload.payload.device_id !== deviceId) {
           console.log('Concurrent login detected, logging out...');
-          handleSessionExpired('Concurrent login');
+          void handleSessionExpired('Concurrent login');
         }
       })
       .subscribe(async (status) => {
@@ -228,35 +292,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
   };
 
+  const applyRoleFlags = (userId: string, admin: boolean, moderator: boolean) => {
+    if (userRef.current?.id !== userId) return;
+    setIsAdmin(admin);
+    setIsModerator(moderator);
+  };
+
   const checkUserRoles = async (userId: string) => {
     try {
-      // Check admin role
       const { data: adminData, error: adminError } = await supabase.rpc('has_role', {
         _user_id: userId,
-        _role: 'admin'
+        _role: 'admin',
       });
 
       if (!adminError && adminData) {
-        setIsAdmin(true);
-        setIsModerator(true);
-      } else {
-        setIsAdmin(false);
-
-        const { data: modData, error: modError } = await supabase.rpc('has_role', {
-          _user_id: userId,
-          _role: 'moderator',
-        });
-
-        if (!modError && modData) {
-          setIsModerator(true);
-        } else {
-          const { data: userData, error: userError } = await supabase.rpc('has_role', {
-            _user_id: userId,
-            _role: 'user',
-          });
-          setIsModerator(!userError && !!userData);
-        }
+        applyRoleFlags(userId, true, true);
+        return;
       }
+
+      const { data: modData, error: modError } = await supabase.rpc('has_role', {
+        _user_id: userId,
+        _role: 'moderator',
+      });
+
+      if (!modError && modData) {
+        applyRoleFlags(userId, false, true);
+        return;
+      }
+
+      applyRoleFlags(userId, false, false);
     } catch (error) {
       // Check if error is due to session expiration
       if (error instanceof Error && 
@@ -265,8 +329,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
            error.message?.includes('session'))) {
         await handleSessionExpired('Erreur d\'authentification');
       }
-      setIsAdmin(false);
-      setIsModerator(false);
+      applyRoleFlags(userId, false, false);
     }
   };
 

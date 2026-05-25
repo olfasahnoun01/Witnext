@@ -60,6 +60,14 @@ export const Settings = () => {
     const file = e.target.files?.[0];
     if (!file || !isAdmin) return;
 
+    const confirmed = window.confirm(
+      'Cette action remplace les données existantes par celles du fichier de sauvegarde. Continuer ?'
+    );
+    if (!confirmed) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     setIsImporting(true);
     try {
       await importDatabase(file, (msg) => {

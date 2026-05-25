@@ -29,8 +29,10 @@ export const usePermissions = () => {
   }, [user]);
 
   useEffect(() => {
-    if (!authLoading) load();
-  }, [authLoading, load, isAdmin]);
+    if (!authLoading) {
+      void load().catch((err) => console.error('[Permissions] load failed:', err));
+    }
+  }, [authLoading, load]);
 
   const canAccessSection = useCallback(
     (sectionId: string): boolean => {

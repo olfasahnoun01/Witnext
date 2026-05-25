@@ -55,9 +55,14 @@ export const ReceptionDialog = ({
   const handleQtyChange = (productId: number, qty: number, max: number) => {
     setReceivedQtys(prev => ({
       ...prev,
-      [productId]: Math.max(0, qty)
+      [productId]: Math.max(0, Math.min(qty, max)),
     }));
   };
+
+  const hasOverReceipt = Object.entries(receivedQtys).some(([id, qty]) => {
+    const item = backlog.find((l) => l.product_id === parseInt(id, 10));
+    return qty > (item?.remaining_qty ?? 0);
+  });
 
   const handleConfirm = async () => {
     if (!sourceBC) return;
@@ -77,6 +82,12 @@ export const ReceptionDialog = ({
 
       if (items.length === 0) {
         toast.error("Veuillez saisir au moins une quantité reçue.");
+        setLoading(false);
+        return;
+      }
+
+      if (hasOverReceipt) {
+        toast.error('Les quantités reçues ne peuvent pas dépasser le reste à recevoir.');
         setLoading(false);
         return;
       }
@@ -159,10 +170,7 @@ export const ReceptionDialog = ({
             </Table>
           </div>
 
-          {Object.entries(receivedQtys).some(([id, qty]) => {
-            const item = backlog.find(l => l.product_id === parseInt(id));
-            return qty > (item?.remaining_qty || 0);
-          }) && (
+          {hasOverReceipt && (
             <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3 text-red-700 text-sm">
               <AlertTriangle className="w-5 h-5" />
               <span>Attention : Vous recevez plus que ce qui a été commandé pour certains articles.</span>
@@ -172,7 +180,7 @@ export const ReceptionDialog = ({
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
-          <Button onClick={handleConfirm} disabled={loading} className="gap-2 bg-green-600 hover:bg-green-700">
+          <Button onClick={handleConfirm} disabled={loading || hasOverReceipt} className="gap-2 bg-green-600 hover:bg-green-700">
             <PackageCheck className="w-4 h-4" />
             {loading ? "Traitement..." : "Enregistrer la réception"}
           </Button>

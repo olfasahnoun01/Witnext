@@ -33,6 +33,7 @@ import {
 import { DocumentUploader } from '@/components/shared/DocumentUploader';
 import { PhoneLinesEditor } from '@/components/shared/PhoneLinesEditor';
 import { formatPhonesDisplay, serializePhoneList } from '@/lib/phoneList';
+import { validateUploadFile } from '@/lib/uploadValidation';
 
 const DEFAULT_CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
@@ -688,6 +689,16 @@ export const DevisForm = memo(({
             const uploadedUrls: string[] = [];
 
             for (const file of newArticleFicheFiles) {
+              const check = validateUploadFile(file, [
+                'application/pdf',
+                'image/jpeg',
+                'image/png',
+                'image/webp',
+              ]);
+              if (!check.ok) {
+                toast.error(check.message);
+                continue;
+              }
               let blobs: { blob: Blob; ext: string }[] = [];
               if (file.type === 'application/pdf') {
                 blobs = await convertPdfAllPagesToJpeg(file, { maxWidth: 5000, maxHeight: 5000, quality: 1.0 });
@@ -883,6 +894,16 @@ export const DevisForm = memo(({
             const uploadedUrls: string[] = [];
 
             for (const file of variantFicheFiles) {
+              const check = validateUploadFile(file, [
+                'application/pdf',
+                'image/jpeg',
+                'image/png',
+                'image/webp',
+              ]);
+              if (!check.ok) {
+                toast.error(check.message);
+                continue;
+              }
               let blobs: { blob: Blob; ext: string }[] = [];
 
               if (file.type === 'application/pdf') {

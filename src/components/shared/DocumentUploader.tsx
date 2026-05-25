@@ -5,6 +5,7 @@ import { Progress } from '@/components/ui/progress';
 import { Upload, FileUp, Loader2, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { loadStorageDocumentPdf } from '@/lib/clientDocumentStorage';
+import { validateUploadFile } from '@/lib/uploadValidation';
 
 interface DocumentUploaderProps {
   bucket: 'client-documents' | 'product-documents';
@@ -59,9 +60,9 @@ export const DocumentUploader = ({
       const file = event.target.files?.[0];
       if (!file) return;
 
-      // Validate file type
-      if (file.type !== 'application/pdf') {
-        toast.error("Seuls les fichiers PDF sont acceptés.");
+      const validation = validateUploadFile(file, ['application/pdf']);
+      if (!validation.ok) {
+        toast.error(validation.message);
         return;
       }
 

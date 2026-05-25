@@ -4,6 +4,8 @@ import { Header } from '@/components/layout/Header';
 import { Loader2 } from 'lucide-react';
 import { SUBSECTION_LABELS } from '@/config/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { cn } from '@/lib/utils';
 
 // Eagerly import Dashboard since it's the default view
@@ -55,8 +57,16 @@ const ComponentLoader = () => (
   </div>
 );
 
+const AccessDenied = () => (
+  <div className="flex min-h-[40vh] flex-col items-center justify-center p-12 text-center text-muted-foreground">
+    <p className="text-lg font-medium text-foreground">Accès non autorisé</p>
+    <p className="mt-2 text-sm">Vous n&apos;avez pas la permission d&apos;accéder à cette section.</p>
+  </div>
+);
+
 const Index = () => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, session } = useAuth();
+  const { canAccessSubsection, loading: permissionsLoading } = usePermissions();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
   const [, startTransition] = useTransition();
@@ -83,10 +93,24 @@ const Index = () => {
   }, []);
 
   const renderContent = () => {
-    // Dashboard is eagerly loaded - no Suspense needed
-    if (activeTab === 'dashboard') return <Dashboard />;
+    if (permissionsLoading) {
+      return <ComponentLoader />;
+    }
+
+    if (activeTab !== 'dashboard' && !canAccessSubsection(activeTab)) {
+      return <AccessDenied />;
+    }
+
+    if (activeTab === 'dashboard') {
+      return (
+        <ErrorBoundary title="Erreur du tableau de bord">
+          <Dashboard key={session?.user?.id ?? 'guest'} />
+        </ErrorBoundary>
+      );
+    }
 
     return (
+      <ErrorBoundary>
       <Suspense fallback={<ComponentLoader />}>
         {/* Magasin & Stock */}
         {activeTab === 'inventory' && <Inventory />}
@@ -172,6 +196,7 @@ const Index = () => {
 
         {activeTab === 'finance-hub' && <FinanceModule />}
       </Suspense>
+      </ErrorBoundary>
     );
   };
 
