@@ -638,16 +638,19 @@ export type Database = {
           created_at: string
           id: number
           name: string
+          woocommerce_id: number | null
         }
         Insert: {
           created_at?: string
           id?: number
           name: string
+          woocommerce_id?: number | null
         }
         Update: {
           created_at?: string
           id?: number
           name?: string
+          woocommerce_id?: number | null
         }
         Relationships: []
       }
@@ -663,6 +666,7 @@ export type Database = {
           photos: Json
           prix_vente_ttc: number | null
           updated_at: string
+          woocommerce_id: number | null
         }
         Insert: {
           category?: string
@@ -675,6 +679,7 @@ export type Database = {
           photos?: Json
           prix_vente_ttc?: number | null
           updated_at?: string
+          woocommerce_id?: number | null
         }
         Update: {
           category?: string
@@ -687,6 +692,7 @@ export type Database = {
           photos?: Json
           prix_vente_ttc?: number | null
           updated_at?: string
+          woocommerce_id?: number | null
         }
         Relationships: []
       }

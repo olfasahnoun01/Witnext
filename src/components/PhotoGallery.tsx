@@ -46,6 +46,7 @@ import {
   FileText,
   Copy,
   ExternalLink,
+  Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -133,6 +134,7 @@ export const PhotoGallery = () => {
   const [uploadingFiche, setUploadingFiche] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [importingFromSite, setImportingFromSite] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const ficheInputRef = useRef<HTMLInputElement>(null);
 
@@ -484,6 +486,80 @@ export const PhotoGallery = () => {
     }
   };
 
+  const handleImportFromWebsite = async () => {
+    if (
+      !confirm(
+        'Importer depuis le site web ?\n\n• Noms, catégories et photos seront mis à jour\n• Prix et descriptions déjà saisis ne seront pas effacés\n• Les produits déjà importés seront mis à jour',
+      )
+    ) {
+      return;
+    }
+
+    setImportingFromSite(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await supabase.functions.invoke('sync-woocommerce-gallery', {
+        body: {},
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : undefined,
+      });
+
+      if (response.error) {
+        const ctx = (response.error as { context?: Response }).context;
+        let detail = response.error.message;
+        if (ctx) {
+          try {
+            const body = await ctx.json();
+            if (body && typeof body === 'object' && 'error' in body && typeof body.error === 'string') {
+              detail = body.error;
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+        if (detail.includes('Failed to send') || detail.includes('FunctionsFetchError')) {
+          detail =
+            'Fonction non disponible. Déployez sync-woocommerce-gallery sur Supabase (voir instructions) puis réessayez.';
+        }
+        throw new Error(detail);
+      }
+
+      const payload = response.data as {
+        ok?: boolean;
+        error?: string;
+        created?: number;
+        updated?: number;
+        products?: number;
+        categories?: number;
+      };
+
+      if (payload?.error) {
+        throw new Error(payload.error);
+      }
+
+      if (!payload?.ok) {
+        throw new Error('Import échoué');
+      }
+
+      await Promise.all([fetchItems(), fetchCategories()]);
+
+      toast({
+        title: 'Import terminé',
+        description: `${payload.created ?? 0} ajouté(s), ${payload.updated ?? 0} mis à jour — ${payload.products ?? 0} produit(s) sur le site.`,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Import impossible';
+      toast({
+        variant: 'destructive',
+        title: 'Import site web',
+        description: message,
+      });
+    } finally {
+      setImportingFromSite(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -497,8 +573,9 @@ export const PhotoGallery = () => {
       <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
         <p className="font-medium text-foreground">Galerie commerciale (réseaux sociaux, messages clients)</p>
         <p className="mt-1">
-          Ajoutez des photos, le <strong className="text-foreground">prix vente TTC</strong> et les{' '}
-          <strong className="text-foreground">fiches techniques</strong> pour répondre vite sur Facebook, WhatsApp, etc.
+          Importez noms et photos depuis le site, puis complétez le{' '}
+          <strong className="text-foreground">prix TTC</strong> et les{' '}
+          <strong className="text-foreground">fiches techniques</strong> pour Facebook, WhatsApp, etc.
         </p>
       </div>
 
@@ -552,7 +629,19 @@ export const PhotoGallery = () => {
         </div>
 
         {canEdit && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() => void handleImportFromWebsite()}
+              disabled={importingFromSite}
+            >
+              {importingFromSite ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4 mr-2" />
+              )}
+              Importer depuis le site
+            </Button>
             <Button variant="outline" onClick={() => setShowCategoryModal(true)}>
               <Tag className="w-4 h-4 mr-2" />
               Catégories

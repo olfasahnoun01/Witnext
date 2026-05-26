@@ -2,3 +2,7 @@ project_id = "rnujsdxbkndvppjqjkdu"
 
 [functions.manage-users]
 verify_jwt = true
+
+[functions.sync-woocommerce-gallery]
+# JWT checked inside the function so OPTIONS preflight succeeds from the browser.
+verify_jwt = false
