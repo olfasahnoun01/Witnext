@@ -28,7 +28,8 @@ const PurchaseRequestManager = lazy(() => import('@/components/devis/PurchaseReq
 const WarehouseDocumentManager = lazy(() => import('@/components/inventory/WarehouseDocumentManager').then(m => ({ default: m.WarehouseDocumentManager })));
 
 const Planning = lazy(() => import('@/components/Planning').then(m => ({ default: m.Planning })));
-const EmployeeList = lazy(() => import('@/components/EmployeeList').then(m => ({ default: m.EmployeeList })));
+const RhRapports = lazy(() => import('@/components/rh/RhRapports').then(m => ({ default: m.RhRapports })));
+const RhStatistiques = lazy(() => import('@/components/rh/RhStatistiques').then(m => ({ default: m.RhStatistiques })));
 const Flotte = lazy(() => import('@/components/Flotte').then(m => ({ default: m.Flotte })));
 const VehiculeStats = lazy(() => import('@/components/vehicules/VehiculeStats').then(m => ({ default: m.VehiculeStats })));
 const BonCarburant = lazy(() => import('@/components/vehicules/BonCarburant').then(m => ({ default: m.BonCarburant })));
@@ -178,7 +179,8 @@ const Index = () => {
         
         {/* Ressources Humaines */}
         {activeTab === 'planning' && <Planning />}
-        {activeTab === 'employees' && <EmployeeList />}
+        {activeTab === 'rh-rapports' && <RhRapports />}
+        {activeTab === 'rh-statistiques' && <RhStatistiques />}
         
         {/* Véhicules */}
         {activeTab === 'flotte' && <Flotte />}

@@ -17,7 +17,8 @@ import {
   UserCheck,
   UserCog,
   CalendarDays,
-  UserPlus,
+  FileBarChart,
+  ClipboardPen,
   Truck,
   Wrench,
   BarChart3,
@@ -95,7 +96,8 @@ export const BIG_SECTIONS: BigSection[] = [
     icon: UsersIcon,
     subsections: [
       { id: 'planning', label: 'Planning', icon: CalendarDays },
-      { id: 'employees', label: 'Liste Employés', icon: UserPlus },
+      { id: 'rh-rapports', label: 'Rapports', icon: ClipboardPen },
+      { id: 'rh-statistiques', label: 'Statistiques', icon: FileBarChart },
     ],
   },
   {
