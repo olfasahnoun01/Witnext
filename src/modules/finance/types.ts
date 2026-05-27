@@ -29,6 +29,7 @@ export interface FinanceCapabilities {
 export type FinanceInvoiceType = 'vente' | 'achat';
 export type FinanceInvoiceStatus = 'draft' | 'issued' | 'partial' | 'paid' | 'void';
 export type PaymentDirection = 'inbound_client' | 'outbound_supplier' | 'internal';
+export type VatRate = 0 | 7 | 13 | 19;
 
 export interface InvoiceRow {
   id: string;
@@ -65,4 +66,36 @@ export interface PaymentRow {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface InvoiceLineRow {
+  id: string;
+  invoice_id: string;
+  product_code: string | null;
+  description: string;
+  quantity: number;
+  unit_price_ht: number;
+  vat_rate: VatRate;
+  total_ht: number;
+  total_tva: number;
+  total_ttc: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SalesInvoiceWriteInput {
+  company_id: string;
+  numero: string;
+  counterpart_name: string;
+  counterpart_tax_id?: string | null;
+  issue_date: string;
+  due_date?: string | null;
+  notes?: string | null;
+  lines: Array<{
+    product_code?: string | null;
+    description: string;
+    quantity: number;
+    unit_price_ht: number;
+    vat_rate: VatRate;
+  }>;
 }

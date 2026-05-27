@@ -1131,6 +1131,51 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_lines: {
+        Row: {
+          id: string
+          invoice_id: string
+          product_code: string | null
+          description: string
+          quantity: number
+          unit_price_ht: number
+          vat_rate: number
+          total_ht: number
+          total_tva: number
+          total_ttc: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          invoice_id: string
+          product_code?: string | null
+          description: string
+          quantity?: number
+          unit_price_ht?: number
+          vat_rate?: number
+          total_ht?: number
+          total_tva?: number
+          total_ttc?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          invoice_id?: string
+          product_code?: string | null
+          description?: string
+          quantity?: number
+          unit_price_ht?: number
+          vat_rate?: number
+          total_ht?: number
+          total_tva?: number
+          total_ttc?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       journal_entries: {
         Row: {
           id: string

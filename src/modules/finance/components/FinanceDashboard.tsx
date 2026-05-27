@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,13 +13,15 @@ import {
 } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { useFinanceCompany } from '../context/FinanceCompanyContext';
-import { listInvoices, listPayments } from '../services/financeApi';
-import type { InvoiceRow, PaymentRow } from '../types';
+import { listInvoiceLines, listInvoices, listPayments } from '../services/financeApi';
+import type { InvoiceLineRow, InvoiceRow, PaymentRow } from '../types';
 import { ArrowLeftRight, Building2, FileSpreadsheet, Landmark, Receipt, Scale } from 'lucide-react';
+import { FinanceSalesPanel } from './FinanceSalesPanel';
 
 export function FinanceDashboard() {
   const { company, capabilities, requestCompanyPicker, companies } = useFinanceCompany();
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
+  const [invoiceLines, setInvoiceLines] = useState<InvoiceLineRow[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -28,7 +30,9 @@ export function FinanceDashboard() {
     setLoading(true);
     try {
       const [inv, pay] = await Promise.all([listInvoices(company.id), listPayments(company.id)]);
+      const lineRows = await listInvoiceLines(inv.map((x) => x.id));
       setInvoices(inv);
+      setInvoiceLines(lineRows);
       setPayments(pay);
     } catch (e: unknown) {
       console.error(e);
@@ -48,6 +52,15 @@ export function FinanceDashboard() {
   const purchaseInvoices = invoices.filter((i) => i.invoice_type === 'achat');
   const clientPayments = payments.filter((p) => p.direction === 'inbound_client');
   const supplierPayments = payments.filter((p) => p.direction === 'outbound_supplier');
+  const linesByInvoice = useMemo(
+    () =>
+      invoiceLines.reduce<Record<string, InvoiceLineRow[]>>((acc, line) => {
+        if (!acc[line.invoice_id]) acc[line.invoice_id] = [];
+        acc[line.invoice_id].push(line);
+        return acc;
+      }, {}),
+    [invoiceLines]
+  );
 
   const showPurchases = capabilities.purchases;
   const showSupplierPay = capabilities.supplierPayments;
@@ -151,19 +164,11 @@ export function FinanceDashboard() {
         </TabsContent>
 
         <TabsContent value="sales" className="mt-4">
-          <FinanceTable
-            title="Factures clients (Finance)"
-            loading={loading}
-            empty="Aucune facture Finance. Creez des lignes dans public.invoices (company_id)."
-            rows={saleInvoices}
-            columns={[
-              { key: 'numero', label: 'Numero' },
-              { key: 'counterpart_name', label: 'Tiers' },
-              { key: 'issue_date', label: 'Date' },
-              { key: 'total_ttc', label: 'TTC', format: 'money' },
-              { key: 'amount_paid', label: 'Paye', format: 'money' },
-              { key: 'status', label: 'Statut' },
-            ]}
+          <FinanceSalesPanel
+            companyId={company.id}
+            invoices={saleInvoices}
+            linesByInvoice={linesByInvoice}
+            onReload={load}
           />
         </TabsContent>
 
