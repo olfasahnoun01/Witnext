@@ -24,6 +24,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface MaintenanceRecord {
   id: string;
   vehicule: string;
+  vehiculeId?: string;
   description: string;
   type: 'preventive' | 'urgent' | 'corrective';
   dateDebut: string;
@@ -55,7 +56,7 @@ export const Maintenance = () => {
   }, [records]);
   
   const [form, setForm] = useState({
-    vehicule: '',
+    vehiculeId: '',
     description: '',
     type: 'preventive' as const,
     dateDebut: new Date().toISOString().split('T')[0],
@@ -64,21 +65,35 @@ export const Maintenance = () => {
   });
 
   const handleSubmit = useCallback(() => {
-    if (!form.vehicule || !form.description) {
+    if (!form.vehiculeId || !form.description) {
       toast.error('Veuillez remplir les champs obligatoires');
       return;
     }
+    const selectedVehicle = vehicles.find((v: any) => v.id === form.vehiculeId);
+    const vehicleLabel = selectedVehicle
+      ? `${selectedVehicle.modele} (${selectedVehicle.matricule})`
+      : form.vehiculeId;
 
     const newRecord: MaintenanceRecord = {
       id: crypto.randomUUID(),
-      ...form,
+      vehicule: vehicleLabel,
+      vehiculeId: form.vehiculeId,
+      description: form.description,
+      type: form.type,
+      dateDebut: form.dateDebut,
+      coutEstime: form.coutEstime,
+      notes: form.notes,
       status: 'en_cours',
     };
 
     setRecords((prev) => [newRecord, ...prev]);
+    void supabase
+      .from('vehicles')
+      .update({ statut: 'en_panne' })
+      .eq('id', form.vehiculeId);
     setIsDialogOpen(false);
     setForm({
-      vehicule: '',
+      vehiculeId: '',
       description: '',
       type: 'preventive',
       dateDebut: new Date().toISOString().split('T')[0],
@@ -215,8 +230,8 @@ export const Maintenance = () => {
               <div className="space-y-3">
                 <Label htmlFor="vehicule" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">Sélection du Véhicule *</Label>
                 <Select
-                  value={form.vehicule}
-                  onValueChange={(v) => setForm({ ...form, vehicule: v })}
+                  value={form.vehiculeId}
+                  onValueChange={(v) => setForm({ ...form, vehiculeId: v })}
                 >
                   <SelectTrigger className="rounded-2xl border-border bg-background h-14 font-semibold">
                     <SelectValue placeholder="Sélectionner un véhicule" />
@@ -226,7 +241,7 @@ export const Maintenance = () => {
                       <div className="p-2 text-xs text-muted-foreground text-center italic">Aucun véhicule enregistré</div>
                     ) : (
                       vehicles.map((v: any) => (
-                        <SelectItem key={v.id} value={`${v.modele} (${v.matricule})`} className="rounded-xl">
+                        <SelectItem key={v.id} value={v.id} className="rounded-xl">
                           {v.modele} - {v.matricule}
                         </SelectItem>
                       ))

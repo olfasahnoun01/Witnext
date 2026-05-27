@@ -1456,6 +1456,8 @@ export type Database = {
           contract_holder_name: string | null
           contract_document_url: string | null
           created_at: string
+          conducteur_id: string | null
+          statut: string
           updated_at: string
         }
         Insert: {
@@ -1483,6 +1485,8 @@ export type Database = {
           contract_holder_name?: string | null
           contract_document_url?: string | null
           created_at?: string
+          conducteur_id?: string | null
+          statut?: string
           updated_at?: string
         }
         Update: {
@@ -1510,6 +1514,8 @@ export type Database = {
           contract_holder_name?: string | null
           contract_document_url?: string | null
           created_at?: string
+          conducteur_id?: string | null
+          statut?: string
           updated_at?: string
         }
         Relationships: []

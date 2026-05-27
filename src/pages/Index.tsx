@@ -183,7 +183,8 @@ const Index = () => {
         {activeTab === 'rh-statistiques' && <RhStatistiques />}
         
         {/* Véhicules */}
-        {activeTab === 'flotte' && <Flotte />}
+        {activeTab === 'flotte' && <Flotte initialSection="flotte" />}
+        {activeTab === 'vehicules-status' && <Flotte initialSection="status" />}
         {activeTab === 'vehicules-stats' && <VehiculeStats />}
         {activeTab === 'vehicules-bons' && <BonCarburant />}
         {activeTab === 'vehicules-cartes' && <CartesCarburant />}

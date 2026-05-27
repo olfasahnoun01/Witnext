@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Truck, Plus, Trash2, Loader2, Bell, CheckCircle2, Pencil } from 'lucide-react';
+import { Truck, Plus, Trash2, Loader2, Bell, CheckCircle2, Pencil, UserCheck } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -43,7 +43,23 @@ interface Vehicle {
   visite_technique_remind_at?: string | null;
   contract_holder_name?: string | null;
   contract_document_url?: string | null;
+  statut?: 'disponible' | 'en_fonction' | 'en_panne';
+  conducteur_id?: string | null;
 }
+
+interface Driver {
+  id: string;
+  nom: string;
+  prenom: string;
+  role?: string | null;
+}
+
+const normalizeRole = (value?: string | null) =>
+  String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .trim();
 
 interface VehicleReminder {
   id: string;
@@ -88,9 +104,11 @@ const CONSTRUCTEURS = [
   'Autre',
 ] as const;
 
-export const Flotte = () => {
+export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte' | 'status' }) => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [reminders, setReminders] = useState<VehicleReminder[]>([]);
+  const [section, setSection] = useState<'flotte' | 'status'>(initialSection);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -119,22 +137,45 @@ export const Flotte = () => {
     contract_document_url: '',
   });
 
+  const [assigningVehicleId, setAssigningVehicleId] = useState<string | null>(null);
+  const [selectedDriverByVehicle, setSelectedDriverByVehicle] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setSection(initialSection);
+  }, [initialSection]);
+
   const fetchVehicles = async () => {
     setIsLoading(true);
     try {
-      const [vehiclesRes, remindersRes] = await Promise.all([
+      const [vehiclesRes, remindersRes, driversRes] = await Promise.all([
         supabase.from('vehicles').select('*').order('created_at', { ascending: false }),
         supabase
           .from('vehicle_reminders')
           .select('*, vehicle:vehicles(modele, matricule)')
           .eq('is_done', false)
           .order('remind_at', { ascending: true }),
+        supabase
+          .from('employees')
+          .select('id, nom, prenom, role')
+          .order('nom'),
       ]);
 
       if (vehiclesRes.error) throw vehiclesRes.error;
       if (remindersRes.error) throw remindersRes.error;
+      if (driversRes.error) throw driversRes.error;
       setVehicles((vehiclesRes.data || []) as Vehicle[]);
       setReminders((remindersRes.data || []) as unknown as VehicleReminder[]);
+      const allEmployees = (driversRes.data || []) as Driver[];
+      const chauffeurs = allEmployees.filter((emp) => {
+        const role = normalizeRole(emp.role);
+        return (
+          role.includes('chauffeur') ||
+          role.includes('conducteur') ||
+          role.includes('driver') ||
+          role.includes('operateur')
+        );
+      });
+      setDrivers(chauffeurs);
     } catch (error: any) {
       console.error('Error fetching vehicles:', error);
       toast.error('Erreur lors du chargement de la flotte');
@@ -272,6 +313,86 @@ export const Flotte = () => {
     }
   };
 
+  const getDriverName = (driverId?: string | null) => {
+    if (!driverId) return null;
+    const driver = drivers.find((d) => d.id === driverId);
+    return driver ? `${driver.prenom} ${driver.nom}`.trim() : null;
+  };
+
+  const assignVehicleToDriver = async (vehicleId: string) => {
+    const driverId = selectedDriverByVehicle[vehicleId];
+    if (!driverId) {
+      toast.error('Sélectionnez un chauffeur');
+      return;
+    }
+    const targetDriverName = getDriverName(driverId) || 'ce chauffeur';
+    const otherAssignedVehicle = vehicles.find(
+      (v) => v.id !== vehicleId && v.conducteur_id === driverId && v.statut === 'en_fonction'
+    );
+    if (otherAssignedVehicle) {
+      toast.info(
+        `${targetDriverName} est déjà affecté à ${otherAssignedVehicle.modele} (${otherAssignedVehicle.matricule}).`
+      );
+      const proceed = window.confirm(
+        `${targetDriverName} a déjà un véhicule assigné (${otherAssignedVehicle.modele} - ${otherAssignedVehicle.matricule}). Voulez-vous vraiment lui assigner un 2ème véhicule ?`
+      );
+      if (!proceed) return;
+    }
+    setAssigningVehicleId(vehicleId);
+    const { error } = await supabase
+      .from('vehicles')
+      .update({
+        conducteur_id: driverId,
+        statut: 'en_fonction',
+      })
+      .eq('id', vehicleId);
+    setAssigningVehicleId(null);
+    if (error) {
+      toast.error('Erreur lors de l’affectation du véhicule');
+      return;
+    }
+    toast.success('Véhicule affecté');
+    await fetchVehicles();
+  };
+
+  const setVehicleAvailable = async (vehicleId: string) => {
+    const { error } = await supabase
+      .from('vehicles')
+      .update({
+        conducteur_id: null,
+        statut: 'disponible',
+      })
+      .eq('id', vehicleId);
+    if (error) {
+      toast.error('Erreur lors de la libération du véhicule');
+      return;
+    }
+    toast.success('Véhicule marqué disponible');
+    await fetchVehicles();
+  };
+
+  const statusBadgeClass = (status?: Vehicle['statut']) => {
+    switch (status) {
+      case 'en_fonction':
+        return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'en_panne':
+        return 'bg-red-100 text-red-700 border-red-200';
+      default:
+        return 'bg-green-100 text-green-700 border-green-200';
+    }
+  };
+
+  const statusLabel = (status?: Vehicle['statut']) => {
+    switch (status) {
+      case 'en_fonction':
+        return 'En fonction';
+      case 'en_panne':
+        return 'En panne';
+      default:
+        return 'Disponible';
+    }
+  };
+
   const handleCreateReminders = async (vehicle: Vehicle) => {
     const defs: { type: VehicleReminder['reminder_type']; due?: string | null; remindAt?: string | null }[] = [
       { type: 'vignette', due: vehicle.vignette_due_date, remindAt: vehicle.vignette_remind_at },
@@ -346,6 +467,23 @@ export const Flotte = () => {
         </Button>
       </div>
 
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-2 w-fit">
+        <Button
+          variant={section === 'flotte' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setSection('flotte')}
+        >
+          Flotte
+        </Button>
+        <Button
+          variant={section === 'status' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setSection('status')}
+        >
+          Status
+        </Button>
+      </div>
+
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="flex items-center gap-2 mb-3">
           <Bell className="w-4 h-4 text-amber-500" />
@@ -391,6 +529,70 @@ export const Flotte = () => {
             <Plus className="w-4 h-4" />
             Ajouter un véhicule
           </Button>
+        </div>
+      ) : section === 'status' ? (
+        <div className="grid gap-4">
+          {vehicles.map((v) => {
+            const driverName = getDriverName(v.conducteur_id);
+            return (
+              <div key={v.id} className="rounded-xl border border-border bg-card p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-foreground">{v.modele} ({v.matricule})</p>
+                    <p className="text-xs text-muted-foreground">
+                      {driverName ? `Affecté à ${driverName}` : 'Aucun chauffeur affecté'}
+                    </p>
+                  </div>
+                  <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${statusBadgeClass(v.statut)}`}>
+                    {statusLabel(v.statut)}
+                  </span>
+                </div>
+
+                {v.statut === 'en_panne' ? (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    Ce véhicule est en panne (mis à jour automatiquement depuis Maintenance).
+                  </div>
+                ) : (
+                  <div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_auto_auto] md:items-center">
+                    <Select
+                      value={selectedDriverByVehicle[v.id] || ''}
+                      onValueChange={(value) =>
+                        setSelectedDriverByVehicle((prev) => ({ ...prev, [v.id]: value }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Affecter à un chauffeur" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {drivers.length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-muted-foreground">
+                            Aucun chauffeur trouvé dans la liste employés
+                          </div>
+                        ) : (
+                          drivers.map((d) => (
+                            <SelectItem key={d.id} value={d.id}>
+                              {`${d.prenom} ${d.nom}`.trim()}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      onClick={() => assignVehicleToDriver(v.id)}
+                      disabled={assigningVehicleId === v.id || drivers.length === 0}
+                      className="gap-2"
+                    >
+                      <UserCheck className="w-4 h-4" />
+                      Assigner
+                    </Button>
+                    <Button variant="outline" onClick={() => setVehicleAvailable(v.id)}>
+                      Marquer disponible
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-x-auto">
@@ -449,7 +651,7 @@ export const Flotte = () => {
       )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[98vw] max-w-5xl max-h-[94vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Truck className="w-5 h-5 text-primary" />

@@ -114,6 +114,7 @@ export const BIG_SECTIONS: BigSection[] = [
     icon: Car,
     subsections: [
       { id: 'flotte', label: 'Flotte', icon: Truck },
+      { id: 'vehicules-status', label: 'Status', icon: Car },
       { id: 'vehicules-stats', label: 'Statistiques', icon: BarChart3 },
       { id: 'vehicules-bons', label: 'Bons Carburants', icon: Fuel },
       { id: 'vehicules-cartes', label: 'Cartes Carburants', icon: CreditCard },

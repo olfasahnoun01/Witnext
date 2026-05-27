@@ -348,14 +348,16 @@ export const PurchaseRequestManager = () => {
                   Nouvelle demande
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[96vw] max-w-6xl max-h-[92vh] overflow-y-auto p-4 sm:p-6">
+              <DialogContent className="w-[98vw] max-w-7xl max-h-[94vh] overflow-y-auto p-5 sm:p-8">
                 <DialogHeader>
                   <DialogTitle>Créer une demande d'achat</DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-6 py-2">
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    <div className="space-y-2">
+                  <div className="rounded-xl border border-border bg-muted/20 p-4 sm:p-5 space-y-4">
+                    <h3 className="text-sm font-semibold text-foreground">Informations générales</h3>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <div className="space-y-2">
                       <Label htmlFor="requesterName">Nom de l'agent commercial</Label>
                       <Input
                       id="requesterName"
@@ -378,15 +380,17 @@ export const PurchaseRequestManager = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 lg:col-span-2">
                     <Label htmlFor="requestNotes">Notes générales</Label>
                     <Textarea
                       id="requestNotes"
                       value={notes}
                       onChange={(event) => setNotes(event.target.value)}
                       placeholder="Contexte ou besoin commercial..."
+                      className="min-h-[92px]"
                     />
                   </div>
+                    </div>
                 </div>
 
                 <div className="space-y-3 md:col-span-2">
@@ -401,8 +405,8 @@ export const PurchaseRequestManager = () => {
                     const selectedProduct = products.find((product) => product.id === line.product_id);
 
                     return (
-                      <div key={`${index}-${line.product_id}-${line.mode}`} className="grid gap-3 rounded-xl border p-4">
-                        <div className="grid gap-3 lg:grid-cols-[140px_minmax(220px,1.4fr)_140px_minmax(200px,1.2fr)_100px_minmax(180px,1fr)_90px]">
+                      <div key={`${index}-${line.product_id}-${line.mode}`} className="grid gap-4 rounded-xl border border-border/60 bg-card p-4 sm:p-5">
+                        <div className="grid gap-3 xl:grid-cols-3">
                           <div className="space-y-2">
                             <Label>Mode</Label>
                             <Select
@@ -516,7 +520,9 @@ export const PurchaseRequestManager = () => {
                               onChange={(event) => updateLine(index, { quantity: Number(event.target.value) || 1 })}
                             />
                           </div>
+                        </div>
 
+                        <div className="grid gap-3 xl:grid-cols-[1fr_auto] xl:items-end">
                           <div className="space-y-2">
                             <Label>Détail</Label>
                             <Input
@@ -527,7 +533,7 @@ export const PurchaseRequestManager = () => {
                           </div>
 
                           <div className="flex items-end">
-                            <Button type="button" variant="ghost" onClick={() => removeLine(index)} className="w-full">
+                            <Button type="button" variant="ghost" onClick={() => removeLine(index)} className="w-full xl:w-auto">
                               Retirer
                             </Button>
                           </div>
