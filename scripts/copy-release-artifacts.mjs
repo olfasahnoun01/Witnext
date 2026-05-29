@@ -1,5 +1,5 @@
 /**
- * Copies NSIS / publish artifacts from .build-cache to release/ for local convenience.
+ * Copies electron-builder artifacts from .build-cache to release/ for local convenience.
  */
 import fs from 'node:fs';
 import path from 'node:path';

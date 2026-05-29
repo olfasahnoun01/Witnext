@@ -11,20 +11,12 @@ const root = path.join(__dirname, '..');
 const pngPath = path.join(root, 'src', 'assets', 'logo-icon-512.png');
 
 if (!fs.existsSync(pngPath)) {
-  console.error(
-    `Missing ${pngPath}. Run: npm run installer:assets`
-  );
+  console.error(`Missing ${pngPath}. Run: npm run assets:branding`);
   process.exit(1);
 }
 
 const icoBuffer = await pngToIco(pngPath);
-const targets = [
-  path.join(root, 'build', 'icon.ico'),
-  path.join(root, 'build', 'installer', 'icon.ico'),
-];
-
-for (const dest of targets) {
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-  fs.writeFileSync(dest, icoBuffer);
-  console.log(`Wrote ${dest}`);
-}
+const dest = path.join(root, 'build', 'icon.ico');
+fs.mkdirSync(path.dirname(dest), { recursive: true });
+fs.writeFileSync(dest, icoBuffer);
+console.log(`Wrote ${dest}`);

@@ -17,11 +17,12 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http-get://127.0.0.1:8080 && cross-env NODE_ENV=development electron .\"",
-    "installer:assets": "powershell -ExecutionPolicy Bypass -File scripts/generate-installer-assets.ps1",
+    "assets:branding": "powershell -ExecutionPolicy Bypass -File scripts/generate-app-assets.ps1",
     "icon:ico": "node scripts/generate-icon-ico.mjs",
     "electron:clean": "powershell -ExecutionPolicy Bypass -File scripts/clean-electron-build.ps1",
-    "electron:build": "npm run installer:assets && npm run build && npm run electron:clean && npx electron-builder --publish always && node scripts/copy-release-artifacts.mjs",
-    "electron:build:win": "npm run installer:assets && npm run build && npm run electron:clean && npx electron-builder --win --publish never && node scripts/copy-release-artifacts.mjs",
+    "electron:build": "npm run icon:ico && npm run build && npm run electron:clean && npx electron-builder --win --publish never && node scripts/copy-release-artifacts.mjs",
+    "electron:build:release": "npm run icon:ico && npm run build && npm run electron:clean && npx electron-builder --win --publish always && node scripts/copy-release-artifacts.mjs",
+    "electron:build:win": "npm run electron:build",
     "electron:build:dir": "powershell -ExecutionPolicy Bypass -File scripts/clean-electron-build.ps1 && npm run build && npx electron-builder --config electron-builder.dir.json --win --publish never",
     "import:fiches": "node scripts/import-fiches-techniques.mjs",
     "import:fiches:apply": "node scripts/import-fiches-techniques.mjs --apply"
@@ -133,43 +134,8 @@
       }
     ],
     "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
       "icon": "build/icon.ico",
-      "requestedExecutionLevel": "asInvoker",
-      "legalTrademarks": "Alpha ERP"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowElevation": true,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Alpha",
-      "uninstallDisplayName": "Alpha - Gestion d'entreprise",
-      "menuCategory": "Alpha",
-      "runAfterFinish": true,
-      "deleteAppDataOnUninstall": false,
-      "unicode": true,
-      "language": "1036",
-      "installerLanguages": [
-        "fr_FR"
-      ],
-      "multiLanguageInstaller": false,
-      "artifactName": "${productName}-Setup-${version}.${ext}",
-      "installerSidebar": "build/installer/installerSidebar.bmp",
-      "installerHeader": "build/installer/installerHeader.bmp",
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico",
-      "include": "build/installer/installer.nsh",
-      "warningsAsErrors": false
+      "target": "nsis"
     },
     "copyright": "Copyright © 2026 Alpha",
     "npmRebuild": false
