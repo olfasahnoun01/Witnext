@@ -22,6 +22,7 @@
     "electron:clean": "powershell -ExecutionPolicy Bypass -File scripts/clean-electron-build.ps1",
     "electron:build": "npm run icon:ico && npm run build && npm run electron:clean && node scripts/run-electron-builder.mjs --publish never && node scripts/copy-release-artifacts.mjs",
     "electron:build:release": "npm run icon:ico && npm run build && npm run electron:clean && node scripts/run-electron-builder.mjs --publish always && node scripts/copy-release-artifacts.mjs",
+    "electron:publish": "node scripts/publish-github-release.mjs",
     "electron:build:win": "npm run electron:build",
     "electron:build:dir": "npm run build && node scripts/run-electron-builder.mjs --publish never --dir",
     "import:fiches": "node scripts/import-fiches-techniques.mjs",
@@ -136,6 +137,9 @@
     "win": {
       "icon": "build/icon.ico",
       "target": "nsis"
+    },
+    "nsis": {
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "copyright": "Copyright © 2026 Alpha",
     "npmRebuild": false
