@@ -1,17 +1,17 @@
 /**
- * Copies electron-builder artifacts from .build-cache to release/ for local convenience.
+ * Copies electron-builder artifacts from the active build run to release/.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveElectronBuildDir, root } from './electron-build-path.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.join(__dirname, '..');
-const srcDir = path.join(root, '.build-cache');
 const destDir = path.join(root, 'release');
+const srcDir = resolveElectronBuildDir();
 
 if (!fs.existsSync(srcDir)) {
-  console.warn('No .build-cache folder — skip copy.');
+  console.warn(`No build output at ${srcDir} — skip copy.`);
   process.exit(0);
 }
 
@@ -37,7 +37,7 @@ for (const name of fs.readdirSync(srcDir)) {
 }
 
 if (copied === 0) {
-  console.log('No matching artifacts in .build-cache to copy.');
+  console.log(`No matching artifacts in ${srcDir} to copy.`);
 } else {
   console.log(`Done (${copied} file(s)).`);
 }

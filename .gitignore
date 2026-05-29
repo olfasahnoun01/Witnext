@@ -21,6 +21,10 @@ dist-ssr
 # Electron build artifacts
 release/
 .build-cache/
+.build-cache-*/
+dist-electron/
+.electron-build-dir
+**/app.asar
 *.exe
 *.blockmap
 

@@ -1,8 +1,10 @@
-# Stops common lock holders and clears unpacked build folders.
+# Stops lock holders and prunes electron-builder output (LocalAppData + legacy repo folders).
 $ErrorActionPreference = 'SilentlyContinue'
 
 $root = Split-Path -Parent $PSScriptRoot
 $projectSlug = Split-Path -Leaf $root
+$buildRoot = if ($env:ELECTRON_BUILD_ROOT) { $env:ELECTRON_BUILD_ROOT } else { Join-Path $env:LOCALAPPDATA 'Alpha-electron-build' }
+$runsRoot = Join-Path $buildRoot 'runs'
 
 function Stop-LockingProcesses {
   $names = @('Alpha', 'electron', 'Installer', 'Alpha Installer')
@@ -15,12 +17,12 @@ function Stop-LockingProcesses {
       $_.ExecutablePath -and (
         $_.ExecutablePath -like "*\win-unpacked\*" -or
         $_.ExecutablePath -like "*\release\*Alpha*" -or
-        $_.ExecutablePath -like "*\.build-cache\*"
+        $_.ExecutablePath -like "*\.build-cache\*" -or
+        $_.ExecutablePath -like "*\Alpha-electron-build\*"
       )
     } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 
-  # Dev server / electron-builder node processes tied to this repo (not Cursor itself).
   Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
     Where-Object {
       $cmd = $_.CommandLine
@@ -35,47 +37,54 @@ function Stop-LockingProcesses {
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 
-function Remove-BuildDir([string]$dir) {
+function Remove-DirBestEffort([string]$dir) {
   if (-not (Test-Path $dir)) { return $true }
-  for ($i = 0; $i -lt 6; $i++) {
+  for ($i = 0; $i -lt 4; $i++) {
     Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
     if (-not (Test-Path $dir)) { return $true }
     Stop-LockingProcesses
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 1
   }
   return -not (Test-Path $dir)
+}
+
+function Prune-OldRuns([string]$dir, [int]$keep = 2) {
+  if (-not (Test-Path $dir)) { return }
+  $runs = Get-ChildItem -LiteralPath $dir -Directory -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending
+  if (-not $runs) { return }
+  foreach ($run in $runs | Select-Object -Skip $keep) {
+    Remove-DirBestEffort $run.FullName | Out-Null
+  }
 }
 
 Stop-LockingProcesses
 Start-Sleep -Seconds 1
 
-$dirs = @(
-  (Join-Path $root '.build-cache\win-unpacked'),
+# Legacy in-repo cache (Desktop / OneDrive — often locked; best effort only).
+$legacyDirs = @(
+  (Join-Path $root '.build-cache'),
   (Join-Path $root 'release\win-unpacked')
 )
-
-$locked = @()
-foreach ($dir in $dirs) {
-  if (-not (Remove-BuildDir $dir)) {
-    $locked += $dir
+$legacyLocked = @()
+foreach ($dir in $legacyDirs) {
+  if (-not (Test-Path $dir)) { continue }
+  if (-not (Remove-DirBestEffort $dir)) {
+    $legacyLocked += $dir
   }
 }
 
-if ($locked.Count -gt 0) {
-  Write-Warning @"
-Could not remove (file in use):
-$($locked -join "`n")
+Prune-OldRuns $runsRoot 2
 
-Close Alpha / Electron / the setup installer, then:
-  - Close File Explorer windows on .build-cache or release
-  - Stop npm run electron:dev if it is running
-  - Pause OneDrive sync (project is on Desktop)
-  - Wait ~30s if antivirus is scanning app.asar
-
-Then run: npm run electron:clean
-"@
-  exit 1
+$marker = Join-Path $root '.electron-build-dir'
+if (Test-Path $marker) {
+  Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host 'Electron build folders cleaned.'
+if ($legacyLocked.Count -gt 0) {
+  Write-Host 'Legacy folders still locked (safe to ignore; builds use LocalAppData now):'
+  $legacyLocked | ForEach-Object { Write-Host "  $_" }
+}
+
+Write-Host "Electron build cache cleaned (output root: $buildRoot)."
 exit 0

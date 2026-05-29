@@ -3,7 +3,7 @@
   "appId": "com.grosafe.hub",
   "productName": "Alpha",
   "directories": {
-    "output": ".build-cache"
+    "output": "dist-electron"
   },
   "files": [
     "dist/**/*",
