@@ -659,11 +659,13 @@ export type Database = {
           category: string
           created_at: string
           created_by: string | null
+          devis_fichiers: Json
           description: string | null
           fiches_techniques: Json
           id: number
           name: string
           photos: Json
+          prix_achat_ttc: number | null
           prix_vente_ttc: number | null
           updated_at: string
           woocommerce_id: number | null
@@ -672,11 +674,13 @@ export type Database = {
           category?: string
           created_at?: string
           created_by?: string | null
+          devis_fichiers?: Json
           description?: string | null
           fiches_techniques?: Json
           id?: number
           name: string
           photos?: Json
+          prix_achat_ttc?: number | null
           prix_vente_ttc?: number | null
           updated_at?: string
           woocommerce_id?: number | null
@@ -685,11 +689,13 @@ export type Database = {
           category?: string
           created_at?: string
           created_by?: string | null
+          devis_fichiers?: Json
           description?: string | null
           fiches_techniques?: Json
           id?: number
           name?: string
           photos?: Json
+          prix_achat_ttc?: number | null
           prix_vente_ttc?: number | null
           updated_at?: string
           woocommerce_id?: number | null

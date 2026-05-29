@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { FileInput } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -8,7 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import type { InvoiceLineRow, InvoiceRow, SalesInvoiceWriteInput, VatRate } from '../types';
+import type { InvoiceLineRow, InvoiceRow, InvoiceWriteInput, VatRate } from '../types';
+import { Checkbox } from '@/components/ui/checkbox';
+import { TIMBRE_FISCAL_FACTURE_DT } from '../lib/tunisiaFiscal';
+import { formatMontantDt } from '../lib/money';
 import {
   cancelSalesInvoice,
   computeInvoiceTotals,
@@ -18,8 +22,13 @@ import {
   updateSalesInvoice,
   validateSalesInvoice,
 } from '../services/financeApi';
+import { CounterpartyCombobox } from './payments/CounterpartyCombobox';
+import { SourceDocumentPicker } from './sources/SourceDocumentPicker';
+import type { CounterpartyOption } from '../types/paymentTypes';
+import type { CommercialInvoiceDraft, FinanceSourceRef } from '../types/commercialBridge';
+import { supabase } from '@/integrations/supabase/client';
 
-type LineForm = SalesInvoiceWriteInput['lines'][number];
+type LineForm = InvoiceWriteInput['lines'][number];
 
 const emptyLine = (): LineForm => ({
   description: '',
@@ -29,13 +38,14 @@ const emptyLine = (): LineForm => ({
   product_code: '',
 });
 
-const emptyForm = (): Omit<SalesInvoiceWriteInput, 'company_id'> => ({
+const emptyForm = (): Omit<InvoiceWriteInput, 'company_id'> => ({
   numero: '',
   counterpart_name: '',
   counterpart_tax_id: '',
   issue_date: new Date().toISOString().slice(0, 10),
   due_date: '',
   notes: '',
+  apply_timbre_fiscal: true,
   lines: [emptyLine()],
 });
 
@@ -43,11 +53,13 @@ export function FinanceSalesPanel({
   companyId,
   invoices,
   linesByInvoice,
+  clients = [],
   onReload,
 }: {
   companyId: string;
   invoices: InvoiceRow[];
   linesByInvoice: Record<string, InvoiceLineRow[]>;
+  clients?: CounterpartyOption[];
   onReload: () => Promise<void>;
 }) {
   const [search, setSearch] = useState('');
@@ -58,11 +70,14 @@ export function FinanceSalesPanel({
   const [showForm, setShowForm] = useState(false);
   const [showDetailsFor, setShowDetailsFor] = useState<InvoiceRow | null>(null);
   const [showPayFor, setShowPayFor] = useState<InvoiceRow | null>(null);
-  const [form, setForm] = useState<Omit<SalesInvoiceWriteInput, 'company_id'>>(emptyForm());
+  const [form, setForm] = useState<Omit<InvoiceWriteInput, 'company_id'>>(emptyForm());
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'check' | 'transfer' | 'card' | 'other'>('transfer');
   const [paymentRef, setPaymentRef] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<CounterpartyOption | null>(null);
+  const [pendingSourceRef, setPendingSourceRef] = useState<FinanceSourceRef | null>(null);
 
   const filtered = useMemo(() => {
     return invoices.filter((inv) => {
@@ -83,11 +98,36 @@ export function FinanceSalesPanel({
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm());
+    setSelectedClient(null);
+    setPendingSourceRef(null);
+    setShowForm(true);
+  };
+
+  const applyCommercialDraft = (draft: CommercialInvoiceDraft) => {
+    setEditing(null);
+    setForm({
+      numero: draft.numero,
+      counterpart_name: draft.counterpart_name,
+      counterpart_tax_id: draft.counterpart_tax_id || '',
+      issue_date: draft.issue_date,
+      due_date: '',
+      notes: draft.notes || '',
+      apply_timbre_fiscal: draft.apply_timbre_fiscal,
+      lines: draft.lines.length > 0 ? draft.lines : [emptyLine()],
+    });
+    setPendingSourceRef(draft.source_ref);
+    const matchClient = clients.find(
+      (c) =>
+        c.raisonSociale.toLowerCase() === draft.counterpart_name.toLowerCase() ||
+        (draft.counterpart_tax_id && c.matriculeFiscal === draft.counterpart_tax_id)
+    );
+    setSelectedClient(matchClient ?? null);
     setShowForm(true);
   };
 
   const openEdit = (inv: InvoiceRow) => {
     const lines = linesByInvoice[inv.id] || [];
+    const meta = (inv.metadata || {}) as Record<string, unknown>;
     setEditing(inv);
     setForm({
       numero: inv.numero,
@@ -96,6 +136,7 @@ export function FinanceSalesPanel({
       issue_date: inv.issue_date,
       due_date: inv.due_date || '',
       notes: inv.notes || '',
+      apply_timbre_fiscal: !!(meta as Record<string, unknown>).apply_timbre_fiscal,
       lines:
         lines.length > 0
           ? lines.map((l) => ({
@@ -121,7 +162,7 @@ export function FinanceSalesPanel({
     }
     setBusy(true);
     try {
-      const payload: SalesInvoiceWriteInput = {
+      const payload: InvoiceWriteInput = {
         company_id: companyId,
         numero: form.numero.trim(),
         counterpart_name: form.counterpart_name.trim(),
@@ -129,6 +170,7 @@ export function FinanceSalesPanel({
         issue_date: form.issue_date,
         due_date: form.due_date || null,
         notes: form.notes?.trim() || null,
+        apply_timbre_fiscal: !!form.apply_timbre_fiscal,
         lines: form.lines.map((l) => ({
           product_code: l.product_code?.trim() || null,
           description: l.description.trim(),
@@ -137,12 +179,22 @@ export function FinanceSalesPanel({
           vat_rate: l.vat_rate,
         })),
       };
+      let invoiceId: string;
       if (editing) {
         await updateSalesInvoice(editing.id, payload);
+        invoiceId = editing.id;
         toast.success('Facture mise à jour');
       } else {
-        await createSalesInvoice(payload);
+        invoiceId = await createSalesInvoice(payload);
         toast.success('Facture créée');
+      }
+      if (pendingSourceRef) {
+        const { data: row } = await supabase.from('invoices').select('metadata').eq('id', invoiceId).single();
+        const meta = ((row?.metadata || {}) as Record<string, unknown>) ?? {};
+        await supabase
+          .from('invoices')
+          .update({ metadata: { ...meta, source_ref: pendingSourceRef } })
+          .eq('id', invoiceId);
       }
       setShowForm(false);
       await onReload();
@@ -229,6 +281,10 @@ export function FinanceSalesPanel({
           </Select>
           <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          <Button variant="outline" className="gap-1" onClick={() => setShowSourcePicker(true)}>
+            <FileInput className="h-4 w-4" />
+            Importer pièce
+          </Button>
           <Button onClick={openCreate}>Nouvelle facture</Button>
         </div>
       </CardHeader>
@@ -286,10 +342,41 @@ export function FinanceSalesPanel({
           <DialogHeader><DialogTitle>{editing ? 'Modifier facture vente' : 'Nouvelle facture vente'}</DialogTitle></DialogHeader>
           <div className="grid gap-3 md:grid-cols-3">
             <div><Label>N° facture</Label><Input value={form.numero} onChange={(e) => setForm((f) => ({ ...f, numero: e.target.value }))} /></div>
-            <div><Label>Client</Label><Input value={form.counterpart_name} onChange={(e) => setForm((f) => ({ ...f, counterpart_name: e.target.value }))} /></div>
+            <div>
+              <Label>Client (annuaire Ventes)</Label>
+              <CounterpartyCombobox
+                options={clients}
+                value={selectedClient}
+                placeholder="Sélectionner un client…"
+                onChange={(c) => {
+                  setSelectedClient(c);
+                  if (c) {
+                    setForm((f) => ({
+                      ...f,
+                      counterpart_name: c.raisonSociale,
+                      counterpart_tax_id: c.matriculeFiscal || '',
+                    }));
+                  }
+                }}
+              />
+            </div>
             <div><Label>MF client</Label><Input value={form.counterpart_tax_id || ''} onChange={(e) => setForm((f) => ({ ...f, counterpart_tax_id: e.target.value }))} /></div>
+            <div className="md:col-span-2">
+              <Label>Nom client (libre ou complément)</Label>
+              <Input
+                value={form.counterpart_name}
+                onChange={(e) => setForm((f) => ({ ...f, counterpart_name: e.target.value }))}
+              />
+            </div>
             <div><Label>Date facture</Label><Input type="date" value={form.issue_date} onChange={(e) => setForm((f) => ({ ...f, issue_date: e.target.value }))} /></div>
             <div><Label>Échéance</Label><Input type="date" value={form.due_date || ''} onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))} /></div>
+            <div className="flex items-center gap-2 pt-6">
+              <Checkbox
+                checked={!!form.apply_timbre_fiscal}
+                onCheckedChange={(c) => setForm((f) => ({ ...f, apply_timbre_fiscal: c === true }))}
+              />
+              <Label>Timbre fiscal ({formatMontantDt(TIMBRE_FISCAL_FACTURE_DT)})</Label>
+            </div>
             <div className="md:col-span-3"><Label>Notes</Label><Textarea value={form.notes || ''} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} /></div>
           </div>
 
@@ -324,10 +411,13 @@ export function FinanceSalesPanel({
           </div>
 
           {(() => {
-            const totals = computeInvoiceTotals(form.lines);
+            const totals = computeInvoiceTotals(form.lines, { apply_timbre_fiscal: form.apply_timbre_fiscal });
             return (
-              <div className="rounded border p-3 text-sm">
-                Totaux: HT <strong>{totals.total_ht.toFixed(3)}</strong> | TVA <strong>{totals.total_tva.toFixed(3)}</strong> | TTC <strong>{totals.total_ttc.toFixed(3)}</strong>
+              <div className="rounded border p-3 text-sm tabular-nums">
+                HT <strong>{formatMontantDt(totals.total_ht)}</strong> | TVA{' '}
+                <strong>{formatMontantDt(totals.total_tva)}</strong> | TTC{' '}
+                <strong>{formatMontantDt(totals.total_ttc)}</strong>
+                {totals.timbre_fiscal > 0 && ` (dont timbre ${formatMontantDt(totals.timbre_fiscal)})`}
               </div>
             );
           })()}
@@ -390,6 +480,13 @@ export function FinanceSalesPanel({
           <DialogFooter><Button variant="outline" onClick={() => setShowPayFor(null)}>Annuler</Button><Button onClick={doPay}>Valider règlement</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SourceDocumentPicker
+        open={showSourcePicker}
+        onOpenChange={setShowSourcePicker}
+        direction="vente"
+        onApply={applyCommercialDraft}
+      />
     </Card>
   );
 }

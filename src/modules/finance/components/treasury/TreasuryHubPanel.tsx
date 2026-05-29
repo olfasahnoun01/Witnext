@@ -1,0 +1,229 @@
+import { useCallback, useMemo, useState } from 'react';
+import { ArrowRightLeft, Landmark, PiggyBank, Wallet } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatMontantDt } from '../../lib/money';
+import { loadTreasuryAccounts } from '../../services/treasuryStorage';
+import type { TreasuryAccount } from '../../types/financeDomain';
+import {
+  FinanceSectionHeader,
+  FinanceSubNav,
+  FinanceSubsectionHint,
+} from '../layout/FinanceSubNav';
+import { getTreasurySubsections } from '../../lib/financeNavigation';
+import { TreasuryAccountsDashboard } from './TreasuryAccountsDashboard';
+import { BankReconciliationPanel } from './BankReconciliationPanel';
+import { InterAccountTransferDialog } from './InterAccountTransferDialog';
+import { TraitesPortfolioPanel } from '../traites/TraitesPortfolioPanel';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+
+interface TreasuryHubPanelProps {
+  companyId: string;
+  clientPaymentsTotal: number;
+}
+
+export function TreasuryHubPanel({ companyId, clientPaymentsTotal }: TreasuryHubPanelProps) {
+  const subsections = useMemo(() => getTreasurySubsections(), []);
+  const [activeSub, setActiveSub] = useState('bank');
+  const [accounts, setAccounts] = useState<TreasuryAccount[]>(() => loadTreasuryAccounts(companyId));
+  const [transferOpen, setTransferOpen] = useState(false);
+
+  const refreshAccounts = useCallback(() => {
+    setAccounts(loadTreasuryAccounts(companyId));
+  }, [companyId]);
+
+  return (
+    <div className="space-y-4">
+      <FinanceSectionHeader
+        title="Trésorerie"
+        description="Gestion banque (512), caisse (531), effets à encaisser (514) et virements inter-comptes."
+      />
+
+      <FinanceSubNav items={subsections} value={activeSub} onValueChange={setActiveSub} />
+      <FinanceSubsectionHint items={subsections} activeId={activeSub} />
+
+      {activeSub === 'bank' && (
+        <TreasuryAccountsDashboard
+          companyId={companyId}
+          filterTypes={['BANQUE']}
+          title="Comptes banque"
+          description="Comptes courants bancaires — PCG 512. RIB et soldes en dinars tunisiens (3 décimales)."
+          showTransferButton={false}
+          newAccountDefaultType="BANQUE"
+        />
+      )}
+
+      {activeSub === 'bank-recon' && <BankReconciliationPanel companyId={companyId} />}
+
+      {activeSub === 'cash' && (
+        <TreasuryAccountsDashboard
+          companyId={companyId}
+          filterTypes={['CAISSE']}
+          title="Comptes caisse"
+          description="Fonds en caisse — PCG 531. Le solde ne peut pas être négatif lors des décaissements espèces."
+          showTransferButton={false}
+          newAccountDefaultType="CAISSE"
+        />
+      )}
+
+      {activeSub === 'effects' && (
+        <div className="space-y-8">
+          <TreasuryAccountsDashboard
+            companyId={companyId}
+            filterTypes={['ATTENTE_EFFETS']}
+            title="Compte d'attente effets"
+            description="Chèques et traites en portefeuille avant remise en banque — PCG 514."
+            showTransferButton={false}
+            showNewAccountButton={false}
+          />
+          <TraitesPortfolioPanel companyId={companyId} />
+        </div>
+      )}
+
+      {activeSub === 'transfers' && (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold">Virements inter-comptes</h3>
+              <p className="text-sm text-muted-foreground">
+                Transférez des fonds entre banque, caisse et autres comptes actifs.
+              </p>
+            </div>
+            <Button className="gap-2" onClick={() => setTransferOpen(true)}>
+              <ArrowRightLeft className="h-4 w-4" />
+              Nouveau virement
+            </Button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {accounts
+              .filter((a) => a.actif && a.type !== 'ATTENTE_EFFETS')
+              .map((acc) => (
+                <CompactAccountCard key={acc.id} account={acc} />
+              ))}
+          </div>
+          <InterAccountTransferDialog
+            open={transferOpen}
+            onOpenChange={setTransferOpen}
+            companyId={companyId}
+            accounts={accounts}
+            onSuccess={(updated) => setAccounts(updated)}
+          />
+        </div>
+      )}
+
+      {activeSub === 'summary' && (
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            <SummaryCard
+              label="Total banque"
+              icon={Landmark}
+              amount={sumByType(accounts, 'BANQUE')}
+              variant="bank"
+            />
+            <SummaryCard
+              label="Total caisse"
+              icon={PiggyBank}
+              amount={sumByType(accounts, 'CAISSE')}
+              variant="cash"
+            />
+            <SummaryCard
+              label="Effets en attente"
+              icon={Wallet}
+              amount={sumByType(accounts, 'ATTENTE_EFFETS')}
+              variant="effects"
+            />
+          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Synthèse trésorerie</CardTitle>
+              <CardDescription>Encaissements clients cumulés (module règlements)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-2xl font-bold tabular-nums">{formatMontantDt(clientPaymentsTotal)}</p>
+              <div className="rounded-lg border overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left p-2 font-medium">Compte</th>
+                      <th className="text-left p-2 font-medium">Type</th>
+                      <th className="text-left p-2 font-medium">PCG</th>
+                      <th className="text-right p-2 font-medium">Solde</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {accounts.filter((a) => a.actif).map((acc) => (
+                      <tr key={acc.id} className="border-b last:border-0">
+                        <td className="p-2">{acc.nom}</td>
+                        <td className="p-2">
+                          <Badge variant="outline" className="text-xs">
+                            {acc.type}
+                          </Badge>
+                        </td>
+                        <td className="p-2 font-mono text-xs">{acc.codeComptable}</td>
+                        <td className="p-2 text-right tabular-nums font-medium">
+                          {formatMontantDt(acc.soldeActuel)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Button variant="outline" size="sm" onClick={refreshAccounts}>
+                Actualiser les soldes
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function sumByType(accounts: TreasuryAccount[], type: TreasuryAccount['type']): number {
+  return accounts.filter((a) => a.actif && a.type === type).reduce((s, a) => s + a.soldeActuel, 0);
+}
+
+function CompactAccountCard({ account }: { account: TreasuryAccount }) {
+  const Icon = account.type === 'CAISSE' ? PiggyBank : Landmark;
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <Icon className="h-4 w-4 text-primary" />
+          <CardTitle className="text-sm">{account.nom}</CardTitle>
+        </div>
+        <CardDescription className="font-mono text-xs">{account.codeComptable}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-lg font-bold tabular-nums">{formatMontantDt(account.soldeActuel)}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SummaryCard({
+  label,
+  icon: Icon,
+  amount,
+  variant,
+}: {
+  label: string;
+  icon: typeof Landmark;
+  amount: number;
+  variant: 'bank' | 'cash' | 'effects';
+}) {
+  return (
+    <Card className={cn(variant === 'cash' && amount < 0 && 'border-destructive')}>
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Icon className="h-4 w-4" />
+          <CardTitle className="text-sm font-medium">{label}</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <p className="text-2xl font-bold tabular-nums">{formatMontantDt(amount)}</p>
+      </CardContent>
+    </Card>
+  );
+}

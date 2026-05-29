@@ -265,7 +265,9 @@ Deno.serve(async (req: Request) => {
           photos,
           description: null,
           prix_vente_ttc: null,
+          prix_achat_ttc: null,
           fiches_techniques: [],
+          devis_fichiers: [],
           woocommerce_id: product.id,
           created_by: user.id,
         })

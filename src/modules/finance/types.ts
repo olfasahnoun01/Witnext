@@ -83,7 +83,7 @@ export interface InvoiceLineRow {
   updated_at: string;
 }
 
-export interface SalesInvoiceWriteInput {
+export interface InvoiceWriteInput {
   company_id: string;
   numero: string;
   counterpart_name: string;
@@ -91,11 +91,20 @@ export interface SalesInvoiceWriteInput {
   issue_date: string;
   due_date?: string | null;
   notes?: string | null;
+  /** Applique le timbre fiscal forfaitaire (1,000 DT) au TTC — usage Tunisie. */
+  apply_timbre_fiscal?: boolean;
   lines: Array<{
     product_code?: string | null;
     description: string;
     quantity: number;
     unit_price_ht: number;
     vat_rate: VatRate;
+    /** Ligne soumise FODEC (contribution industrielle) — taux appliqué côté service. */
+    subject_to_fodec?: boolean;
   }>;
 }
+
+/** @deprecated Utiliser InvoiceWriteInput */
+export type SalesInvoiceWriteInput = InvoiceWriteInput;
+
+export type PurchaseInvoiceWriteInput = InvoiceWriteInput;

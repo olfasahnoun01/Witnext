@@ -47,6 +47,7 @@ import {
   Copy,
   ExternalLink,
   Download,
+  Receipt,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -86,7 +87,9 @@ interface GalleryItem {
   description: string | null;
   photos: string[];
   fiches_techniques: string[];
+  devis_fichiers: string[];
   prix_vente_ttc: number | null;
+  prix_achat_ttc: number | null;
   created_at: string;
 }
 
@@ -128,15 +131,19 @@ export const PhotoGallery = () => {
   const [formCategory, setFormCategory] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formPrixTtc, setFormPrixTtc] = useState('');
+  const [formPrixAchat, setFormPrixAchat] = useState('');
   const [formPhotos, setFormPhotos] = useState<string[]>([]);
   const [formFiches, setFormFiches] = useState<string[]>([]);
+  const [formDevis, setFormDevis] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadingFiche, setUploadingFiche] = useState(false);
+  const [uploadingDevis, setUploadingDevis] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
   const [importingFromSite, setImportingFromSite] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const ficheInputRef = useRef<HTMLInputElement>(null);
+  const devisInputRef = useRef<HTMLInputElement>(null);
 
   const fetchCategories = useCallback(async () => {
     const { data } = await supabase
@@ -167,9 +174,14 @@ export const PhotoGallery = () => {
           ...d,
           photos: parseUrlArray(d.photos),
           fiches_techniques: parseUrlArray((d as { fiches_techniques?: unknown }).fiches_techniques),
+          devis_fichiers: parseUrlArray((d as { devis_fichiers?: unknown }).devis_fichiers),
           prix_vente_ttc:
             (d as { prix_vente_ttc?: number | string | null }).prix_vente_ttc != null
               ? Number((d as { prix_vente_ttc?: number | string | null }).prix_vente_ttc)
+              : null,
+          prix_achat_ttc:
+            (d as { prix_achat_ttc?: number | string | null }).prix_achat_ttc != null
+              ? Number((d as { prix_achat_ttc?: number | string | null }).prix_achat_ttc)
               : null,
           description: d.description || null,
         }))
@@ -244,8 +256,10 @@ export const PhotoGallery = () => {
     setFormCategory('');
     setFormDescription('');
     setFormPrixTtc('');
+    setFormPrixAchat('');
     setFormPhotos([]);
     setFormFiches([]);
+    setFormDevis([]);
   };
 
   // Category CRUD
@@ -332,8 +346,12 @@ export const PhotoGallery = () => {
     setFormPrixTtc(
       item.prix_vente_ttc != null && Number.isFinite(item.prix_vente_ttc) ? String(item.prix_vente_ttc) : ''
     );
+    setFormPrixAchat(
+      item.prix_achat_ttc != null && Number.isFinite(item.prix_achat_ttc) ? String(item.prix_achat_ttc) : ''
+    );
     setFormPhotos([...item.photos]);
     setFormFiches([...item.fiches_techniques]);
+    setFormDevis([...item.devis_fichiers]);
     setEditingItem(item);
     setShowAddModal(true);
   };
@@ -384,6 +402,40 @@ export const PhotoGallery = () => {
 
   const removeFiche = (index: number) => {
     setFormFiches(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDevisUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    setUploadingDevis(true);
+    const newUrls: string[] = [];
+    for (const file of Array.from(files)) {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        toast({ variant: 'destructive', title: 'Fichier trop volumineux', description: `${file.name} : max 10 Mo` });
+        continue;
+      }
+      if (!allowed.includes(file.type)) {
+        toast({ variant: 'destructive', title: 'Format refusé', description: `${file.name} : PDF, JPG, PNG ou WebP uniquement` });
+        continue;
+      }
+      const safe = file.name.replace(/[^\w.\-]+/g, '_');
+      const path = `gallery/devis/${Date.now()}-${Math.random().toString(36).slice(2)}-${safe}`;
+      const { error } = await supabase.storage.from('fiches-techniques').upload(path, file, { upsert: true });
+      if (!error) {
+        const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(path);
+        newUrls.push(urlData.publicUrl);
+      } else {
+        toast({ variant: 'destructive', title: 'Upload devis', description: error.message });
+      }
+    }
+    setFormDevis(prev => [...prev, ...newUrls]);
+    setUploadingDevis(false);
+    if (devisInputRef.current) devisInputRef.current.value = '';
+  };
+
+  const removeDevis = (index: number) => {
+    setFormDevis(prev => prev.filter((_, i) => i !== index));
   };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -440,13 +492,16 @@ export const PhotoGallery = () => {
 
     setSaving(true);
     const prixParsed = parsePrixInput(formPrixTtc);
+    const prixAchatParsed = parsePrixInput(formPrixAchat);
     const payload = {
       name: formName.trim(),
       category: catTrim,
       description: formDescription.trim() || null,
       photos: formPhotos,
       fiches_techniques: formFiches,
+      devis_fichiers: formDevis,
       prix_vente_ttc: prixParsed,
+      prix_achat_ttc: prixAchatParsed,
     };
 
     if (editingItem) {
@@ -805,7 +860,7 @@ export const PhotoGallery = () => {
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Modifier la fiche' : 'Nouvelle fiche produit'}</DialogTitle>
             <DialogDescription>
-              Photos, prix TTC et fiches techniques pour réponses rapides aux clients.
+              Photos, prix vente/achat, devis fournisseur et fiches techniques.
             </DialogDescription>
           </DialogHeader>
 
@@ -878,15 +933,63 @@ export const PhotoGallery = () => {
               <Input value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Référence, remarque pour l’équipe…" />
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label>Prix vente TTC (TND)</Label>
+                <Input
+                  value={formPrixTtc}
+                  onChange={e => setFormPrixTtc(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="ex. 58,500"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Prix public — réseaux sociaux / clients.</p>
+              </div>
+              <div>
+                <Label>Prix d&apos;achat TTC (TND)</Label>
+                <Input
+                  value={formPrixAchat}
+                  onChange={e => setFormPrixAchat(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="ex. 42,000"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Usage interne — visible en vue rapide.</p>
+              </div>
+            </div>
+
+            {/* Devis fournisseur */}
             <div>
-              <Label>Prix vente TTC (TND)</Label>
-              <Input
-                value={formPrixTtc}
-                onChange={e => setFormPrixTtc(e.target.value)}
-                inputMode="decimal"
-                placeholder="ex. 58,500 (laisser vide si pas de prix public)"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Affiché en vue rapide — pratique pour copier-coller vers les réseaux sociaux.</p>
+              <Label>Devis (PDF ou image)</Label>
+              <div className="mt-2 space-y-2 rounded-lg border border-border p-3 bg-muted/20">
+                {formDevis.map((url, i) => (
+                  <div key={`${url}-${i}`} className="flex items-center gap-2 text-sm">
+                    <Receipt className="w-4 h-4 shrink-0 text-muted-foreground" />
+                    <a href={url} target="_blank" rel="noopener noreferrer" className="truncate text-primary hover:underline flex-1 min-w-0">
+                      Devis {i + 1}
+                    </a>
+                    <Button type="button" variant="ghost" size="sm" className="shrink-0 h-8 w-8 p-0" onClick={() => removeDevis(i)}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={uploadingDevis}
+                  onClick={() => devisInputRef.current?.click()}
+                >
+                  {uploadingDevis ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
+                  Ajouter un devis
+                </Button>
+                <input
+                  ref={devisInputRef}
+                  type="file"
+                  accept=".pdf,application/pdf,image/jpeg,image/png,image/webp"
+                  multiple
+                  className="hidden"
+                  onChange={handleDevisUpload}
+                />
+              </div>
             </div>
 
             {/* Fiches techniques */}
@@ -1013,7 +1116,7 @@ export const PhotoGallery = () => {
             <DialogTitle className="pr-6">{quickViewItem?.name}</DialogTitle>
             <DialogDescription>
               {quickViewItem?.category ? `${quickViewItem.category} · ` : ''}
-              Prix et fiches pour réponse client (Facebook, WhatsApp…)
+              Prix, devis fournisseur et fiches techniques
             </DialogDescription>
           </DialogHeader>
           {quickViewItem && (
@@ -1075,33 +1178,91 @@ export const PhotoGallery = () => {
                 </div>
               )}
 
-              {quickViewItem.prix_vente_ttc != null &&
+              {(quickViewItem.prix_vente_ttc != null &&
                 Number.isFinite(quickViewItem.prix_vente_ttc) &&
-                quickViewItem.prix_vente_ttc > 0 && (
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prix vente TTC</p>
-                      <p className="text-2xl font-bold text-foreground tabular-nums">{formatTnd(quickViewItem.prix_vente_ttc)}</p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="default"
-                      className="shrink-0"
-                      onClick={async () => {
-                        const text = formatTnd(quickViewItem.prix_vente_ttc!);
-                        try {
-                          await navigator.clipboard.writeText(text);
-                          toast({ title: 'Copié', description: 'Prix collé dans le presse-papiers.' });
-                        } catch {
-                          toast({ variant: 'destructive', title: 'Copie impossible', description: 'Sélectionnez le prix manuellement.' });
-                        }
-                      }}
-                    >
-                      <Copy className="w-4 h-4 mr-2" />
-                      Copier le prix
-                    </Button>
+                quickViewItem.prix_vente_ttc > 0) ||
+              (quickViewItem.prix_achat_ttc != null &&
+                Number.isFinite(quickViewItem.prix_achat_ttc) &&
+                quickViewItem.prix_achat_ttc > 0) ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {quickViewItem.prix_vente_ttc != null &&
+                    Number.isFinite(quickViewItem.prix_vente_ttc) &&
+                    quickViewItem.prix_vente_ttc > 0 && (
+                      <div className="flex flex-col gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prix vente TTC</p>
+                          <p className="text-2xl font-bold text-foreground tabular-nums">{formatTnd(quickViewItem.prix_vente_ttc)}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="default"
+                          size="sm"
+                          className="w-full sm:w-auto"
+                          onClick={async () => {
+                            const text = formatTnd(quickViewItem.prix_vente_ttc!);
+                            try {
+                              await navigator.clipboard.writeText(text);
+                              toast({ title: 'Copié', description: 'Prix vente collé dans le presse-papiers.' });
+                            } catch {
+                              toast({ variant: 'destructive', title: 'Copie impossible', description: 'Sélectionnez le prix manuellement.' });
+                            }
+                          }}
+                        >
+                          <Copy className="w-4 h-4 mr-2" />
+                          Copier
+                        </Button>
+                      </div>
+                    )}
+                  {quickViewItem.prix_achat_ttc != null &&
+                    Number.isFinite(quickViewItem.prix_achat_ttc) &&
+                    quickViewItem.prix_achat_ttc > 0 && (
+                      <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/30 p-4">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prix d&apos;achat TTC</p>
+                          <p className="text-2xl font-bold text-foreground tabular-nums">{formatTnd(quickViewItem.prix_achat_ttc)}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full sm:w-auto"
+                          onClick={async () => {
+                            const text = formatTnd(quickViewItem.prix_achat_ttc!);
+                            try {
+                              await navigator.clipboard.writeText(text);
+                              toast({ title: 'Copié', description: "Prix d'achat collé dans le presse-papiers." });
+                            } catch {
+                              toast({ variant: 'destructive', title: 'Copie impossible', description: 'Sélectionnez le prix manuellement.' });
+                            }
+                          }}
+                        >
+                          <Copy className="w-4 h-4 mr-2" />
+                          Copier
+                        </Button>
+                      </div>
+                    )}
+                </div>
+              ) : null}
+
+              {quickViewItem.devis_fichiers.length > 0 && (
+                <div>
+                  <Label className="text-base">Devis fournisseur</Label>
+                  <div className="mt-2 flex flex-col gap-2">
+                    {quickViewItem.devis_fichiers.map((url, i) => (
+                      <Button
+                        key={`${url}-${i}`}
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-start h-auto py-3"
+                        onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+                      >
+                        <Receipt className="w-4 h-4 mr-2 shrink-0" />
+                        <span className="truncate text-left">Ouvrir le devis {i + 1}</span>
+                      </Button>
+                    ))}
                   </div>
-                )}
+                </div>
+              )}
 
               {quickViewItem.fiches_techniques.length > 0 && (
                 <div>
@@ -1128,10 +1289,12 @@ export const PhotoGallery = () => {
               )}
 
               {(!quickViewItem.prix_vente_ttc || quickViewItem.prix_vente_ttc <= 0) &&
+                (!quickViewItem.prix_achat_ttc || quickViewItem.prix_achat_ttc <= 0) &&
+                quickViewItem.devis_fichiers.length === 0 &&
                 quickViewItem.fiches_techniques.length === 0 &&
                 quickViewItem.photos.length === 0 && (
                   <p className="text-sm text-muted-foreground">
-                    Ajoutez au moins un prix, une fiche ou une photo via « Modifier » pour utiliser cette fiche en réponse rapide.
+                    Ajoutez au moins un prix, un devis, une fiche ou une photo via « Modifier ».
                   </p>
                 )}
             </div>
