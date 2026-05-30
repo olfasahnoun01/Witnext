@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { formatMontantDt } from '../lib/money';
+import { FinanceAmount } from './shared/FinanceAmount';
 import { TIMBRE_FISCAL_FACTURE_DT } from '../lib/tunisiaFiscal';
 import type { InvoiceLineRow, InvoiceRow, InvoiceWriteInput, VatRate } from '../types';
 import {
@@ -219,7 +220,7 @@ export function FinancePurchasesPanel({
                 <TableCell className="font-mono">{inv.numero}</TableCell>
                 <TableCell>{inv.issue_date}</TableCell>
                 <TableCell>{inv.counterpart_name}</TableCell>
-                <TableCell className="tabular-nums">{formatMontantDt(Number(inv.total_ttc))}</TableCell>
+                <TableCell><FinanceAmount amount={Number(inv.total_ttc)} kind="charge" /></TableCell>
                 <TableCell>{inv.status}</TableCell>
                 <TableCell className="flex flex-wrap gap-1">
                   {inv.status === 'draft' && (
@@ -514,7 +515,7 @@ export function FinancePurchasesPanel({
               </span>
               <br />
               <span>
-                TTC : <strong>{formatMontantDt(totalsPreview.total_ttc)}</strong> (timbre inclus si coché)
+                TTC : <FinanceAmount amount={totalsPreview.total_ttc} kind="charge" /> (timbre inclus si coché)
               </span>
             </p>
             <DialogFooter>

@@ -37,7 +37,7 @@ export const FINANCE_MAIN_SECTIONS: FinanceMainSection[] = [
     id: 'overview',
     label: 'Résumé',
     icon: LayoutDashboard,
-    description: 'Vue d\'ensemble et cadre fiscal tunisien',
+    description: 'Vue d\'ensemble',
   },
   {
     id: 'sources',
@@ -55,7 +55,7 @@ export const FINANCE_MAIN_SECTIONS: FinanceMainSection[] = [
     id: 'settlements',
     label: 'Règlements & créances',
     icon: ArrowLeftRight,
-    description: 'Encaissements, dettes et suivi des tiers',
+    description: '',
   },
   {
     id: 'treasury',
@@ -113,7 +113,6 @@ export function getSettlementsSubsections(caps: FinanceCapabilities): FinanceNav
     {
       id: 'client-settlement',
       label: 'Encaissement client',
-      description: 'Lettrage, chèque, virement, traite',
     },
   ];
   if (caps.supplierPayments) {

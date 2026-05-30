@@ -10,6 +10,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatMontantDt } from '../../lib/money';
+import { FinanceAmount } from '../shared/FinanceAmount';
+import type { FinanceAmountKind } from '../../lib/money';
 import type { InvoiceRow } from '../../types';
 import { buildAgedBalanceLines, summarizeAgedByCounterparty } from '../../services/agedBalanceService';
 
@@ -36,6 +38,7 @@ export function AgedBalancePanel({ saleInvoices, purchaseInvoices }: AgedBalance
     [tab, saleInvoices, purchaseInvoices]
   );
   const summary = useMemo(() => summarizeAgedByCounterparty(lines), [lines]);
+  const amountKind: FinanceAmountKind = tab === 'clients' ? 'income' : 'charge';
 
   return (
     <Card>
@@ -83,8 +86,8 @@ export function AgedBalancePanel({ saleInvoices, purchaseInvoices }: AgedBalance
                         <TableCell className="text-right tabular-nums text-destructive">
                           {formatMontantDt(s.plus_90)}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums font-bold">
-                          {formatMontantDt(s.total)}
+                        <TableCell className="text-right">
+                          <FinanceAmount amount={s.total} kind={amountKind} />
                         </TableCell>
                       </TableRow>
                     ))
@@ -109,8 +112,8 @@ export function AgedBalancePanel({ saleInvoices, purchaseInvoices }: AgedBalance
                       <TableCell className="font-mono">{l.numero}</TableCell>
                       <TableCell>{l.counterpartName}</TableCell>
                       <TableCell>{BUCKET_LABELS[l.bucket]}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatMontantDt(l.resteAPayer)}
+                      <TableCell className="text-right">
+                        <FinanceAmount amount={l.resteAPayer} kind={amountKind} />
                       </TableCell>
                     </TableRow>
                   ))}

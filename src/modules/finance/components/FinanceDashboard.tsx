@@ -78,6 +78,12 @@ import { CertificatRetenuePanel } from './withholding/CertificatRetenuePanel';
 
 import { AccountingStatementsPanel } from './statements/AccountingStatementsPanel';
 
+import { FinanceOverviewCharts } from './overview/FinanceOverviewCharts';
+
+import { sumPurchasesTtc, sumSalesTtc } from '../lib/financeOverviewStats';
+
+import { FinanceAmount } from './shared/FinanceAmount';
+
 import {
 
   fetchClientsForSettlement,
@@ -193,6 +199,10 @@ export function FinanceDashboard() {
   const supplierPayments = payments.filter((p) => p.direction === 'outbound_supplier');
 
   const clientPaymentsTotal = clientPayments.reduce((s, p) => s + Number(p.amount), 0);
+
+  const salesTtcTotal = sumSalesTtc(saleInvoices);
+
+  const purchasesTtcTotal = sumPurchasesTtc(purchaseInvoices);
 
 
 
@@ -334,10 +344,8 @@ export function FinanceDashboard() {
 
 
 
-        {activeMainMeta && mainSection !== 'overview' && (
-
+        {activeMainMeta?.description && mainSection !== 'overview' && (
           <p className="text-xs text-muted-foreground mt-3 px-1">{activeMainMeta.description}</p>
-
         )}
 
 
@@ -346,13 +354,7 @@ export function FinanceDashboard() {
 
         <TabsContent value="overview" className="mt-5 space-y-4">
 
-          <FinanceSectionHeader
-
-            title="Tableau de bord"
-
-            description="Indicateurs clés et rappel du cadre fiscal tunisien"
-
-          />
+          <FinanceSectionHeader title="Tableau de bord" />
 
           <div className="grid gap-4 md:grid-cols-3">
 
@@ -362,11 +364,13 @@ export function FinanceDashboard() {
 
                 <CardTitle className="text-sm font-medium">Factures vente</CardTitle>
 
-                <CardDescription>Comptabilisées dans Finance</CardDescription>
+                <CardDescription>{saleInvoices.length} document{saleInvoices.length !== 1 ? 's' : ''}</CardDescription>
 
               </CardHeader>
 
-              <CardContent className="text-2xl font-bold tabular-nums">{saleInvoices.length}</CardContent>
+              <CardContent>
+                <FinanceAmount amount={salesTtcTotal} kind="income" className="text-2xl" />
+              </CardContent>
 
             </Card>
 
@@ -378,11 +382,13 @@ export function FinanceDashboard() {
 
                   <CardTitle className="text-sm font-medium">Factures achat</CardTitle>
 
-                  <CardDescription>Fournisseurs — Grosafe</CardDescription>
+                  <CardDescription>{purchaseInvoices.length} document{purchaseInvoices.length !== 1 ? 's' : ''}</CardDescription>
 
                 </CardHeader>
 
-                <CardContent className="text-2xl font-bold tabular-nums">{purchaseInvoices.length}</CardContent>
+                <CardContent>
+                  <FinanceAmount amount={purchasesTtcTotal} kind="charge" className="text-2xl" />
+                </CardContent>
 
               </Card>
 
@@ -392,63 +398,27 @@ export function FinanceDashboard() {
 
               <CardHeader className="pb-2">
 
-                <CardTitle className="text-sm font-medium">Règlements</CardTitle>
+                <CardTitle className="text-sm font-medium">Encaissements</CardTitle>
 
-                <CardDescription>Encaissements et décaissements</CardDescription>
-
-              </CardHeader>
-
-              <CardContent className="text-2xl font-bold tabular-nums">{payments.length}</CardContent>
-
-            </Card>
-
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2">
-
-            <Card>
-
-              <CardHeader className="pb-2">
-
-                <CardTitle className="text-sm">Cadre fiscal Tunisie</CardTitle>
+                <CardDescription>{payments.length} règlement{payments.length !== 1 ? 's' : ''}</CardDescription>
 
               </CardHeader>
 
-              <CardContent className="text-muted-foreground space-y-1.5 text-xs">
-
-                <p>TVA légale : 19 %, 13 %, 7 %, 0 % — déclaration mensuelle.</p>
-
-                <p>Timbre fiscal forfaitaire : 1,000 DT sur factures vente.</p>
-
-                <p>Retenue à la source fournisseurs : seuil 1 000 DT TTC.</p>
-
-                {showPurchases && <p>FODEC achats industriels : 1 % sur HT.</p>}
-
-              </CardContent>
-
-            </Card>
-
-            <Card>
-
-              <CardHeader className="pb-2">
-
-                <CardTitle className="text-sm">Modules connectés</CardTitle>
-
-              </CardHeader>
-
-              <CardContent className="text-muted-foreground space-y-1.5 text-xs">
-
-                <p>Devis &amp; BC — Ventes / Achats</p>
-
-                <p>BL, BE, BS — Magasin v2</p>
-
-                <p>Clients (411) &amp; fournisseurs (401)</p>
-
+              <CardContent>
+                <FinanceAmount amount={clientPaymentsTotal} kind="income" className="text-2xl" />
               </CardContent>
 
             </Card>
 
           </div>
+
+          <FinanceOverviewCharts
+            saleInvoices={saleInvoices}
+            purchaseInvoices={purchaseInvoices}
+            payments={payments}
+            showPurchases={showPurchases}
+            loading={loading}
+          />
 
         </TabsContent>
 
@@ -558,13 +528,7 @@ export function FinanceDashboard() {
 
         <TabsContent value="settlements" className="mt-5 space-y-4">
 
-          <FinanceSectionHeader
-
-            title="Règlements & créances"
-
-            description="Encaissements, paiements fournisseurs et suivi des encours tiers"
-
-          />
+          <FinanceSectionHeader title="Règlements & créances" />
 
           <FinanceSubNav items={settlementsSubs} value={settlementsSub} onValueChange={setSettlementsSub} />
 
@@ -618,6 +582,8 @@ export function FinanceDashboard() {
 
               payments={clientPayments}
 
+              amountKind="income"
+
             />
 
           )}
@@ -631,6 +597,8 @@ export function FinanceDashboard() {
               loading={loading}
 
               payments={supplierPayments}
+
+              amountKind="charge"
 
             />
 

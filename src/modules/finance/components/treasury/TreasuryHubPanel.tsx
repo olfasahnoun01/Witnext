@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { ArrowRightLeft, Landmark, PiggyBank, Wallet } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatMontantDt } from '../../lib/money';
+import { FinanceAmount } from '../shared/FinanceAmount';
 import { loadTreasuryAccounts } from '../../services/treasuryStorage';
 import type { TreasuryAccount } from '../../types/financeDomain';
 import {
@@ -39,10 +40,7 @@ export function TreasuryHubPanel({ companyId, clientPaymentsTotal, payments }: T
 
   return (
     <div className="space-y-4">
-      <FinanceSectionHeader
-        title="Trésorerie"
-        description="Gestion banque (512), caisse (531), effets à encaisser (514) et virements inter-comptes."
-      />
+      <FinanceSectionHeader title="Trésorerie" />
 
       <FinanceSubNav items={subsections} value={activeSub} onValueChange={setActiveSub} />
       <FinanceSubsectionHint items={subsections} activeId={activeSub} />
@@ -153,7 +151,9 @@ export function TreasuryHubPanel({ companyId, clientPaymentsTotal, payments }: T
               <CardDescription>Encaissements clients cumulés (module règlements)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-2xl font-bold tabular-nums">{formatMontantDt(clientPaymentsTotal)}</p>
+              <p className="text-2xl font-bold tabular-nums">
+                <FinanceAmount amount={clientPaymentsTotal} kind="income" className="text-2xl" />
+              </p>
               <div className="rounded-lg border overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -235,7 +235,9 @@ function SummaryCard({
         </div>
       </CardHeader>
       <CardContent>
-        <p className="text-2xl font-bold tabular-nums">{formatMontantDt(amount)}</p>
+        <p className="text-2xl font-bold tabular-nums">
+          <FinanceAmount amount={amount} kind="income" className="text-2xl" />
+        </p>
       </CardContent>
     </Card>
   );

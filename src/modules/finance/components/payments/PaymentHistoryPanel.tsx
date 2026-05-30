@@ -19,6 +19,8 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { formatMontantDt } from '../../lib/money';
+import { FinanceAmount } from '../shared/FinanceAmount';
+import type { FinanceAmountKind } from '../../lib/money';
 import {
   MODE_REGLEMENT_LABELS,
   parsePaymentMeta,
@@ -31,9 +33,10 @@ interface PaymentHistoryPanelProps {
   title: string;
   loading: boolean;
   payments: PaymentRow[];
+  amountKind?: FinanceAmountKind;
 }
 
-export function PaymentHistoryPanel({ title, loading, payments }: PaymentHistoryPanelProps) {
+export function PaymentHistoryPanel({ title, loading, payments, amountKind }: PaymentHistoryPanelProps) {
   const [monthFilter, setMonthFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | ReglementStatus>('all');
 
@@ -92,7 +95,7 @@ export function PaymentHistoryPanel({ title, loading, payments }: PaymentHistory
           </div>
           {monthFilter && (
             <p className="text-sm tabular-nums ml-auto">
-              Total période : <strong>{formatMontantDt(totalDue)}</strong>
+              Total période : <FinanceAmount amount={totalDue} kind={amountKind} />
             </p>
           )}
         </div>
@@ -122,7 +125,13 @@ export function PaymentHistoryPanel({ title, loading, payments }: PaymentHistory
                     <TableCell>{r.payment_date}</TableCell>
                     <TableCell>{r.dateEcheance || '—'}</TableCell>
                     <TableCell>{r.counterparty_name || '—'}</TableCell>
-                    <TableCell className="tabular-nums">{formatMontantDt(r.amount)}</TableCell>
+                    <TableCell>
+                      {amountKind ? (
+                        <FinanceAmount amount={r.amount} kind={amountKind} />
+                      ) : (
+                        <span className="tabular-nums">{formatMontantDt(r.amount)}</span>
+                      )}
+                    </TableCell>
                     <TableCell>{r.modeLabel}</TableCell>
                     <TableCell>
                       {r.reglementStatus ? (

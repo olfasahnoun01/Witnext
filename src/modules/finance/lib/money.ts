@@ -1,3 +1,5 @@
+export type FinanceAmountKind = 'income' | 'charge';
+
 /** Arrondi comptable à 3 décimales (millimes tunisiens). */
 export function round3(n: number): number {
   return Math.round((n + Number.EPSILON) * 1000) / 1000;

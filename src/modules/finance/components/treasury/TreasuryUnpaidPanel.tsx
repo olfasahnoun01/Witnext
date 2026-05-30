@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { formatMontantDt } from '../../lib/money';
+import { FinanceAmount } from '../shared/FinanceAmount';
 import { loadBankFees } from '../../services/bankFeesStorage';
 import { parsePaymentMeta, REGLEMENT_STATUS_LABELS } from '../../services/paymentService';
 import type { PaymentRow } from '../../types';
@@ -90,10 +91,10 @@ export function TreasuryUnpaidPanel({ companyId, payments }: TreasuryUnpaidPanel
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <p className="text-sm tabular-nums">
-              Total frais impayés : <strong>{formatMontantDt(totalFees)}</strong>
+              Total frais impayés : <FinanceAmount amount={totalFees} kind="charge" />
             </p>
             <p className="text-sm tabular-nums">
-              Total règlements impayés : <strong>{formatMontantDt(totalPayments)}</strong>
+              Total règlements impayés : <FinanceAmount amount={totalPayments} kind="charge" />
             </p>
           </div>
         </CardContent>

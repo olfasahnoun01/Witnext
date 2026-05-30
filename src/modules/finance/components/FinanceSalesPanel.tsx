@@ -13,6 +13,7 @@ import type { InvoiceLineRow, InvoiceRow, InvoiceWriteInput, VatRate } from '../
 import { Checkbox } from '@/components/ui/checkbox';
 import { TIMBRE_FISCAL_FACTURE_DT } from '../lib/tunisiaFiscal';
 import { formatMontantDt } from '../lib/money';
+import { FinanceAmount } from './shared/FinanceAmount';
 import {
   cancelSalesInvoice,
   computeInvoiceLine,
@@ -269,7 +270,7 @@ export function FinanceSalesPanel({
   return (
     <Card>
       <CardHeader className="space-y-3">
-        <CardTitle>Ventes - Factures clients (workflow complet)</CardTitle>
+        <CardTitle>Ventes - Factures clients</CardTitle>
         <div className="grid gap-2 md:grid-cols-5">
           <Input placeholder="Rechercher N° / client" value={search} onChange={(e) => setSearch(e.target.value)} />
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
@@ -315,8 +316,8 @@ export function FinanceSalesPanel({
                 <TableCell>{inv.counterpart_name || '—'}</TableCell>
                 <TableCell>{Number(inv.total_ht).toFixed(3)}</TableCell>
                 <TableCell>{Number(inv.vat_amount).toFixed(3)}</TableCell>
-                <TableCell>{Number(inv.total_ttc).toFixed(3)}</TableCell>
-                <TableCell>{Number(inv.amount_paid).toFixed(3)}</TableCell>
+                <TableCell><FinanceAmount amount={Number(inv.total_ttc)} kind="income" /></TableCell>
+                <TableCell><FinanceAmount amount={Number(inv.amount_paid)} kind="income" /></TableCell>
                 <TableCell>{inv.status}</TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
@@ -430,7 +431,7 @@ export function FinanceSalesPanel({
                 </p>
                 <p>
                   TVA <strong>{formatMontantDt(totals.total_tva)}</strong> | TTC{' '}
-                  <strong>{formatMontantDt(totals.total_ttc)}</strong>
+                  <FinanceAmount amount={totals.total_ttc} kind="income" />
                   {totals.timbre_fiscal > 0 && ` (dont timbre ${formatMontantDt(totals.timbre_fiscal)})`}
                 </p>
               </div>
@@ -462,7 +463,7 @@ export function FinanceSalesPanel({
                       <TableCell>{Number(l.quantity).toFixed(3)}</TableCell>
                       <TableCell>{Number(l.unit_price_ht).toFixed(3)}</TableCell>
                       <TableCell>{l.vat_rate}</TableCell>
-                      <TableCell>{Number(l.total_ttc).toFixed(3)}</TableCell>
+                      <TableCell><FinanceAmount amount={Number(l.total_ttc)} kind="income" /></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

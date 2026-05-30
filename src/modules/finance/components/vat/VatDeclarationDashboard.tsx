@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { formatMontantDt } from '../../lib/money';
+import { FinanceAmount } from '../shared/FinanceAmount';
 import { fetchVatMonthlyDeclaration } from '../../services/vatDeclarationApi';
 import {
   fileTaxDeclaration,
@@ -247,12 +248,10 @@ export function VatDeclarationDashboard({ companyId }: VatDeclarationDashboardPr
               <h3 className="text-lg font-semibold mb-4">3. Calcul final</h3>
               <div className="grid gap-2 sm:grid-cols-3 text-sm mb-4">
                 <p>
-                  TVA collectée :{' '}
-                  <strong className="tabular-nums">{formatMontantDt(declaration.totalCollectee)}</strong>
+                  TVA collectée : <FinanceAmount amount={declaration.totalCollectee} kind="income" />
                 </p>
                 <p>
-                  TVA déductible :{' '}
-                  <strong className="tabular-nums">{formatMontantDt(declaration.totalDeductible)}</strong>
+                  TVA déductible : <FinanceAmount amount={declaration.totalDeductible} kind="charge" />
                 </p>
               </div>
               <p

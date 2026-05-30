@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { BANQUES_TUNISIE } from '../../lib/constants';
 import { formatMontantDt, parseMontantInput } from '../../lib/money';
+import { FinanceAmount } from '../shared/FinanceAmount';
 import type { CounterpartyOption, ModeReglement, ReglementStatus, SettlementDirection } from '../../types/paymentTypes';
 import type { LetterageLine, TreasuryAccount } from '../../types/financeDomain';
 import {
@@ -67,6 +68,7 @@ export function PaymentSettlementForm({
   onSuccess,
 }: PaymentSettlementFormProps) {
   const { company } = useFinanceCompany();
+  const amountKind = direction === 'client' ? 'income' : 'charge';
   const [counterparty, setCounterparty] = useState<CounterpartyOption | null>(null);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [numeroPiece] = useState(() => generateNumeroPiece(direction));
@@ -532,12 +534,14 @@ export function PaymentSettlementForm({
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 text-sm">
           <div>
             <p className="text-muted-foreground">Total saisi</p>
-            <p className="text-lg font-semibold tabular-nums">{formatMontantDt(totals.montantSaisi)}</p>
+            <p className="text-lg font-semibold">
+              <FinanceAmount amount={totals.montantSaisi} kind={amountKind} className="text-lg" />
+            </p>
           </div>
           <div>
             <p className="text-muted-foreground">Affecté (net)</p>
-            <p className="text-lg font-semibold tabular-nums text-primary">
-              {formatMontantDt(totals.montantAffecte)}
+            <p className="text-lg font-semibold">
+              <FinanceAmount amount={totals.montantAffecte} kind={amountKind} className="text-lg" />
             </p>
           </div>
           <div>
@@ -554,7 +558,9 @@ export function PaymentSettlementForm({
           )}
           <div>
             <p className="text-muted-foreground">Net à payer</p>
-            <p className="text-lg font-bold tabular-nums">{formatMontantDt(totals.netAPayer)}</p>
+            <p className="text-lg font-bold">
+              <FinanceAmount amount={totals.netAPayer} kind={amountKind} className="text-lg" />
+            </p>
           </div>
         </div>
         <div className="mt-4 flex flex-col sm:flex-row gap-3 sm:justify-between">
