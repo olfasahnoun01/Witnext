@@ -3,11 +3,18 @@
  * Clé par société — synchronisée avec les mouvements Supabase lorsque possible.
  */
 
-import type { AvoirFinancier, InterAccountTransfer, TreasuryAccount, WithholdingCertificate } from '../types/financeDomain';
+import type {
+  AvoirFinancier,
+  AvoirParArticle,
+  InterAccountTransfer,
+  TreasuryAccount,
+  WithholdingCertificate,
+} from '../types/financeDomain';
 
 const ACCOUNTS_KEY = (companyId: string) => `finance_treasury_accounts_v1_${companyId}`;
 const TRANSFERS_KEY = (companyId: string) => `finance_transfers_v1_${companyId}`;
 const AVOIRS_KEY = (companyId: string) => `finance_avoirs_v1_${companyId}`;
+const AVOIRS_ARTICLE_KEY = (companyId: string) => `finance_avoirs_article_v1_${companyId}`;
 const WITHHOLDING_KEY = (companyId: string) => `finance_withholding_v1_${companyId}`;
 
 function readJson<T>(key: string, fallback: T): T {
@@ -95,6 +102,14 @@ export function loadAvoirs(companyId: string): AvoirFinancier[] {
 
 export function saveAvoirs(companyId: string, avoirs: AvoirFinancier[]): void {
   writeJson(AVOIRS_KEY(companyId), avoirs);
+}
+
+export function loadAvoirsParArticle(companyId: string): AvoirParArticle[] {
+  return readJson<AvoirParArticle[]>(AVOIRS_ARTICLE_KEY(companyId), []);
+}
+
+export function saveAvoirsParArticle(companyId: string, avoirs: AvoirParArticle[]): void {
+  writeJson(AVOIRS_ARTICLE_KEY(companyId), avoirs);
 }
 
 export function loadWithholdingCertificates(companyId: string): WithholdingCertificate[] {

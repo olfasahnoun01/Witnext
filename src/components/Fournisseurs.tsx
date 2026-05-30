@@ -67,7 +67,7 @@ const isFournisseurIncomplete = (f: Fournisseur) => {
 export const Fournisseurs = memo(() => {
   const { isAdmin, isModerator } = useAuth();
   const canDelete = isAdmin || isModerator;
-  const { preview: documentPreview, openDocumentPreview, closePreview: closeDocumentPreview } =
+  const { preview: documentPreview, pdfBytesRef, openDocumentPreview, closePreview: closeDocumentPreview } =
     useClientDocumentPreview();
 
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
@@ -125,6 +125,24 @@ export const Fournisseurs = memo(() => {
     setSelectedCity('');
     setEditingFournisseur(null);
   }, []);
+
+  const persistFournisseurDocument = useCallback(async (
+    field: 'patente_url' | 'registre_commerce_url',
+    url: string | null,
+  ) => {
+    if (!editingFournisseur) return;
+    const { error } = await supabase
+      .from('fournisseurs')
+      .update({ [field]: url })
+      .eq('id', editingFournisseur.id);
+    if (error) {
+      toast.error(url ? 'Document téléversé mais non enregistré sur la fiche fournisseur' : 'Suppression non enregistrée sur la fiche fournisseur');
+      console.error(error);
+      return;
+    }
+    if (url) toast.success('Document enregistré sur la fiche fournisseur');
+    loadFournisseurs();
+  }, [editingFournisseur, loadFournisseurs]);
 
   // Get cities for selected governorate
   const availableCities = useMemo(() => {
@@ -469,7 +487,7 @@ export const Fournisseurs = memo(() => {
                   <div className="space-y-3 pt-2 border-t border-dashed">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
                       <FileText className="w-4 h-4 text-blue-500" />
-                      Documents (PDF) — optionnel
+                      Documents (PDF, JPG, PNG) — optionnel
                     </h3>
                     {code.trim() ? (
                       <div className="space-y-3">
@@ -478,7 +496,14 @@ export const Fournisseurs = memo(() => {
                           entityCode={`FRN_${code.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`}
                           documentType="patente"
                           currentUrl={patenteUrl}
-                          onUploadSuccess={(url) => setPatenteUrl(url)}
+                          onUploadSuccess={(url) => {
+                            setPatenteUrl(url);
+                            void persistFournisseurDocument('patente_url', url);
+                          }}
+                          onRemove={() => {
+                            setPatenteUrl(null);
+                            void persistFournisseurDocument('patente_url', null);
+                          }}
                           onConsult={(url) => void openDocumentPreview(url, `Patente — ${nom.trim() || code}`)}
                         />
                         <DocumentUploader
@@ -487,7 +512,14 @@ export const Fournisseurs = memo(() => {
                           documentType="rc"
                           titleOverride="RNE (Registre national des entreprises)"
                           currentUrl={rneUrl}
-                          onUploadSuccess={(url) => setRneUrl(url)}
+                          onUploadSuccess={(url) => {
+                            setRneUrl(url);
+                            void persistFournisseurDocument('registre_commerce_url', url);
+                          }}
+                          onRemove={() => {
+                            setRneUrl(null);
+                            void persistFournisseurDocument('registre_commerce_url', null);
+                          }}
                           onConsult={(url) => void openDocumentPreview(url, `RNE — ${nom.trim() || code}`)}
                         />
                       </div>
@@ -730,7 +762,7 @@ export const Fournisseurs = memo(() => {
           )}
         </CardContent>
       </Card>
-      <ClientDocumentPreviewDialog preview={documentPreview} onClose={closeDocumentPreview} />
+      <ClientDocumentPreviewDialog preview={documentPreview} pdfBytesRef={pdfBytesRef} onClose={closeDocumentPreview} />
     </div>
   );
 });

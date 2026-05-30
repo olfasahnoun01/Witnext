@@ -2,35 +2,53 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileUp, Loader2, FileText } from 'lucide-react';
+import { Upload, FileUp, Loader2, FileText, CheckCircle2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { loadStorageDocumentPdf } from '@/lib/clientDocumentStorage';
-import { validateUploadFile } from '@/lib/uploadValidation';
+import { loadStorageDocumentPdf, parseSupabaseStorageObjectUrl } from '@/lib/clientDocumentStorage';
+import {
+  LEGAL_DOCUMENT_ACCEPT,
+  LEGAL_DOCUMENT_MIME_TYPES,
+  resolveUploadMimeType,
+  validateUploadFile,
+} from '@/lib/uploadValidation';
 
 interface DocumentUploaderProps {
   bucket: 'client-documents' | 'product-documents';
-  entityCode: string; // SKU or Client Code
+  entityCode: string;
   documentType: 'patente' | 'rc' | 'fiche_technique';
-  /** Overrides the default title for this document type (e.g. RNE label). */
   titleOverride?: string;
   currentUrl?: string | null;
   onUploadSuccess: (url: string) => void;
-  /** When set, opens in-app preview instead of a new tab (recommended in Electron). */
+  /** Clears the document from the form (and optionally the database via parent). */
+  onRemove?: () => void;
   onConsult?: (url: string) => void;
 }
 
-export const DocumentUploader = ({ 
-  bucket, 
-  entityCode, 
-  documentType, 
+const FICHE_MIME_TYPES = ['application/pdf'] as const;
+const FICHE_ACCEPT = '.pdf,application/pdf';
+
+export const DocumentUploader = ({
+  bucket,
+  entityCode,
+  documentType,
   titleOverride,
   currentUrl,
   onUploadSuccess,
+  onRemove,
   onConsult,
 }: DocumentUploaderProps) => {
   const [uploading, setUploading] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [progress, setProgress] = useState(0);
   const [consulting, setConsulting] = useState(false);
+
+  const isLegalDocument = documentType === 'patente' || documentType === 'rc';
+  const canRemove = isLegalDocument && !!currentUrl && !!onRemove;
+  const allowedMimeTypes = isLegalDocument ? LEGAL_DOCUMENT_MIME_TYPES : FICHE_MIME_TYPES;
+  const accept = isLegalDocument ? LEGAL_DOCUMENT_ACCEPT : FICHE_ACCEPT;
+  const formatHint = isLegalDocument
+    ? 'PDF, JPG, JPEG ou PNG (max 10 Mo)'
+    : 'PDF uniquement (max 10 Mo)';
 
   const handleConsult = async () => {
     if (!currentUrl) return;
@@ -53,62 +71,86 @@ export const DocumentUploader = ({
   };
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.target;
     try {
       setUploading(true);
       setProgress(10);
-      
-      const file = event.target.files?.[0];
+
+      const file = input.files?.[0];
       if (!file) return;
 
-      const validation = validateUploadFile(file, ['application/pdf']);
+      const validation = validateUploadFile(file, allowedMimeTypes);
       if (!validation.ok) {
         toast.error(validation.message);
         return;
       }
 
-      // 1. Rename logic
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
       const fileName = `${documentType}_${entityCode.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      const contentType = resolveUploadMimeType(file);
 
-      // 2. Upload to Supabase Storage
-      const { data, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from(bucket)
-        .upload(filePath, file, {
+        .upload(fileName, file, {
           upsert: true,
-          contentType: 'application/pdf'
+          contentType,
         });
 
       if (uploadError) throw uploadError;
 
       setProgress(90);
 
-      // 3. Get Public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(filePath);
+      const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(fileName);
 
-      toast.success("Document mis à jour avec succès !");
       onUploadSuccess(publicUrl);
+      toast.success('Document téléversé avec succès');
       setProgress(100);
-    } catch (error: any) {
-      toast.error("Erreur lors de l'upload : " + error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Erreur lors de l'upload : ${message}`);
     } finally {
       setTimeout(() => {
         setUploading(false);
         setProgress(0);
       }, 1000);
+      input.value = '';
+    }
+  };
+
+  const openFilePicker = () => {
+    document.getElementById(`upload-${entityCode}-${documentType}`)?.click();
+  };
+
+  const handleRemove = async () => {
+    if (!currentUrl || !onRemove) return;
+    const label = titleOverride || (documentType === 'patente' ? 'Patente' : 'RNE');
+    if (!confirm(`Supprimer ${label} ?`)) return;
+
+    setRemoving(true);
+    try {
+      const ref = parseSupabaseStorageObjectUrl(currentUrl);
+      if (ref) {
+        const { error } = await supabase.storage.from(ref.bucket).remove([ref.path]);
+        if (error) console.warn('[DocumentUploader] storage remove failed', error);
+      }
+      onRemove();
+      toast.success('Document supprimé');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Erreur lors de la suppression : ${message}`);
+    } finally {
+      setRemoving(false);
     }
   };
 
   return (
     <div className="space-y-3 p-4 border rounded-xl bg-muted/20">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-background rounded-lg border shadow-sm text-primary">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 bg-background rounded-lg border shadow-sm text-primary shrink-0">
             {documentType === 'fiche_technique' ? <FileText className="w-5 h-5" /> : <FileUp className="w-5 h-5" />}
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium leading-none">
               {titleOverride ||
                 (documentType === 'patente'
@@ -118,40 +160,60 @@ export const DocumentUploader = ({
                     : 'Fiche Technique')}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Format requis : PDF uniquement
+              Format requis : {formatHint}
             </p>
+            {currentUrl && (
+              <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 shrink-0" />
+                Document chargé
+              </p>
+            )}
           </div>
         </div>
-        
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 shrink-0">
           {currentUrl && (
             <Button
               type="button"
               variant="outline"
               size="sm"
               className="h-8 text-xs"
-              disabled={consulting}
+              disabled={consulting || removing}
               onClick={() => void handleConsult()}
             >
               {consulting ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Consulter'}
             </Button>
           )}
-          
+
+          {canRemove && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs text-destructive hover:text-destructive"
+              disabled={uploading || removing}
+              onClick={() => void handleRemove()}
+            >
+              {removing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+            </Button>
+          )}
+
           <div className="relative">
             <input
               type="file"
               id={`upload-${entityCode}-${documentType}`}
               className="hidden"
-              accept=".pdf"
+              accept={accept}
               onChange={handleUpload}
-              disabled={uploading}
+              disabled={uploading || removing}
             />
-            <Button 
-              variant={currentUrl ? "secondary" : "default"} 
-              size="sm" 
-              disabled={uploading}
+            <Button
+              type="button"
+              variant={currentUrl ? 'secondary' : 'default'}
+              size="sm"
+              disabled={uploading || removing}
               className="h-8 gap-2 text-xs"
-              onClick={() => document.getElementById(`upload-${entityCode}-${documentType}`)?.click()}
+              onClick={openFilePicker}
             >
               {uploading ? (
                 <Loader2 className="w-3 h-3 animate-spin" />

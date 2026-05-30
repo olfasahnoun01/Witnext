@@ -15,6 +15,7 @@ import { TIMBRE_FISCAL_FACTURE_DT } from '../lib/tunisiaFiscal';
 import { formatMontantDt } from '../lib/money';
 import {
   cancelSalesInvoice,
+  computeInvoiceLine,
   computeInvoiceTotals,
   createSalesInvoice,
   deleteSalesInvoice,
@@ -36,6 +37,7 @@ const emptyLine = (): LineForm => ({
   unit_price_ht: 0,
   vat_rate: 19,
   product_code: '',
+  remise_percent: 0,
 });
 
 const emptyForm = (): Omit<InvoiceWriteInput, 'company_id'> => ({
@@ -128,6 +130,7 @@ export function FinanceSalesPanel({
   const openEdit = (inv: InvoiceRow) => {
     const lines = linesByInvoice[inv.id] || [];
     const meta = (inv.metadata || {}) as Record<string, unknown>;
+    const lineRemises = (meta.line_remises as number[] | undefined) ?? [];
     setEditing(inv);
     setForm({
       numero: inv.numero,
@@ -139,12 +142,13 @@ export function FinanceSalesPanel({
       apply_timbre_fiscal: !!(meta as Record<string, unknown>).apply_timbre_fiscal,
       lines:
         lines.length > 0
-          ? lines.map((l) => ({
+          ? lines.map((l, i) => ({
               product_code: l.product_code || '',
               description: l.description,
               quantity: Number(l.quantity),
               unit_price_ht: Number(l.unit_price_ht),
               vat_rate: Number(l.vat_rate) as VatRate,
+              remise_percent: lineRemises[i] ?? 0,
             }))
           : [emptyLine()],
     });
@@ -387,12 +391,17 @@ export function FinanceSalesPanel({
                 Ajouter ligne
               </Button>
             </div>
-            {form.lines.map((line, idx) => (
-              <div key={idx} className="grid gap-2 md:grid-cols-[1fr_1fr_120px_140px_120px_100px] items-end">
+            {form.lines.map((line, idx) => {
+              const lineCalc = computeInvoiceLine(line);
+              return (
+              <div key={idx} className="grid gap-2 md:grid-cols-[1fr_1fr_90px_120px_90px_100px_100px_100px_80px] items-end">
                 <div><Label>Code</Label><Input value={line.product_code || ''} onChange={(e) => setForm((f) => ({ ...f, lines: f.lines.map((l, i) => (i === idx ? { ...l, product_code: e.target.value } : l)) }))} /></div>
                 <div><Label>Désignation</Label><Input value={line.description} onChange={(e) => setForm((f) => ({ ...f, lines: f.lines.map((l, i) => (i === idx ? { ...l, description: e.target.value } : l)) }))} /></div>
                 <div><Label>Qté</Label><Input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(e) => setForm((f) => ({ ...f, lines: f.lines.map((l, i) => (i === idx ? { ...l, quantity: Number(e.target.value) || 0 } : l)) }))} /></div>
                 <div><Label>PU HT</Label><Input type="number" min="0" step="0.001" value={line.unit_price_ht} onChange={(e) => setForm((f) => ({ ...f, lines: f.lines.map((l, i) => (i === idx ? { ...l, unit_price_ht: Number(e.target.value) || 0 } : l)) }))} /></div>
+                <div><Label>Remise %</Label><Input type="number" min="0" max="100" step="0.1" value={line.remise_percent ?? 0} onChange={(e) => setForm((f) => ({ ...f, lines: f.lines.map((l, i) => (i === idx ? { ...l, remise_percent: Number(e.target.value) || 0 } : l)) }))} /></div>
+                <div><Label>Mt remise</Label><Input readOnly className="bg-muted tabular-nums" value={lineCalc.montant_remise.toFixed(3)} /></div>
+                <div><Label>Net HT</Label><Input readOnly className="bg-muted tabular-nums" value={lineCalc.total_ht.toFixed(3)} /></div>
                 <div>
                   <Label>TVA %</Label>
                   <Select value={String(line.vat_rate)} onValueChange={(v) => setForm((f) => ({ ...f, lines: f.lines.map((l, i) => (i === idx ? { ...l, vat_rate: Number(v) as VatRate } : l)) }))}>
@@ -407,17 +416,23 @@ export function FinanceSalesPanel({
                 </div>
                 <Button variant="ghost" onClick={() => setForm((f) => ({ ...f, lines: f.lines.length > 1 ? f.lines.filter((_, i) => i !== idx) : f.lines }))}>Retirer</Button>
               </div>
-            ))}
+            );})}
           </div>
 
           {(() => {
             const totals = computeInvoiceTotals(form.lines, { apply_timbre_fiscal: form.apply_timbre_fiscal });
             return (
-              <div className="rounded border p-3 text-sm tabular-nums">
-                HT <strong>{formatMontantDt(totals.total_ht)}</strong> | TVA{' '}
-                <strong>{formatMontantDt(totals.total_tva)}</strong> | TTC{' '}
-                <strong>{formatMontantDt(totals.total_ttc)}</strong>
-                {totals.timbre_fiscal > 0 && ` (dont timbre ${formatMontantDt(totals.timbre_fiscal)})`}
+              <div className="rounded border p-3 text-sm tabular-nums space-y-1">
+                <p>
+                  Brut HT <strong>{formatMontantDt(totals.brut_ht)}</strong> | Remise{' '}
+                  <strong>{formatMontantDt(totals.montant_remise)}</strong> | Net HT{' '}
+                  <strong>{formatMontantDt(totals.total_ht)}</strong>
+                </p>
+                <p>
+                  TVA <strong>{formatMontantDt(totals.total_tva)}</strong> | TTC{' '}
+                  <strong>{formatMontantDt(totals.total_ttc)}</strong>
+                  {totals.timbre_fiscal > 0 && ` (dont timbre ${formatMontantDt(totals.timbre_fiscal)})`}
+                </p>
               </div>
             );
           })()}

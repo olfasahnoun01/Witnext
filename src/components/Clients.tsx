@@ -68,7 +68,7 @@ const isClientIncomplete = (client: Client) => {
 export const Clients = memo(() => {
   const { isAdmin, isModerator } = useAuth();
   const canDelete = isAdmin || isModerator;
-  const { preview: documentPreview, openDocumentPreview, closePreview: closeDocumentPreview } =
+  const { preview: documentPreview, pdfBytesRef, openDocumentPreview, closePreview: closeDocumentPreview } =
     useClientDocumentPreview();
 
   const [clients, setClients] = useState<Client[]>([]);
@@ -127,6 +127,24 @@ export const Clients = memo(() => {
     setRcUrl(null);
     setEditingClient(null);
   }, []);
+
+  const persistClientDocument = useCallback(async (
+    field: 'patente_url' | 'registre_commerce_url',
+    url: string | null,
+  ) => {
+    if (!editingClient) return;
+    const { error } = await supabase
+      .from('clients')
+      .update({ [field]: url })
+      .eq('id', editingClient.id);
+    if (error) {
+      toast.error(url ? 'Document téléversé mais non enregistré sur la fiche client' : 'Suppression non enregistrée sur la fiche client');
+      console.error(error);
+      return;
+    }
+    if (url) toast.success('Document enregistré sur la fiche client');
+    loadClients();
+  }, [editingClient, loadClients]);
 
   // Get cities for selected governorate
   const availableCities = useMemo(() => {
@@ -474,7 +492,7 @@ export const Clients = memo(() => {
                   <div className="space-y-4 pt-4 border-t border-dashed">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
                       <FileText className="w-4 h-4 text-blue-500" />
-                      Documents (PDF) — optionnel
+                      Documents (PDF, JPG, PNG) — optionnel
                     </h3>
 
                     {code.trim() ? (
@@ -484,7 +502,14 @@ export const Clients = memo(() => {
                           entityCode={code}
                           documentType="patente"
                           currentUrl={patenteUrl}
-                          onUploadSuccess={(url) => setPatenteUrl(url)}
+                          onUploadSuccess={(url) => {
+                            setPatenteUrl(url);
+                            void persistClientDocument('patente_url', url);
+                          }}
+                          onRemove={() => {
+                            setPatenteUrl(null);
+                            void persistClientDocument('patente_url', null);
+                          }}
                           onConsult={(url) => void openDocumentPreview(url, `Patente — ${nom.trim() || code}`)}
                         />
                         <DocumentUploader
@@ -493,7 +518,14 @@ export const Clients = memo(() => {
                           documentType="rc"
                           titleOverride="RNE (Registre national des entreprises)"
                           currentUrl={rcUrl}
-                          onUploadSuccess={(url) => setRcUrl(url)}
+                          onUploadSuccess={(url) => {
+                            setRcUrl(url);
+                            void persistClientDocument('registre_commerce_url', url);
+                          }}
+                          onRemove={() => {
+                            setRcUrl(null);
+                            void persistClientDocument('registre_commerce_url', null);
+                          }}
                           onConsult={(url) => void openDocumentPreview(url, `RNE — ${nom.trim() || code}`)}
                         />
                       </div>
@@ -721,7 +753,7 @@ export const Clients = memo(() => {
         </CardContent>
       </Card>
 
-      <ClientDocumentPreviewDialog preview={documentPreview} onClose={closeDocumentPreview} />
+      <ClientDocumentPreviewDialog preview={documentPreview} pdfBytesRef={pdfBytesRef} onClose={closeDocumentPreview} />
     </div>
   );
 });

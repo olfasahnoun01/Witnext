@@ -1,7 +1,17 @@
 import type { InvoiceRow } from '../types';
 
 /** Modes de règlement affichés dans l'UI (norme tunisienne). */
-export type ModeReglement = 'ESPECE' | 'CHEQUE' | 'VIREMENT' | 'TRAITE';
+export type ModeReglement =
+  | 'ESPECE'
+  | 'CHEQUE'
+  | 'VIREMENT'
+  | 'TRAITE'
+  | 'PRELEVEMENT'
+  | 'REMISE'
+  | 'PROFIT';
+
+/** Statut de suivi du règlement (échéancier / trésorerie). */
+export type ReglementStatus = 'PAYEE' | 'IMPAYEE' | 'EN_COURS';
 
 /** Sens du règlement : encaissement client ou décaissement fournisseur. */
 export type SettlementDirection = 'client' | 'fournisseur';
@@ -23,6 +33,7 @@ export interface PaymentFinanceMeta {
   pieceNumero?: string | null;
   banque?: string | null;
   dateEcheance?: string | null;
+  reglementStatus?: ReglementStatus | null;
   traitStatus?: TraiteStatus | null;
   counterpartyId?: number | null;
   counterpartyType?: 'client' | 'fournisseur';
@@ -59,7 +70,8 @@ export interface SettlementTotals {
 export interface WithholdingLineInput {
   invoiceId: string;
   numeroFacture: string;
-  montantTtc: number;
+  /** Montant brut HT (assiette retenue — pas TTC). */
+  montantBrut: number;
   taux: number;
 }
 

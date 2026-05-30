@@ -58,7 +58,9 @@ import { CommercialSourcesPanel } from './sources/CommercialSourcesPanel';
 
 import { TreasuryHubPanel } from './treasury/TreasuryHubPanel';
 
-import { AvoirFinancierPanel } from './avoirs/AvoirFinancierPanel';
+import { AvoirsHubPanel } from './avoirs/AvoirsHubPanel';
+
+import { PaymentHistoryPanel } from './payments/PaymentHistoryPanel';
 
 import { VatDeclarationDashboard } from './vat/VatDeclarationDashboard';
 
@@ -88,7 +90,7 @@ import {
 
 export function FinanceDashboard() {
 
-  const { company, capabilities, requestCompanyPicker, companies } = useFinanceCompany();
+  const { company, capabilities, requestCompanyPicker, companies, canSwitchCompany } = useFinanceCompany();
 
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
 
@@ -260,7 +262,7 @@ export function FinanceDashboard() {
 
         </div>
 
-        {companies.length > 1 && (
+        {canSwitchCompany && companies.length > 1 && (
 
           <Button variant="outline" onClick={requestCompanyPicker} className="gap-2 shrink-0">
 
@@ -526,13 +528,21 @@ export function FinanceDashboard() {
 
           {billingSub === 'avoirs' && (
 
-            <AvoirFinancierPanel
+            <AvoirsHubPanel
 
               companyId={company.id}
 
               clients={clientsOptions}
 
               fournisseurs={fournisseursOptions}
+
+              saleInvoices={saleInvoices}
+
+              purchaseInvoices={purchaseInvoices}
+
+              linesByInvoice={linesByInvoice}
+
+              showPurchases={showPurchases}
 
               onCreated={load}
 
@@ -600,29 +610,13 @@ export function FinanceDashboard() {
 
           {settlementsSub === 'history-clients' && (
 
-            <FinanceTable
+            <PaymentHistoryPanel
 
               title="Historique — encaissements clients"
 
               loading={loading}
 
-              empty="Aucun encaissement enregistré."
-
-              rows={clientPayments}
-
-              columns={[
-
-                { key: 'payment_date', label: 'Date' },
-
-                { key: 'counterparty_name', label: 'Client' },
-
-                { key: 'amount', label: 'Montant', format: 'money' },
-
-                { key: 'method', label: 'Mode' },
-
-                { key: 'reference', label: 'Référence' },
-
-              ]}
+              payments={clientPayments}
 
             />
 
@@ -630,27 +624,13 @@ export function FinanceDashboard() {
 
           {settlementsSub === 'history-suppliers' && showSupplierPay && (
 
-            <FinanceTable
+            <PaymentHistoryPanel
 
               title="Historique — décaissements fournisseurs"
 
               loading={loading}
 
-              empty="Aucun paiement fournisseur."
-
-              rows={supplierPayments}
-
-              columns={[
-
-                { key: 'payment_date', label: 'Date' },
-
-                { key: 'counterparty_name', label: 'Fournisseur' },
-
-                { key: 'amount', label: 'Montant', format: 'money' },
-
-                { key: 'method', label: 'Mode' },
-
-              ]}
+              payments={supplierPayments}
 
             />
 
@@ -672,7 +652,11 @@ export function FinanceDashboard() {
 
         <TabsContent value="treasury" className="mt-5">
 
-          <TreasuryHubPanel companyId={company.id} clientPaymentsTotal={clientPaymentsTotal} />
+          <TreasuryHubPanel
+            companyId={company.id}
+            clientPaymentsTotal={clientPaymentsTotal}
+            payments={payments}
+          />
 
         </TabsContent>
 
@@ -712,7 +696,7 @@ export function FinanceDashboard() {
 
                   numero: inv.numero,
 
-                  montantTtc: Number(inv.total_ttc),
+                  montantHt: Number(inv.total_ht),
 
                 }))}
 

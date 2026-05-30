@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   onUpdateMessage: (callback) => ipcRenderer.on('update-message', (_event, value) => callback(value)),
-  onUpdateProgress: (callback) => ipcRenderer.on('update-progress', (_event, value) => callback(value))
+  onUpdateProgress: (callback) => ipcRenderer.on('update-progress', (_event, value) => callback(value)),
 });
 
 window.addEventListener('DOMContentLoaded', () => {

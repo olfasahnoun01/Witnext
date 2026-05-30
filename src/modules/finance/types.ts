@@ -99,6 +99,8 @@ export interface InvoiceWriteInput {
     quantity: number;
     unit_price_ht: number;
     vat_rate: VatRate;
+    /** Remise % sur la ligne (0–100). */
+    remise_percent?: number;
     /** Ligne soumise FODEC (contribution industrielle) — taux appliqué côté service. */
     subject_to_fodec?: boolean;
   }>;

@@ -158,6 +158,16 @@ export function getTreasurySubsections(): FinanceNavItem[] {
       description: 'Comptes 512 — soldes et RIB',
     },
     {
+      id: 'bank-fees',
+      label: 'Frais bancaires',
+      description: 'Commissions, intérêts et charges bancaires',
+    },
+    {
+      id: 'unpaid',
+      label: 'Impayée',
+      description: 'Charges et effets impayés',
+    },
+    {
       id: 'bank-recon',
       label: 'Rapprochement',
       description: 'Rapprochement bancaire CSV',

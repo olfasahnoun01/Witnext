@@ -35,6 +35,8 @@ interface ProductModalProps {
 }
 
 import { DocumentUploader } from '@/components/shared/DocumentUploader';
+import { ClientDocumentPreviewDialog } from '@/components/shared/ClientDocumentPreviewDialog';
+import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 
 export const ProductModal = memo(({
   isOpen,
@@ -47,6 +49,8 @@ export const ProductModal = memo(({
   defaultCategory
 }: ProductModalProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { preview: documentPreview, pdfBytesRef, openDocumentPreview, closePreview: closeDocumentPreview } =
+    useClientDocumentPreview();
 
   const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -285,6 +289,7 @@ export const ProductModal = memo(({
                 documentType="fiche_technique"
                 currentUrl={formData.fiche_technique_url}
                 onUploadSuccess={(url) => onFormDataChange({ ...formData, fiche_technique_url: url })}
+                onConsult={(url) => void openDocumentPreview(url, `Fiche technique — ${formData.sku}`)}
               />
             ) : (
               <p className="text-xs text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-100 italic">
@@ -303,6 +308,8 @@ export const ProductModal = memo(({
           </div>
         </form>
       </div>
+
+      <ClientDocumentPreviewDialog preview={documentPreview} pdfBytesRef={pdfBytesRef} onClose={closeDocumentPreview} />
     </div>
   );
 });

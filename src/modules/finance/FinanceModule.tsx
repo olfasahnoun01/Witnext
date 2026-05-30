@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 import { FinanceCompanyPicker } from './components/FinanceCompanyPicker';
 import { FinanceDashboard } from './components/FinanceDashboard';
 import { FinanceCompanyProvider } from './context/FinanceCompanyContext';
+import {
+  canSwitchFinanceCompany,
+  getUserPosteFromMetadata,
+  isCompanyVerifiedThisSession,
+  markCompanyVerified,
+} from './lib/companyAccess';
 import { fetchUserFinanceCompanies, readStoredCompanyId, writeStoredCompanyId } from './services/financeApi';
 import type { FinanceCompanyRow } from './types';
 
@@ -10,75 +17,96 @@ type Phase = 'loading' | 'picker' | 'app';
 
 /**
  * Module Finance multi-societes : selection societe + tableau de bord.
- * Ne modifie pas les ecrans Ventes / Achats historiques.
+ * Admin / moderateur / responsable financier : code societe requis avant ouverture.
  */
 export function FinanceModule() {
+  const { user, isAdmin, isModerator, isLoading: authLoading } = useAuth();
   const [phase, setPhase] = useState<Phase>('loading');
   const [companies, setCompanies] = useState<FinanceCompanyRow[]>([]);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [forcePicker, setForcePicker] = useState(false);
+
+  const userPoste = useMemo(() => getUserPosteFromMetadata(user), [user]);
+  const canSwitchCompany = useMemo(
+    () => canSwitchFinanceCompany(isAdmin, isModerator, userPoste),
+    [isAdmin, isModerator, userPoste]
+  );
+
+  const resolveInitialCompany = useCallback(
+    (list: FinanceCompanyRow[]): { companyId: string | null; showPicker: boolean } => {
+      if (list.length === 0) {
+        return { companyId: null, showPicker: true };
+      }
+
+      if (!canSwitchCompany) {
+        if (list.length === 1) {
+          return { companyId: list[0].id, showPicker: false };
+        }
+        const stored = readStoredCompanyId();
+        const validStored = stored && list.some((c) => c.id === stored);
+        const id = validStored ? stored! : list[0].id;
+        return { companyId: id, showPicker: false };
+      }
+
+      const stored = readStoredCompanyId();
+      const validStored = stored && list.some((c) => c.id === stored);
+      if (validStored && !forcePicker && isCompanyVerifiedThisSession(stored)) {
+        return { companyId: stored, showPicker: false };
+      }
+      return { companyId: null, showPicker: true };
+    },
+    [canSwitchCompany, forcePicker]
+  );
 
   const loadCompanies = useCallback(async () => {
     setPhase('loading');
     try {
       const list = await fetchUserFinanceCompanies();
       setCompanies(list);
-      if (list.length === 0) {
-        setCompanyId(null);
-        setPhase('picker');
-        return;
-      }
-      if (list.length === 1) {
-        const id = list[0].id;
-        setCompanyId(id);
-        writeStoredCompanyId(id);
-        setForcePicker(false);
-        setPhase('app');
-        return;
-      }
-      const stored = readStoredCompanyId();
-      const validStored = stored && list.some((c) => c.id === stored);
-      if (validStored && !forcePicker) {
-        setCompanyId(stored);
-        setPhase('app');
-        return;
-      }
-      setPhase('picker');
+      const { companyId: nextId, showPicker } = resolveInitialCompany(list);
+      setCompanyId(nextId);
+      if (nextId) writeStoredCompanyId(nextId);
+      setPhase(showPicker ? 'picker' : 'app');
     } catch (e: unknown) {
       console.error(e);
       const detail = e instanceof Error ? e.message : String(e);
       toast.error('Impossible de charger vos societes Finance', {
-        description:
-          detail.length > 220 ? `${detail.slice(0, 220)}…` : detail,
+        description: detail.length > 220 ? `${detail.slice(0, 220)}…` : detail,
         duration: 12_000,
       });
       setCompanies([]);
       setPhase('picker');
     }
-  }, [forcePicker]);
+  }, [resolveInitialCompany]);
 
   useEffect(() => {
+    if (authLoading) return;
     void loadCompanies();
-  }, [loadCompanies]);
+  }, [loadCompanies, authLoading]);
 
-  const handleSelectCompany = useCallback((c: FinanceCompanyRow) => {
-    setCompanyId(c.id);
-    writeStoredCompanyId(c.id);
-    setForcePicker(false);
-    setPhase('app');
-  }, []);
+  const handleSelectCompany = useCallback(
+    (c: FinanceCompanyRow) => {
+      markCompanyVerified(c.id);
+      setCompanyId(c.id);
+      writeStoredCompanyId(c.id);
+      setForcePicker(false);
+      setPhase('app');
+    },
+    []
+  );
 
   const handleRequestPicker = useCallback(() => {
+    if (!canSwitchCompany) return;
     setForcePicker(true);
     setPhase('picker');
-  }, []);
+  }, [canSwitchCompany]);
 
   const handleCompanyIdChange = useCallback((id: string) => {
     setCompanyId(id);
     writeStoredCompanyId(id);
   }, []);
 
-  if (phase === 'loading') {
+  if (authLoading || phase === 'loading') {
     return (
       <div className="flex justify-center py-20 text-muted-foreground text-sm">
         Chargement du module Finance...
@@ -98,7 +126,13 @@ export function FinanceModule() {
         </div>
       );
     }
-    return <FinanceCompanyPicker companies={companies} onSelect={handleSelectCompany} />;
+    return (
+      <FinanceCompanyPicker
+        companies={companies}
+        onSelect={handleSelectCompany}
+        requireAccessCode={canSwitchCompany}
+      />
+    );
   }
 
   return (
@@ -107,6 +141,7 @@ export function FinanceModule() {
       companyId={companyId}
       onCompanyIdChange={handleCompanyIdChange}
       onRequestPicker={handleRequestPicker}
+      canSwitchCompany={canSwitchCompany}
     >
       <FinanceDashboard />
     </FinanceCompanyProvider>

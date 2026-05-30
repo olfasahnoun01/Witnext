@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -27,6 +28,7 @@ import { formatMontantDt } from '../../lib/money';
 import {
   createFinanceInvoiceFromDevis,
   createFinanceInvoiceFromDocument,
+  createFinanceInvoiceFromGroupedDocuments,
   fetchClientsDirectory,
   fetchCommercialDevisList,
   fetchFournisseursDirectory,
@@ -87,6 +89,12 @@ export function CommercialSourcesPanel({
   const [magasinTypes, setMagasinTypes] = useState<MagasinDocFilter[]>(() =>
     defaultMagasinSelection(showPurchases)
   );
+  const [selectedBlIds, setSelectedBlIds] = useState<Record<MagasinDocFilter, string[]>>({
+    BL_CLIENT: [],
+    BL_FOURNISSEUR: [],
+    BE: [],
+    BS: [],
+  });
 
   useEffect(() => {
     setMagasinTypes((prev) => {
@@ -202,6 +210,33 @@ export function CommercialSourcesPanel({
     } finally {
       setBusyId(null);
     }
+  };
+
+  const handleGroupedBlInvoice = async (docType: MagasinDocFilter) => {
+    const ids = selectedBlIds[docType];
+    if (ids.length < 2) {
+      toast.error('Sélectionnez au moins 2 BL à regrouper.');
+      return;
+    }
+    setBusyId(`group-${docType}`);
+    try {
+      const numero = await createFinanceInvoiceFromGroupedDocuments(companyId, ids);
+      toast.success(`Facture groupée ${numero} créée (${ids.length} BL)`);
+      setSelectedBlIds((prev) => ({ ...prev, [docType]: [] }));
+      await onInvoiceCreated();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Regroupement impossible');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const toggleBlSelection = (docType: MagasinDocFilter, id: string, checked: boolean) => {
+    setSelectedBlIds((prev) => {
+      const current = prev[docType];
+      const next = checked ? [...current, id] : current.filter((x) => x !== id);
+      return { ...prev, [docType]: next };
+    });
   };
 
   const stats = useMemo(
@@ -387,6 +422,11 @@ export function CommercialSourcesPanel({
                     loading={loading}
                     busyId={busyId}
                     onGenerate={handleDocInvoice}
+                    allowMultiSelect={opt.type === 'BL_CLIENT' || opt.type === 'BL_FOURNISSEUR'}
+                    selectedIds={selectedBlIds[opt.type]}
+                    onToggleSelect={(id, checked) => toggleBlSelection(opt.type, id, checked)}
+                    onGroupSelected={() => void handleGroupedBlInvoice(opt.type)}
+                    groupBusy={busyId === `group-${opt.type}`}
                   />
                 ))}
             </div>
@@ -488,6 +528,11 @@ function WarehouseTable({
   loading,
   busyId,
   onGenerate,
+  allowMultiSelect,
+  selectedIds = [],
+  onToggleSelect,
+  onGroupSelected,
+  groupBusy,
 }: {
   title: string;
   icon: React.ReactNode;
@@ -495,15 +540,29 @@ function WarehouseTable({
   loading: boolean;
   busyId: string | null;
   onGenerate: (row: WarehouseDocumentRow) => void;
+  allowMultiSelect?: boolean;
+  selectedIds?: string[];
+  onToggleSelect?: (id: string, checked: boolean) => void;
+  onGroupSelected?: () => void;
+  groupBusy?: boolean;
 }) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          {icon}
-          {title}
-        </CardTitle>
-        <CardDescription>Moteur documents v2 — table documents</CardDescription>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            {icon}
+            {title}
+          </CardTitle>
+          {allowMultiSelect && selectedIds.length >= 2 && (
+            <Button size="sm" variant="default" disabled={groupBusy} onClick={onGroupSelected}>
+              {groupBusy ? '…' : `Regrouper ${selectedIds.length} BL → 1 facture`}
+            </Button>
+          )}
+        </div>
+        <CardDescription>
+          Moteur documents v2 — {allowMultiSelect ? 'cochez plusieurs BL du même tiers pour les fusionner.' : 'table documents'}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -515,6 +574,7 @@ function WarehouseTable({
             <Table>
               <TableHeader>
                 <TableRow>
+                  {allowMultiSelect && <TableHead className="w-10" />}
                   <TableHead>N°</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Tiers</TableHead>
@@ -527,6 +587,14 @@ function WarehouseTable({
               <TableBody>
                 {rows.map((row) => (
                   <TableRow key={row.id}>
+                    {allowMultiSelect && (
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.includes(row.id)}
+                          onCheckedChange={(c) => onToggleSelect?.(row.id, c === true)}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="font-mono">{row.numero}</TableCell>
                     <TableCell>{row.createdAt.slice(0, 10)}</TableCell>
                     <TableCell>{row.thirdPartyName || '—'}</TableCell>

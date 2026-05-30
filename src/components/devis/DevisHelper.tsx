@@ -7,12 +7,8 @@ import { toast } from 'sonner';
 import { ProductGroupModal } from '@/components/inventory/ProductGroupModal';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
+import { ClientDocumentPreviewDialog } from '@/components/shared/ClientDocumentPreviewDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,10 +50,8 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
   // Modal d'ajout à l'inventaire
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [productNameForModal, setProductNameForModal] = useState('');
-  
-  // Preview Modal state
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [selectedPreviewDoc, setSelectedPreviewDoc] = useState<{ url: string, title: string } | null>(null);
+  const { preview: documentPreview, pdfBytesRef, openDocumentPreview, closePreview: closeDocumentPreview } =
+    useClientDocumentPreview();
 
   // Persistance localStorage
   useEffect(() => {
@@ -573,10 +567,7 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
                                 variant="ghost" 
                                 size="sm" 
                                 className="h-8 w-8 p-0 text-primary hover:bg-primary/10" 
-                                onClick={() => {
-                                  setSelectedPreviewDoc({ url, title: item.product_name || item.description });
-                                  setPreviewOpen(true);
-                                }} 
+                                onClick={() => void openDocumentPreview(url, item.product_name || item.description)}
                                 title="Voir"
                               >
                                 <Eye className="w-3.5 h-3.5" />
@@ -624,50 +615,7 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
 
       <ProductGroupModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSuccess={handleProductAdded} defaultName={productNameForModal} />
 
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden bg-background">
-          <DialogHeader className="p-4 border-b flex flex-row items-center justify-between space-y-0">
-            <DialogTitle className="truncate pr-8 flex items-center gap-2">
-              <FileIcon className="w-5 h-5 text-primary" />
-               Aperçu: {selectedPreviewDoc?.title}
-            </DialogTitle>
-            <div className="flex gap-2">
-              <Button 
-                variant="default" 
-                size="sm" 
-                className="gap-2 font-bold shadow-lg"
-                onClick={() => selectedPreviewDoc && handleDownloadFiche(selectedPreviewDoc.url)}
-              >
-                <DownloadCloud className="w-4 h-4" />
-                TELECHARGER LA FICHE
-              </Button>
-            </div>
-          </DialogHeader>
-          <div className="flex-1 bg-muted/20 relative">
-            {selectedPreviewDoc?.url ? (
-              selectedPreviewDoc.url.toLowerCase().endsWith('.pdf') || selectedPreviewDoc.url.includes('/fiches/') ? (
-                <iframe 
-                  src={`${selectedPreviewDoc.url}#toolbar=0`} 
-                  className="w-full h-full border-none"
-                  title="Document Preview"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center p-4">
-                  <img 
-                    src={selectedPreviewDoc.url} 
-                    alt="Preview" 
-                    className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
-                  />
-                </div>
-              )
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ClientDocumentPreviewDialog preview={documentPreview} pdfBytesRef={pdfBytesRef} onClose={closeDocumentPreview} />
 
       <AlertDialog open={!!itemToReplace} onOpenChange={(open) => !open && setItemToReplace(null)}>
         <AlertDialogContent>

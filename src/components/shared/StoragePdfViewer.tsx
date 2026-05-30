@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
 /**
  * Renders a PDF from an ArrayBuffer using pdf.js (reliable in Electron; no fetch on blob/signed URLs).
@@ -9,7 +10,7 @@ export const StoragePdfViewer = ({
   title,
   downloadUrl,
 }: {
-  data: ArrayBuffer;
+  data: ArrayBuffer | Uint8Array;
   title: string;
   downloadUrl?: string | null;
 }) => {
@@ -33,12 +34,11 @@ export const StoragePdfViewer = ({
         }
 
         const pdfjsLib = await import('pdfjs-dist');
-        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-          'pdfjs-dist/build/pdf.worker.mjs',
-          import.meta.url
-        ).toString();
+        pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
-        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(data) }).promise;
+        const pdfBytes = data instanceof Uint8Array ? data.slice() : new Uint8Array(data.slice(0));
+        const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+
         if (cancelled || !containerRef.current) return;
 
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -77,39 +77,35 @@ export const StoragePdfViewer = ({
     };
   }, [data, title]);
 
-  if (loading) {
-    return (
-      <div className="flex h-[75vh] items-center justify-center gap-2 text-muted-foreground">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span>Chargement du document…</span>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex h-[75vh] flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
-        <p>Impossible d&apos;afficher le document.</p>
-        <p className="text-xs text-destructive">{error}</p>
-        {downloadUrl ? (
-          <a
-            href={downloadUrl}
-            download
-            target="_blank"
-            rel="noreferrer"
-            className="text-primary underline text-sm"
-          >
-            Télécharger le fichier
-          </a>
-        ) : null}
-      </div>
-    );
-  }
-
   return (
-    <div
-      ref={containerRef}
-      className="h-[75vh] overflow-y-auto rounded-lg border border-border bg-muted/30 p-4"
-    />
+    <div className="relative h-[75vh] min-h-[200px]">
+      <div
+        ref={containerRef}
+        className="h-full overflow-y-auto rounded-lg border border-border bg-muted/30 p-4"
+      />
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center gap-2 rounded-lg bg-background/80 text-muted-foreground">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <span>Chargement du document…</span>
+        </div>
+      )}
+      {error && !loading && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground bg-background/95">
+          <p>Impossible d&apos;afficher le document.</p>
+          <p className="text-xs text-destructive">{error}</p>
+          {downloadUrl ? (
+            <a
+              href={downloadUrl}
+              download
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary underline text-sm"
+            >
+              Télécharger le fichier
+            </a>
+          ) : null}
+        </div>
+      )}
+    </div>
   );
 };

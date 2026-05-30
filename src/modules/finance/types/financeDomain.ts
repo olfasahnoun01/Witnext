@@ -110,6 +110,70 @@ export interface AvoirFinancier {
   createdAt: string;
 }
 
+/** Type de frais bancaire (prédéfini ou personnalisé). */
+export interface BankFeeTypeDefinition {
+  id: string;
+  label: string;
+  builtin?: boolean;
+}
+
+/** Charge bancaire enregistrée. */
+export interface BankFeeCharge {
+  id: string;
+  companyId: string;
+  treasuryAccountId: string;
+  treasuryAccountName: string;
+  feeTypeId: string;
+  feeTypeLabel: string;
+  label: string;
+  montantHt: number;
+  tauxTva: TauxTvaTunisie;
+  montantTva: number;
+  montantTtc: number;
+  dateOperation: string;
+  dateEcheance?: string | null;
+  status: 'PAYEE' | 'IMPAYEE' | 'EN_COURS';
+  notes?: string | null;
+  createdAt: string;
+}
+
+/** Avoir par article — crédit lié à une facture et ses lignes. */
+export type AvoirArticleType = 'vente' | 'achat';
+
+export interface AvoirParArticleLine {
+  id: string;
+  invoiceLineId: string;
+  productCode: string | null;
+  description: string;
+  quantity: number;
+  unitPriceHt: number;
+  tauxTva: TauxTvaTunisie;
+  montantHt: number;
+  montantTva: number;
+  montantTtc: number;
+}
+
+export interface AvoirParArticle {
+  id: string;
+  companyId: string;
+  type: AvoirArticleType;
+  numero: string;
+  issueDate: string;
+  invoiceId: string;
+  invoiceNumero: string;
+  counterpartyId: number;
+  counterpartyName: string;
+  counterpartyTaxId: string | null;
+  lignes: AvoirParArticleLine[];
+  totalHt: number;
+  totalTva: number;
+  totalTtc: number;
+  creditRestant: number;
+  status: AvoirFinancierStatus;
+  notes: string | null;
+  createdAt: string;
+}
+
 /** Agrégat TVA collectée par taux pour une période. */
 export interface VatRateAggregate {
   taux: TauxTvaTunisie;

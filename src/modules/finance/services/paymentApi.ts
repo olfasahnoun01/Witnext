@@ -9,6 +9,7 @@ import type {
   CounterpartyOption,
   ModeReglement,
   PaymentFinanceMeta,
+  ReglementStatus,
   TraitePortfolioItem,
   TraiteStatus,
 } from '../types/paymentTypes';
@@ -124,6 +125,7 @@ export interface SubmitSettlementInput {
   pieceNumero?: string;
   banque?: string;
   dateEcheance?: string;
+  reglementStatus?: ReglementStatus;
   userNotes?: string;
   withholdingAmount?: number;
   withholdingRate?: number;
@@ -166,6 +168,8 @@ export async function submitSettlement(input: SubmitSettlementInput): Promise<st
 
   const direction = input.direction === 'client' ? 'inbound_client' : 'outbound_supplier';
   const traitStatus = initialTraiteStatus(input.mode);
+  const defaultReglementStatus: ReglementStatus =
+    input.mode === 'CHEQUE' || input.mode === 'TRAITE' ? 'EN_COURS' : 'PAYEE';
 
   const meta: PaymentFinanceMeta = {
     v: 1,
@@ -174,6 +178,7 @@ export async function submitSettlement(input: SubmitSettlementInput): Promise<st
     pieceNumero: input.pieceNumero || null,
     banque: input.banque || null,
     dateEcheance: input.dateEcheance || null,
+    reglementStatus: input.reglementStatus ?? defaultReglementStatus,
     traitStatus,
     counterpartyId: input.counterparty.id,
     counterpartyType: input.direction === 'client' ? 'client' : 'fournisseur',

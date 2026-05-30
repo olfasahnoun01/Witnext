@@ -58,6 +58,9 @@ export interface FinanceSourceRef {
   source_id: string;
   source_numero: string;
   counterparty_id?: number | null;
+  /** Regroupement de plusieurs pièces magasin (ex. BL). */
+  grouped_source_ids?: string[];
+  grouped_source_numeros?: string[];
 }
 
 /** Brouillon de facture pré-rempli depuis une pièce commerciale. */

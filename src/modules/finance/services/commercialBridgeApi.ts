@@ -280,7 +280,10 @@ export async function findExistingFinanceInvoiceBySource(
   const match = (data ?? []).find((inv) => {
     const meta = (inv.metadata || {}) as Record<string, unknown>;
     const ref = meta.source_ref as FinanceSourceRef | undefined;
-    return ref?.module === sourceRef.module && ref?.source_id === sourceRef.source_id;
+    if (!ref) return false;
+    if (ref.source_id === sourceRef.source_id) return true;
+    if (ref.grouped_source_ids?.includes(sourceRef.source_id)) return true;
+    return false;
   });
 
   return match?.numero ?? null;
@@ -359,6 +362,68 @@ export async function createFinanceInvoiceFromDevis(companyId: string, devisId: 
 export async function createFinanceInvoiceFromDocument(companyId: string, documentId: string): Promise<string> {
   const draft = await buildDraftFromWarehouseDocument(documentId);
   return insertWithSourceRef(draftToWriteInput(companyId, draft), draft.invoiceType);
+}
+
+/** Fusionne plusieurs BL (même tiers) en une facture Finance brouillon. */
+export async function buildDraftFromGroupedWarehouseDocuments(
+  documentIds: string[]
+): Promise<CommercialInvoiceDraft> {
+  if (documentIds.length === 0) throw new Error('Sélectionnez au moins un BL.');
+  const drafts = await Promise.all(documentIds.map((id) => buildDraftFromWarehouseDocument(id)));
+
+  const invoiceType = drafts[0].invoiceType;
+  const mismatched = drafts.find((d) => d.invoiceType !== invoiceType);
+  if (mismatched) throw new Error('Les BL sélectionnés doivent être du même sens (vente ou achat).');
+
+  const uniqueCounterparts = new Set(
+    drafts.map((d) => `${d.counterpart_name}|${d.counterpart_tax_id || ''}`)
+  );
+  if (uniqueCounterparts.size > 1) {
+    throw new Error('Les BL sélectionnés doivent concerner le même tiers.');
+  }
+
+  const numeros = drafts.map((d) => d.source_ref.source_numero);
+  const groupedIds = drafts.map((d) => d.source_ref.source_id);
+  const first = drafts[0];
+
+  const source_ref: FinanceSourceRef = {
+    module: 'documents',
+    doc_kind: first.source_ref.doc_kind,
+    source_id: groupedIds[0],
+    source_numero: numeros.join(' + '),
+    counterparty_id: first.source_ref.counterparty_id,
+    grouped_source_ids: groupedIds,
+    grouped_source_numeros: numeros,
+  };
+
+  return {
+    invoiceType,
+    numero: suggestInvoiceNumero(numeros.join('-'), invoiceType === 'vente' ? 'FV' : 'FA'),
+    counterpart_name: first.counterpart_name,
+    counterpart_tax_id: first.counterpart_tax_id,
+    issue_date: drafts.reduce((max, d) => (d.issue_date > max ? d.issue_date : max), first.issue_date),
+    notes: `Regroupement BL : ${numeros.join(', ')}`,
+    apply_timbre_fiscal: invoiceType === 'vente',
+    lines: drafts.flatMap((d) => d.lines),
+    source_ref,
+  };
+}
+
+export async function createFinanceInvoiceFromGroupedDocuments(
+  companyId: string,
+  documentIds: string[]
+): Promise<string> {
+  for (const id of documentIds) {
+    const draft = await buildDraftFromWarehouseDocument(id);
+    const existing = await findExistingFinanceInvoiceBySource(companyId, draft.source_ref);
+    if (existing) {
+      throw new Error(`Une facture existe déjà pour ${draft.source_ref.source_numero} : ${existing}`);
+    }
+  }
+  const draft = await buildDraftFromGroupedWarehouseDocuments(documentIds);
+  const id = await insertWithSourceRef(draftToWriteInput(companyId, draft), draft.invoiceType);
+  const { data: row } = await supabase.from('invoices').select('numero').eq('id', id).single();
+  return row?.numero ?? draft.numero;
 }
 
 export { draftToWriteInput };

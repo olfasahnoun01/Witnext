@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { BANQUES_TUNISIE } from '../../lib/constants';
 import { formatMontantDt, parseMontantInput } from '../../lib/money';
-import type { CounterpartyOption, ModeReglement, SettlementDirection } from '../../types/paymentTypes';
+import type { CounterpartyOption, ModeReglement, ReglementStatus, SettlementDirection } from '../../types/paymentTypes';
 import type { LetterageLine, TreasuryAccount } from '../../types/financeDomain';
 import {
   buildLetterageFromDocuments,
@@ -52,6 +52,9 @@ const MODES: { value: ModeReglement; label: string }[] = [
   { value: 'CHEQUE', label: 'Chèque' },
   { value: 'VIREMENT', label: 'Virement' },
   { value: 'TRAITE', label: 'Traite' },
+  { value: 'PRELEVEMENT', label: 'Prélèvement' },
+  { value: 'REMISE', label: 'Remise' },
+  { value: 'PROFIT', label: 'Profit' },
 ];
 
 /**
@@ -74,6 +77,7 @@ export function PaymentSettlementForm({
   const [pieceNumero, setPieceNumero] = useState('');
   const [banque, setBanque] = useState('');
   const [dateEcheance, setDateEcheance] = useState('');
+  const [reglementStatus, setReglementStatus] = useState<ReglementStatus>('PAYEE');
   const [notes, setNotes] = useState('');
   const [letterageLines, setLetterageLines] = useState<LetterageLine[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
@@ -150,6 +154,16 @@ export function PaymentSettlementForm({
 
   const showEffetFields = mode === 'CHEQUE' || mode === 'TRAITE';
   const isTraite = mode === 'TRAITE';
+
+  useEffect(() => {
+    if (mode === 'CHEQUE' || mode === 'TRAITE') {
+      setReglementStatus('EN_COURS');
+    } else if (mode === 'PRELEVEMENT') {
+      setReglementStatus('EN_COURS');
+    } else {
+      setReglementStatus('PAYEE');
+    }
+  }, [mode]);
 
   const canPreviewTraite =
     isTraite &&
@@ -287,7 +301,8 @@ export function PaymentSettlementForm({
         mode,
         pieceNumero: showEffetFields ? pieceNumero : undefined,
         banque: showEffetFields ? banque : undefined,
-        dateEcheance: showEffetFields ? dateEcheance : undefined,
+        dateEcheance: dateEcheance || undefined,
+        reglementStatus,
         userNotes: notes,
         withholdingAmount: retenueMontant,
         withholdingRate: Number(withholdingRate),
@@ -396,6 +411,27 @@ export function PaymentSettlementForm({
             </RadioGroup>
           </div>
 
+          <div className="grid gap-4 md:grid-cols-2 p-4 rounded-lg border bg-muted/20">
+            <div className="space-y-2">
+              <Label>Date échéance</Label>
+              <Input type="date" value={dateEcheance} onChange={(e) => setDateEcheance(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Pour le suivi mensuel des échéances à payer.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Statut du règlement</Label>
+              <Select value={reglementStatus} onValueChange={(v) => setReglementStatus(v as ReglementStatus)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PAYEE">Payée</SelectItem>
+                  <SelectItem value="EN_COURS">En cours</SelectItem>
+                  <SelectItem value="IMPAYEE">Impayée</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {showEffetFields && (
             <div className="space-y-3">
               <div className="grid gap-4 md:grid-cols-3 p-4 rounded-lg border bg-muted/30">
@@ -419,7 +455,7 @@ export function PaymentSettlementForm({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Échéance *</Label>
+                  <Label>Échéance pièce *</Label>
                   <Input type="date" value={dateEcheance} onChange={(e) => setDateEcheance(e.target.value)} />
                 </div>
               </div>
@@ -453,9 +489,9 @@ export function PaymentSettlementForm({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1">1 % — Achats courants</SelectItem>
-                  <SelectItem value="1.5">1,5 %</SelectItem>
+                  <SelectItem value="1.5">1,5 % — Personne physique</SelectItem>
                   <SelectItem value="3">3 % — Honoraires réel</SelectItem>
-                  <SelectItem value="10">10 % — Honoraires / loyers</SelectItem>
+                  <SelectItem value="10">10 % — Loyer</SelectItem>
                 </SelectContent>
               </Select>
               <span className="text-sm tabular-nums">

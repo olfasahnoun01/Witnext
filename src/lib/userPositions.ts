@@ -12,6 +12,7 @@ const POSTE_ALIASES: Record<string, string[]> = {
   'responsable magazin': ['responsable magazin', 'responsable magasin', 'responsable stock'],
   'responsable achat': ['responsable achat'],
   'responsable administrative': ['responsable administrative', 'responsable administratif'],
+  'responsable financier': ['responsable financier', 'responsable finance'],
 };
 
 export function posteMatches(userPosition: string, targetKeys: string[]): boolean {

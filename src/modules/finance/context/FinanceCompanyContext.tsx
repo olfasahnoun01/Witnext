@@ -6,6 +6,7 @@ export interface FinanceCompanyContextValue {
   companies: FinanceCompanyRow[];
   company: FinanceCompanyRow | null;
   capabilities: FinanceCapabilities;
+  canSwitchCompany: boolean;
   setCompanyId: (id: string) => void;
   requestCompanyPicker: () => void;
 }
@@ -17,12 +18,14 @@ export function FinanceCompanyProvider({
   companyId,
   onCompanyIdChange,
   onRequestPicker,
+  canSwitchCompany,
   children,
 }: {
   companies: FinanceCompanyRow[];
   companyId: string | null;
   onCompanyIdChange: (id: string) => void;
   onRequestPicker: () => void;
+  canSwitchCompany: boolean;
   children: ReactNode;
 }) {
   const company = useMemo(
@@ -40,10 +43,11 @@ export function FinanceCompanyProvider({
       companies,
       company,
       capabilities,
+      canSwitchCompany,
       setCompanyId: onCompanyIdChange,
       requestCompanyPicker: onRequestPicker,
     }),
-    [companies, company, capabilities, onCompanyIdChange, onRequestPicker]
+    [companies, company, capabilities, canSwitchCompany, onCompanyIdChange, onRequestPicker]
   );
 
   return (

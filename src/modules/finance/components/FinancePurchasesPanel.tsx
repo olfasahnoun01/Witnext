@@ -15,6 +15,7 @@ import { TIMBRE_FISCAL_FACTURE_DT } from '../lib/tunisiaFiscal';
 import type { InvoiceLineRow, InvoiceRow, InvoiceWriteInput, VatRate } from '../types';
 import {
   cancelSalesInvoice,
+  computeInvoiceLine,
   computeInvoiceTotals,
   createPurchaseInvoice,
   deleteFinanceInvoice,
@@ -36,6 +37,7 @@ const emptyLine = (): LineForm => ({
   vat_rate: 19,
   product_code: '',
   subject_to_fodec: false,
+  remise_percent: 0,
 });
 
 const emptyForm = (): Omit<InvoiceWriteInput, 'company_id'> => ({
@@ -273,7 +275,7 @@ export function FinancePurchasesPanel({
         </Table>
 
         <Dialog open={showForm} onOpenChange={setShowForm}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editing ? 'Modifier' : 'Nouvelle'} facture achat</DialogTitle>
             </DialogHeader>
@@ -330,91 +332,190 @@ export function FinancePurchasesPanel({
                 <Label>Timbre fiscal ({formatMontantDt(TIMBRE_FISCAL_FACTURE_DT)})</Label>
               </div>
             </div>
-            {form.lines.map((line, idx) => (
-              <div key={idx} className="grid gap-2 md:grid-cols-6 items-end border-t pt-2">
-                <Input
-                  placeholder="Désignation"
-                  value={line.description}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      lines: f.lines.map((l, i) => (i === idx ? { ...l, description: e.target.value } : l)),
-                    }))
-                  }
-                />
-                <Input
-                  type="number"
-                  placeholder="Qté"
-                  value={line.quantity}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      lines: f.lines.map((l, i) =>
-                        i === idx ? { ...l, quantity: Number(e.target.value) || 0 } : l
-                      ),
-                    }))
-                  }
-                />
-                <Input
-                  type="number"
-                  placeholder="PU HT"
-                  value={line.unit_price_ht}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      lines: f.lines.map((l, i) =>
-                        i === idx ? { ...l, unit_price_ht: Number(e.target.value) || 0 } : l
-                      ),
-                    }))
-                  }
-                />
-                <Select
-                  value={String(line.vat_rate)}
-                  onValueChange={(v) =>
-                    setForm((f) => ({
-                      ...f,
-                      lines: f.lines.map((l, i) =>
-                        i === idx ? { ...l, vat_rate: Number(v) as VatRate } : l
-                      ),
-                    }))
-                  }
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label>Lignes facture</Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setForm((f) => ({ ...f, lines: [...f.lines, emptyLine()] }))}
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[19, 13, 7, 0].map((r) => (
-                      <SelectItem key={r} value={String(r)}>
-                        {r} %
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center gap-1">
-                  <Checkbox
-                    checked={!!line.subject_to_fodec}
-                    onCheckedChange={(c) =>
-                      setForm((f) => ({
-                        ...f,
-                        lines: f.lines.map((l, i) =>
-                          i === idx ? { ...l, subject_to_fodec: c === true } : l
-                        ),
-                      }))
-                    }
-                  />
-                  <span className="text-xs">FODEC</span>
-                </div>
+                  Ajouter ligne
+                </Button>
               </div>
-            ))}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setForm((f) => ({ ...f, lines: [...f.lines, emptyLine()] }))}
-            >
-              + Ligne
-            </Button>
-            <p className="text-sm tabular-nums border rounded p-2">
-              TTC : <strong>{formatMontantDt(totalsPreview.total_ttc)}</strong> (timbre inclus si coché)
+              {form.lines.map((line, idx) => {
+                const lineCalc = computeInvoiceLine(line);
+                return (
+                  <div
+                    key={idx}
+                    className="grid gap-2 md:grid-cols-[100px_1fr_90px_110px_80px_100px_100px_100px_80px_80px] items-end border-t pt-2"
+                  >
+                    <div>
+                      <Label>Code</Label>
+                      <Input
+                        value={line.product_code || ''}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            lines: f.lines.map((l, i) =>
+                              i === idx ? { ...l, product_code: e.target.value } : l
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Désignation</Label>
+                      <Input
+                        value={line.description}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            lines: f.lines.map((l, i) =>
+                              i === idx ? { ...l, description: e.target.value } : l
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Qté</Label>
+                      <Input
+                        type="number"
+                        min="0.001"
+                        step="0.001"
+                        value={line.quantity}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            lines: f.lines.map((l, i) =>
+                              i === idx ? { ...l, quantity: Number(e.target.value) || 0 } : l
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>PU HT</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.001"
+                        value={line.unit_price_ht}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            lines: f.lines.map((l, i) =>
+                              i === idx ? { ...l, unit_price_ht: Number(e.target.value) || 0 } : l
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Remise %</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={line.remise_percent ?? 0}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            lines: f.lines.map((l, i) =>
+                              i === idx ? { ...l, remise_percent: Number(e.target.value) || 0 } : l
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Mt remise</Label>
+                      <Input
+                        readOnly
+                        className="bg-muted tabular-nums"
+                        value={lineCalc.montant_remise.toFixed(3)}
+                      />
+                    </div>
+                    <div>
+                      <Label>Net HT</Label>
+                      <Input
+                        readOnly
+                        className="bg-muted tabular-nums"
+                        value={lineCalc.total_ht.toFixed(3)}
+                      />
+                    </div>
+                    <div>
+                      <Label>TVA %</Label>
+                      <Select
+                        value={String(line.vat_rate)}
+                        onValueChange={(v) =>
+                          setForm((f) => ({
+                            ...f,
+                            lines: f.lines.map((l, i) =>
+                              i === idx ? { ...l, vat_rate: Number(v) as VatRate } : l
+                            ),
+                          }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[19, 13, 7, 0].map((r) => (
+                            <SelectItem key={r} value={String(r)}>
+                              {r} %
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>FODEC</Label>
+                      <div className="flex h-10 items-center gap-2">
+                        <Checkbox
+                          checked={!!line.subject_to_fodec}
+                          onCheckedChange={(c) =>
+                            setForm((f) => ({
+                              ...f,
+                              lines: f.lines.map((l, i) =>
+                                i === idx ? { ...l, subject_to_fodec: c === true } : l
+                              ),
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="mb-0.5"
+                      onClick={() =>
+                        setForm((f) => ({
+                          ...f,
+                          lines: f.lines.length > 1 ? f.lines.filter((_, i) => i !== idx) : f.lines,
+                        }))
+                      }
+                    >
+                      Retirer
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p className="text-sm tabular-nums border rounded p-2 space-y-1">
+              <span>
+                Brut {formatMontantDt(totalsPreview.brut_ht)} | Remise{' '}
+                {formatMontantDt(totalsPreview.montant_remise)} | Net HT{' '}
+                {formatMontantDt(totalsPreview.total_ht)}
+              </span>
+              <br />
+              <span>
+                TTC : <strong>{formatMontantDt(totalsPreview.total_ttc)}</strong> (timbre inclus si coché)
+              </span>
             </p>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowForm(false)}>

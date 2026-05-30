@@ -27,8 +27,11 @@ export function mapModeToDbMethod(mode: ModeReglement): 'cash' | 'check' | 'tran
     case 'CHEQUE':
       return 'check';
     case 'VIREMENT':
+    case 'PRELEVEMENT':
       return 'transfer';
     case 'TRAITE':
+    case 'REMISE':
+    case 'PROFIT':
       return 'other';
     default:
       return 'other';
@@ -93,19 +96,30 @@ export function isRetenueSourceObligatoire(totalBrutFacturesPayees: number): boo
 }
 
 /**
- * Assiette RS tunisienne : Montant TTC − timbre fiscal (1,000 DT).
- * La retenue ne s'applique pas sur une assiette négative ou nulle.
+ * Assiette RS : montant brut HT (pas TTC).
  */
-export function computeAssietteRetenue(montantTtc: number): number {
+export function computeAssietteRetenue(montantBrut: number): number {
+  return round3(Math.max(0, montantBrut));
+}
+
+/** @deprecated Utiliser montantBrut — compatibilité TTC convertie en brut approximatif */
+export function computeAssietteRetenueFromTtc(montantTtc: number): number {
   return round3(Math.max(0, montantTtc - TIMBRE_FISCAL_DT));
 }
 
 /** Calcul ligne certificat / tableau RS. */
 export function computeWithholdingLine(line: WithholdingLineInput): WithholdingLineResult {
-  const assiette = computeAssietteRetenue(line.montantTtc);
+  const montantBrut =
+    'montantBrut' in line && line.montantBrut != null
+      ? line.montantBrut
+      : (line as { montantTtc?: number }).montantTtc != null
+        ? computeAssietteRetenueFromTtc((line as { montantTtc: number }).montantTtc)
+        : 0;
+  const assiette = computeAssietteRetenue(montantBrut);
   const montantRetenue = round3(assiette * (line.taux / 100));
   return {
     ...line,
+    montantBrut,
     assiette,
     montantRetenue,
   };
@@ -113,19 +127,35 @@ export function computeWithholdingLine(line: WithholdingLineInput): WithholdingL
 
 /** Agrège la retenue sur plusieurs factures lettrées. */
 export function computeTotalWithholding(
-  lines: Array<{ montantTtc: number; taux: number }>
+  lines: Array<{ montantBrut: number; taux: number }>
 ): { lines: WithholdingLineResult[]; total: number } {
   const computed = lines.map((l, i) =>
     computeWithholdingLine({
       invoiceId: `line-${i}`,
       numeroFacture: '',
-      montantTtc: l.montantTtc,
+      montantBrut: l.montantBrut,
       taux: l.taux,
     })
   );
   const total = round3(computed.reduce((s, l) => s + l.montantRetenue, 0));
   return { lines: computed, total };
 }
+
+export const REGLEMENT_STATUS_LABELS: Record<string, string> = {
+  PAYEE: 'Payée',
+  IMPAYEE: 'Impayée',
+  EN_COURS: 'En cours',
+};
+
+export const MODE_REGLEMENT_LABELS: Record<ModeReglement, string> = {
+  ESPECE: 'Espèce',
+  CHEQUE: 'Chèque',
+  VIREMENT: 'Virement',
+  TRAITE: 'Traite',
+  PRELEVEMENT: 'Prélèvement',
+  REMISE: 'Remise',
+  PROFIT: 'Profit',
+};
 
 /** Nouveau statut facture après imputation. */
 export function resolveInvoiceStatusAfterPayment(

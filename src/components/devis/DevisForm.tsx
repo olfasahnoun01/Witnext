@@ -31,6 +31,8 @@ import {
   searchInventoryProductsLight,
 } from '@/lib/inventoryProductSearch';
 import { DocumentUploader } from '@/components/shared/DocumentUploader';
+import { ClientDocumentPreviewDialog } from '@/components/shared/ClientDocumentPreviewDialog';
+import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { PhoneLinesEditor } from '@/components/shared/PhoneLinesEditor';
 import { formatPhonesDisplay, serializePhoneList } from '@/lib/phoneList';
 import { validateUploadFile } from '@/lib/uploadValidation';
@@ -153,6 +155,8 @@ export const DevisForm = memo(({
   const [newFournisseurPhoneLines, setNewFournisseurPhoneLines] = useState<string[]>(['']);
   const [newFournisseurPatenteUrl, setNewFournisseurPatenteUrl] = useState<string | null>(null);
   const [newFournisseurRneUrl, setNewFournisseurRneUrl] = useState<string | null>(null);
+  const { preview: documentPreview, pdfBytesRef, openDocumentPreview, closePreview: closeDocumentPreview } =
+    useClientDocumentPreview();
 
   // Article mode: 'search' | 'manual'
   const [articleMode, setArticleMode] = useState<'search' | 'manual'>('search');
@@ -1751,7 +1755,7 @@ export const DevisForm = memo(({
               </div>
             </div>
             <div className="space-y-3 pt-2 border-t border-dashed">
-              <Label className="text-sm font-semibold">Documents (PDF) — optionnel</Label>
+              <Label className="text-sm font-semibold">Documents (PDF, JPG, PNG) — optionnel</Label>
               {newFournisseurCode.trim() ? (
                 <div className="space-y-3">
                   <DocumentUploader
@@ -1760,6 +1764,8 @@ export const DevisForm = memo(({
                     documentType="patente"
                     currentUrl={newFournisseurPatenteUrl}
                     onUploadSuccess={(url) => setNewFournisseurPatenteUrl(url)}
+                    onRemove={() => setNewFournisseurPatenteUrl(null)}
+                    onConsult={(url) => void openDocumentPreview(url, `Patente — ${newFournisseurName.trim() || newFournisseurCode}`)}
                   />
                   <DocumentUploader
                     bucket="client-documents"
@@ -1768,6 +1774,8 @@ export const DevisForm = memo(({
                     titleOverride="RNE (Registre national des entreprises)"
                     currentUrl={newFournisseurRneUrl}
                     onUploadSuccess={(url) => setNewFournisseurRneUrl(url)}
+                    onRemove={() => setNewFournisseurRneUrl(null)}
+                    onConsult={(url) => void openDocumentPreview(url, `RNE — ${newFournisseurName.trim() || newFournisseurCode}`)}
                   />
                 </div>
               ) : (
@@ -2067,6 +2075,8 @@ export const DevisForm = memo(({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ClientDocumentPreviewDialog preview={documentPreview} pdfBytesRef={pdfBytesRef} onClose={closeDocumentPreview} />
     </>
   );
 });

@@ -16,14 +16,18 @@ import { InterAccountTransferDialog } from './InterAccountTransferDialog';
 import { TraitesPortfolioPanel } from '../traites/TraitesPortfolioPanel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { BankFeesPanel } from './BankFeesPanel';
+import { TreasuryUnpaidPanel } from './TreasuryUnpaidPanel';
+import type { PaymentRow } from '../../types';
 import { cn } from '@/lib/utils';
 
 interface TreasuryHubPanelProps {
   companyId: string;
   clientPaymentsTotal: number;
+  payments: PaymentRow[];
 }
 
-export function TreasuryHubPanel({ companyId, clientPaymentsTotal }: TreasuryHubPanelProps) {
+export function TreasuryHubPanel({ companyId, clientPaymentsTotal, payments }: TreasuryHubPanelProps) {
   const subsections = useMemo(() => getTreasurySubsections(), []);
   const [activeSub, setActiveSub] = useState('bank');
   const [accounts, setAccounts] = useState<TreasuryAccount[]>(() => loadTreasuryAccounts(companyId));
@@ -44,14 +48,23 @@ export function TreasuryHubPanel({ companyId, clientPaymentsTotal }: TreasuryHub
       <FinanceSubsectionHint items={subsections} activeId={activeSub} />
 
       {activeSub === 'bank' && (
-        <TreasuryAccountsDashboard
-          companyId={companyId}
-          filterTypes={['BANQUE']}
-          title="Comptes banque"
-          description="Comptes courants bancaires — PCG 512. RIB et soldes en dinars tunisiens (3 décimales)."
-          showTransferButton={false}
-          newAccountDefaultType="BANQUE"
-        />
+        <div className="space-y-8">
+          <TreasuryAccountsDashboard
+            companyId={companyId}
+            filterTypes={['BANQUE']}
+            title="Comptes banque"
+            description="Comptes courants bancaires — PCG 512. RIB et soldes en dinars tunisiens (3 décimales)."
+            showTransferButton={false}
+            newAccountDefaultType="BANQUE"
+          />
+          <BankFeesPanel companyId={companyId} />
+        </div>
+      )}
+
+      {activeSub === 'bank-fees' && <BankFeesPanel companyId={companyId} />}
+
+      {activeSub === 'unpaid' && (
+        <TreasuryUnpaidPanel companyId={companyId} payments={payments} />
       )}
 
       {activeSub === 'bank-recon' && <BankReconciliationPanel companyId={companyId} />}

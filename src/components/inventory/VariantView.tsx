@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload, FileText, Eye, Download, X, FileDown, DownloadCloud, FileIcon, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload, FileText, Eye, FileDown, X } from 'lucide-react';
 import { ProductGroup, Product, StockStatus } from '@/types';
 import { getVariantsByGroupId, createVariant } from '@/services/productGroupService';
 import { updateProduct, deleteProduct, applyProductQuantityChange } from '@/services/dbService';
@@ -18,6 +18,8 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
 import { useAuth } from '@/hooks/useAuth';
+import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
+import { ClientDocumentPreviewDialog } from '@/components/shared/ClientDocumentPreviewDialog';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -80,6 +82,8 @@ const emptyFormData: VariantFormData = {
 
 export const VariantView = ({ group, onBack }: VariantViewProps) => {
   const { isModerator } = useAuth();
+  const { preview: documentPreview, pdfBytesRef, openDocumentPreview, closePreview: closeDocumentPreview } =
+    useClientDocumentPreview();
   const [variants, setVariants] = useState<Product[]>([]);
   const [freshFournisseurs, setFreshFournisseurs] = useState<typeof group.fournisseurs>(group.fournisseurs);
   const [isLoading, setIsLoading] = useState(true);
@@ -87,8 +91,6 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   const [editingVariant, setEditingVariant] = useState<Product | null>(null);
   const [formData, setFormData] = useState<VariantFormData>(emptyFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [previewFicheUrls, setPreviewFicheUrls] = useState<string[]>([]);
-  const [previewFicheIndex, setPreviewFicheIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const ficheInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingFiche, setIsUploadingFiche] = useState(false);
@@ -335,12 +337,6 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     }
   }, [fetchVariants]);
 
-  const [previewData, setPreviewData] = useState<{ urls: string[], index: number, title: string } | null>(null);
-
-  const openPreview = useCallback((urls: string[], index = 0, title: string) => {
-    setPreviewData({ urls, index, title });
-  }, []);
-
   const downloadFichesAsPdf = useCallback(async (variant: Product) => {
     const urls = parseFicheUrls(variant.fiche_technique_url);
     if (urls.length === 0) return;
@@ -530,7 +526,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                       {ficheUrls.length > 0 ? (
                         <div className="flex items-center gap-1">
                           <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1"
-                            title="Prévisualiser" onClick={() => openPreview(ficheUrls, 0, variant.sku)}>
+                            title="Prévisualiser" onClick={() => void openDocumentPreview(ficheUrls[0], variant.sku)}>
                             <FileText className="w-3.5 h-3.5" />
                             <span>{ficheUrls.length}</span>
                           </Button>
@@ -654,11 +650,11 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                       <img src={url.toLowerCase().endsWith('.pdf') ? 'https://upload.wikimedia.org/wikipedia/commons/8/87/PDF_file_icon.svg' : url} 
                         alt={`Fiche ${idx + 1}`}
                         className="w-full h-24 object-cover cursor-pointer bg-white"
-                        onClick={() => openPreview(formData.fiche_urls, idx, formData.sku || 'Fiche Technique')} />
+                        onClick={() => void openDocumentPreview(url, `${formData.sku || 'Fiche Technique'} (${idx + 1}/${formData.fiche_urls.length})`)} />
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
                         <Button type="button" variant="ghost" size="sm"
                           className="h-7 w-7 p-0 text-white hover:text-white hover:bg-white/20"
-                          onClick={() => openPreview(formData.fiche_urls, idx, formData.sku || 'Fiche Technique')}>
+                          onClick={() => void openDocumentPreview(url, `${formData.sku || 'Fiche Technique'} (${idx + 1}/${formData.fiche_urls.length})`)}>
                           <Eye className="w-4 h-4" />
                         </Button>
                         <Button type="button" variant="ghost" size="sm"
@@ -695,90 +691,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!previewData} onOpenChange={(open) => !open && setPreviewData(null)}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden bg-background">
-          <DialogHeader className="p-4 border-b flex flex-row items-center justify-between space-y-0">
-            <DialogTitle className="truncate pr-8 flex items-center gap-2">
-              <FileIcon className="w-5 h-5 text-primary" />
-               Aperçu: {previewData?.title} {previewData && previewData.urls.length > 1 && `(${previewData.index + 1}/${previewData.urls.length})`}
-            </DialogTitle>
-            <div className="flex gap-2">
-              <Button 
-                variant="default" 
-                size="sm" 
-                className="gap-2 font-bold shadow-lg"
-                onClick={() => {
-                  if (!previewData) return;
-                  const url = previewData.urls[previewData.index];
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.download = `fiche_${previewData.title}_${previewData.index + 1}`;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                }}
-              >
-                <DownloadCloud className="w-4 h-4" />
-                TELECHARGER
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setPreviewData(null)}>
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          </DialogHeader>
-
-          <div className="flex-1 bg-muted/20 relative overflow-hidden flex flex-col">
-            <div className="flex-1 relative">
-              {previewData?.urls[previewData.index] ? (
-                previewData.urls[previewData.index].toLowerCase().endsWith('.pdf') || previewData.urls[previewData.index].includes('/fiches/') ? (
-                  <iframe 
-                    src={`${previewData.urls[previewData.index]}#toolbar=0`} 
-                    className="w-full h-full border-none"
-                    title="Document Preview"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center p-4">
-                    <img 
-                      src={previewData.urls[previewData.index]} 
-                      alt="Preview" 
-                      className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
-                    />
-                  </div>
-                )
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                </div>
-              )}
-            </div>
-
-            {/* Navigation footer if multiple */}
-            {previewData && previewData.urls.length > 1 && (
-              <div className="p-3 border-t bg-background flex items-center justify-center gap-4">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  disabled={previewData.index === 0}
-                  onClick={() => setPreviewData(prev => prev ? { ...prev, index: prev.index - 1 } : null)}
-                >
-                  ← Précédent
-                </Button>
-                <span className="text-sm font-medium">
-                  Page {previewData.index + 1} / {previewData.urls.length}
-                </span>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  disabled={previewData.index === previewData.urls.length - 1}
-                  onClick={() => setPreviewData(prev => prev ? { ...prev, index: prev.index + 1 } : null)}
-                >
-                  Suivant →
-                </Button>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ClientDocumentPreviewDialog preview={documentPreview} pdfBytesRef={pdfBytesRef} onClose={closeDocumentPreview} />
     </div>
   );
 };
