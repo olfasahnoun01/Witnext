@@ -139,7 +139,13 @@
       "target": "nsis"
     },
     "nsis": {
-      "artifactName": "${productName}-Setup-${version}.${ext}"
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Alpha",
+      "include": "build/installer/installer.nsh"
     },
     "copyright": "Copyright © 2026 Alpha",
     "npmRebuild": false

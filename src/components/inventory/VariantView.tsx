@@ -84,7 +84,6 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   const [freshFournisseurs, setFreshFournisseurs] = useState<typeof group.fournisseurs>(group.fournisseurs);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [ficheOnlyMode, setFicheOnlyMode] = useState(false);
   const [editingVariant, setEditingVariant] = useState<Product | null>(null);
   const [formData, setFormData] = useState<VariantFormData>(emptyFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -255,11 +254,10 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     setIsModalOpen(false);
     setEditingVariant(null);
     setFormData(emptyFormData);
-    setFicheOnlyMode(false);
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    if (!formData.sku.trim() && !ficheOnlyMode) {
+    if (!formData.sku.trim()) {
       toast.error('Le code article est requis');
       return;
     }
@@ -268,13 +266,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     try {
       const serializedFiches = serializeFicheUrls(formData.fiche_urls);
 
-      if (ficheOnlyMode && editingVariant) {
-        await supabase.rpc('update_product_fiche_technique', {
-          _product_id: editingVariant.id,
-          _fiche_technique_url: serializedFiches,
-        } as any);
-        toast.success('Fiches techniques mises à jour');
-      } else if (editingVariant) {
+      if (editingVariant) {
         if (formData.quantity !== editingVariant.quantity) {
           const qtyResult = await applyProductQuantityChange(
             editingVariant.id,
@@ -330,7 +322,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [editingVariant, formData, group.id, ficheOnlyMode, handleCloseModal, fetchVariants]);
+  }, [editingVariant, formData, group.id, handleCloseModal, fetchVariants]);
 
   const handleDelete = useCallback(async (variant: Product) => {
     if (!window.confirm(`Supprimer la variante "${variant.sku}" ?`)) return;
@@ -510,7 +502,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                 <TableHead className="text-right">Net HT</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead>Fiches Techniques</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                {isModerator && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -551,26 +543,19 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                         <span className="text-xs text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        {isModerator ? (
-                          <>
-                            <Button variant="ghost" size="sm" onClick={() => handleOpenModal(variant)}>
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(variant)}
-                              className="text-destructive hover:text-destructive">
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </>
-                        ) : (
-                          <Button variant="ghost" size="sm" title="Gérer les fiches techniques"
-                            onClick={() => { setFicheOnlyMode(true); handleOpenModal(variant); }}>
+                    {isModerator && (
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => handleOpenModal(variant)}>
                             <Edit className="w-4 h-4" />
                           </Button>
-                        )}
-                      </div>
-                    </TableCell>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(variant)}
+                            className="text-destructive hover:text-destructive">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}
@@ -584,12 +569,11 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {ficheOnlyMode ? 'Fiches Techniques' : (editingVariant ? 'Modifier la variante' : 'Ajouter une variante')}
+              {editingVariant ? 'Modifier la variante' : 'Ajouter une variante'}
             </DialogTitle>
           </DialogHeader>
           
           <div className="grid gap-4 py-4">
-            {!ficheOnlyMode && (
               <>
                 {/* Image Upload */}
                 <div className="flex items-center gap-4">
@@ -650,7 +634,6 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                     placeholder="0" />
                 </div>
               </>
-            )}
 
             {/* Fiches techniques - multiple upload */}
             <div className="space-y-3">

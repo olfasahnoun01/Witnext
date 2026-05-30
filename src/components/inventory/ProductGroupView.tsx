@@ -335,10 +335,12 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
             <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Actualiser
           </Button>
-          <Button size="sm" onClick={() => setIsProductGroupModalOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Ajouter Produit
-          </Button>
+          {isModerator && (
+            <Button size="sm" onClick={() => setIsProductGroupModalOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Ajouter Produit
+            </Button>
+          )}
         </div>
       </div>
 
@@ -429,7 +431,7 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
           <p className="text-muted-foreground mb-4">
             {searchQuery ? 'Aucun produit trouvé pour cette recherche.' : 'Aucun produit dans cette catégorie.'}
           </p>
-          {!searchQuery && (
+          {!searchQuery && isModerator && (
             <Button onClick={() => setIsProductGroupModalOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Ajouter le premier produit
