@@ -50,35 +50,9 @@ export const ProductGroupCard = memo(({ group, onClick, onEdit, onDelete, canEdi
   
   return (
     <Card 
-      className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02] border-border/50 relative group"
+      className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02] border-border/50"
       onClick={onClick}
     >
-      {(canEdit || canDelete) && (
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex gap-1">
-          {canEdit && onEdit && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleEditClick}
-              className="text-muted-foreground hover:text-foreground hover:bg-accent"
-              title="Modifier l'article"
-            >
-              <Pencil className="w-4 h-4" />
-            </Button>
-          )}
-          {canDelete && onDelete && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleDeleteClick}
-              className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              title="Supprimer l'article"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          )}
-        </div>
-      )}
       <CardContent className="p-4">
         <div className="flex gap-4">
           {/* Image */}
@@ -96,18 +70,48 @@ export const ProductGroupCard = memo(({ group, onClick, onEdit, onDelete, canEdi
           
           {/* Content */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2">
-              <h3 className="font-semibold text-foreground truncate" title={group.name}>
+            <div className="flex items-start gap-2">
+              <h3 className="font-semibold text-foreground truncate flex-1 min-w-0" title={group.name}>
                 {group.name}
               </h3>
-              <Badge className={`${style.bg} ${style.text} border-0 text-xs whitespace-nowrap`}>
+              {(canEdit || canDelete) && (
+                <div className="flex shrink-0 items-center gap-0.5">
+                  {canEdit && onEdit && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleEditClick}
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent"
+                      title="Modifier l'article"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {canDelete && onDelete && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleDeleteClick}
+                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      title="Supprimer l'article"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 mt-1">
+              <p className="text-sm text-muted-foreground truncate">
+                {group.base_sku || 'N/A'}
+              </p>
+              <Badge className={`${style.bg} ${style.text} border-0 text-xs whitespace-nowrap shrink-0`}>
                 {style.label}
               </Badge>
             </div>
-            
-            <p className="text-sm text-muted-foreground mt-1">
-              {group.base_sku || 'N/A'}
-            </p>
             
             {/* Variant info */}
             <div className="flex flex-wrap gap-2 mt-2">

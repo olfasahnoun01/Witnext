@@ -20,6 +20,10 @@ import { useRealtimeData } from '@/hooks/useRealtimeData';
 import { useAuth } from '@/hooks/useAuth';
 import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { ClientDocumentPreviewDialog } from '@/components/shared/ClientDocumentPreviewDialog';
+import {
+  downloadFicheTechniquesAsPdf,
+  parseFicheTechniqueUrls,
+} from '@/lib/clientDocumentStorage';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -48,16 +52,6 @@ const statusStyles: Record<StockStatus, { bg: string; text: string; label: strin
   low_stock: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400', label: 'Stock faible' },
   out_of_stock: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', label: 'Rupture' }
 };
-
-/** Parse fiche_technique_url which can be a single URL string or a JSON array of URLs */
-function parseFicheUrls(raw: string | null | undefined): string[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed.filter(Boolean);
-  } catch { /* not JSON */ }
-  return [raw];
-}
 
 function serializeFicheUrls(urls: string[]): string {
   if (urls.length === 0) return '';
@@ -138,7 +132,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         price: variant.price,
         remise: variant.remise || 0,
         image: variant.image || null,
-        fiche_urls: parseFicheUrls(variant.fiche_technique_url)
+        fiche_urls: parseFicheTechniqueUrls(variant.fiche_technique_url)
       });
     } else {
       // Find primary supplier price to use as default
@@ -338,64 +332,23 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   }, [fetchVariants]);
 
   const downloadFichesAsPdf = useCallback(async (variant: Product) => {
-    const urls = parseFicheUrls(variant.fiche_technique_url);
+    const urls = parseFicheTechniqueUrls(variant.fiche_technique_url);
     if (urls.length === 0) return;
 
     toast.info('Génération du PDF en cours...');
     try {
-      const { default: jsPDF } = await import('jspdf');
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: false });
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const margin = 10;
-
-      for (let i = 0; i < urls.length; i++) {
-        if (i > 0) pdf.addPage();
-
-        // Fetch image as blob then convert to base64
-        const response = await fetch(urls[i]);
-        const blob = await response.blob();
-        const base64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(blob);
-        });
-
-        // Draw image on canvas at native resolution, export as PNG (lossless)
-        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-          const image = new Image();
-          image.crossOrigin = 'anonymous';
-          image.onload = () => resolve(image);
-          image.onerror = reject;
-          image.src = base64;
-        });
-
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(img, 0, 0);
-        const pngBase64 = canvas.toDataURL('image/png');
-
-        const availW = pageW - margin * 2;
-        const availH = pageH - margin * 2;
-        const ratio = Math.min(availW / img.naturalWidth, availH / img.naturalHeight);
-        const w = img.naturalWidth * ratio;
-        const h = img.naturalHeight * ratio;
-        const x = (pageW - w) / 2;
-        const y = (pageH - h) / 2;
-
-        pdf.addImage(pngBase64, 'PNG', x, y, w, h, undefined, 'NONE');
-      }
-
       const fileName = `FicheTechnique-${group.name.replace(/[^a-zA-Z0-9àâäéèêëïîôùûüÿçÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ -_]/g, '_')}.pdf`;
-      pdf.save(fileName);
-      toast.success('PDF téléchargé');
+      const ok = await downloadFicheTechniquesAsPdf(urls, fileName);
+      if (ok) {
+        toast.success('PDF téléchargé');
+      } else {
+        toast.error('Impossible de télécharger la fiche technique');
+      }
     } catch (err) {
       console.error('PDF generation error:', err);
       toast.error('Erreur lors de la génération du PDF');
     }
-  }, []);
+  }, [group.name]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -505,7 +458,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
               {variants.map((variant) => {
                 const status = getStockStatus(variant);
                 const style = statusStyles[status];
-                const ficheUrls = parseFicheUrls(variant.fiche_technique_url);
+                const ficheUrls = parseFicheTechniqueUrls(variant.fiche_technique_url);
                 
                 return (
                   <TableRow key={variant.id}>
@@ -525,13 +478,23 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                     <TableCell>
                       {ficheUrls.length > 0 ? (
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1"
-                            title="Prévisualiser" onClick={() => void openDocumentPreview(ficheUrls[0], variant.sku)}>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1"
+                            title="Prévisualiser"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              void openDocumentPreview(ficheUrls[0], variant.sku);
+                            }}>
                             <FileText className="w-3.5 h-3.5" />
                             <span>{ficheUrls.length}</span>
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs"
-                            title="Télécharger en PDF" onClick={() => downloadFichesAsPdf(variant)}>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs"
+                            title="Télécharger en PDF"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              void downloadFichesAsPdf(variant);
+                            }}>
                             <FileDown className="w-3.5 h-3.5" />
                           </Button>
                         </div>

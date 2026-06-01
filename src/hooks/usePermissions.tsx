@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { BIG_SECTIONS, SUBSECTION_TO_SECTION } from '@/config/navigation';
@@ -12,21 +12,30 @@ export const usePermissions = () => {
   const { user, isAdmin, isLoading: authLoading } = useAuth();
   const [perms, setPerms] = useState<PermissionRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const loadedForUserRef = useRef<string | null>(null);
+  const userId = user?.id ?? null;
 
   const load = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setPerms([]);
       setLoading(false);
+      loadedForUserRef.current = null;
       return;
     }
-    setLoading(true);
+
+    const isInitialLoadForUser = loadedForUserRef.current !== userId;
+    if (isInitialLoadForUser) {
+      setLoading(true);
+    }
+
     const { data, error } = await (supabase as any)
       .from('user_section_permissions')
       .select('section_key, subsection_key')
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
     if (!error && data) setPerms(data as PermissionRow[]);
+    loadedForUserRef.current = userId;
     setLoading(false);
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
     if (!authLoading) {
