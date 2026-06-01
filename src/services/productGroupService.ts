@@ -290,6 +290,10 @@ export const createVariant = async (groupId: number, variant: {
       return { success: false, error: 'Groupe de produits non trouvé' };
     }
     
+    // Create the product with zero stock; opening stock is applied atomically
+    // via the create_stock_transaction RPC so the ledger and products.quantity
+    // stay consistent (direct writes to products.quantity / transactions are
+    // blocked or unaudited under the hardened stock policies).
     const { data, error } = await supabase
       .from('products')
       .insert({
@@ -299,7 +303,7 @@ export const createVariant = async (groupId: number, variant: {
         fournisseur: group.fournisseur,
         size: variant.size || null,
         color: variant.color || null,
-        quantity: variant.quantity,
+        quantity: 0,
         price: variant.price,
         remise: variant.remise || 0,
         min_stock: group.min_stock,
@@ -315,16 +319,26 @@ export const createVariant = async (groupId: number, variant: {
       }
       return { success: false, error: error.message };
     }
-    
-    // Create initial transaction
-    await supabase.from('transactions').insert({
-      product_id: data.id,
-      product_name: group.name,
-      type: 'IN',
-      quantity: variant.quantity,
-      note: 'Stock initial (variante)'
-    });
-    
+
+    // Record opening stock through the atomic ledger RPC (skip when zero).
+    if (variant.quantity > 0) {
+      const { error: stockError } = await supabase.rpc('create_stock_transaction', {
+        p_product_id: data.id,
+        p_product_name: group.name,
+        p_type: 'IN',
+        p_quantity: variant.quantity,
+        p_date: new Date().toISOString(),
+        p_note: 'Stock initial (variante)',
+      });
+      if (stockError) {
+        return {
+          success: true,
+          id: data.id,
+          error: `Article créé, mais le stock initial n'a pas pu être enregistré: ${stockError.message}`,
+        };
+      }
+    }
+
     return { success: true, id: data.id };
   } catch (error: any) {
     return { success: false, error: error.message || 'Erreur inconnue' };

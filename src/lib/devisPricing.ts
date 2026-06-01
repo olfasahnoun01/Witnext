@@ -1,5 +1,13 @@
 import { DevisItem } from '@/types';
 
+/** Timbre fiscal forfaitaire (DT) appliqué sur facture/devis. */
+export const TIMBRE_FISCAL_DT = 1.0;
+
+/** Arrondi au millime (3 décimales) — norme fiscale tunisienne. */
+export function round3(n: number): number {
+  return Math.round((n + Number.EPSILON) * 1000) / 1000;
+}
+
 /**
  * Centralized devis line pricing calculation.
  *
@@ -56,18 +64,20 @@ export function computeDevisLine(
     unitAfterRemiseTTC = puVenteTtcNet;
   }
 
-  const lineHT = unitAfterRemiseHT * item.quantity;
-  const lineTTC = unitAfterRemiseTTC * item.quantity;
-  const lineTVA = lineTTC - lineHT;
+  // Round at the line level (millimes). VAT is computed from the rounded net HT
+  // (HT base method) rather than as a TTC−HT residual, which avoids drift.
+  const lineHT = round3(unitAfterRemiseHT * item.quantity);
+  const lineTVA = round3(lineHT * tvaRate);
+  const lineTTC = round3(lineHT + lineTVA);
 
-  const remiseDT_HT = unitHT * (1 - remiseFactor) * item.quantity;
-  const remiseDT_TTC = unitTTC * (1 - remiseFactor) * item.quantity;
+  const remiseDT_HT = round3(unitHT * (1 - remiseFactor) * item.quantity);
+  const remiseDT_TTC = round3(unitTTC * (1 - remiseFactor) * item.quantity);
 
   return {
-    unitHT,
-    unitTTC,
-    unitAfterRemiseHT,
-    unitAfterRemiseTTC,
+    unitHT: round3(unitHT),
+    unitTTC: round3(unitTTC),
+    unitAfterRemiseHT: round3(unitAfterRemiseHT),
+    unitAfterRemiseTTC: round3(unitAfterRemiseTTC),
     lineHT,
     lineTVA,
     lineTTC,
@@ -95,20 +105,23 @@ export function computeDevisTotals(
   items.forEach(item => {
     const line = computeDevisLine(item, isSortantTTC);
     // Gross HT = unitHT * qty (before remise)
-    totalHT += line.unitHT * item.quantity;
+    totalHT += round3(line.unitHT * item.quantity);
     totalRemise += line.remiseDT_HT;
     totalNet += line.lineHT;
     totalTVA += line.lineTVA;
     totalTTC += line.lineTTC;
   });
 
+  const netRounded = round3(totalNet);
+  const ttcRounded = round3(totalTTC);
+
   return {
-    totalHT,
-    totalRemise,
-    totalNet,
-    totalTVA,
-    totalTTC,
-    totalFinal: totalTTC + 1,    // timbre fiscal
-    totalFinalHT: totalNet + 1,  // timbre fiscal
+    totalHT: round3(totalHT),
+    totalRemise: round3(totalRemise),
+    totalNet: netRounded,
+    totalTVA: round3(totalTVA),
+    totalTTC: ttcRounded,
+    totalFinal: round3(ttcRounded + TIMBRE_FISCAL_DT),
+    totalFinalHT: round3(netRounded + TIMBRE_FISCAL_DT),
   };
 }

@@ -37,6 +37,7 @@ import { ClientDocumentPreviewDialog } from './shared/ClientDocumentPreviewDialo
 import { PhoneLinesEditor } from './shared/PhoneLinesEditor';
 import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { formatPhonesDisplay, parsePhoneListFromStorage, serializePhoneList } from '@/lib/phoneList';
+import { generateNextEntityCode } from '@/lib/entityCode';
 
 interface Client {
   id: number;
@@ -93,6 +94,21 @@ export const Clients = memo(() => {
   
   // Filter state
   const [searchQuery, setSearchQuery] = useState('');
+  const prevDialogOpenRef = useRef(false);
+
+  const existingClientCodes = useMemo(
+    () => clients.map((c) => c.code).filter((c): c is string => Boolean(c?.trim())),
+    [clients]
+  );
+
+  // Auto-generate the next client code when opening the "new client" dialog.
+  useEffect(() => {
+    const justOpened = dialogOpen && !prevDialogOpenRef.current;
+    if (justOpened && !editingClient) {
+      setCode(generateNextEntityCode(existingClientCodes));
+    }
+    prevDialogOpenRef.current = dialogOpen;
+  }, [dialogOpen, editingClient, existingClientCodes]);
 
   const loadClients = useCallback(async () => {
     setLoading(true);
@@ -172,11 +188,9 @@ export const Clients = memo(() => {
         toast.error('Le matricule fiscal est requis');
         return;
       }
-      if (!code.trim()) {
-        toast.error('Le code client est requis (pour nommer les documents)');
-        return;
-      }
     }
+
+    const clientCode = code.trim() || generateNextEntityCode(existingClientCodes);
 
     // Build location string defensively
     const locationParts = [exactLocation.trim(), selectedCity, selectedGovernorate].filter(Boolean);
@@ -184,7 +198,7 @@ export const Clients = memo(() => {
 
     const clientData = {
       nom: nom.trim(),
-      code: code.trim() || null,
+      code: clientCode,
       matricule_fiscale: matriculeFiscale.trim(),
       phone: phoneStored || null,
       email: email.trim(),
@@ -214,7 +228,13 @@ export const Clients = memo(() => {
         .insert(clientData);
 
       if (error) {
-        toast.error('Erreur lors de l\'ajout');
+        if (error.code === '23505') {
+          const fresh = generateNextEntityCode(existingClientCodes);
+          setCode(fresh);
+          toast.error(`Le code « ${clientCode} » existe déjà. Nouveau code proposé : ${fresh}`);
+        } else {
+          toast.error('Erreur lors de l\'ajout');
+        }
         console.error(error);
       } else {
         toast.success('Client ajouté');
@@ -223,7 +243,7 @@ export const Clients = memo(() => {
         loadClients();
       }
     }
-  }, [nom, code, selectedCity, selectedGovernorate, exactLocation, matriculeFiscale, phoneLines, email, patenteUrl, rcUrl, editingClient, resetForm, loadClients]);
+  }, [nom, code, existingClientCodes, selectedCity, selectedGovernorate, exactLocation, matriculeFiscale, phoneLines, email, patenteUrl, rcUrl, editingClient, resetForm, loadClients]);
 
   const handleEdit = useCallback((client: Client) => {
     setEditingClient(client);
@@ -403,11 +423,15 @@ export const Clients = memo(() => {
                       id="codeClient"
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
-                      placeholder="Code unique (ex: CLI-001)"
+                      placeholder="CLI-001"
+                      readOnly={!editingClient}
+                      className={!editingClient ? 'bg-muted font-mono' : 'font-mono'}
                       required={!editingClient}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Obligatoire pour l&apos;ajout : sert au nom des fichiers Patente et RNE.
+                      {editingClient
+                        ? 'Modifiable si besoin ; sert au nom des fichiers Patente et RNE.'
+                        : 'Généré automatiquement à partir des codes existants (ex. CLI-001, CLI-002…).'}
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -530,10 +554,10 @@ export const Clients = memo(() => {
                         />
                       </div>
                     ) : (
-                      <div className="p-3 rounded-lg bg-amber-50 border border-amber-100 flex items-start gap-2 text-amber-800 text-xs">
+                      <div className="p-3 rounded-lg bg-muted/50 border flex items-start gap-2 text-muted-foreground text-xs">
                         <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                         <p className="italic">
-                          Saisissez le <strong>code client</strong> ci-dessus pour activer l&apos;envoi Patente et RNE.
+                          Le code client sera attribué automatiquement à l&apos;ouverture du formulaire.
                         </p>
                       </div>
                     )}

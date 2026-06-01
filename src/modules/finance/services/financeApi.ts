@@ -7,8 +7,13 @@ import type {
   InvoiceWriteInput,
   VatRate,
 } from '../types';
-import { COMPTES_PCG, FODEC_TAUX_STANDARD, TIMBRE_FISCAL_FACTURE_DT } from '../lib/tunisiaFiscal';
-import { calculerMontantTva } from '../lib/vatEngine';
+import { COMPTES_PCG } from '../lib/tunisiaFiscal';
+import {
+  round3,
+  computeInvoiceLine,
+  computeInvoiceTotals,
+  vatAccountCodeCollectee,
+} from '../lib/invoiceMath';
 
 function formatSupabaseError(err: { message?: string; details?: string; hint?: string; code?: string }): string {
   const parts = [err.message, err.details, err.hint].filter(Boolean);
@@ -104,52 +109,9 @@ export async function listInvoiceLines(invoiceIds: string[]): Promise<InvoiceLin
   return (data ?? []) as InvoiceLineRow[];
 }
 
-function round3(n: number): number {
-  return Math.round((n + Number.EPSILON) * 1000) / 1000;
-}
-
-export function computeInvoiceLine(
-  line: Pick<InvoiceWriteInput['lines'][number], 'quantity' | 'unit_price_ht' | 'vat_rate' | 'subject_to_fodec' | 'remise_percent'>
-) {
-  const brutHt = round3(line.quantity * line.unit_price_ht);
-  const remisePct = Math.min(100, Math.max(0, line.remise_percent ?? 0));
-  const montantRemise = round3(brutHt * (remisePct / 100));
-  const htApresRemise = round3(brutHt - montantRemise);
-  const fodec = line.subject_to_fodec ? round3(htApresRemise * (FODEC_TAUX_STANDARD / 100)) : 0;
-  const total_ht = round3(htApresRemise + fodec);
-  const total_tva = calculerMontantTva(htApresRemise + fodec, line.vat_rate);
-  const total_ttc = round3(total_ht + total_tva);
-  return { brut_ht: brutHt, montant_remise: montantRemise, remise_percent: remisePct, total_ht, total_tva, total_ttc, fodec };
-}
-
-export function computeInvoiceTotals(
-  lines: Array<Pick<InvoiceWriteInput['lines'][number], 'quantity' | 'unit_price_ht' | 'vat_rate' | 'subject_to_fodec' | 'remise_percent'>>,
-  options?: { apply_timbre_fiscal?: boolean }
-) {
-  const totals = lines.reduce(
-    (acc, line) => {
-      const calc = computeInvoiceLine(line);
-      acc.brut_ht += calc.brut_ht;
-      acc.montant_remise += calc.montant_remise;
-      acc.total_ht += calc.total_ht;
-      acc.total_tva += calc.total_tva;
-      acc.total_ttc += calc.total_ttc;
-      acc.fodec += calc.fodec;
-      return acc;
-    },
-    { brut_ht: 0, montant_remise: 0, total_ht: 0, total_tva: 0, total_ttc: 0, fodec: 0 }
-  );
-  const timbre = options?.apply_timbre_fiscal ? TIMBRE_FISCAL_FACTURE_DT : 0;
-  return {
-    brut_ht: round3(totals.brut_ht),
-    montant_remise: round3(totals.montant_remise),
-    total_ht: round3(totals.total_ht),
-    total_tva: round3(totals.total_tva),
-    total_ttc: round3(totals.total_ttc + timbre),
-    timbre_fiscal: timbre,
-    fodec_total: round3(totals.fodec),
-  };
-}
+// Invoice math lives in ../lib/invoiceMath (pure, unit-tested). Re-exported here
+// so existing imports from this service keep working.
+export { computeInvoiceLine, computeInvoiceTotals };
 
 async function createInvoiceLines(invoiceId: string, lines: InvoiceWriteInput['lines']) {
   const payload = lines.map((line) => {
@@ -285,11 +247,6 @@ export async function deleteFinanceInvoice(invoiceId: string): Promise<void> {
   if (error) throw error;
 }
 
-function vatAccountCodeCollectee(rate: VatRate): string {
-  if (rate === 0) return COMPTES_PCG.tvaCollecteeAutre;
-  return COMPTES_PCG.tvaCollectee19;
-}
-
 export async function validateSalesInvoice(invoice: InvoiceRow, lines: InvoiceLineRow[]): Promise<void> {
   return validateFinanceInvoice(invoice, lines, 'vente');
 }
@@ -416,8 +373,22 @@ async function validateFinanceInvoice(
     }
   }
 
+  // Double-entry invariant: total debit must equal total credit.
+  const totalDebit = round3(journalLines.reduce((s, l) => s + l.debit, 0));
+  const totalCredit = round3(journalLines.reduce((s, l) => s + l.credit, 0));
+  if (Math.abs(totalDebit - totalCredit) > 0.001) {
+    // Roll back the orphan header before surfacing the error.
+    await supabase.from('journal_entries').delete().eq('id', entry.id);
+    throw new Error(
+      `Écriture déséquilibrée (débit ${totalDebit} ≠ crédit ${totalCredit}). Validation annulée.`
+    );
+  }
+
   const { error: lineErr } = await supabase.from('journal_lines').insert(journalLines);
-  if (lineErr) throw lineErr;
+  if (lineErr) {
+    await supabase.from('journal_entries').delete().eq('id', entry.id);
+    throw lineErr;
+  }
 
   const { error: invErr } = await supabase
     .from('invoices')

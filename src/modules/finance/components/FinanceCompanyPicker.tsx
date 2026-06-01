@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { verifyCompanyAccessCode } from '../lib/companyAccess';
+import { verifyCompanyAccessCode, financeCompanyRequiresCode } from '../lib/companyAccess';
 import type { FinanceCompanyRow } from '../types';
 
 interface FinanceCompanyPickerProps {
@@ -23,7 +23,8 @@ export function FinanceCompanyPicker({
   const [codes, setCodes] = useState<Record<string, string>>({});
 
   const handleOpen = (company: FinanceCompanyRow) => {
-    if (requireAccessCode) {
+    // Only enforce a code when one is actually configured for this company.
+    if (requireAccessCode && financeCompanyRequiresCode(company.code)) {
       const entered = codes[company.id] ?? '';
       if (!entered.trim()) {
         toast.error('Saisissez le code d\'accès de la société.');
@@ -58,7 +59,7 @@ export function FinanceCompanyPicker({
               <CardDescription className="font-mono text-xs uppercase">{c.code}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {requireAccessCode && (
+              {requireAccessCode && financeCompanyRequiresCode(c.code) && (
                 <div className="space-y-1.5">
                   <Label htmlFor={`code-${c.id}`} className="text-xs flex items-center gap-1">
                     <KeyRound className="h-3.5 w-3.5" />

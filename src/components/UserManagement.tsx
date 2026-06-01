@@ -57,18 +57,7 @@ export const UserManagement = () => {
     setIsLoading(true);
     try {
       const token = await getAuthToken();
-      
-      if (token) {
-        try {
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          console.log('DEBUG: User token project ref:', payload.ref);
-        } catch (e) {
-          console.log('DEBUG: Could not decode token');
-        }
-      }
 
-      console.log('Attempting to call manage-users function...', { hasToken: !!token });
-      
       if (!token) {
         throw new Error('Aucune session active trouvée. Veuillez vous reconnecter.');
       }

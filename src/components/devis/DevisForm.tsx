@@ -36,43 +36,11 @@ import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { PhoneLinesEditor } from '@/components/shared/PhoneLinesEditor';
 import { formatPhonesDisplay, serializePhoneList } from '@/lib/phoneList';
 import { validateUploadFile } from '@/lib/uploadValidation';
+import { parseDecimalInput, parseDecimalInputLoose, formatDecimalFieldValue } from '@/lib/numberInput';
 
 const DEFAULT_CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
 const COLORS = ['Noir', 'Blanc', 'Bleu', 'Rouge', 'Vert', 'Jaune', 'Orange', 'Gris', 'Marron', 'Beige'];
-
-const parseDecimalInput = (rawValue: string): number => {
-  const value = rawValue.trim().replace(/\s/g, '');
-  if (!value) return 0;
-
-  const lastComma = value.lastIndexOf(',');
-  const lastDot = value.lastIndexOf('.');
-  let normalized = value;
-
-  if (lastComma !== -1 && lastDot !== -1) {
-    if (lastComma > lastDot) {
-      normalized = value.replace(/\./g, '').replace(',', '.');
-    } else {
-      normalized = value.replace(/,/g, '');
-    }
-  } else if (lastComma !== -1) {
-    normalized = value.replace(',', '.');
-  }
-
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-/** Comme parseDecimalInput mais tolère un séparateur décimal en fin de chaîne (ex. « 12. » ou « 12, » pendant la frappe). */
-const parseDecimalInputLoose = (rawValue: string): number => {
-  const value = rawValue.trim().replace(/\s/g, '');
-  if (!value) return 0;
-  if (/[.,]$/.test(value)) return parseDecimalInput(value.slice(0, -1));
-  return parseDecimalInput(value);
-};
-
-/** Affiche un nombre dans un input contrôlé (un `0` réel reste visible, contrairement à `value={n || ''}`). */
-const formatDecimalFieldValue = (n: number) => (Number.isFinite(n) ? String(n) : '');
 
 interface Fournisseur {
   id: number;

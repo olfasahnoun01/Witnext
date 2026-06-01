@@ -44,7 +44,9 @@ export const documentService = {
 
     if (error) {
       console.error('Error generating number:', error);
-      return `${prefix}-${year}-${Math.floor(Math.random() * 1000)}`;
+      // Never fabricate a random number: that silently creates duplicate/
+      // out-of-sequence document numbers. Fail loudly so the caller aborts.
+      throw new Error(`Numérotation indisponible (${prefix}): ${error.message}`);
     }
 
     const nextSeq = (count || 0) + 1;
@@ -561,14 +563,21 @@ export const documentService = {
    */
   async validateBE(beId: string) {
     try {
-      // We only update the status. 
+      // We only update the status.
       // The PostgreSQL trigger 'trigger_be_validation' will handle stock and movements.
-      const { error } = await supabase
+      // Conditional update on status='PENDING' makes this idempotent: a second
+      // validation affects 0 rows and cannot double-apply stock movements.
+      const { data: updated, error } = await supabase
         .from('documents')
         .update({ status: 'VALIDATED' })
-        .eq('id', beId);
+        .eq('id', beId)
+        .eq('status', 'PENDING')
+        .select('id');
 
       if (error) throw error;
+      if (!updated || updated.length === 0) {
+        throw new Error('Ce bon d’entrée est déjà validé (ou introuvable).');
+      }
 
       return { success: true };
     } catch (error: any) {
@@ -609,6 +618,18 @@ export const documentService = {
     try {
       const bc = await this.getDocument(bcId);
       if (!bc) throw new Error('BC non trouvé');
+
+      // 0. Idempotency: refuse if this BC has already produced a BL/BS.
+      const { data: existingChildren, error: childErr } = await supabase
+        .from('documents')
+        .select('id')
+        .eq('parent_id', bcId)
+        .in('type', ['BL_CLIENT', 'BS'])
+        .limit(1);
+      if (childErr) throw childErr;
+      if (existingChildren && existingChildren.length > 0) {
+        throw new Error('Ce BC client a déjà été validé (BL/BS existants).');
+      }
 
       // 1. Stock Check
       const stockCheck = await this.checkStockForBC(bcId);
@@ -674,11 +695,17 @@ export const documentService = {
    */
   async validateBS(bsId: string) {
     try {
-      const { error } = await supabase
+      // Conditional update keeps stock decrement idempotent (see validateBE).
+      const { data: updated, error } = await supabase
         .from('documents')
         .update({ status: 'VALIDATED' })
-        .eq('id', bsId);
+        .eq('id', bsId)
+        .eq('status', 'PENDING')
+        .select('id');
       if (error) throw error;
+      if (!updated || updated.length === 0) {
+        throw new Error('Ce bon de sortie est déjà validé (ou introuvable).');
+      }
       return { success: true };
     } catch (error: any) {
       console.error('Error in validateBS:', error);
@@ -694,6 +721,18 @@ export const documentService = {
       // 1. Get BL and its lines
       const bl = await this.getDocument(blId);
       if (!bl || bl.type !== 'BL_CLIENT') throw new Error('BL non trouvé');
+
+      // 1b. Idempotency: refuse to invoice the same BL twice.
+      const { data: existingInvoice, error: dupErr } = await supabase
+        .from('documents')
+        .select('id, numero')
+        .eq('parent_id', bl.id)
+        .eq('type', 'FACTURE')
+        .maybeSingle();
+      if (dupErr) throw dupErr;
+      if (existingInvoice) {
+        throw new Error(`Une facture existe déjà pour ce BL (${existingInvoice.numero}).`);
+      }
 
       // 2. Generate Facture Number
       const factureNumero = await this.generateNextNumber('FACTURE');
@@ -750,6 +789,22 @@ export const documentService = {
       const quote = await this.getDocument(quoteId);
       if (!quote) throw new Error('Quote not found');
       if (!quote.parent_id) throw new Error('Quote has no parent BC_CLIENT');
+
+      // 1b. Idempotency: only a still-pending quote can be accepted, and the
+      // parent must not already have an accepted quote / generated BC.
+      if ((quote as any).status === 'VALIDATED' || (quote as any).status === 'REJECTED') {
+        throw new Error('Ce devis fournisseur a déjà été traité.');
+      }
+      const { data: existingBc, error: existingBcErr } = await supabase
+        .from('documents')
+        .select('id, numero')
+        .eq('parent_id', quote.parent_id)
+        .eq('type', 'BC_FOURNISSEUR')
+        .maybeSingle();
+      if (existingBcErr) throw existingBcErr;
+      if (existingBc) {
+        throw new Error(`Un BC fournisseur existe déjà pour cette demande (${existingBc.numero}).`);
+      }
 
       // 2. VALIDATE the chosen quote
       const { error: updateError } = await supabase
