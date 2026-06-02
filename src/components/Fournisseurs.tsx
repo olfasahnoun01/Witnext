@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,6 +33,7 @@ import { ClientDocumentPreviewDialog } from './shared/ClientDocumentPreviewDialo
 import { PhoneLinesEditor } from './shared/PhoneLinesEditor';
 import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { formatPhonesDisplay, parsePhoneListFromStorage, serializePhoneList } from '@/lib/phoneList';
+import { getGrosafeCompanyId } from '@/lib/companyScope';
 import { toast } from 'sonner';
 import { SPECIALITES } from '@/constants/fournisseurs';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
@@ -95,18 +97,26 @@ export const Fournisseurs = memo(() => {
 
   const loadFournisseurs = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('fournisseurs')
-      .select('*')
-      .order('nom');
-    
-    if (error) {
+    try {
+      const grosafeId = await getGrosafeCompanyId();
+      const { data, error } = await supabase
+        .from('fournisseurs')
+        .select('*')
+        .eq('company_id', grosafeId)
+        .order('nom');
+
+      if (error) {
+        toast.error('Erreur lors du chargement des fournisseurs');
+        console.error(error);
+      } else {
+        setFournisseurs((data as any) || []);
+      }
+    } catch (err) {
       toast.error('Erreur lors du chargement des fournisseurs');
-      console.error(error);
-    } else {
-      setFournisseurs((data as any) || []);
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -188,11 +198,21 @@ export const Fournisseurs = memo(() => {
     const locationParts = [selectedCity, selectedGovernorate].filter(Boolean);
     const locationValue = locationParts.length > 0 ? locationParts.join(', ') : null;
 
+    let grosafeId: string;
+    try {
+      grosafeId = await getGrosafeCompanyId();
+    } catch (err) {
+      toast.error('Société Grosafe introuvable — enregistrement annulé');
+      console.error(err);
+      return;
+    }
+
     const fournisseurData = {
       nom: nom.trim(),
       code: code.trim() || null,
       matricule_fiscale: matriculeFiscale.trim(),
       specialite,
+      company_id: grosafeId,
       phone: phoneStored || null,
       location: locationValue,
       patente_url: patenteUrl,
@@ -586,7 +606,7 @@ export const Fournisseurs = memo(() => {
             </div>
           ) : (
             <>
-              <div className="rounded-lg border overflow-hidden">
+              <div className={`rounded-lg border overflow-hidden ${EXCEL_TABLE_CLASS}`}>
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">

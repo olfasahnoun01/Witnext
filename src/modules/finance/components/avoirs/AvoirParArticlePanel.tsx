@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, PackageMinus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -29,7 +29,7 @@ import {
   listAvoirsParArticle,
 } from '../../services/avoirApi';
 import type { CounterpartyOption } from '../../types/paymentTypes';
-import type { AvoirFinancierType, TauxTvaTunisie } from '../../types/financeDomain';
+import type { AvoirFinancierType, AvoirParArticle, TauxTvaTunisie } from '../../types/financeDomain';
 import type { InvoiceLineRow, InvoiceRow } from '../../types';
 import { CounterpartyCombobox } from '../payments/CounterpartyCombobox';
 
@@ -120,12 +120,21 @@ export function AvoirParArticlePanel({
   }, [lineSelections]);
 
   const totals = computeAvoirTotals(previewLines);
-  const existing = useMemo(
-    () => listAvoirsParArticle(companyId, invoiceType),
-    [companyId, invoiceType, refreshKey]
-  );
+  const [existing, setExisting] = useState<AvoirParArticle[]>([]);
 
-  const handleCreate = (valider: boolean) => {
+  useEffect(() => {
+    let active = true;
+    listAvoirsParArticle(companyId, invoiceType)
+      .then((rows) => {
+        if (active) setExisting(rows);
+      })
+      .catch((e) => toast.error(e instanceof Error ? e.message : 'Chargement des avoirs impossible'));
+    return () => {
+      active = false;
+    };
+  }, [companyId, invoiceType, refreshKey]);
+
+  const handleCreate = async (valider: boolean) => {
     if (!counterparty || !selectedInvoice) {
       toast.error('Sélectionnez un tiers et une facture.');
       return;
@@ -137,7 +146,7 @@ export function AvoirParArticlePanel({
     }
     setBusy(true);
     try {
-      createAvoirParArticle({
+      await createAvoirParArticle({
         companyId,
         type: invoiceType,
         numero,
@@ -290,10 +299,10 @@ export function AvoirParArticlePanel({
           )}
 
           <div className="flex gap-2">
-            <Button variant="outline" disabled={busy} onClick={() => handleCreate(false)}>
+            <Button variant="outline" disabled={busy} onClick={() => void handleCreate(false)}>
               Brouillon
             </Button>
-            <Button disabled={busy} className="gap-1" onClick={() => handleCreate(true)}>
+            <Button disabled={busy} className="gap-1" onClick={() => void handleCreate(true)}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               Valider avoir
             </Button>

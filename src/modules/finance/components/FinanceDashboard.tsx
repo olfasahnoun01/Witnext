@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { Badge } from '@/components/ui/badge';
-
 import { Button } from '@/components/ui/button';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +24,7 @@ import {
 
 import { toast } from 'sonner';
 
-import { Building2, Landmark } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
@@ -52,9 +50,11 @@ import {
 
 } from '../lib/financeNavigation';
 
-import { FinanceSectionHeader, FinanceSubNav, FinanceSubsectionHint } from './layout/FinanceSubNav';
+import { FinanceSectionHeader, FinanceSubNav } from './layout/FinanceSubNav';
+import { FINANCE_EXCEL_TABLE_CLASS } from '../lib/financeStyles';
 
 import { CommercialSourcesPanel } from './sources/CommercialSourcesPanel';
+import { FinanceCompanyLogo } from './FinanceCompanyLogo';
 
 import { TreasuryHubPanel } from './treasury/TreasuryHubPanel';
 
@@ -152,9 +152,9 @@ export function FinanceDashboard() {
 
       const [clients, fournisseurs] = await Promise.all([
 
-        fetchClientsForSettlement(),
+        fetchClientsForSettlement(company.id),
 
-        fetchFournisseursForSettlement(),
+        fetchFournisseursForSettlement(company.id),
 
       ]);
 
@@ -230,43 +230,26 @@ export function FinanceDashboard() {
 
   const showSupplierPay = capabilities.supplierPayments;
 
-  const activeMainMeta = mainSections.find((s) => s.id === mainSection);
-
 
 
   return (
 
-    <div className="space-y-6">
+    <div className={cn('space-y-6', FINANCE_EXCEL_TABLE_CLASS)}>
 
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 
         <div className="flex items-start gap-3">
 
-          <div className="rounded-xl bg-primary/10 p-3 text-primary">
-
-            <Landmark className="h-6 w-6" />
-
-          </div>
+          <FinanceCompanyLogo
+            code={company.code}
+            companyName={company.name}
+            className="h-14 w-14 p-1.5"
+            imageClassName="h-full max-h-10"
+          />
 
           <div>
 
-            <div className="flex flex-wrap items-center gap-2">
-
-              <h1 className="text-2xl font-bold">{company.name}</h1>
-
-              <Badge variant="secondary" className="font-mono uppercase">
-
-                {company.code}
-
-              </Badge>
-
-            </div>
-
-            <p className="text-sm text-muted-foreground mt-1">
-
-              Comptabilité tunisienne — PCG, TVA, timbre fiscal, retenue à la source
-
-            </p>
+            <h1 className="text-2xl font-bold">{company.name}</h1>
 
           </div>
 
@@ -341,12 +324,6 @@ export function FinanceDashboard() {
           </TabsList>
 
         </div>
-
-
-
-        {activeMainMeta?.description && mainSection !== 'overview' && (
-          <p className="text-xs text-muted-foreground mt-3 px-1">{activeMainMeta.description}</p>
-        )}
 
 
 
@@ -446,17 +423,9 @@ export function FinanceDashboard() {
 
         <TabsContent value="billing" className="mt-5 space-y-4">
 
-          <FinanceSectionHeader
-
-            title="Facturation"
-
-            description="Factures comptables vente et achat, conformes au PCG tunisien"
-
-          />
+          <FinanceSectionHeader title="Facturation" />
 
           <FinanceSubNav items={billingSubs} value={billingSub} onValueChange={setBillingSub} />
-
-          <FinanceSubsectionHint items={billingSubs} activeId={billingSub} />
 
 
 
@@ -531,8 +500,6 @@ export function FinanceDashboard() {
           <FinanceSectionHeader title="Règlements & créances" />
 
           <FinanceSubNav items={settlementsSubs} value={settlementsSub} onValueChange={setSettlementsSub} />
-
-          <FinanceSubsectionHint items={settlementsSubs} activeId={settlementsSub} />
 
 
 
@@ -636,17 +603,9 @@ export function FinanceDashboard() {
 
           <TabsContent value="fiscal" className="mt-5 space-y-4">
 
-            <FinanceSectionHeader
-
-              title="Fiscalité"
-
-              description="Obligations fiscales tunisiennes — TVA et retenue à la source"
-
-            />
+            <FinanceSectionHeader title="Fiscalité" />
 
             <FinanceSubNav items={fiscalSubs} value={fiscalSub} onValueChange={setFiscalSub} />
-
-            <FinanceSubsectionHint items={fiscalSubs} activeId={fiscalSub} />
 
 
 
@@ -684,10 +643,7 @@ export function FinanceDashboard() {
 
           <TabsContent value="accounting" className="mt-5 space-y-4">
 
-            <FinanceSectionHeader
-              title="Comptabilité"
-              description="Journal, grand livre et balance"
-            />
+            <FinanceSectionHeader title="Comptabilité" />
 
             <AccountingStatementsPanel companyId={company.id} />
 

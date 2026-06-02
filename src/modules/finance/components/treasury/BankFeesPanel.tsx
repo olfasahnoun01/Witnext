@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Landmark, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -31,7 +31,12 @@ import {
   saveCustomBankFeeType,
 } from '../../services/bankFeesStorage';
 import { loadTreasuryAccounts } from '../../services/treasuryStorage';
-import type { TauxTvaTunisie } from '../../types/financeDomain';
+import type {
+  BankFeeCharge,
+  BankFeeTypeDefinition,
+  TauxTvaTunisie,
+  TreasuryAccount,
+} from '../../types/financeDomain';
 import { REGLEMENT_STATUS_LABELS } from '../../services/paymentService';
 
 interface BankFeesPanelProps {
@@ -40,12 +45,24 @@ interface BankFeesPanelProps {
 
 export function BankFeesPanel({ companyId }: BankFeesPanelProps) {
   const [refreshKey, setRefreshKey] = useState(0);
-  const accounts = useMemo(
-    () => loadTreasuryAccounts(companyId).filter((a) => a.actif && a.type === 'BANQUE'),
-    [companyId, refreshKey]
-  );
-  const feeTypes = useMemo(() => loadBankFeeTypes(companyId), [companyId, refreshKey]);
-  const fees = useMemo(() => loadBankFees(companyId), [companyId, refreshKey]);
+  const [accounts, setAccounts] = useState<TreasuryAccount[]>([]);
+  const [feeTypes, setFeeTypes] = useState<BankFeeTypeDefinition[]>([]);
+  const [fees, setFees] = useState<BankFeeCharge[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([loadTreasuryAccounts(companyId), loadBankFeeTypes(companyId), loadBankFees(companyId)])
+      .then(([accs, types, feeRows]) => {
+        if (!active) return;
+        setAccounts(accs.filter((a) => a.actif && a.type === 'BANQUE'));
+        setFeeTypes(types);
+        setFees(feeRows);
+      })
+      .catch((e) => toast.error(e instanceof Error ? e.message : 'Chargement des frais impossible'));
+    return () => {
+      active = false;
+    };
+  }, [companyId, refreshKey]);
 
   const [treasuryAccountId, setTreasuryAccountId] = useState('');
   const [feeTypeId, setFeeTypeId] = useState('');
@@ -71,9 +88,9 @@ export function BankFeesPanel({ companyId }: BankFeesPanelProps) {
     });
   }, [montantHt, tauxTva, label]);
 
-  const handleAddType = () => {
+  const handleAddType = async () => {
     try {
-      const t = saveCustomBankFeeType(companyId, newTypeLabel);
+      const t = await saveCustomBankFeeType(companyId, newTypeLabel);
       setFeeTypeId(t.id);
       setNewTypeLabel('');
       setRefreshKey((k) => k + 1);
@@ -83,7 +100,7 @@ export function BankFeesPanel({ companyId }: BankFeesPanelProps) {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const ht = parseMontantInput(montantHt);
     const account = accounts.find((a) => a.id === treasuryAccountId);
     const feeType = feeTypes.find((t) => t.id === feeTypeId);
@@ -99,27 +116,31 @@ export function BankFeesPanel({ companyId }: BankFeesPanelProps) {
       montantTva: 0,
       montantTtc: 0,
     });
-    addBankFee(companyId, {
-      companyId,
-      treasuryAccountId: account.id,
-      treasuryAccountName: account.nom,
-      feeTypeId: feeType.id,
-      feeTypeLabel: feeType.label,
-      label: label.trim() || feeType.label,
-      montantHt: calc.montantHt,
-      tauxTva,
-      montantTva: calc.montantTva,
-      montantTtc: calc.montantTtc,
-      dateOperation,
-      dateEcheance: dateEcheance || null,
-      status,
-      notes: notes.trim() || null,
-    });
-    toast.success('Frais bancaire enregistré');
-    setMontantHt('');
-    setLabel('');
-    setNotes('');
-    setRefreshKey((k) => k + 1);
+    try {
+      await addBankFee(companyId, {
+        companyId,
+        treasuryAccountId: account.id,
+        treasuryAccountName: account.nom,
+        feeTypeId: feeType.id,
+        feeTypeLabel: feeType.label,
+        label: label.trim() || feeType.label,
+        montantHt: calc.montantHt,
+        tauxTva,
+        montantTva: calc.montantTva,
+        montantTtc: calc.montantTtc,
+        dateOperation,
+        dateEcheance: dateEcheance || null,
+        status,
+        notes: notes.trim() || null,
+      });
+      toast.success('Frais bancaire enregistré');
+      setMontantHt('');
+      setLabel('');
+      setNotes('');
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Enregistrement impossible');
+    }
   };
 
   return (
@@ -229,10 +250,10 @@ export function BankFeesPanel({ companyId }: BankFeesPanelProps) {
                 placeholder="Ex. Frais SWIFT"
               />
             </div>
-            <Button type="button" variant="outline" onClick={handleAddType}>
+            <Button type="button" variant="outline" onClick={() => void handleAddType()}>
               Ajouter type
             </Button>
-            <Button type="button" className="gap-1" onClick={handleSubmit}>
+            <Button type="button" className="gap-1" onClick={() => void handleSubmit()}>
               <Plus className="h-4 w-4" />
               Enregistrer frais
             </Button>

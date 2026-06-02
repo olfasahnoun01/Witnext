@@ -13,6 +13,7 @@ import {
   ChevronUp,
   Mail,
   Lock,
+  Building2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -28,8 +29,40 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { BIG_SECTIONS } from '@/config/navigation';
+import { posteHasAllFinanceCompanies } from '@/lib/userPositions';
+
+function allCompanyIdSet(list: CompanyRow[]): Set<string> {
+  return new Set(list.map((c) => c.id));
+}
+
+function resolveCompanySetForUser(
+  poste: string,
+  selected: Set<string>,
+  allCompanies: CompanyRow[]
+): Set<string> {
+  if (isChauffeurPoste(poste)) return new Set();
+  if (posteHasAllFinanceCompanies(poste)) return allCompanyIdSet(allCompanies);
+  return selected;
+}
 
 type Role = 'admin' | 'moderator' | 'user';
+
+interface CompanyRow {
+  id: string;
+  code: string;
+  name: string;
+}
+
+const FINANCE_SECTION_ID = 'finance';
+const FINANCE_SUBSECTION_ID = 'finance-hub';
+
+/** True when the user has full Finance section or finance-hub subsection access. */
+function userHasFinanceAccess(userSet: Set<string>): boolean {
+  return (
+    userSet.has(FINANCE_SECTION_ID) ||
+    userSet.has(`${FINANCE_SECTION_ID}:${FINANCE_SUBSECTION_ID}`)
+  );
+}
 
 interface ManagedUser {
   id: string;            // auth user id
@@ -78,6 +111,12 @@ function normalizePosition(pos: string | undefined): string {
 function isDriverPosition(pos: string | undefined): boolean {
   const p = normalizePosition(pos);
   return p === 'chauffeur' || p === 'operateur' || p === 'chauffer';
+}
+
+/** Chauffeur accounts are mobile-app only — no ERP module access. */
+function isChauffeurPoste(pos: string | undefined): boolean {
+  const p = normalizePosition(pos);
+  return p === 'chauffeur' || p === 'chauffer';
 }
 
 function tabForUser(u: Pick<ManagedUser, 'role' | 'position'>): AccountTab {
@@ -133,6 +172,8 @@ export const PermissionsManager = () => {
 
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [perms, setPerms] = useState<Record<string, Set<string>>>({});
+  const [userCompanies, setUserCompanies] = useState<Record<string, Set<string>>>({});
+  const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [expandedUsers, setExpandedUsers] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [savingPermsFor, setSavingPermsFor] = useState<string | null>(null);
@@ -150,6 +191,7 @@ export const PermissionsManager = () => {
   
   // Permissions chosen inline in the create/edit modal
   const [modalPerms, setModalPerms] = useState<Set<string>>(new Set());
+  const [modalCompanies, setModalCompanies] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<AccountTab>('admins');
   const [mobilePhone, setMobilePhone] = useState('');
   const [mobileCin, setMobileCin] = useState('');
@@ -165,7 +207,7 @@ export const PermissionsManager = () => {
       const token = await getAuthToken();
       if (!token) throw new Error('Session expirée. Veuillez vous reconnecter.');
 
-      const [usersRes, permsRes] = await Promise.all([
+      const [usersRes, permsRes, companiesRes, userCompaniesRes] = await Promise.all([
         supabase.functions.invoke('manage-users', {
           body: { action: 'list' },
           headers: { Authorization: `Bearer ${token}` },
@@ -173,9 +215,15 @@ export const PermissionsManager = () => {
         (supabase as any)
           .from('user_section_permissions')
           .select('user_id, section_key, subsection_key'),
+        supabase.from('companies').select('id, code, name').order('name'),
+        supabase.from('user_companies').select('user_id, company_id'),
       ]);
 
       if (permsRes.error) throw permsRes.error;
+      if (companiesRes.error) throw companiesRes.error;
+      if (userCompaniesRes.error) throw userCompaniesRes.error;
+
+      setCompanies((companiesRes.data ?? []) as CompanyRow[]);
 
       if (usersRes.error) {
         const msg = usersRes.error.message || '';
@@ -209,6 +257,13 @@ export const PermissionsManager = () => {
         map[p.user_id].add(keyOf(p.section_key, p.subsection_key));
       });
       setPerms(map);
+
+      const companyMap: Record<string, Set<string>> = {};
+      (userCompaniesRes.data ?? []).forEach((row: { user_id: string; company_id: string }) => {
+        if (!companyMap[row.user_id]) companyMap[row.user_id] = new Set();
+        companyMap[row.user_id].add(row.company_id);
+      });
+      setUserCompanies(companyMap);
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: e.message });
     } finally {
@@ -279,11 +334,55 @@ export const PermissionsManager = () => {
     }
   };
 
+  const persistUserCompanies = async (userId: string, companyIds: Set<string>) => {
+    const { error: delErr } = await supabase.from('user_companies').delete().eq('user_id', userId);
+    if (delErr) throw delErr;
+
+    if (companyIds.size > 0) {
+      const rows = [...companyIds].map((company_id) => ({ user_id: userId, company_id }));
+      const { error: insErr } = await supabase.from('user_companies').insert(rows);
+      if (insErr) throw insErr;
+    }
+  };
+
+  const toggleUserCompany = (userId: string, companyId: string) => {
+    setUserCompanies((prev) => {
+      const userSet = new Set(prev[userId] ?? []);
+      if (userSet.has(companyId)) userSet.delete(companyId);
+      else userSet.add(companyId);
+      return { ...prev, [userId]: userSet };
+    });
+  };
+
+  const toggleModalCompany = (companyId: string) => {
+    setModalCompanies((prev) => {
+      const next = new Set(prev);
+      if (next.has(companyId)) next.delete(companyId);
+      else next.add(companyId);
+      return next;
+    });
+  };
+
   const savePermissions = async (userId: string) => {
     setSavingPermsFor(userId);
     try {
-      await persistPermissions(userId, perms[userId] ?? new Set());
-      toast({ title: 'Permissions enregistrées' });
+      const userSet = perms[userId] ?? new Set();
+      await persistPermissions(userId, userSet);
+      const companySet = resolveCompanySetForUser(
+        users.find((u) => u.id === userId)?.position ?? '',
+        userCompanies[userId] ?? new Set(),
+        companies
+      );
+      await persistUserCompanies(userId, companySet);
+      if (userHasFinanceAccess(userSet) && (userCompanies[userId]?.size ?? 0) === 0) {
+        toast({
+          title: 'Permissions enregistrées',
+          description:
+            'Attention : cet utilisateur a accès Finance mais aucune société assignée. Il ne pourra pas ouvrir le module Finance.',
+        });
+      } else {
+        toast({ title: 'Permissions et sociétés enregistrées' });
+      }
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: e.message });
     } finally {
@@ -302,6 +401,13 @@ export const PermissionsManager = () => {
       setMobilePhone('');
       setMobileCin('');
       setModalPerms(new Set(perms[user.id] ?? []));
+      setModalCompanies(new Set(userCompanies[user.id] ?? []));
+      if (isChauffeurPoste(user.position)) {
+        setModalPerms(new Set());
+        setModalCompanies(new Set());
+      } else if (posteHasAllFinanceCompanies(user.position)) {
+        setModalCompanies(allCompanyIdSet(companies));
+      }
     } else {
       setEditingUser(null);
       setEmail('');
@@ -310,6 +416,7 @@ export const PermissionsManager = () => {
       setMobilePhone('');
       setMobileCin('');
       setModalPerms(new Set());
+      setModalCompanies(new Set());
       if (activeTab === 'admins') {
         setRole('admin');
         setPosition('Responsable administrative');
@@ -335,6 +442,7 @@ export const PermissionsManager = () => {
     setMobilePhone('');
     setMobileCin('');
     setModalPerms(new Set());
+    setModalCompanies(new Set());
   };
 
   const toggleExpandedUser = (userId: string) => {
@@ -435,7 +543,10 @@ export const PermissionsManager = () => {
       }
 
       if (targetUserId && role !== 'admin') {
-        await persistPermissions(targetUserId, modalPerms);
+        const permSet = isChauffeurPoste(position) ? new Set<string>() : modalPerms;
+        const companySet = resolveCompanySetForUser(position, modalCompanies, companies);
+        await persistPermissions(targetUserId, permSet);
+        await persistUserCompanies(targetUserId, companySet);
       }
 
       const createdOrUpdated: ManagedUser = editingUser
@@ -460,14 +571,18 @@ export const PermissionsManager = () => {
       toast({
         title: editingUser ? 'Utilisateur modifié' : 'Utilisateur créé',
         description: editingUser
-          ? 'Informations et permissions mises à jour'
-          : `Le compte ${email} a été créé — visible dans l'onglet ${
-              tabForUser(createdOrUpdated) === 'admins'
-                ? 'Administrateurs'
-                : tabForUser(createdOrUpdated) === 'drivers'
-                  ? 'Chauffeurs'
-                  : 'Utilisateurs'
-            }`,
+          ? isChauffeurPoste(position)
+            ? 'Compte chauffeur mis à jour (application mobile uniquement).'
+            : 'Informations et permissions mises à jour'
+          : isChauffeurPoste(position)
+            ? `Compte mobile ${email} créé — aucun accès ERP.`
+            : `Le compte ${email} a été créé — visible dans l'onglet ${
+                tabForUser(createdOrUpdated) === 'admins'
+                  ? 'Administrateurs'
+                  : tabForUser(createdOrUpdated) === 'drivers'
+                    ? 'Chauffeurs'
+                    : 'Utilisateurs'
+              }`,
       });
 
       closeModal();
@@ -552,6 +667,30 @@ export const PermissionsManager = () => {
           </Button>
         </div>
 
+        <div className="mb-6 rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground space-y-2">
+          <p className="font-medium text-foreground flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-primary" />
+            Règles d&apos;accès multi-sociétés
+          </p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>
+              <strong>Ventes, Achats, Magasin &amp; Stock</strong> — Grosafe Equipements uniquement. Aucune société à
+              assigner pour ces modules.
+            </li>
+            <li>
+              <strong>Finance</strong> — assignez une ou plusieurs sociétés. Obligatoire si accès Finance.
+              Directeur Général, Responsable financier et Responsable administrative reçoivent{' '}
+              <strong>toutes les sociétés</strong> automatiquement.
+            </li>
+            <li>
+              <strong>RH et Véhicules</strong> — pool partagé pour tout le groupe ; pas de société à assigner.
+            </li>
+            <li>
+              La sélection de société se fait <strong>dans le module Finance</strong> (pas au login).
+            </li>
+          </ul>
+        </div>
+
         <div className="flex gap-1 mb-6 p-1 bg-muted/50 rounded-lg w-fit">
           <button
             onClick={() => setActiveTab('admins')}
@@ -609,6 +748,7 @@ export const PermissionsManager = () => {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
+                      {!isChauffeurPoste(u.position) && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -617,7 +757,8 @@ export const PermissionsManager = () => {
                         {isExpanded ? <ChevronUp className="w-4 h-4 mr-2" /> : <ChevronDown className="w-4 h-4 mr-2" />}
                         {isExpanded ? 'Masquer permissions' : 'Afficher permissions'}
                       </Button>
-                      {!isAdminUser && isExpanded && (
+                      )}
+                      {!isAdminUser && !isChauffeurPoste(u.position) && isExpanded && (
                         <>
                           <Button size="sm" variant="outline" onClick={() => grantAll(u.id)}>
                             Tout accorder
@@ -654,49 +795,113 @@ export const PermissionsManager = () => {
                     </div>
                   </div>
 
-                  {isExpanded && (isAdminUser ? (
-                    <div className="mt-4 bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm text-muted-foreground">
-                      Cet administrateur a accès à toutes les sections et sous-sections par défaut.
+                  {isChauffeurPoste(u.position) && (
+                    <p className="mt-3 text-xs text-muted-foreground rounded-lg border border-border bg-muted/30 px-3 py-2">
+                      Compte application mobile uniquement — aucun accès aux modules ERP.
+                    </p>
+                  )}
+
+                  {isExpanded && !isChauffeurPoste(u.position) && (isAdminUser ? (
+                    <div className="mt-4 space-y-3">
+                      <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm text-muted-foreground">
+                        Cet administrateur a accès à toutes les sections et sous-sections par défaut.
+                      </div>
+                      <div className="bg-muted/40 border border-border rounded-lg p-3 text-sm text-muted-foreground">
+                        <p className="font-medium text-foreground flex items-center gap-2 mb-1">
+                          <Building2 className="h-4 w-4 text-primary" />
+                          Sociétés Finance
+                        </p>
+                        Accès à toutes les sociétés (Grosafe, Granisafe, Safe-Team) — géré automatiquement pour les administrateurs.
+                      </div>
                     </div>
                   ) : (
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {BIG_SECTIONS.map((section) => {
-                        const fullGranted = userSet.has(section.id);
-                        return (
-                          <div key={section.id} className="bg-muted/40 rounded-lg p-3">
-                            <label className="flex items-center gap-2 cursor-pointer mb-2">
-                              <Checkbox
-                                checked={fullGranted}
-                                onCheckedChange={() => toggleFullSection(u.id, section.id)}
-                              />
-                              <section.icon className="w-4 h-4 text-primary" />
-                              <span className="font-medium text-sm text-foreground">{section.label}</span>
-                            </label>
-                            {section.subsections.length > 0 && (
-                              <div className={`pl-6 space-y-1.5 ${fullGranted ? 'opacity-50 pointer-events-none' : ''}`}>
-                                {section.subsections.map((sub) => {
-                                  const k = `${section.id}:${sub.id}`;
-                                  const checked = fullGranted || userSet.has(k);
-                                  return (
-                                    <label
-                                      key={sub.id}
-                                      className="flex items-center gap-2 text-xs cursor-pointer text-muted-foreground hover:text-foreground"
-                                    >
-                                      <Checkbox
-                                        checked={checked}
-                                        disabled={fullGranted}
-                                        onCheckedChange={() => toggleSubsection(u.id, section.id, sub.id)}
-                                      />
-                                      <span>{sub.label}</span>
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            )}
+                    <>
+                      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {BIG_SECTIONS.map((section) => {
+                          const fullGranted = userSet.has(section.id);
+                          return (
+                            <div key={section.id} className="bg-muted/40 rounded-lg p-3">
+                              <label className="flex items-center gap-2 cursor-pointer mb-2">
+                                <Checkbox
+                                  checked={fullGranted}
+                                  onCheckedChange={() => toggleFullSection(u.id, section.id)}
+                                />
+                                <section.icon className="w-4 h-4 text-primary" />
+                                <span className="font-medium text-sm text-foreground">{section.label}</span>
+                              </label>
+                              {section.subsections.length > 0 && (
+                                <div className={`pl-6 space-y-1.5 ${fullGranted ? 'opacity-50 pointer-events-none' : ''}`}>
+                                  {section.subsections.map((sub) => {
+                                    const k = `${section.id}:${sub.id}`;
+                                    const checked = fullGranted || userSet.has(k);
+                                    return (
+                                      <label
+                                        key={sub.id}
+                                        className="flex items-center gap-2 text-xs cursor-pointer text-muted-foreground hover:text-foreground"
+                                      >
+                                        <Checkbox
+                                          checked={checked}
+                                          disabled={fullGranted}
+                                          onCheckedChange={() => toggleSubsection(u.id, section.id, sub.id)}
+                                        />
+                                        <span>{sub.label}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-4 rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+                        <div>
+                          <p className="font-medium text-sm text-foreground flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-primary" />
+                            Sociétés Finance
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Détermine quelles entités légales l&apos;utilisateur peut consulter dans le module Finance.
+                            Ventes / Achats / Magasin restent Grosafe uniquement.
+                          </p>
+                        </div>
+                        {companies.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">Aucune société disponible.</p>
+                        ) : posteHasAllFinanceCompanies(u.position) ? (
+                          <p className="text-sm text-foreground">
+                            Toutes les sociétés ({companies.map((c) => c.name).join(', ')}) — assignation
+                            automatique pour ce poste.
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-3">
+                            {companies.map((c) => {
+                              const companySet = userCompanies[u.id] ?? new Set<string>();
+                              const checked = companySet.has(c.id);
+                              return (
+                                <label
+                                  key={c.id}
+                                  className="flex items-center gap-2 text-sm cursor-pointer rounded-md border border-border bg-background px-3 py-2 hover:bg-muted/50"
+                                >
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={() => toggleUserCompany(u.id, c.id)}
+                                  />
+                                  <span>{c.name}</span>
+                                </label>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
+                        )}
+                        {userHasFinanceAccess(userSet) &&
+                          !posteHasAllFinanceCompanies(u.position) &&
+                          (userCompanies[u.id]?.size ?? 0) === 0 && (
+                          <p className="text-xs text-amber-700 dark:text-amber-400">
+                            Cet utilisateur a accès Finance mais aucune société n&apos;est assignée — il ne pourra pas ouvrir le module.
+                          </p>
+                        )}
+                      </div>
+                    </>
                   ))}
                 </div>
               );
@@ -757,8 +962,14 @@ export const PermissionsManager = () => {
                 <div className="space-y-2">
                   <Label htmlFor="position">Poste</Label>
                   <Select value={isKnownPosition(position) ? position : position ? `__legacy__${position}` : 'Operateur'} onValueChange={(v) => {
-                    if (v.startsWith('__legacy__')) setPosition(v.slice('__legacy__'.length));
-                    else setPosition(v);
+                    const next = v.startsWith('__legacy__') ? v.slice('__legacy__'.length) : v;
+                    setPosition(next);
+                    if (isChauffeurPoste(next)) {
+                      setModalPerms(new Set());
+                      setModalCompanies(new Set());
+                    } else if (posteHasAllFinanceCompanies(next)) {
+                      setModalCompanies(allCompanyIdSet(companies));
+                    }
                   }}>
                     <SelectTrigger id="position"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -831,7 +1042,7 @@ export const PermissionsManager = () => {
                 </div>
               )}
 
-              {role !== 'admin' && (
+              {role !== 'admin' && !isChauffeurPoste(position) && (
                 <div className="space-y-3 pt-4 border-t border-border">
                   <div className="flex items-center justify-between">
                     <Label className="font-semibold">Permissions d'accès</Label>
@@ -878,6 +1089,57 @@ export const PermissionsManager = () => {
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {role !== 'admin' && !isChauffeurPoste(position) && (
+                <div className="space-y-3 pt-4 border-t border-border">
+                  <div>
+                    <Label className="font-semibold flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-primary" />
+                      Sociétés Finance
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Obligatoire si le module Finance est accordé. Ventes / Achats / Magasin = Grosafe uniquement.
+                    </p>
+                  </div>
+                  {companies.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Aucune société disponible.</p>
+                  ) : posteHasAllFinanceCompanies(position) ? (
+                    <p className="text-sm text-foreground">
+                      Toutes les sociétés ({companies.map((c) => c.name).join(', ')}) — ce poste reçoit un accès
+                      multi-sociétés automatique à l&apos;enregistrement.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-3">
+                      {companies.map((c) => (
+                        <label
+                          key={c.id}
+                          className="flex items-center gap-2 text-sm cursor-pointer rounded-md border border-border bg-muted/30 px-3 py-2"
+                        >
+                          <Checkbox
+                            checked={modalCompanies.has(c.id)}
+                            onCheckedChange={() => toggleModalCompany(c.id)}
+                          />
+                          <span>{c.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {userHasFinanceAccess(modalPerms) &&
+                    !posteHasAllFinanceCompanies(position) &&
+                    modalCompanies.size === 0 && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400">
+                      Accès Finance activé sans société — l&apos;utilisateur ne pourra pas ouvrir le module Finance.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {isChauffeurPoste(position) && role !== 'admin' && (
+                <div className="pt-4 border-t border-border rounded-lg bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                  Ce compte est réservé à l&apos;application mobile Flutter. Aucune permission ERP ni société Finance
+                  n&apos;est assignée.
                 </div>
               )}
 

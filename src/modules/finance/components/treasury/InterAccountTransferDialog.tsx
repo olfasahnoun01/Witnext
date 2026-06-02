@@ -61,7 +61,7 @@ export function InterAccountTransferDialog({
     }
     setBusy(true);
     try {
-      const updated = executerVirementInterComptes({
+      const updated = await executerVirementInterComptes({
         companyId,
         compteSourceId: sourceId,
         compteDestinationId: destId,

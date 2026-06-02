@@ -26,10 +26,8 @@ import { invoiceOutstandingTtc } from './paymentService';
 import {
   loadTreasuryAccounts,
   saveTreasuryAccounts,
-  saveTransfers,
-  loadTransfers,
-  saveWithholdingCertificates,
-  loadWithholdingCertificates,
+  insertTransfer,
+  insertWithholdingCertificate,
 } from './treasuryStorage';
 
 // ——— Trésorerie ———
@@ -53,13 +51,13 @@ function formatSolde(n: number): string {
   return `${n.toLocaleString('fr-TN', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} DT`;
 }
 
-/** Met à jour le solde d'un compte en mémoire locale. */
-export function applyBalanceDelta(
+/** Met à jour le solde d'un compte (persistance Supabase). */
+export async function applyBalanceDelta(
   companyId: string,
   accountId: string,
   delta: number
-): TreasuryAccount[] {
-  const accounts = loadTreasuryAccounts(companyId);
+): Promise<TreasuryAccount[]> {
+  const accounts = await loadTreasuryAccounts(companyId);
   const idx = accounts.findIndex((a) => a.id === accountId);
   if (idx < 0) throw new Error('Compte de trésorerie introuvable.');
   const next = [...accounts];
@@ -67,28 +65,28 @@ export function applyBalanceDelta(
   if (next[idx].type === 'CAISSE' && next[idx].soldeActuel < -0.0001) {
     throw new Error('Fonds insuffisants en caisse.');
   }
-  saveTreasuryAccounts(companyId, next);
+  await saveTreasuryAccounts(companyId, [next[idx]]);
   return next;
 }
 
 /**
  * Virement inter-comptes : décrémente source, incrémente destination (transaction logique unique).
  */
-export function executerVirementInterComptes(args: {
+export async function executerVirementInterComptes(args: {
   companyId: string;
   compteSourceId: string;
   compteDestinationId: string;
   montant: number;
   dateOperation: string;
   motif: string;
-}): TreasuryAccount[] {
+}): Promise<TreasuryAccount[]> {
   const montant = round3(args.montant);
   if (montant <= 0) throw new Error('Montant de virement invalide.');
   if (args.compteSourceId === args.compteDestinationId) {
     throw new Error('Les comptes source et destination doivent être différents.');
   }
 
-  const accounts = loadTreasuryAccounts(args.companyId);
+  const accounts = await loadTreasuryAccounts(args.companyId);
   const source = accounts.find((a) => a.id === args.compteSourceId);
   const dest = accounts.find((a) => a.id === args.compteDestinationId);
   if (!source || !dest) throw new Error('Compte source ou destination introuvable.');
@@ -108,10 +106,12 @@ export function executerVirementInterComptes(args: {
     return a;
   });
 
-  saveTreasuryAccounts(args.companyId, updated);
+  await saveTreasuryAccounts(
+    args.companyId,
+    updated.filter((a) => a.id === args.compteSourceId || a.id === args.compteDestinationId)
+  );
 
-  const transfers = loadTransfers(args.companyId);
-  transfers.unshift({
+  await insertTransfer({
     id: `tr-${Date.now()}`,
     companyId: args.companyId,
     compteSourceId: args.compteSourceId,
@@ -121,7 +121,6 @@ export function executerVirementInterComptes(args: {
     motif: args.motif,
     createdAt: new Date().toISOString(),
   });
-  saveTransfers(args.companyId, transfers);
 
   return updated;
 }
@@ -144,13 +143,13 @@ export function resolveTreasuryTargetAccount(
 /**
  * Validation encaissement effet : transfert attente → compte bancaire réel.
  */
-export function validerEncaissementEffet(args: {
+export async function validerEncaissementEffet(args: {
   companyId: string;
   montant: number;
   compteBancaireId: string;
   sensEntrant: boolean;
-}): TreasuryAccount[] {
-  const accounts = loadTreasuryAccounts(args.companyId);
+}): Promise<TreasuryAccount[]> {
+  const accounts = await loadTreasuryAccounts(args.companyId);
   const attente = accounts.find((a) => a.type === 'ATTENTE_EFFETS');
   const banque = accounts.find((a) => a.id === args.compteBancaireId);
   if (!attente || !banque) throw new Error('Comptes attente ou banque introuvables.');
@@ -163,7 +162,10 @@ export function validerEncaissementEffet(args: {
     if (a.id === banque.id) return { ...a, soldeActuel: round3(a.soldeActuel + sign * m) };
     return a;
   });
-  saveTreasuryAccounts(args.companyId, updated);
+  await saveTreasuryAccounts(
+    args.companyId,
+    updated.filter((a) => a.id === attente.id || a.id === banque.id)
+  );
   return updated;
 }
 
@@ -198,10 +200,11 @@ export function creerCertificatRetenue(
   };
 }
 
-export function enregistrerCertificatRetenue(companyId: string, cert: WithholdingCertificate): void {
-  const list = loadWithholdingCertificates(companyId);
-  list.unshift(cert);
-  saveWithholdingCertificates(companyId, list);
+export async function enregistrerCertificatRetenue(
+  companyId: string,
+  cert: WithholdingCertificate
+): Promise<void> {
+  await insertWithholdingCertificate(cert);
 }
 
 // ——— Lettrage ———

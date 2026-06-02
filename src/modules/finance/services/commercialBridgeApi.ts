@@ -118,11 +118,12 @@ export async function fetchWarehouseDocuments(
   });
 }
 
-/** Annuaire clients (module Ventes). */
-export async function fetchClientsDirectory(): Promise<TierDirectoryRow[]> {
+/** Annuaire clients d'une société. */
+export async function fetchClientsDirectory(companyId: string): Promise<TierDirectoryRow[]> {
   const { data, error } = await supabase
     .from('clients')
     .select('id, nom, matricule_fiscale, location, phone, email')
+    .eq('company_id', companyId)
     .order('nom');
   if (error) throw new Error(error.message);
   return (data ?? []).map((c) => ({
@@ -135,11 +136,12 @@ export async function fetchClientsDirectory(): Promise<TierDirectoryRow[]> {
   }));
 }
 
-/** Annuaire fournisseurs (module Achats). */
-export async function fetchFournisseursDirectory(): Promise<TierDirectoryRow[]> {
+/** Annuaire fournisseurs d'une société. */
+export async function fetchFournisseursDirectory(companyId: string): Promise<TierDirectoryRow[]> {
   const { data, error } = await supabase
     .from('fournisseurs')
     .select('id, nom, matricule_fiscale, location, phone')
+    .eq('company_id', companyId)
     .order('nom');
   if (error) throw new Error(error.message);
   return (data ?? []).map((f) => ({

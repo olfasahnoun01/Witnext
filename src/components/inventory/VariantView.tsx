@@ -4,6 +4,7 @@ import { ProductGroup, Product, StockStatus } from '@/types';
 import { getVariantsByGroupId, createVariant } from '@/services/productGroupService';
 import { updateProduct, deleteProduct, applyProductQuantityChange } from '@/services/dbService';
 import { supabase } from '@/integrations/supabase/client';
+import { EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { compressImage, formatBytes, getBase64Size } from '@/lib/imageCompression';
@@ -437,7 +438,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           )}
         </div>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
+        <div className={`border rounded-lg overflow-hidden ${EXCEL_TABLE_CLASS}`}>
           <Table>
             <TableHeader>
               <TableRow>

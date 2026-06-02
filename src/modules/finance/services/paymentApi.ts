@@ -43,11 +43,12 @@ function formatSupabaseError(err: { message?: string }): string {
   return err.message || 'Erreur Supabase';
 }
 
-/** Charge les clients pour le sélecteur de tiers. */
-export async function fetchClientsForSettlement(): Promise<CounterpartyOption[]> {
+/** Charge les clients d'une société pour le sélecteur de tiers. */
+export async function fetchClientsForSettlement(companyId: string): Promise<CounterpartyOption[]> {
   const { data, error } = await supabase
     .from('clients')
     .select('id, nom, matricule_fiscale, location')
+    .eq('company_id', companyId)
     .order('nom');
   if (error) throw new Error(formatSupabaseError(error));
   return (data ?? []).map((c) => ({
@@ -59,11 +60,12 @@ export async function fetchClientsForSettlement(): Promise<CounterpartyOption[]>
   }));
 }
 
-/** Charge les fournisseurs pour le sélecteur de tiers. */
-export async function fetchFournisseursForSettlement(): Promise<CounterpartyOption[]> {
+/** Charge les fournisseurs d'une société pour le sélecteur de tiers. */
+export async function fetchFournisseursForSettlement(companyId: string): Promise<CounterpartyOption[]> {
   const { data, error } = await supabase
     .from('fournisseurs')
     .select('id, nom, matricule_fiscale, location')
+    .eq('company_id', companyId)
     .order('nom');
   if (error) throw new Error(formatSupabaseError(error));
   return (data ?? []).map((f) => ({
@@ -138,7 +140,7 @@ export interface SubmitSettlementInput {
  * — Espèces : contrôle solde caisse en sortie fournisseur.
  */
 export async function submitSettlement(input: SubmitSettlementInput): Promise<string> {
-  const accounts = loadTreasuryAccounts(input.companyId);
+  const accounts = await loadTreasuryAccounts(input.companyId);
   const targetAccount = resolveTreasuryTargetAccount(
     accounts,
     input.treasuryAccountId,
@@ -159,11 +161,11 @@ export async function submitSettlement(input: SubmitSettlementInput): Promise<st
       }
     }
     const delta = sensSortant ? -montantMouvement : montantMouvement;
-    applyBalanceDelta(input.companyId, targetAccount.id, delta);
+    await applyBalanceDelta(input.companyId, targetAccount.id, delta);
   } else if (sensSortant) {
-    applyBalanceDelta(input.companyId, targetAccount.id, -montantMouvement);
+    await applyBalanceDelta(input.companyId, targetAccount.id, -montantMouvement);
   } else {
-    applyBalanceDelta(input.companyId, targetAccount.id, montantMouvement);
+    await applyBalanceDelta(input.companyId, targetAccount.id, montantMouvement);
   }
 
   const direction = input.direction === 'client' ? 'inbound_client' : 'outbound_supplier';
@@ -214,7 +216,7 @@ export async function submitSettlement(input: SubmitSettlementInput): Promise<st
     if (alloc.amount <= 0) continue;
 
     if (alloc.kind === 'AVOIR') {
-      applyAvoirCredit(input.companyId, alloc.documentId, alloc.amount);
+      await applyAvoirCredit(input.companyId, alloc.documentId, alloc.amount);
       continue;
     }
 
@@ -269,7 +271,7 @@ export async function submitSettlement(input: SubmitSettlementInput): Promise<st
         })),
       totalRetenue: input.withholdingAmount,
     });
-    enregistrerCertificatRetenue(input.companyId, cert);
+    await enregistrerCertificatRetenue(input.companyId, cert);
   }
 
   if (shouldPostTreasuryOnSettlement(input.mode)) {
@@ -353,12 +355,12 @@ export async function applyTraiteAction(
 
   if (action === 'VALIDER_ENCAISSEMENT') {
     const bankAccountId = meta.treasuryAccountId;
-    const accounts = loadTreasuryAccounts(payment.company_id);
+    const accounts = await loadTreasuryAccounts(payment.company_id);
     const bank = accounts.find(
       (a) => a.id === bankAccountId || (a.type === 'BANQUE' && a.actif)
     );
     if (bank) {
-      validerEncaissementEffet({
+      await validerEncaissementEffet({
         companyId: payment.company_id,
         montant: Number(payment.amount),
         compteBancaireId: bank.id,

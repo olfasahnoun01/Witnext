@@ -13,7 +13,19 @@ const POSTE_ALIASES: Record<string, string[]> = {
   'responsable achat': ['responsable achat'],
   'responsable administrative': ['responsable administrative', 'responsable administratif'],
   'responsable financier': ['responsable financier', 'responsable finance'],
+  'directeur generale': ['directeur generale', 'directeur general', 'directeur générale', 'directeur général', 'dg'],
 };
+
+/** Postes avec accès automatique à toutes les sociétés Finance (Grosafe, Granisafe, Safe-Team). */
+export const POSTES_ALL_FINANCE_COMPANIES = [
+  'directeur generale',
+  'responsable financier',
+  'responsable administrative',
+] as const;
+
+export function posteHasAllFinanceCompanies(userPosition: string): boolean {
+  return posteMatches(userPosition, [...POSTES_ALL_FINANCE_COMPANIES]);
+}
 
 export function posteMatches(userPosition: string, targetKeys: string[]): boolean {
   const userKey = normalizePosteKey(userPosition);

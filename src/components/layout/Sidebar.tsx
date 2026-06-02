@@ -10,6 +10,7 @@ import {
 import { cn } from '@/lib/utils';
 import { AlphaLogoBanner } from '@/components/AlphaLogoBanner';
 import { BIG_SECTIONS, SUBSECTION_TO_SECTION } from '@/config/navigation';
+import { getSectionTheme } from '@/config/sectionThemes';
 import { usePermissions } from '@/hooks/usePermissions';
 
 interface SidebarProps {
@@ -88,21 +89,23 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
               
               if (visibleSubsections.length === 0) return null;
 
+              const theme = getSectionTheme(section.id);
+
               return (
                 <div key={section.id} className="space-y-1">
                   <button 
                     onClick={() => toggleSection(section.id)}
                     className={cn(
-                      "w-full flex items-center justify-between px-4 py-3 text-xs font-black uppercase tracking-widest transition-all rounded-2xl group",
+                      "w-full flex items-center justify-between px-4 py-3 text-xs font-black uppercase tracking-widest transition-all rounded-2xl group border",
                       isExpanded 
-                        ? "bg-primary/10 text-primary border border-primary/20 mb-2" 
-                        : "text-slate-950 dark:text-sidebar-foreground/60 hover:bg-sidebar-accent/50"
+                        ? cn(theme.headerExpanded, "mb-2") 
+                        : cn(theme.headerCollapsed, "border-transparent")
                     )}
                   >
                     <div className="flex items-center gap-3">
                       <div className={cn(
                         "p-2 rounded-xl transition-colors",
-                        isExpanded ? "bg-primary text-white" : "bg-sidebar-accent/50 group-hover:bg-sidebar-accent"
+                        isExpanded ? theme.iconExpanded : theme.iconCollapsed
                       )}>
                         <section.icon className="w-4 h-4" />
                       </div>
@@ -116,7 +119,8 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
                   
                   <div 
                     className={cn(
-                      "grid transition-all duration-300 ease-in-out pl-3 ml-4 border-l-2 border-sidebar-border/30",
+                      "grid transition-all duration-300 ease-in-out pl-3 ml-4 border-l-2",
+                      theme.treeBorder,
                       isExpanded ? "grid-rows-[1fr] opacity-100 mt-1 mb-4" : "grid-rows-[0fr] opacity-0"
                     )}
                   >
@@ -136,9 +140,7 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
 
                         const baseStyles = cn(
                           "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group",
-                          isActive 
-                            ? "bg-primary text-primary-foreground shadow-md" 
-                            : "text-sidebar-foreground hover:bg-sidebar-accent/30 hover:text-sidebar-foreground"
+                          isActive ? theme.subActive : theme.subInactive
                         );
 
                         if (item.path) {

@@ -130,8 +130,8 @@ export function CommercialSourcesPanel({
       { key: 'BL fournisseur', fn: () => fetchWarehouseDocuments(['BL_FOURNISSEUR']) },
       { key: 'BE', fn: () => fetchWarehouseDocuments(['BE']) },
       { key: 'BS', fn: () => fetchWarehouseDocuments(['BS']) },
-      { key: 'clients', fn: () => fetchClientsDirectory() },
-      { key: 'fournisseurs', fn: () => fetchFournisseursDirectory() },
+      { key: 'clients', fn: () => fetchClientsDirectory(companyId) },
+      { key: 'fournisseurs', fn: () => fetchFournisseursDirectory(companyId) },
     ] as const;
 
     const results = await Promise.allSettled(tasks.map((t) => t.fn()));
@@ -168,7 +168,7 @@ export function CommercialSourcesPanel({
     }
 
     setLoading(false);
-  }, []);
+  }, [companyId]);
 
   useEffect(() => {
     void load();
@@ -257,11 +257,6 @@ export function CommercialSourcesPanel({
             <FileText className="h-5 w-5" />
             Pièces commerciales — liaison modules Ventes / Achats / Magasin
           </CardTitle>
-          <CardDescription>
-            Consultation en lecture seule des devis, bons de commande, BL/BE/BS et annuaires tiers.
-            Générez une facture Finance (brouillon) conforme à la réglementation tunisienne — timbre fiscal,
-            TVA 19/13/7/0 %, écritures PCG à la validation.
-          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2 items-center">
           <Input

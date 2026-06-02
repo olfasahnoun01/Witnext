@@ -20,6 +20,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
 import { partitionDraftsAndRest, sortDevisListRecentFirst } from '@/lib/devisListLayout';
 import { documentAuditTableHeadCells, DocumentAuditTableCells } from '@/components/devis/DocumentAuditTableColumns';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -423,7 +424,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
               </span>
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-2">
-              <div className="overflow-x-auto overflow-y-auto max-h-[min(50vh,28rem)] rounded-lg border border-border">
+              <div className={cn('overflow-x-auto overflow-y-auto max-h-[min(50vh,28rem)] rounded-lg border border-border', EXCEL_TABLE_CLASS)}>
                 <table className="w-full">
                   {devisTableHead}
                   <tbody>
@@ -453,7 +454,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
               </span>
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-2">
-              <div className="overflow-x-auto overflow-y-auto max-h-[min(50vh,28rem)] rounded-lg border border-border">
+              <div className={cn('overflow-x-auto overflow-y-auto max-h-[min(50vh,28rem)] rounded-lg border border-border', EXCEL_TABLE_CLASS)}>
                 <table className="w-full">
                   {devisTableHead}
                   <tbody>

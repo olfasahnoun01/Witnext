@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Building2, KeyRound } from 'lucide-react';
+import { KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { verifyCompanyAccessCode, financeCompanyRequiresCode } from '../lib/companyAccess';
+import { FinanceCompanyLogo } from './FinanceCompanyLogo';
 import type { FinanceCompanyRow } from '../types';
 
 interface FinanceCompanyPickerProps {
@@ -52,11 +53,15 @@ export function FinanceCompanyPicker({
         {companies.map((c) => (
           <Card key={c.id} className="border-border/80 hover:border-primary/40 transition-colors">
             <CardHeader className="pb-2">
-              <div className="flex items-center gap-2 text-primary">
-                <Building2 className="h-5 w-5" />
+              <div className="flex flex-col items-center gap-3 text-center">
+                <FinanceCompanyLogo
+                  code={c.code}
+                  companyName={c.name}
+                  className="h-16 w-full"
+                  imageClassName="max-h-12"
+                />
                 <CardTitle className="text-base">{c.name}</CardTitle>
               </div>
-              <CardDescription className="font-mono text-xs uppercase">{c.code}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {requireAccessCode && financeCompanyRequiresCode(c.code) && (

@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { ArrowRightLeft, Landmark, PiggyBank, Wallet } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatMontantDt } from '../../lib/money';
@@ -8,7 +9,6 @@ import type { TreasuryAccount } from '../../types/financeDomain';
 import {
   FinanceSectionHeader,
   FinanceSubNav,
-  FinanceSubsectionHint,
 } from '../layout/FinanceSubNav';
 import { getTreasurySubsections } from '../../lib/financeNavigation';
 import { TreasuryAccountsDashboard } from './TreasuryAccountsDashboard';
@@ -31,19 +31,24 @@ interface TreasuryHubPanelProps {
 export function TreasuryHubPanel({ companyId, clientPaymentsTotal, payments }: TreasuryHubPanelProps) {
   const subsections = useMemo(() => getTreasurySubsections(), []);
   const [activeSub, setActiveSub] = useState('bank');
-  const [accounts, setAccounts] = useState<TreasuryAccount[]>(() => loadTreasuryAccounts(companyId));
+  const [accounts, setAccounts] = useState<TreasuryAccount[]>([]);
   const [transferOpen, setTransferOpen] = useState(false);
 
   const refreshAccounts = useCallback(() => {
-    setAccounts(loadTreasuryAccounts(companyId));
+    loadTreasuryAccounts(companyId)
+      .then(setAccounts)
+      .catch((e) => toast.error(e instanceof Error ? e.message : 'Chargement des comptes impossible'));
   }, [companyId]);
+
+  useEffect(() => {
+    refreshAccounts();
+  }, [refreshAccounts]);
 
   return (
     <div className="space-y-4">
       <FinanceSectionHeader title="Trésorerie" />
 
       <FinanceSubNav items={subsections} value={activeSub} onValueChange={setActiveSub} />
-      <FinanceSubsectionHint items={subsections} activeId={activeSub} />
 
       {activeSub === 'bank' && (
         <div className="space-y-8">
@@ -51,7 +56,6 @@ export function TreasuryHubPanel({ companyId, clientPaymentsTotal, payments }: T
             companyId={companyId}
             filterTypes={['BANQUE']}
             title="Comptes banque"
-            description="Comptes courants bancaires — PCG 512. RIB et soldes en dinars tunisiens (3 décimales)."
             showTransferButton={false}
             newAccountDefaultType="BANQUE"
           />
@@ -72,7 +76,6 @@ export function TreasuryHubPanel({ companyId, clientPaymentsTotal, payments }: T
           companyId={companyId}
           filterTypes={['CAISSE']}
           title="Comptes caisse"
-          description="Fonds en caisse — PCG 531. Le solde ne peut pas être négatif lors des décaissements espèces."
           showTransferButton={false}
           newAccountDefaultType="CAISSE"
         />
@@ -84,7 +87,6 @@ export function TreasuryHubPanel({ companyId, clientPaymentsTotal, payments }: T
             companyId={companyId}
             filterTypes={['ATTENTE_EFFETS']}
             title="Compte d'attente effets"
-            description="Chèques et traites en portefeuille avant remise en banque — PCG 514."
             showTransferButton={false}
             showNewAccountButton={false}
           />

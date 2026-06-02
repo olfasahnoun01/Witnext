@@ -46,10 +46,10 @@ export interface BuildTraiteFromFormInput {
 }
 
 /** Données traite depuis le formulaire de règlement (aperçu avant enregistrement). */
-export function buildTraiteDataFromForm(input: BuildTraiteFromFormInput): TraitePdfData {
+export async function buildTraiteDataFromForm(input: BuildTraiteFromFormInput): Promise<TraitePdfData> {
   const tireur = companyParty(input.company);
   const tiers = counterpartyParty(input.counterparty);
-  const accounts = loadTreasuryAccounts(input.companyId);
+  const accounts = await loadTreasuryAccounts(input.companyId);
   const treasury = accounts.find((a) => a.id === input.treasuryAccountId);
   const rib = treasury?.rib ?? null;
   const lieu = COMPANY_DISPLAY[input.company.code]?.city ?? 'Tunis';
@@ -153,7 +153,7 @@ export async function buildTraiteDataFromPaymentId(
     invoiceRefs = (invs ?? []).map((i) => i.numero);
   }
 
-  return buildTraiteDataFromForm({
+  return await buildTraiteDataFromForm({
     company,
     companyId: row.company_id,
     direction,

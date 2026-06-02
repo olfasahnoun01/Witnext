@@ -14,6 +14,360 @@ export type Database = {
   }
   public: {
     Tables: {
+      treasury_accounts: {
+        Row: {
+          actif: boolean
+          banque_label: string | null
+          code_comptable: string
+          company_id: string
+          created_at: string
+          id: string
+          nom: string
+          rib: string | null
+          solde_actuel: number
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          banque_label?: string | null
+          code_comptable?: string
+          company_id: string
+          created_at?: string
+          id: string
+          nom: string
+          rib?: string | null
+          solde_actuel?: number
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          banque_label?: string | null
+          code_comptable?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          nom?: string
+          rib?: string | null
+          solde_actuel?: number
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      treasury_transfers: {
+        Row: {
+          company_id: string
+          compte_destination_id: string
+          compte_source_id: string
+          created_at: string
+          date_operation: string
+          id: string
+          montant: number
+          motif: string
+        }
+        Insert: {
+          company_id: string
+          compte_destination_id: string
+          compte_source_id: string
+          created_at?: string
+          date_operation?: string
+          id: string
+          montant: number
+          motif?: string
+        }
+        Update: {
+          company_id?: string
+          compte_destination_id?: string
+          compte_source_id?: string
+          created_at?: string
+          date_operation?: string
+          id?: string
+          montant?: number
+          motif?: string
+        }
+        Relationships: []
+      }
+      finance_avoirs: {
+        Row: {
+          company_id: string
+          counterparty_id: number
+          counterparty_name: string
+          counterparty_tax_id: string | null
+          created_at: string
+          credit_restant: number
+          id: string
+          issue_date: string
+          lignes: Json
+          notes: string | null
+          numero: string
+          status: string
+          total_ht: number
+          total_ttc: number
+          total_tva: number
+          type: string
+        }
+        Insert: {
+          company_id: string
+          counterparty_id: number
+          counterparty_name: string
+          counterparty_tax_id?: string | null
+          created_at?: string
+          credit_restant?: number
+          id: string
+          issue_date?: string
+          lignes?: Json
+          notes?: string | null
+          numero: string
+          status?: string
+          total_ht?: number
+          total_ttc?: number
+          total_tva?: number
+          type: string
+        }
+        Update: {
+          company_id?: string
+          counterparty_id?: number
+          counterparty_name?: string
+          counterparty_tax_id?: string | null
+          created_at?: string
+          credit_restant?: number
+          id?: string
+          issue_date?: string
+          lignes?: Json
+          notes?: string | null
+          numero?: string
+          status?: string
+          total_ht?: number
+          total_ttc?: number
+          total_tva?: number
+          type?: string
+        }
+        Relationships: []
+      }
+      finance_avoirs_article: {
+        Row: {
+          company_id: string
+          counterparty_id: number
+          counterparty_name: string
+          counterparty_tax_id: string | null
+          created_at: string
+          credit_restant: number
+          id: string
+          invoice_id: string | null
+          invoice_numero: string | null
+          issue_date: string
+          lignes: Json
+          notes: string | null
+          numero: string
+          status: string
+          total_ht: number
+          total_ttc: number
+          total_tva: number
+          type: string
+        }
+        Insert: {
+          company_id: string
+          counterparty_id: number
+          counterparty_name: string
+          counterparty_tax_id?: string | null
+          created_at?: string
+          credit_restant?: number
+          id: string
+          invoice_id?: string | null
+          invoice_numero?: string | null
+          issue_date?: string
+          lignes?: Json
+          notes?: string | null
+          numero: string
+          status?: string
+          total_ht?: number
+          total_ttc?: number
+          total_tva?: number
+          type: string
+        }
+        Update: {
+          company_id?: string
+          counterparty_id?: number
+          counterparty_name?: string
+          counterparty_tax_id?: string | null
+          created_at?: string
+          credit_restant?: number
+          id?: string
+          invoice_id?: string | null
+          invoice_numero?: string | null
+          issue_date?: string
+          lignes?: Json
+          notes?: string | null
+          numero?: string
+          status?: string
+          total_ht?: number
+          total_ttc?: number
+          total_tva?: number
+          type?: string
+        }
+        Relationships: []
+      }
+      withholding_certificates: {
+        Row: {
+          company_id: string
+          counterparty_id: number
+          counterparty_name: string
+          created_at: string
+          id: string
+          lignes: Json
+          matricule_fiscal: string | null
+          mode: string
+          payment_id: string | null
+          total_retenue: number
+        }
+        Insert: {
+          company_id: string
+          counterparty_id: number
+          counterparty_name: string
+          created_at?: string
+          id: string
+          lignes?: Json
+          matricule_fiscal?: string | null
+          mode: string
+          payment_id?: string | null
+          total_retenue?: number
+        }
+        Update: {
+          company_id?: string
+          counterparty_id?: number
+          counterparty_name?: string
+          created_at?: string
+          id?: string
+          lignes?: Json
+          matricule_fiscal?: string | null
+          mode?: string
+          payment_id?: string | null
+          total_retenue?: number
+        }
+        Relationships: []
+      }
+      bank_fee_types: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          label: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id: string
+          label: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          label?: string
+        }
+        Relationships: []
+      }
+      bank_fees: {
+        Row: {
+          company_id: string
+          created_at: string
+          date_echeance: string | null
+          date_operation: string
+          fee_type_id: string
+          fee_type_label: string
+          id: string
+          label: string
+          montant_ht: number
+          montant_ttc: number
+          montant_tva: number
+          notes: string | null
+          status: string
+          taux_tva: number
+          treasury_account_id: string
+          treasury_account_name: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          date_echeance?: string | null
+          date_operation?: string
+          fee_type_id: string
+          fee_type_label?: string
+          id: string
+          label?: string
+          montant_ht?: number
+          montant_ttc?: number
+          montant_tva?: number
+          notes?: string | null
+          status?: string
+          taux_tva?: number
+          treasury_account_id: string
+          treasury_account_name?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          date_echeance?: string | null
+          date_operation?: string
+          fee_type_id?: string
+          fee_type_label?: string
+          id?: string
+          label?: string
+          montant_ht?: number
+          montant_ttc?: number
+          montant_tva?: number
+          notes?: string | null
+          status?: string
+          taux_tva?: number
+          treasury_account_id?: string
+          treasury_account_name?: string
+        }
+        Relationships: []
+      }
+      bank_statement_lines: {
+        Row: {
+          account_id: string
+          amount_signed: number
+          company_id: string
+          created_at: string
+          id: string
+          label: string
+          matched_movement_id: string | null
+          matched_payment_id: string | null
+          operation_date: string
+          reference: string | null
+          value_date: string | null
+        }
+        Insert: {
+          account_id: string
+          amount_signed?: number
+          company_id: string
+          created_at?: string
+          id: string
+          label?: string
+          matched_movement_id?: string | null
+          matched_payment_id?: string | null
+          operation_date: string
+          reference?: string | null
+          value_date?: string | null
+        }
+        Update: {
+          account_id?: string
+          amount_signed?: number
+          company_id?: string
+          created_at?: string
+          id?: string
+          label?: string
+          matched_movement_id?: string | null
+          matched_payment_id?: string | null
+          operation_date?: string
+          reference?: string | null
+          value_date?: string | null
+        }
+        Relationships: []
+      }
       app_config: {
         Row: {
           created_at: string
@@ -136,6 +490,7 @@ export type Database = {
       clients: {
         Row: {
           code: string | null
+          company_id: string
           created_at: string
           email: string | null
           id: number
@@ -145,10 +500,12 @@ export type Database = {
           patente_url: string | null
           phone: string | null
           registre_commerce_url: string | null
+          tva_status: string
           updated_at: string
         }
         Insert: {
           code?: string | null
+          company_id?: string
           created_at?: string
           email?: string | null
           id?: number
@@ -158,10 +515,12 @@ export type Database = {
           patente_url?: string | null
           phone?: string | null
           registre_commerce_url?: string | null
+          tva_status?: string
           updated_at?: string
         }
         Update: {
           code?: string | null
+          company_id?: string
           created_at?: string
           email?: string | null
           id?: number
@@ -171,9 +530,18 @@ export type Database = {
           patente_url?: string | null
           phone?: string | null
           registre_commerce_url?: string | null
+          tva_status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "clients_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       devis: {
         Row: {
@@ -594,6 +962,7 @@ export type Database = {
       fournisseurs: {
         Row: {
           code: string | null
+          company_id: string
           created_at: string
           id: number
           location: string | null
@@ -607,6 +976,7 @@ export type Database = {
         }
         Insert: {
           code?: string | null
+          company_id?: string
           created_at?: string
           id?: number
           location?: string | null
@@ -620,6 +990,7 @@ export type Database = {
         }
         Update: {
           code?: string | null
+          company_id?: string
           created_at?: string
           id?: number
           location?: string | null
@@ -631,7 +1002,15 @@ export type Database = {
           specialite?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fournisseurs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       gallery_categories: {
         Row: {
@@ -1596,6 +1975,10 @@ export type Database = {
           name: string
           created_at: string
         }[]
+      }
+      grosafe_company_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
     }
     Enums: {

@@ -38,25 +38,12 @@ export function FinanceSubNav({ items, value, onValueChange, className }: Financ
 
 interface FinanceSectionHeaderProps {
   title: string;
-  description?: string;
 }
 
-export function FinanceSectionHeader({ title, description }: FinanceSectionHeaderProps) {
+export function FinanceSectionHeader({ title }: FinanceSectionHeaderProps) {
   return (
     <div className="mb-4">
       <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-      {description && <p className="text-sm text-muted-foreground mt-0.5">{description}</p>}
     </div>
-  );
-}
-
-/** Description de la sous-section active (sous la barre niveau 2). */
-export function FinanceSubsectionHint({ items, activeId }: { items: FinanceNavItem[]; activeId: string }) {
-  const active = items.find((i) => i.id === activeId);
-  if (!active?.description) return null;
-  return (
-    <p className="text-xs text-muted-foreground mb-4 border-l-2 border-primary/30 pl-3">
-      {active.description}
-    </p>
   );
 }

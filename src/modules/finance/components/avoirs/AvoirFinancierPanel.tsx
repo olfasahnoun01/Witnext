@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { FileMinus, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,7 @@ import { formatMontantDt, parseMontantInput } from '../../lib/money';
 import { computeAvoirLineTotals, computeAvoirTotals } from '../../services/financeService';
 import { createAvoirFinancier, generateAvoirNumero, listAvoirs } from '../../services/avoirApi';
 import type { CounterpartyOption } from '../../types/paymentTypes';
-import type { AvoirFinancierType, TauxTvaTunisie } from '../../types/financeDomain';
+import type { AvoirFinancier, AvoirFinancierType, TauxTvaTunisie } from '../../types/financeDomain';
 import { CounterpartyCombobox } from '../payments/CounterpartyCombobox';
 
 interface AvoirFinancierPanelProps {
@@ -58,7 +58,19 @@ export function AvoirFinancierPanel({
   const [refreshKey, setRefreshKey] = useState(0);
 
   const tiers = tab === 'vente' ? clients : fournisseurs;
-  const existing = useMemo(() => listAvoirs(companyId, tab), [companyId, tab, refreshKey]);
+  const [existing, setExisting] = useState<AvoirFinancier[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    listAvoirs(companyId, tab)
+      .then((rows) => {
+        if (active) setExisting(rows);
+      })
+      .catch((e) => toast.error(e instanceof Error ? e.message : 'Chargement des avoirs impossible'));
+    return () => {
+      active = false;
+    };
+  }, [companyId, tab, refreshKey]);
 
   const previewLignes = useMemo(() => {
     return lignes
@@ -77,7 +89,7 @@ export function AvoirFinancierPanel({
 
   const totals = computeAvoirTotals(previewLignes);
 
-  const handleCreate = (valider: boolean) => {
+  const handleCreate = async (valider: boolean) => {
     if (!counterparty) {
       toast.error('Sélectionnez un tiers.');
       return;
@@ -88,7 +100,7 @@ export function AvoirFinancierPanel({
     }
     setBusy(true);
     try {
-      createAvoirFinancier({
+      await createAvoirFinancier({
         companyId,
         type: tab,
         numero,
@@ -261,10 +273,10 @@ export function AvoirFinancierPanel({
                   Total TTC : {formatMontantDt(totals.totalTtc)}
                 </p>
                 <div className="flex gap-2">
-                  <Button variant="outline" disabled={busy} onClick={() => handleCreate(false)}>
+                  <Button variant="outline" disabled={busy} onClick={() => void handleCreate(false)}>
                     Brouillon
                   </Button>
-                  <Button disabled={busy} onClick={() => handleCreate(true)}>
+                  <Button disabled={busy} onClick={() => void handleCreate(true)}>
                     {busy && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     Valider l&apos;avoir
                   </Button>

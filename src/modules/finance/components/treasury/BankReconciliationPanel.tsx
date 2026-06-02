@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Upload, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { formatMontantDt } from '../../lib/money';
 import { loadTreasuryAccounts } from '../../services/treasuryStorage';
+import type { TreasuryAccount } from '../../types/financeDomain';
 import {
   loadBankStatementLines,
   parseBankStatementCsv,
@@ -40,15 +41,25 @@ interface BankReconciliationPanelProps {
  */
 export function BankReconciliationPanel({ companyId }: BankReconciliationPanelProps) {
   const [accountId, setAccountId] = useState('');
-  const [lines, setLines] = useState<BankStatementLine[]>(() => loadBankStatementLines(companyId));
+  const [lines, setLines] = useState<BankStatementLine[]>([]);
+  const [accounts, setAccounts] = useState<TreasuryAccount[]>([]);
   const [movements, setMovements] = useState<
     Array<{ id: string; label: string; amount_signed: number; notes: string | null; movement_date: string }>
   >([]);
 
-  const accounts = useMemo(
-    () => loadTreasuryAccounts(companyId).filter((a) => a.type === 'BANQUE'),
-    [companyId]
-  );
+  useEffect(() => {
+    let active = true;
+    Promise.all([loadBankStatementLines(companyId), loadTreasuryAccounts(companyId)])
+      .then(([statementLines, accs]) => {
+        if (!active) return;
+        setLines(statementLines);
+        setAccounts(accs.filter((a) => a.type === 'BANQUE'));
+      })
+      .catch((e) => toast.error(e instanceof Error ? e.message : 'Chargement impossible'));
+    return () => {
+      active = false;
+    };
+  }, [companyId]);
 
   const loadMovements = useCallback(async () => {
     const { data } = await supabase
@@ -77,13 +88,14 @@ export function BankReconciliationPanel({ companyId }: BankReconciliationPanelPr
       const imported = parseBankStatementCsv(text, accountId);
       const merged = [...imported, ...lines];
       setLines(merged);
-      saveBankStatementLines(companyId, merged);
-      toast.success(`${imported.length} ligne(s) importée(s)`);
+      saveBankStatementLines(companyId, imported)
+        .then(() => toast.success(`${imported.length} ligne(s) importée(s)`))
+        .catch((e) => toast.error(e instanceof Error ? e.message : 'Import impossible'));
     };
     reader.readAsText(file);
   };
 
-  const autoMatch = () => {
+  const autoMatch = async () => {
     let matched = 0;
     const next = lines.map((sl) => {
       if (sl.matchedMovementId || sl.accountId !== accountId) return sl;
@@ -100,8 +112,12 @@ export function BankReconciliationPanel({ companyId }: BankReconciliationPanelPr
       return sl;
     });
     setLines(next);
-    saveBankStatementLines(companyId, next);
-    toast.success(`${matched} rapprochement(s) automatique(s)`);
+    try {
+      await saveBankStatementLines(companyId, next);
+      toast.success(`${matched} rapprochement(s) automatique(s)`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Rapprochement impossible');
+    }
   };
 
   return (
@@ -146,7 +162,7 @@ export function BankReconciliationPanel({ companyId }: BankReconciliationPanelPr
               </span>
             </Button>
           </Label>
-          <Button variant="secondary" onClick={autoMatch} className="gap-1">
+          <Button variant="secondary" onClick={() => void autoMatch()} className="gap-1">
             <Link2 className="h-4 w-4" />
             Rapprocher auto
           </Button>

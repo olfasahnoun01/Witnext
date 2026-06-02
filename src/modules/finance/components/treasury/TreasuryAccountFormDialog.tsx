@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -41,26 +42,35 @@ export function TreasuryAccountFormDialog({
   const [rib, setRib] = useState('');
   const [banque, setBanque] = useState('');
 
-  const handleSave = () => {
+  const [busy, setBusy] = useState(false);
+
+  const handleSave = async () => {
     if (!nom.trim()) return;
-    const accounts = loadTreasuryAccounts(companyId);
-    const acc: TreasuryAccount = {
-      id: `acc-${Date.now()}`,
-      companyId,
-      nom: nom.trim(),
-      type,
-      codeComptable: codeComptable.trim() || (type === 'CAISSE' ? '531000' : '512100'),
-      rib: rib.replace(/\s/g, '') || null,
-      banqueLabel: banque || null,
-      soldeActuel: 0,
-      actif: true,
-      createdAt: new Date().toISOString(),
-    };
-    accounts.push(acc);
-    saveTreasuryAccounts(companyId, accounts);
-    onSaved(accounts);
-    onOpenChange(false);
-    setNom('');
+    setBusy(true);
+    try {
+      const acc: TreasuryAccount = {
+        id: `acc-${Date.now()}`,
+        companyId,
+        nom: nom.trim(),
+        type,
+        codeComptable: codeComptable.trim() || (type === 'CAISSE' ? '531000' : '512100'),
+        rib: rib.replace(/\s/g, '') || null,
+        banqueLabel: banque || null,
+        soldeActuel: 0,
+        actif: true,
+        createdAt: new Date().toISOString(),
+      };
+      await saveTreasuryAccounts(companyId, [acc]);
+      const accounts = await loadTreasuryAccounts(companyId);
+      onSaved(accounts);
+      onOpenChange(false);
+      setNom('');
+      toast.success('Compte créé');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Création du compte impossible');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -107,7 +117,7 @@ export function TreasuryAccountFormDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Annuler
           </Button>
-          <Button onClick={handleSave}>Créer</Button>
+          <Button onClick={() => void handleSave()} disabled={busy}>Créer</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

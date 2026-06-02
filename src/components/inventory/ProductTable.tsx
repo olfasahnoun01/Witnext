@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Edit2, Trash2, Image as ImageIcon } from 'lucide-react';
 import { Product, StockStatus } from '@/types';
 import { priceTtcFromHt } from '@/lib/tva';
+import { EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
 import {
   Table,
   TableBody,
@@ -48,7 +49,7 @@ export const ProductTable = memo(({ products, onEdit, onDelete, isLoading }: Pro
   }
 
   return (
-    <div className="table-container overflow-x-auto">
+    <div className={`table-container overflow-x-auto ${EXCEL_TABLE_CLASS}`}>
       <Table>
         <TableHeader>
           <TableRow>

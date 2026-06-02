@@ -11,23 +11,34 @@ import type {
   TauxTvaTunisie,
 } from '../types/financeDomain';
 import { computeAvoirLineTotals, computeAvoirTotals } from './financeService';
-import { loadAvoirs, loadAvoirsParArticle, saveAvoirs, saveAvoirsParArticle } from './treasuryStorage';
+import {
+  insertAvoir,
+  insertAvoirParArticle,
+  loadAvoirs,
+  loadAvoirsParArticle,
+  updateAvoirArticleCreditRestant,
+  updateAvoirCreditRestant,
+} from './treasuryStorage';
 
-export function listAvoirs(companyId: string, type?: AvoirFinancierType): AvoirFinancier[] {
-  const all = loadAvoirs(companyId);
+export async function listAvoirs(companyId: string, type?: AvoirFinancierType): Promise<AvoirFinancier[]> {
+  const all = await loadAvoirs(companyId);
   if (!type) return all;
   return all.filter((a) => a.type === type);
 }
 
-export function listAvoirsForCounterparty(
+export async function listAvoirsForCounterparty(
   companyId: string,
   type: AvoirFinancierType,
   counterpartyId: number
-): AvoirFinancier[] {
-  const financial = listAvoirs(companyId, type).filter(
+): Promise<AvoirFinancier[]> {
+  const [allFinancial, allArticle] = await Promise.all([
+    listAvoirs(companyId, type),
+    listAvoirsParArticle(companyId, type),
+  ]);
+  const financial = allFinancial.filter(
     (a) => a.counterpartyId === counterpartyId && a.status === 'valide' && a.creditRestant > 0
   );
-  const articleAsFinancial = listAvoirsParArticle(companyId, type)
+  const articleAsFinancial = allArticle
     .filter((a) => a.counterpartyId === counterpartyId && a.status === 'valide' && a.creditRestant > 0)
     .map(articleAvoirToLetterageShape);
   return [...financial, ...articleAsFinancial];
@@ -61,13 +72,16 @@ function articleAvoirToLetterageShape(a: AvoirParArticle): AvoirFinancier {
   };
 }
 
-export function listAvoirsParArticle(companyId: string, type?: AvoirFinancierType): AvoirParArticle[] {
-  const all = loadAvoirsParArticle(companyId);
+export async function listAvoirsParArticle(
+  companyId: string,
+  type?: AvoirFinancierType
+): Promise<AvoirParArticle[]> {
+  const all = await loadAvoirsParArticle(companyId);
   if (!type) return all;
   return all.filter((a) => a.type === type);
 }
 
-export function createAvoirParArticle(input: {
+export async function createAvoirParArticle(input: {
   companyId: string;
   type: AvoirFinancierType;
   numero: string;
@@ -87,7 +101,7 @@ export function createAvoirParArticle(input: {
   }>;
   notes?: string;
   valider?: boolean;
-}): AvoirParArticle {
+}): Promise<AvoirParArticle> {
   const lignes: AvoirParArticleLine[] = input.lignes.map((l, i) => {
     const montantHt = Math.round(l.quantity * l.unitPriceHt * 1000) / 1000;
     const calc = computeAvoirLineTotals({
@@ -130,9 +144,7 @@ export function createAvoirParArticle(input: {
     notes: input.notes ?? null,
     createdAt: new Date().toISOString(),
   };
-  const all = loadAvoirsParArticle(input.companyId);
-  all.unshift(avoir);
-  saveAvoirsParArticle(input.companyId, all);
+  await insertAvoirParArticle(avoir);
   return avoir;
 }
 
@@ -143,7 +155,7 @@ export function generateAvoirArticleNumero(type: AvoirFinancierType): string {
   return `${prefix}-${stamp}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
 }
 
-export function createAvoirFinancier(input: {
+export async function createAvoirFinancier(input: {
   companyId: string;
   type: AvoirFinancierType;
   numero: string;
@@ -154,7 +166,7 @@ export function createAvoirFinancier(input: {
   lignes: Array<{ description: string; montantHt: number; tauxTva: TauxTvaTunisie }>;
   notes?: string;
   valider?: boolean;
-}): AvoirFinancier {
+}): Promise<AvoirFinancier> {
   const lignes: AvoirFinancierLine[] = input.lignes.map((l, i) =>
     computeAvoirLineTotals({
       id: `ln-${i}`,
@@ -182,34 +194,22 @@ export function createAvoirFinancier(input: {
     notes: input.notes ?? null,
     createdAt: new Date().toISOString(),
   };
-  const all = loadAvoirs(input.companyId);
-  all.unshift(avoir);
-  saveAvoirs(input.companyId, all);
+  await insertAvoir(avoir);
   return avoir;
 }
 
 /** Consomme du crédit avoir lors d'un lettrage. */
-export function applyAvoirCredit(companyId: string, avoirId: string, amount: number): void {
-  const articleAll = loadAvoirsParArticle(companyId);
-  const artIdx = articleAll.findIndex((a) => a.id === avoirId);
-  if (artIdx >= 0) {
-    const next = [...articleAll];
-    next[artIdx] = {
-      ...next[artIdx],
-      creditRestant: Math.max(0, next[artIdx].creditRestant - amount),
-    };
-    saveAvoirsParArticle(companyId, next);
+export async function applyAvoirCredit(companyId: string, avoirId: string, amount: number): Promise<void> {
+  const articleAll = await loadAvoirsParArticle(companyId);
+  const art = articleAll.find((a) => a.id === avoirId);
+  if (art) {
+    await updateAvoirArticleCreditRestant(avoirId, Math.max(0, art.creditRestant - amount));
     return;
   }
-  const all = loadAvoirs(companyId);
-  const idx = all.findIndex((a) => a.id === avoirId);
-  if (idx < 0) return;
-  const next = [...all];
-  next[idx] = {
-    ...next[idx],
-    creditRestant: Math.max(0, next[idx].creditRestant - amount),
-  };
-  saveAvoirs(companyId, next);
+  const all = await loadAvoirs(companyId);
+  const fin = all.find((a) => a.id === avoirId);
+  if (!fin) return;
+  await updateAvoirCreditRestant(avoirId, Math.max(0, fin.creditRestant - amount));
 }
 
 export function generateAvoirNumero(type: AvoirFinancierType): string {

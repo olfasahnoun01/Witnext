@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,12 +39,16 @@ import { PhoneLinesEditor } from './shared/PhoneLinesEditor';
 import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { formatPhonesDisplay, parsePhoneListFromStorage, serializePhoneList } from '@/lib/phoneList';
 import { generateNextEntityCode } from '@/lib/entityCode';
+import { getGrosafeCompanyId } from '@/lib/companyScope';
+import { CLIENT_TVA_STATUS_OPTIONS, clientTvaStatusLabel, type ClientTvaStatus } from '@/config/sectionThemes';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 interface Client {
   id: number;
   code: string;
   nom: string;
   matricule_fiscale: string | null;
+  tva_status?: ClientTvaStatus | string | null;
   location: string | null;
   phone: string | null;
   email: string | null;
@@ -91,6 +96,7 @@ export const Clients = memo(() => {
   const [exactLocation, setExactLocation] = useState('');
   const [patenteUrl, setPatenteUrl] = useState<string | null>(null);
   const [rcUrl, setRcUrl] = useState<string | null>(null);
+  const [tvaStatus, setTvaStatus] = useState<ClientTvaStatus>('assujetti');
   
   // Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -112,18 +118,26 @@ export const Clients = memo(() => {
 
   const loadClients = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .order('nom');
-    
-    if (error) {
+    try {
+      const grosafeId = await getGrosafeCompanyId();
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('company_id', grosafeId)
+        .order('nom');
+
+      if (error) {
+        toast.error('Erreur lors du chargement des clients');
+        console.error(error);
+      } else {
+        setClients((data as any) || []);
+      }
+    } catch (err) {
       toast.error('Erreur lors du chargement des clients');
-      console.error(error);
-    } else {
-      setClients((data as any) || []);
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -141,6 +155,7 @@ export const Clients = memo(() => {
     setExactLocation('');
     setPatenteUrl(null);
     setRcUrl(null);
+    setTvaStatus('assujetti');
     setEditingClient(null);
   }, []);
 
@@ -177,6 +192,11 @@ export const Clients = memo(() => {
       return;
     }
 
+    if (!tvaStatus) {
+      toast.error('Le statut TVA est obligatoire');
+      return;
+    }
+
     const phoneStored = serializePhoneList(phoneLines);
 
     if (!editingClient) {
@@ -196,10 +216,21 @@ export const Clients = memo(() => {
     const locationParts = [exactLocation.trim(), selectedCity, selectedGovernorate].filter(Boolean);
     const locationValue = locationParts.length > 0 ? locationParts.join(', ') : null;
 
+    let grosafeId: string;
+    try {
+      grosafeId = await getGrosafeCompanyId();
+    } catch (err) {
+      toast.error('Société Grosafe introuvable — enregistrement annulé');
+      console.error(err);
+      return;
+    }
+
     const clientData = {
       nom: nom.trim(),
       code: clientCode,
       matricule_fiscale: matriculeFiscale.trim(),
+      tva_status: tvaStatus,
+      company_id: grosafeId,
       phone: phoneStored || null,
       email: email.trim(),
       location: locationValue,
@@ -243,13 +274,14 @@ export const Clients = memo(() => {
         loadClients();
       }
     }
-  }, [nom, code, existingClientCodes, selectedCity, selectedGovernorate, exactLocation, matriculeFiscale, phoneLines, email, patenteUrl, rcUrl, editingClient, resetForm, loadClients]);
+  }, [nom, code, tvaStatus, existingClientCodes, selectedCity, selectedGovernorate, exactLocation, matriculeFiscale, phoneLines, email, patenteUrl, rcUrl, editingClient, resetForm, loadClients]);
 
   const handleEdit = useCallback((client: Client) => {
     setEditingClient(client);
     setNom(client.nom);
     setCode(client.code || '');
     setMatriculeFiscale(client.matricule_fiscale || '');
+    setTvaStatus((client.tva_status as ClientTvaStatus) || 'assujetti');
     const parsed = parsePhoneListFromStorage(client.phone);
     setPhoneLines(parsed.length > 0 ? parsed : ['']);
     setEmail(client.email || '');
@@ -444,6 +476,24 @@ export const Clients = memo(() => {
                       required={!editingClient}
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label>Statut TVA *</Label>
+                    <RadioGroup
+                      value={tvaStatus}
+                      onValueChange={(v) => setTvaStatus(v as ClientTvaStatus)}
+                      className="grid gap-2"
+                      required
+                    >
+                      {CLIENT_TVA_STATUS_OPTIONS.map((opt) => (
+                        <div key={opt.value} className="flex items-center space-x-2">
+                          <RadioGroupItem value={opt.value} id={`tva-${opt.value}`} />
+                          <Label htmlFor={`tva-${opt.value}`} className="font-normal cursor-pointer">
+                            {opt.label}
+                          </Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  </div>
                   <PhoneLinesEditor
                     idPrefix="client"
                     label="Téléphone(s)"
@@ -606,7 +656,7 @@ export const Clients = memo(() => {
             </div>
           ) : (
             <>
-              <div className="rounded-lg border overflow-hidden">
+              <div className={`rounded-lg border overflow-hidden ${EXCEL_TABLE_CLASS}`}>
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
@@ -649,6 +699,7 @@ export const Clients = memo(() => {
                         </div>
                       </TableHead>
                       <TableHead>Matricule Fiscale</TableHead>
+                      <TableHead>Statut TVA</TableHead>
                       <TableHead>Téléphone</TableHead>
                       <TableHead>Localisation</TableHead>
                       <TableHead>Patente</TableHead>
@@ -665,6 +716,9 @@ export const Clients = memo(() => {
                         <TableCell className="font-medium text-primary">{client.nom}</TableCell>
                         <TableCell className="font-mono text-xs">
                           {client.matricule_fiscale || '-'}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {clientTvaStatusLabel(client.tva_status)}
                         </TableCell>
                         <TableCell>
                           <span className="flex items-center gap-1.5 text-xs">

@@ -24,7 +24,7 @@ export function parseMovementAccountId(notes: string | null): string | null {
  * Recalcule les soldes des comptes à partir de treasury_movements tagués + solde initial local.
  */
 export async function syncTreasuryBalancesFromMovements(companyId: string): Promise<TreasuryAccount[]> {
-  const accounts = loadTreasuryAccounts(companyId);
+  const accounts = await loadTreasuryAccounts(companyId);
   const { data, error } = await supabase
     .from('treasury_movements')
     .select('amount_signed, notes, category')
@@ -48,6 +48,6 @@ export async function syncTreasuryBalancesFromMovements(companyId: string): Prom
     soldeActuel: round3(deltas.get(a.id) ?? 0),
   }));
 
-  saveTreasuryAccounts(companyId, updated);
+  await saveTreasuryAccounts(companyId, updated);
   return updated;
 }

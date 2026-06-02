@@ -30,8 +30,8 @@ export function PaymentReglementsPanel({
     setLoading(true);
     try {
       const [c, f] = await Promise.all([
-        showClient ? fetchClientsForSettlement() : Promise.resolve([]),
-        showSupplier ? fetchFournisseursForSettlement() : Promise.resolve([]),
+        showClient ? fetchClientsForSettlement(companyId) : Promise.resolve([]),
+        showSupplier ? fetchFournisseursForSettlement(companyId) : Promise.resolve([]),
       ]);
       setClients(c);
       setFournisseurs(f);
@@ -40,7 +40,7 @@ export function PaymentReglementsPanel({
     } finally {
       setLoading(false);
     }
-  }, [showClient, showSupplier]);
+  }, [companyId, showClient, showSupplier]);
 
   useEffect(() => {
     void load();

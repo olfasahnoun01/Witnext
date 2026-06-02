@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,7 @@ import { FinanceAmount } from '../shared/FinanceAmount';
 import { loadBankFees } from '../../services/bankFeesStorage';
 import { parsePaymentMeta, REGLEMENT_STATUS_LABELS } from '../../services/paymentService';
 import type { PaymentRow } from '../../types';
+import type { BankFeeCharge } from '../../types/financeDomain';
 
 interface TreasuryUnpaidPanelProps {
   companyId: string;
@@ -26,9 +28,23 @@ interface TreasuryUnpaidPanelProps {
 export function TreasuryUnpaidPanel({ companyId, payments }: TreasuryUnpaidPanelProps) {
   const [monthFilter, setMonthFilter] = useState('');
 
+  const [bankFees, setBankFees] = useState<BankFeeCharge[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    loadBankFees(companyId)
+      .then((rows) => {
+        if (active) setBankFees(rows);
+      })
+      .catch((e) => toast.error(e instanceof Error ? e.message : 'Chargement des frais impossible'));
+    return () => {
+      active = false;
+    };
+  }, [companyId]);
+
   const unpaidBankFees = useMemo(
-    () => loadBankFees(companyId).filter((f) => f.status === 'IMPAYEE'),
-    [companyId]
+    () => bankFees.filter((f) => f.status === 'IMPAYEE'),
+    [bankFees]
   );
 
   const unpaidPayments = useMemo(() => {

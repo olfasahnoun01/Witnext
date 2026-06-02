@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowRightLeft, Landmark, PiggyBank, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -36,14 +36,26 @@ export function TreasuryAccountsDashboard({
   companyId,
   filterTypes,
   title = 'Comptes de trésorerie',
-  description = 'Banques, caisses et compte d\'attente effets — soldes en temps réel (3 décimales).',
+  description,
   showTransferButton = true,
   showNewAccountButton = true,
   newAccountDefaultType = 'BANQUE',
 }: TreasuryAccountsDashboardProps) {
-  const [accounts, setAccounts] = useState<TreasuryAccount[]>(() => loadTreasuryAccounts(companyId));
+  const [accounts, setAccounts] = useState<TreasuryAccount[]>([]);
   const [transferOpen, setTransferOpen] = useState(false);
   const [accountFormOpen, setAccountFormOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    loadTreasuryAccounts(companyId)
+      .then((rows) => {
+        if (active) setAccounts(rows);
+      })
+      .catch((e) => toast.error(e instanceof Error ? e.message : 'Chargement des comptes impossible'));
+    return () => {
+      active = false;
+    };
+  }, [companyId]);
 
   const visibleAccounts = filterTypes
     ? accounts.filter((a) => filterTypes.includes(a.type))
@@ -54,7 +66,7 @@ export function TreasuryAccountsDashboard({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">{title}</h2>
-          <p className="text-sm text-muted-foreground">{description}</p>
+          {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </div>
         <div className="flex gap-2">
           {showTransferButton && (

@@ -1,8 +1,8 @@
 /**
- * Relevés bancaires importés — persistance locale (en attendant tables dédiées).
+ * Relevés bancaires importés — persistance Supabase par société (RLS user_companies).
  */
 
-import type { TreasuryAccount } from '../types/financeDomain';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface BankStatementLine {
   id: string;
@@ -16,19 +16,51 @@ export interface BankStatementLine {
   matchedPaymentId: string | null;
 }
 
-const KEY = (companyId: string) => `finance_bank_statements_v1_${companyId}`;
-
-export function loadBankStatementLines(companyId: string): BankStatementLine[] {
-  try {
-    const raw = localStorage.getItem(KEY(companyId));
-    return raw ? (JSON.parse(raw) as BankStatementLine[]) : [];
-  } catch {
-    return [];
-  }
+function fail(err: { message?: string } | null, fallback: string): never {
+  throw new Error(err?.message || fallback);
 }
 
-export function saveBankStatementLines(companyId: string, lines: BankStatementLine[]): void {
-  localStorage.setItem(KEY(companyId), JSON.stringify(lines));
+export async function loadBankStatementLines(companyId: string): Promise<BankStatementLine[]> {
+  const { data, error } = await supabase
+    .from('bank_statement_lines')
+    .select('*')
+    .eq('company_id', companyId)
+    .order('operation_date', { ascending: true });
+  if (error) fail(error, 'Chargement des relevés bancaires impossible');
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    accountId: r.account_id,
+    operationDate: r.operation_date,
+    valueDate: r.value_date,
+    label: r.label,
+    amountSigned: Number(r.amount_signed),
+    reference: r.reference,
+    matchedMovementId: r.matched_movement_id,
+    matchedPaymentId: r.matched_payment_id,
+  }));
+}
+
+export async function saveBankStatementLines(
+  companyId: string,
+  lines: BankStatementLine[]
+): Promise<void> {
+  if (lines.length === 0) return;
+  const rows = lines.map((l) => ({
+    id: l.id,
+    company_id: companyId,
+    account_id: l.accountId,
+    operation_date: l.operationDate,
+    value_date: l.valueDate,
+    label: l.label,
+    amount_signed: l.amountSigned,
+    reference: l.reference,
+    matched_movement_id: l.matchedMovementId,
+    matched_payment_id: l.matchedPaymentId,
+  }));
+  const { error } = await supabase
+    .from('bank_statement_lines')
+    .upsert(rows, { onConflict: 'id' });
+  if (error) fail(error, 'Enregistrement des relevés bancaires impossible');
 }
 
 /** Parse CSV simple : date;libellé;montant (virgule décimale). */

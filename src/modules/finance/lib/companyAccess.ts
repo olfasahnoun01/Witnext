@@ -34,14 +34,14 @@ export function getUserPosteFromMetadata(user: User | null): string {
   return String(user?.user_metadata?.position || user?.user_metadata?.role || '').trim();
 }
 
-/** Admin, modérateur ou responsable financier peuvent changer de société. */
+/** Admin, modérateur, DG ou postes direction/finance peuvent changer de société. */
 export function canSwitchFinanceCompany(
   isAdmin: boolean,
   isModerator: boolean,
   userPoste: string
 ): boolean {
   if (isAdmin || isModerator) return true;
-  return posteMatches(userPoste, ['responsable financier']);
+  return posteMatches(userPoste, ['responsable financier', 'directeur generale', 'responsable administrative']);
 }
 
 export function verifyCompanyAccessCode(companyCode: string, enteredCode: string): boolean {

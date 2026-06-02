@@ -74,7 +74,7 @@ export function PaymentSettlementForm({
   const [numeroPiece] = useState(() => generateNumeroPiece(direction));
   const [mode, setMode] = useState<ModeReglement>('VIREMENT');
   const [treasuryAccountId, setTreasuryAccountId] = useState('');
-  const [accounts, setAccounts] = useState<TreasuryAccount[]>(() => loadTreasuryAccounts(companyId));
+  const [accounts, setAccounts] = useState<TreasuryAccount[]>([]);
   const [montantTotal, setMontantTotal] = useState('');
   const [pieceNumero, setPieceNumero] = useState('');
   const [banque, setBanque] = useState('');
@@ -90,6 +90,16 @@ export function PaymentSettlementForm({
   const title = direction === 'client' ? 'Règlement client' : 'Paiement fournisseur';
   const invoiceType = direction === 'client' ? 'vente' : 'achat';
   const avoirType = invoiceType;
+
+  const reloadAccounts = useCallback(() => {
+    loadTreasuryAccounts(companyId)
+      .then(setAccounts)
+      .catch((e) => toast.error(e instanceof Error ? e.message : 'Chargement des comptes impossible'));
+  }, [companyId]);
+
+  useEffect(() => {
+    reloadAccounts();
+  }, [reloadAccounts]);
 
   const selectableAccounts = useMemo(
     () => accounts.filter((a) => a.actif && a.type !== 'ATTENTE_EFFETS'),
@@ -115,7 +125,7 @@ export function PaymentSettlementForm({
     try {
       const [invoices, avoirs] = await Promise.all([
         fetchUnpaidInvoicesForCounterparty(companyId, invoiceType, counterparty),
-        Promise.resolve(listAvoirsForCounterparty(companyId, avoirType, counterparty.id)),
+        listAvoirsForCounterparty(companyId, avoirType, counterparty.id),
       ]);
       setLetterageLines(buildLetterageFromDocuments(invoices, avoirs));
     } catch (e) {
@@ -184,13 +194,13 @@ export function PaymentSettlementForm({
     [letterageLines]
   );
 
-  const handlePreviewTraite = () => {
+  const handlePreviewTraite = async () => {
     if (!company || !counterparty || !canPreviewTraite) {
       toast.error('Complétez le tiers, montant, N° traite, banque et échéance.');
       return;
     }
     try {
-      const data = buildTraiteDataFromForm({
+      const data = await buildTraiteDataFromForm({
         company,
         companyId,
         direction,
@@ -322,7 +332,7 @@ export function PaymentSettlementForm({
           toast.message('Traite enregistrée — utilisez le portefeuille effets pour réimprimer.');
         }
       }
-      setAccounts(loadTreasuryAccounts(companyId));
+      reloadAccounts();
       setMontantTotal('');
       setLetterageLines([]);
       setCounterparty(null);
@@ -469,7 +479,7 @@ export function PaymentSettlementForm({
                     size="sm"
                     className="gap-1.5"
                     disabled={!canPreviewTraite}
-                    onClick={handlePreviewTraite}
+                    onClick={() => void handlePreviewTraite()}
                   >
                     <Printer className="h-4 w-4" />
                     Aperçu / Imprimer la traite
