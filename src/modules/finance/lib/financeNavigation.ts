@@ -67,7 +67,7 @@ export const FINANCE_MAIN_SECTIONS: FinanceMainSection[] = [
     id: 'fiscal',
     label: 'Fiscalité',
     icon: Scale,
-    description: 'TVA et retenue à la source',
+    description: 'Tableau de bord fiscal, TVA et retenues à la source',
   },
   {
     id: 'accounting',
@@ -191,6 +191,11 @@ export function getTreasurySubsections(): FinanceNavItem[] {
       label: 'Synthèse',
       description: 'Vue consolidée trésorerie',
     },
+    {
+      id: 'leasing-credit',
+      label: 'État crédit leasing',
+      description: 'Crédit-bail véhicules — échéancier mensuel',
+    },
   ];
 }
 
@@ -198,15 +203,15 @@ export function getFiscalSubsections(caps: FinanceCapabilities): FinanceNavItem[
   const items: FinanceNavItem[] = [
     {
       id: 'vat',
-      label: 'Déclaration TVA',
-      description: 'TVA collectée et déductible',
+      label: 'Tableau de bord fiscal',
+      description: 'TVA Collectée, TVA Déductible, timbres et retenues',
     },
   ];
   if (caps.supplierWithholding) {
     items.push({
       id: 'withholding',
-      label: 'Retenue à la source',
-      description: 'Certificats RS fournisseurs',
+      label: 'Attestations de retenue',
+      description: 'Retenues fournisseurs, clients et loyers',
     });
   }
   return items;
@@ -227,7 +232,6 @@ export function getSourcesSubsections(): FinanceNavItem[] {
     {
       id: 'pieces',
       label: 'Pièces commerciales',
-      description: 'Devis, BC, BL/BE/BS et annuaires tiers',
     },
     {
       id: 'operations',

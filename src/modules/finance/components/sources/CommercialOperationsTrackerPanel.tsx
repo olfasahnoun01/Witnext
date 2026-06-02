@@ -31,6 +31,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { paginateList, OPERATIONS_PAGE_SIZE } from '../../lib/pagination';
+import { FinanceListPagination } from '../shared/FinanceListPagination';
 import { pdfPreviewDialogContentClassName } from '@/lib/pdfPreviewDialog';
 import { documentService } from '@/services/documentService';
 import {
@@ -221,6 +223,7 @@ export function CommercialOperationsTrackerPanel({ companyId }: CommercialOperat
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState('');
   const [previewBusy, setPreviewBusy] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -248,6 +251,15 @@ export function CommercialOperationsTrackerPanel({ companyId }: CommercialOperat
         dateTo: dateTo || undefined,
       }),
     [operations, search, statusFilter, dateFrom, dateTo]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, dateFrom, dateTo]);
+
+  const paginated = useMemo(
+    () => paginateList(filtered, page, OPERATIONS_PAGE_SIZE),
+    [filtered, page]
   );
 
   const summary = useMemo(() => operationsSummary(filtered), [filtered]);
@@ -378,8 +390,9 @@ export function CommercialOperationsTrackerPanel({ companyId }: CommercialOperat
           <p>Aucune opération ne correspond aux filtres.</p>
         </div>
       ) : (
+        <>
         <div className="grid grid-cols-1 gap-3">
-          {filtered.map((op) => {
+          {paginated.slice.map((op) => {
             const activeIdx = firstActiveStepIndex(op.steps);
             const progressWidth =
               op.completedSteps <= 1 ? 0 : ((op.completedSteps - 1) / (OPERATION_STEP_ORDER.length - 1)) * 80;
@@ -441,6 +454,15 @@ export function CommercialOperationsTrackerPanel({ companyId }: CommercialOperat
             );
           })}
         </div>
+        <FinanceListPagination
+          page={paginated.page}
+          totalPages={paginated.totalPages}
+          total={paginated.total}
+          from={paginated.from}
+          to={paginated.to}
+          onPageChange={setPage}
+        />
+        </>
       )}
 
       <Dialog open={!!previewUrl} onOpenChange={(open) => !open && closePreview()}>

@@ -2,6 +2,7 @@ import {
   SEUIL_RETENUE_SOURCE_TTC,
   TIMBRE_FISCAL_FACTURE_DT,
 } from './tunisiaFiscal';
+import { FISCAL_LABELS } from './fiscalTerminology';
 
 /** Timbre fiscal tunisien (assiette RS et facturation). */
 export const TIMBRE_FISCAL_DT = TIMBRE_FISCAL_FACTURE_DT;
@@ -34,7 +35,7 @@ export const TAUX_RETENUE_SOURCE = [
   { value: 1, label: '1 % — Achats courants' },
   { value: 1.5, label: '1,5 % — Personne physique' },
   { value: 3, label: '3 % — Honoraires régime réel' },
-  { value: 10, label: '10 % — Loyer' },
+  { value: 10, label: `10 % — ${FISCAL_LABELS.retenueSourceLoyers}` },
 ] as const;
 
 /** Types de frais bancaires prédéfinis. */

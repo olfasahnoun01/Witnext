@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { formatMontantDt } from '../lib/money';
 import { FinanceAmount } from './shared/FinanceAmount';
 import { TIMBRE_FISCAL_FACTURE_DT } from '../lib/tunisiaFiscal';
+import { FISCAL_LABELS } from '../lib/fiscalTerminology';
 import type { InvoiceLineRow, InvoiceRow, InvoiceWriteInput, VatRate } from '../types';
 import {
   cancelSalesInvoice,
@@ -330,7 +331,7 @@ export function FinancePurchasesPanel({
                   checked={!!form.apply_timbre_fiscal}
                   onCheckedChange={(c) => setForm((f) => ({ ...f, apply_timbre_fiscal: c === true }))}
                 />
-                <Label>Timbre fiscal ({formatMontantDt(TIMBRE_FISCAL_FACTURE_DT)})</Label>
+                <Label>{FISCAL_LABELS.timbreFiscalFacture} ({formatMontantDt(TIMBRE_FISCAL_FACTURE_DT)})</Label>
               </div>
             </div>
 

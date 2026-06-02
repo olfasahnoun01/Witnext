@@ -48,12 +48,15 @@ import {
 
   getVisibleMainSections,
 
+  FINANCE_MAIN_SECTIONS,
+
   type FinanceMainSectionId,
 
 } from '../lib/financeNavigation';
 
-import { FinanceSectionHeader, FinanceSubNav } from './layout/FinanceSubNav';
+import { FinanceSubNav, FinanceWorkArea } from './layout/FinanceSubNav';
 import { FINANCE_EXCEL_TABLE_CLASS } from '../lib/financeStyles';
+import { getFinanceSectionTheme } from '../lib/financeSectionThemes';
 
 import { CommercialSourcesPanel } from './sources/CommercialSourcesPanel';
 import { CommercialOperationsTrackerPanel } from './sources/CommercialOperationsTrackerPanel';
@@ -288,13 +291,15 @@ export function FinanceDashboard() {
 
       >
 
-        <div className="rounded-lg border bg-card p-1 shadow-sm">
+        <div className="rounded-lg border-2 border-amber-500/20 bg-card p-1.5 shadow-sm">
 
-          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-0.5 bg-transparent p-0">
+          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-muted/30 p-1 border-b border-border/50">
 
             {mainSections.map((section) => {
 
               const Icon = section.icon;
+
+              const theme = getFinanceSectionTheme(section.id);
 
               return (
 
@@ -306,11 +311,11 @@ export function FinanceDashboard() {
 
                   className={cn(
 
-                    'gap-1.5 h-auto min-h-10 px-3 py-2 text-sm rounded-md',
+                    'gap-1.5 h-auto min-h-10 px-3 py-2 text-sm rounded-md border transition-colors',
 
-                    'data-[state=active]:bg-primary data-[state=active]:text-primary-foreground',
+                    theme.mainTabInactive,
 
-                    'data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:bg-muted/60'
+                    theme.mainTabActive
 
                   )}
 
@@ -337,8 +342,7 @@ export function FinanceDashboard() {
         {/* ——— Résumé ——— */}
 
         <TabsContent value="overview" className="mt-5 space-y-4">
-
-          <FinanceSectionHeader title="Tableau de bord" />
+          <FinanceWorkArea sectionId="overview" className="space-y-4">
 
           <div className="grid gap-4 md:grid-cols-3">
 
@@ -404,6 +408,8 @@ export function FinanceDashboard() {
             loading={loading}
           />
 
+          </FinanceWorkArea>
+
         </TabsContent>
 
 
@@ -411,11 +417,14 @@ export function FinanceDashboard() {
         {/* ——— Documents sources ——— */}
 
         <TabsContent value="sources" className="mt-5 space-y-4">
+          <FinanceSubNav
+            sectionId="sources"
+            items={sourcesSubs}
+            value={sourcesSub}
+            onValueChange={setSourcesSub}
+          />
 
-          <FinanceSectionHeader title="Documents sources" />
-
-          <FinanceSubNav items={sourcesSubs} value={sourcesSub} onValueChange={setSourcesSub} />
-
+          <FinanceWorkArea sectionId="sources">
           {sourcesSub === 'pieces' && (
             <CommercialSourcesPanel
               companyId={company.id}
@@ -427,6 +436,7 @@ export function FinanceDashboard() {
           {sourcesSub === 'operations' && (
             <CommercialOperationsTrackerPanel companyId={company.id} />
           )}
+          </FinanceWorkArea>
 
         </TabsContent>
 
@@ -435,12 +445,14 @@ export function FinanceDashboard() {
         {/* ——— Facturation ——— */}
 
         <TabsContent value="billing" className="mt-5 space-y-4">
+          <FinanceSubNav
+            sectionId="billing"
+            items={billingSubs}
+            value={billingSub}
+            onValueChange={setBillingSub}
+          />
 
-          <FinanceSectionHeader title="Facturation" />
-
-          <FinanceSubNav items={billingSubs} value={billingSub} onValueChange={setBillingSub} />
-
-
+          <FinanceWorkArea sectionId="billing">
 
           {billingSub === 'sales' && (
 
@@ -502,6 +514,8 @@ export function FinanceDashboard() {
 
           )}
 
+          </FinanceWorkArea>
+
         </TabsContent>
 
 
@@ -509,12 +523,14 @@ export function FinanceDashboard() {
         {/* ——— Règlements & créances ——— */}
 
         <TabsContent value="settlements" className="mt-5 space-y-4">
+          <FinanceSubNav
+            sectionId="settlements"
+            items={settlementsSubs}
+            value={settlementsSub}
+            onValueChange={setSettlementsSub}
+          />
 
-          <FinanceSectionHeader title="Règlements & créances" />
-
-          <FinanceSubNav items={settlementsSubs} value={settlementsSub} onValueChange={setSettlementsSub} />
-
-
+          <FinanceWorkArea sectionId="settlements">
 
           {settlementsSub === 'client-settlement' && (
 
@@ -592,13 +608,15 @@ export function FinanceDashboard() {
 
           {settlementsSub === 'disputes' && <UnpaidDisputesPanel invoices={invoices} />}
 
+          </FinanceWorkArea>
+
         </TabsContent>
 
 
 
         {/* ——— Trésorerie ——— */}
 
-        <TabsContent value="treasury" className="mt-5">
+        <TabsContent value="treasury" className="mt-5 space-y-4">
 
           <TreasuryHubPanel
             companyId={company.id}
@@ -615,14 +633,18 @@ export function FinanceDashboard() {
         {capabilities.vatDeclarations && (
 
           <TabsContent value="fiscal" className="mt-5 space-y-4">
+            <FinanceSubNav
+              sectionId="fiscal"
+              items={fiscalSubs}
+              value={fiscalSub}
+              onValueChange={setFiscalSub}
+            />
 
-            <FinanceSectionHeader title="Fiscalité" />
+            <FinanceWorkArea sectionId="fiscal">
 
-            <FinanceSubNav items={fiscalSubs} value={fiscalSub} onValueChange={setFiscalSub} />
-
-
-
-            {fiscalSub === 'vat' && <VatDeclarationDashboard companyId={company.id} />}
+            {fiscalSub === 'vat' && (
+              <VatDeclarationDashboard companyId={company.id} companyName={company.name} />
+            )}
 
             {fiscalSub === 'withholding' && capabilities.supplierWithholding && (
 
@@ -644,6 +666,8 @@ export function FinanceDashboard() {
 
             )}
 
+            </FinanceWorkArea>
+
           </TabsContent>
 
         )}
@@ -655,10 +679,11 @@ export function FinanceDashboard() {
         {capabilities.statements && (
 
           <TabsContent value="accounting" className="mt-5 space-y-4">
-
-            <FinanceSectionHeader title="Comptabilité" />
+            <FinanceWorkArea sectionId="accounting">
 
             <AccountingStatementsPanel companyId={company.id} />
+
+            </FinanceWorkArea>
 
           </TabsContent>
 

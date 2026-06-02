@@ -1713,6 +1713,7 @@ export type Database = {
           net_vat_due: number
           withholding_supplier: number | null
           withholding_at_source_other: number | null
+          tcl_due: number | null
           status: string
           notes: string | null
           filed_at: string | null
@@ -1730,6 +1731,7 @@ export type Database = {
           net_vat_due?: number
           withholding_supplier?: number | null
           withholding_at_source_other?: number | null
+          tcl_due?: number | null
           status?: string
           notes?: string | null
           filed_at?: string | null
@@ -1747,6 +1749,7 @@ export type Database = {
           net_vat_due?: number
           withholding_supplier?: number | null
           withholding_at_source_other?: number | null
+          tcl_due?: number | null
           status?: string
           notes?: string | null
           filed_at?: string | null

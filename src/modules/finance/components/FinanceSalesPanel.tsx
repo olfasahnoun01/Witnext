@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import type { InvoiceLineRow, InvoiceRow, InvoiceWriteInput, VatRate } from '../types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { TIMBRE_FISCAL_FACTURE_DT } from '../lib/tunisiaFiscal';
+import { FISCAL_LABELS } from '../lib/fiscalTerminology';
 import { formatMontantDt } from '../lib/money';
 import { FinanceAmount } from './shared/FinanceAmount';
 import {
@@ -380,7 +381,7 @@ export function FinanceSalesPanel({
                 checked={!!form.apply_timbre_fiscal}
                 onCheckedChange={(c) => setForm((f) => ({ ...f, apply_timbre_fiscal: c === true }))}
               />
-              <Label>Timbre fiscal ({formatMontantDt(TIMBRE_FISCAL_FACTURE_DT)})</Label>
+              <Label>{FISCAL_LABELS.timbreFiscalFacture} ({formatMontantDt(TIMBRE_FISCAL_FACTURE_DT)})</Label>
             </div>
             <div className="md:col-span-3"><Label>Notes</Label><Textarea value={form.notes || ''} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} /></div>
           </div>

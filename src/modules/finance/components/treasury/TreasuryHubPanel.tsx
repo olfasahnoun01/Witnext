@@ -7,8 +7,8 @@ import { FinanceAmount } from '../shared/FinanceAmount';
 import { loadTreasuryAccounts } from '../../services/treasuryStorage';
 import type { TreasuryAccount } from '../../types/financeDomain';
 import {
-  FinanceSectionHeader,
   FinanceSubNav,
+  FinanceWorkArea,
 } from '../layout/FinanceSubNav';
 import { getTreasurySubsections } from '../../lib/financeNavigation';
 import { TreasuryAccountsDashboard } from './TreasuryAccountsDashboard';
@@ -18,6 +18,7 @@ import { TraitesPortfolioPanel } from '../traites/TraitesPortfolioPanel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { BankFeesPanel } from './BankFeesPanel';
+import { LeasingCreditStatePanel } from './LeasingCreditStatePanel';
 import { TreasuryUnpaidPanel } from './TreasuryUnpaidPanel';
 import type { PaymentRow } from '../../types';
 import { cn } from '@/lib/utils';
@@ -46,10 +47,14 @@ export function TreasuryHubPanel({ companyId, clientPaymentsTotal, payments }: T
 
   return (
     <div className="space-y-4">
-      <FinanceSectionHeader title="Trésorerie" />
+      <FinanceSubNav
+        sectionId="treasury"
+        items={subsections}
+        value={activeSub}
+        onValueChange={setActiveSub}
+      />
 
-      <FinanceSubNav items={subsections} value={activeSub} onValueChange={setActiveSub} />
-
+      <FinanceWorkArea sectionId="treasury">
       {activeSub === 'bank' && (
         <div className="space-y-8">
           <TreasuryAccountsDashboard
@@ -191,6 +196,9 @@ export function TreasuryHubPanel({ companyId, clientPaymentsTotal, payments }: T
           </Card>
         </div>
       )}
+
+      {activeSub === 'leasing-credit' && <LeasingCreditStatePanel companyId={companyId} />}
+      </FinanceWorkArea>
     </div>
   );
 }

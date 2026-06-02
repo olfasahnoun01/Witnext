@@ -8,6 +8,7 @@ import type {
   VatRate,
 } from '../types';
 import { COMPTES_PCG } from '../lib/tunisiaFiscal';
+import { FISCAL_LABELS } from '../lib/fiscalTerminology';
 import {
   round3,
   computeInvoiceLine,
@@ -319,7 +320,7 @@ async function validateFinanceInvoice(
       journalLines.push({
         journal_entry_id: entry.id,
         account_code: vatAccountCodeCollectee(rate as VatRate),
-        line_memo: `TVA collectée ${rate}%`,
+        line_memo: `${FISCAL_LABELS.tvaCollectee} ${rate}%`,
         debit: 0,
         credit: amount,
         vat_code: `TVA_${rate}`,
@@ -329,7 +330,7 @@ async function validateFinanceInvoice(
       journalLines.push({
         journal_entry_id: entry.id,
         account_code: COMPTES_PCG.timbreFiscal,
-        line_memo: 'Timbre fiscal',
+        line_memo: FISCAL_LABELS.timbresFiscauxAReverser,
         debit: 0,
         credit: timbre,
       });
@@ -356,7 +357,7 @@ async function validateFinanceInvoice(
       journalLines.push({
         journal_entry_id: entry.id,
         account_code: COMPTES_PCG.tvaDeductible,
-        line_memo: 'TVA déductible achats',
+        line_memo: `${FISCAL_LABELS.tvaDeductible} achats`,
         debit: totalTva,
         credit: 0,
         vat_code: 'TVA_DED',
@@ -366,7 +367,7 @@ async function validateFinanceInvoice(
       journalLines.push({
         journal_entry_id: entry.id,
         account_code: COMPTES_PCG.achats,
-        line_memo: 'Timbre fiscal (achat)',
+        line_memo: `${FISCAL_LABELS.timbresFiscauxAReverser} (achat)`,
         debit: timbre,
         credit: 0,
       });

@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { BANQUES_TUNISIE } from '../../lib/constants';
+import { FISCAL_LABELS } from '../../lib/fiscalTerminology';
 import { formatMontantDt, parseMontantInput } from '../../lib/money';
 import { FinanceAmount } from '../shared/FinanceAmount';
 import type { CounterpartyOption, ModeReglement, ReglementStatus, SettlementDirection } from '../../types/paymentTypes';
@@ -353,7 +354,7 @@ export function PaymentSettlementForm({
             {title}
           </CardTitle>
           <CardDescription>
-            Pièce {numeroPiece} — lettrage factures et avoirs, net après RS (fournisseur).
+            Pièce {numeroPiece} — lettrage factures et avoirs, net après retenue à la source (fournisseur).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -494,7 +495,7 @@ export function PaymentSettlementForm({
 
           {direction === 'fournisseur' && isRetenueSourceRequise(factureBrut) && (
             <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5">
-              <Badge variant="outline">Retenue à la source</Badge>
+              <Badge variant="outline">{FISCAL_LABELS.retenueSourceFournisseur}</Badge>
               <Select value={withholdingRate} onValueChange={setWithholdingRate}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue />
@@ -503,11 +504,12 @@ export function PaymentSettlementForm({
                   <SelectItem value="1">1 % — Achats courants</SelectItem>
                   <SelectItem value="1.5">1,5 % — Personne physique</SelectItem>
                   <SelectItem value="3">3 % — Honoraires réel</SelectItem>
-                  <SelectItem value="10">10 % — Loyer</SelectItem>
+                  <SelectItem value="10">10 % — {FISCAL_LABELS.retenueSourceLoyers}</SelectItem>
                 </SelectContent>
               </Select>
               <span className="text-sm tabular-nums">
-                RS : <strong>{formatMontantDt(retenueMontant)}</strong> — Net :{' '}
+                {FISCAL_LABELS.retenueSourceFournisseur} :{' '}
+                <strong>{formatMontantDt(retenueMontant)}</strong> — Net :{' '}
                 <strong>{formatMontantDt(totals.netAPayer)}</strong>
               </span>
             </div>
@@ -560,7 +562,7 @@ export function PaymentSettlementForm({
           </div>
           {totals.retenueSource > 0 && (
             <div>
-              <p className="text-muted-foreground">RS</p>
+              <p className="text-muted-foreground">{FISCAL_LABELS.retenueSourceFournisseur}</p>
               <p className="text-lg font-semibold tabular-nums text-amber-700">
                 {formatMontantDt(totals.retenueSource)}
               </p>

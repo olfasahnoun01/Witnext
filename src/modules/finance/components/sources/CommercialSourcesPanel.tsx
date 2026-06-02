@@ -25,6 +25,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatMontantDt } from '../../lib/money';
+import { paginateList } from '../../lib/pagination';
+import { FinanceListPagination } from '../shared/FinanceListPagination';
 import {
   createFinanceInvoiceFromDevis,
   createFinanceInvoiceFromDocument,
@@ -67,12 +69,15 @@ interface CommercialSourcesPanelProps {
   onInvoiceCreated: () => Promise<void>;
 }
 
+type DevisFlowFilter = 'vente' | 'achat';
+
 export function CommercialSourcesPanel({
   companyId,
   showPurchases,
   onInvoiceCreated,
 }: CommercialSourcesPanelProps) {
   const [search, setSearch] = useState('');
+  const [devisFlow, setDevisFlow] = useState<DevisFlowFilter>('vente');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -103,6 +108,12 @@ export function CommercialSourcesPanel({
       return next.length > 0 ? next : [...allowed];
     });
   }, [showPurchases]);
+
+  useEffect(() => {
+    if (!showPurchases && devisFlow === 'achat') {
+      setDevisFlow('vente');
+    }
+  }, [showPurchases, devisFlow]);
 
   const warehouseByType = useMemo(
     (): Record<MagasinDocFilter, WarehouseDocumentRow[]> => ({
@@ -252,13 +263,7 @@ export function CommercialSourcesPanel({
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Pièces commerciales — liaison modules Ventes / Achats / Magasin
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2 items-center">
+        <CardContent className="pt-6 flex flex-wrap gap-2 items-center">
           <Input
             className="max-w-sm"
             placeholder="Rechercher N°, tiers, MF…"
@@ -304,25 +309,36 @@ export function CommercialSourcesPanel({
           )}
         </TabsList>
 
-        <TabsContent value="devis" className="mt-4 space-y-6">
+        <TabsContent value="devis" className="mt-4 space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-medium text-muted-foreground">Type de devis</span>
+            <ToggleGroup
+              type="single"
+              value={devisFlow}
+              onValueChange={(v) => v && setDevisFlow(v as DevisFlowFilter)}
+            >
+              <ToggleGroupItem value="vente" aria-label="Devis vente">
+                Ventes
+              </ToggleGroupItem>
+              {showPurchases && (
+                <ToggleGroupItem value="achat" aria-label="Devis achat">
+                  Achats
+                </ToggleGroupItem>
+              )}
+            </ToggleGroup>
+          </div>
           <DevisTable
-            title="Devis vente"
-            subtitle="Module Ventes — table devis"
-            rows={filterDevis(devisVente)}
+            title={devisFlow === 'vente' ? 'Devis vente' : 'Devis achat'}
+            subtitle={
+              devisFlow === 'vente'
+                ? 'Module Ventes — table devis'
+                : 'Module Achats — table devis'
+            }
+            rows={filterDevis(devisFlow === 'vente' ? devisVente : devisAchat)}
             loading={loading}
             busyId={busyId}
             onGenerate={handleDevisInvoice}
           />
-          {showPurchases && (
-            <DevisTable
-              title="Devis achat"
-              subtitle="Module Achats — table devis"
-              rows={filterDevis(devisAchat)}
-              loading={loading}
-              busyId={busyId}
-              onGenerate={handleDevisInvoice}
-            />
-          )}
         </TabsContent>
 
         <TabsContent value="bc" className="mt-4 space-y-6">
@@ -457,6 +473,10 @@ function DevisTable({
   busyId: string | null;
   onGenerate: (row: CommercialDevisRow) => void;
 }) {
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [rows]);
+  const paginated = useMemo(() => paginateList(rows, page), [rows, page]);
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -484,7 +504,7 @@ function DevisTable({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (
+                {paginated.slice.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell className="font-mono">{row.numero}</TableCell>
                     <TableCell>{row.date}</TableCell>
@@ -510,6 +530,16 @@ function DevisTable({
               </TableBody>
             </Table>
           </div>
+        )}
+        {!loading && rows.length > 0 && (
+          <FinanceListPagination
+            page={paginated.page}
+            totalPages={paginated.totalPages}
+            total={paginated.total}
+            from={paginated.from}
+            to={paginated.to}
+            onPageChange={setPage}
+          />
         )}
       </CardContent>
     </Card>
@@ -541,6 +571,10 @@ function WarehouseTable({
   onGroupSelected?: () => void;
   groupBusy?: boolean;
 }) {
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [rows]);
+  const paginated = useMemo(() => paginateList(rows, page), [rows, page]);
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -580,7 +614,7 @@ function WarehouseTable({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (
+                {paginated.slice.map((row) => (
                   <TableRow key={row.id}>
                     {allowMultiSelect && (
                       <TableCell>
@@ -614,6 +648,16 @@ function WarehouseTable({
             </Table>
           </div>
         )}
+        {!loading && rows.length > 0 && (
+          <FinanceListPagination
+            page={paginated.page}
+            totalPages={paginated.totalPages}
+            total={paginated.total}
+            from={paginated.from}
+            to={paginated.to}
+            onPageChange={setPage}
+          />
+        )}
       </CardContent>
     </Card>
   );
@@ -630,6 +674,10 @@ function TiersTable({
   loading: boolean;
   isSupplier?: boolean;
 }) {
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [rows]);
+  const paginated = useMemo(() => paginateList(rows, page), [rows, page]);
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -645,7 +693,7 @@ function TiersTable({
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aucun tiers enregistré.</p>
         ) : (
-          <div className="rounded-md border overflow-x-auto max-h-[480px] overflow-y-auto">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -656,7 +704,7 @@ function TiersTable({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (
+                {paginated.slice.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell className="font-medium">{row.nom}</TableCell>
                     <TableCell className="text-xs font-mono">{row.matriculeFiscale || '—'}</TableCell>
@@ -667,6 +715,16 @@ function TiersTable({
               </TableBody>
             </Table>
           </div>
+        )}
+        {!loading && rows.length > 0 && (
+          <FinanceListPagination
+            page={paginated.page}
+            totalPages={paginated.totalPages}
+            total={paginated.total}
+            from={paginated.from}
+            to={paginated.to}
+            onPageChange={setPage}
+          />
         )}
       </CardContent>
     </Card>

@@ -19,6 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { FISCAL_LABELS } from '../../lib/fiscalTerminology';
 import { TAUX_RETENUE_SOURCE } from '../../lib/constants';
 import { formatMontantDt } from '../../lib/money';
 import { computeWithholdingLine } from '../../services/paymentService';
@@ -117,14 +118,22 @@ export function CertificatRetenuePanel({
     );
   };
 
+  const panelTitle =
+    mode === 'PAYEUR'
+      ? FISCAL_LABELS.attestationsRetenueFournisseur
+      : FISCAL_LABELS.attestationsRetenueClient;
+
+  const panelDescription =
+    mode === 'PAYEUR'
+      ? `${FISCAL_LABELS.retenueSourceFournisseur} — ${FISCAL_LABELS.retenuesFournisseursAReverser}. Assiette = montant brut HT.`
+      : `${FISCAL_LABELS.retenueSourceClient} — ${FISCAL_LABELS.retenuesClientsAEncaisser}. Assiette = montant brut HT.`;
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Certificat de retenue à la source</CardTitle>
-          <CardDescription>
-            Assiette = montant brut HT (pas TTC). 1,5 % personne physique · 10 % loyer.
-          </CardDescription>
+          <CardTitle>{panelTitle}</CardTitle>
+          <CardDescription>{panelDescription}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
@@ -135,10 +144,10 @@ export function CertificatRetenuePanel({
               onValueChange={(v) => v && setMode(v as CertificatMode)}
             >
               <ToggleGroupItem value="PAYEUR" aria-label="Payeur">
-                Payeur (fournisseurs)
+                {FISCAL_LABELS.retenueSourceFournisseur}
               </ToggleGroupItem>
               <ToggleGroupItem value="BENEFICIAIRE" aria-label="Beneficiaire">
-                Bénéficiaire (clients)
+                {FISCAL_LABELS.retenueSourceClient}
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
