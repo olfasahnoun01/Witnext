@@ -1,10 +1,8 @@
 // @ts-nocheck
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
+/** Local dev / Electron origins. Deployed project URL comes from SUPABASE_URL at runtime. */
 const STATIC_ALLOWED_ORIGINS = [
-  'https://grosafe-stock-website.lovable.app',
-  'https://grosafe-stock.lovable.app',
-  'https://lptoakdzyuhkfvslgpsw.lovable.app',
   'http://localhost:8080',
   'http://localhost:5173',
   'http://127.0.0.1:8080',
@@ -17,9 +15,7 @@ function isAllowedOrigin(origin: string): boolean {
     (!!projectUrl && origin === projectUrl) ||
     STATIC_ALLOWED_ORIGINS.includes(origin) ||
     origin.startsWith('http://localhost:') ||
-    origin.startsWith('http://127.0.0.1:') ||
-    origin.endsWith('.lovable.app') ||
-    origin.endsWith('.lovableproject.com')
+    origin.startsWith('http://127.0.0.1:')
   )
 }
 

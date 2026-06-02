@@ -1,12 +1,8 @@
 // @ts-nocheck
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-/** Known app origins; project Supabase URL is matched separately from SUPABASE_URL. */
+/** Local dev / Electron origins. Deployed project URL comes from SUPABASE_URL at runtime. */
 const STATIC_ALLOWED_ORIGINS = [
-  'https://zfnhihbttwmrldcbaige.supabase.co',
-  'https://grosafe-stock-website.lovable.app',
-  'https://lptoakdzyuhkfvslgpsw.lovable.app',
-  'https://grosafe-stock.lovable.app',
   'http://localhost:8080',
   'http://localhost:5173',
   /* Electron dev (electron/main.cjs loads 127.0.0.1, not "localhost") */
@@ -20,10 +16,8 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
     (projectUrl && origin === projectUrl) ||
     STATIC_ALLOWED_ORIGINS.some(allowed => origin === allowed) ||
     origin.startsWith('http://localhost') ||
-    origin.startsWith('http://127.0.0.1:') ||
-    origin.endsWith('.lovable.app') ||
-    origin.endsWith('.lovableproject.com')
-  ) ? origin : (STATIC_ALLOWED_ORIGINS[0] || '*');
+    origin.startsWith('http://127.0.0.1:')
+  ) ? origin : (projectUrl || '*');
   
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
