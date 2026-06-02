@@ -1,3 +1,4 @@
+/** @deprecated Use Finance → Documents sources → Suivi des opérations (CommercialOperationsTrackerPanel). */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { 

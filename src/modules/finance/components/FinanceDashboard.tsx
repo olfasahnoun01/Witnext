@@ -44,6 +44,8 @@ import {
 
   getSettlementsSubsections,
 
+  getSourcesSubsections,
+
   getVisibleMainSections,
 
   type FinanceMainSectionId,
@@ -54,6 +56,7 @@ import { FinanceSectionHeader, FinanceSubNav } from './layout/FinanceSubNav';
 import { FINANCE_EXCEL_TABLE_CLASS } from '../lib/financeStyles';
 
 import { CommercialSourcesPanel } from './sources/CommercialSourcesPanel';
+import { CommercialOperationsTrackerPanel } from './sources/CommercialOperationsTrackerPanel';
 import { FinanceCompanyLogo } from './FinanceCompanyLogo';
 
 import { TreasuryHubPanel } from './treasury/TreasuryHubPanel';
@@ -124,6 +127,8 @@ export function FinanceDashboard() {
 
   const [fiscalSub, setFiscalSub] = useState(DEFAULT_SUBSECTION.fiscal);
 
+  const [sourcesSub, setSourcesSub] = useState(DEFAULT_SUBSECTION.sources);
+
   const mainSections = useMemo(() => getVisibleMainSections(capabilities), [capabilities]);
 
   const billingSubs = useMemo(() => getBillingSubsections(capabilities), [capabilities]);
@@ -131,6 +136,8 @@ export function FinanceDashboard() {
   const settlementsSubs = useMemo(() => getSettlementsSubsections(capabilities), [capabilities]);
 
   const fiscalSubs = useMemo(() => getFiscalSubsections(capabilities), [capabilities]);
+
+  const sourcesSubs = useMemo(() => getSourcesSubsections(), []);
 
   const load = useCallback(async () => {
 
@@ -403,17 +410,23 @@ export function FinanceDashboard() {
 
         {/* ——— Documents sources ——— */}
 
-        <TabsContent value="sources" className="mt-5">
+        <TabsContent value="sources" className="mt-5 space-y-4">
 
-          <CommercialSourcesPanel
+          <FinanceSectionHeader title="Documents sources" />
 
-            companyId={company.id}
+          <FinanceSubNav items={sourcesSubs} value={sourcesSub} onValueChange={setSourcesSub} />
 
-            showPurchases={showPurchases}
+          {sourcesSub === 'pieces' && (
+            <CommercialSourcesPanel
+              companyId={company.id}
+              showPurchases={showPurchases}
+              onInvoiceCreated={load}
+            />
+          )}
 
-            onInvoiceCreated={load}
-
-          />
+          {sourcesSub === 'operations' && (
+            <CommercialOperationsTrackerPanel companyId={company.id} />
+          )}
 
         </TabsContent>
 

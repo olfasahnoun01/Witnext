@@ -222,9 +222,24 @@ export function getAccountingSubsections(): FinanceNavItem[] {
   ];
 }
 
+export function getSourcesSubsections(): FinanceNavItem[] {
+  return [
+    {
+      id: 'pieces',
+      label: 'Pièces commerciales',
+      description: 'Devis, BC, BL/BE/BS et annuaires tiers',
+    },
+    {
+      id: 'operations',
+      label: 'Suivi des opérations',
+      description: 'Chaîne Devis → BC → BL → Factures (lecture seule)',
+    },
+  ];
+}
+
 export const DEFAULT_SUBSECTION: Record<FinanceMainSectionId, string> = {
   overview: 'dashboard',
-  sources: 'all',
+  sources: 'pieces',
   billing: 'sales',
   settlements: 'client-settlement',
   treasury: 'bank',
