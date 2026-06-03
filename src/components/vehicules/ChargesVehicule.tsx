@@ -21,6 +21,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { isReminderDue, localDateIso } from '@/lib/vehicleReminders';
 
 interface Charge {
   id: string;
@@ -139,12 +140,8 @@ export const ChargesVehicule = () => {
 
   const isExpired = (date: string) => {
     if (!date) return false;
-    return new Date(date) < new Date();
-  };
-
-  const isReminderDue = (date: string) => {
-    if (!date) return false;
-    return new Date(date) <= new Date();
+    const d = date.slice(0, 10);
+    return d < localDateIso();
   };
 
   const filteredCharges = charges.filter(charge => charge.type === activeTab);
@@ -233,7 +230,7 @@ export const ChargesVehicule = () => {
             <div className={`flex items-center gap-2 p-3 rounded-xl border ${isReminderDue(charge.reminderDate) ? 'text-amber-500 bg-amber-500/10 border-amber-500/20' : 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20'}`}>
               <Bell className={`w-4 h-4 ${isReminderDue(charge.reminderDate) ? 'animate-bounce' : ''}`} />
               <span className="text-xs font-bold uppercase tracking-wider">
-                {isReminderDue(charge.reminderDate) ? 'Rappel en cours !' : 'Rappel programmé'} : {new Date(charge.reminderDate).toLocaleDateString()}
+                {isReminderDue(charge.reminderDate) ? 'Rappel en cours !' : 'Rappel programmé'} : {new Date(`${charge.reminderDate.slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR')}
               </span>
             </div>
           )}

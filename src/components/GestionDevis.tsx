@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { FileText, History, Plus, Search } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Devis, DevisItem, BonCommande } from '@/types';
@@ -379,20 +380,25 @@ export const GestionDevis = ({
     setActiveSection('form');
   }, [defaultDevisType, resetForm]);
 
+  const accentIsAchat = (lockDevisType ? defaultDevisType : devisType) === 'achat';
+  const tabActiveClass = accentIsAchat
+    ? 'bg-orange-600 text-white shadow-md'
+    : 'bg-emerald-600 text-white shadow-md';
+  const tabBarClass = accentIsAchat ? 'bg-orange-500/10' : 'bg-emerald-500/10';
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Section tabs */}
-      <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit flex-wrap">
+      <div className={cn('flex gap-2 p-1 rounded-xl w-fit flex-wrap', tabBarClass)}>
         <button
           onClick={() => {
             if (!editingDevis) handleAddNew(sectionMode ?? 'devis');
             else setActiveSection('form');
           }}
-          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-            activeSection === 'form'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={cn(
+            'flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all',
+            activeSection === 'form' ? tabActiveClass : 'text-muted-foreground hover:text-foreground'
+          )}
         >
           <Plus className="w-4 h-4" />
           {editingDevis
@@ -405,11 +411,10 @@ export const GestionDevis = ({
         </button>
         <button
           onClick={() => setActiveSection('history')}
-          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-            activeSection === 'history'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={cn(
+            'flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all',
+            activeSection === 'history' ? tabActiveClass : 'text-muted-foreground hover:text-foreground'
+          )}
         >
           <History className="w-4 h-4" />
           Liste Devis ({savedDevis.length})
@@ -417,11 +422,10 @@ export const GestionDevis = ({
         {!hideListBcTab && (
           <button
             onClick={() => setActiveSection('bc')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-              activeSection === 'bc'
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={cn(
+              'flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all',
+              activeSection === 'bc' ? tabActiveClass : 'text-muted-foreground hover:text-foreground'
+            )}
           >
             <FileText className="w-4 h-4" />
             Liste BC ({bonsCommande.length})
@@ -429,11 +433,10 @@ export const GestionDevis = ({
         )}
         <button
           onClick={() => setActiveSection('helper')}
-          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-            activeSection === 'helper'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={cn(
+            'flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all',
+            activeSection === 'helper' ? tabActiveClass : 'text-muted-foreground hover:text-foreground'
+          )}
         >
           <Search className="w-4 h-4" />
           Devis Helper

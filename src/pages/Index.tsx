@@ -30,6 +30,7 @@ const WarehouseDocumentManager = lazy(() => import('@/components/inventory/Wareh
 const Planning = lazy(() => import('@/components/Planning').then(m => ({ default: m.Planning })));
 const RhRapports = lazy(() => import('@/components/rh/RhRapports').then(m => ({ default: m.RhRapports })));
 const RhStatistiques = lazy(() => import('@/components/rh/RhStatistiques').then(m => ({ default: m.RhStatistiques })));
+const HrEmployeesHub = lazy(() => import('@/components/rh/HrEmployeesHub').then(m => ({ default: m.HrEmployeesHub })));
 const Flotte = lazy(() => import('@/components/Flotte').then(m => ({ default: m.Flotte })));
 const VehiculeStats = lazy(() => import('@/components/vehicules/VehiculeStats').then(m => ({ default: m.VehiculeStats })));
 const BonCarburant = lazy(() => import('@/components/vehicules/BonCarburant').then(m => ({ default: m.BonCarburant })));
@@ -162,9 +163,11 @@ const Index = () => {
           </Suspense>
         )}
         {activeTab === 'suivi-clients' && <SuiviManager type="client" />}
-        {/* Galerie commerciale (Ventes) */}
+
+        {/* Commercial */}
         {activeTab === 'gallery' && <PhotoGallery />}
-        
+        {activeTab === 'rdv' && <RDV />}
+
         {(activeTab === 'demande-achat' || activeTab === 'demande-achat-magasin') && <PurchaseRequestManager />}
         {activeTab === 'commerciale-fournisseurs' && <Fournisseurs />}
         {activeTab === 'devis-achat' && (
@@ -174,10 +177,9 @@ const Index = () => {
           <GestionDevis onTabChange={handleTabChange} initialSection="bc" initialDevisType="achat" lockDevisType sectionMode="bc" />
         )}
         {activeTab === 'suivi-fournisseurs' && <SuiviManager type="fournisseur" />}
-        
-        {activeTab === 'rdv' && <RDV />}
-        
+
         {/* Ressources Humaines */}
+        {activeTab === 'rh-employes' && <HrEmployeesHub />}
         {activeTab === 'planning' && <Planning />}
         {activeTab === 'rh-rapports' && <RhRapports />}
         {activeTab === 'rh-statistiques' && <RhStatistiques />}

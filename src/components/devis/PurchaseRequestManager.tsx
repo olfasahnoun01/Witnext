@@ -98,10 +98,9 @@ export const PurchaseRequestManager = () => {
     currentUserPositionKey === 'responsable magasin' ||
     currentUserPositionKey === 'responsable stock';
   const isResponsableAchat = currentUserPositionKey === 'responsable achat';
-  const purchaseRequestTargets: Array<'responsable_stock' | 'responsable_achat'> = isResponsableCommercial
-    ? ['responsable_stock', 'responsable_achat']
-    : [];
-  const canCreatePurchaseRequest = isResponsableCommercial;
+  const purchaseRequestTargets: Array<'responsable_stock' | 'responsable_achat'> =
+    isResponsableCommercial || isAdmin ? ['responsable_stock', 'responsable_achat'] : [];
+  const canCreatePurchaseRequest = isResponsableCommercial || isAdmin;
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -217,7 +216,7 @@ export const PurchaseRequestManager = () => {
 
   const handleCreateRequest = async () => {
     if (!canCreatePurchaseRequest) {
-      toast.error('Seul le responsable commercial peut créer une demande d\'achat.');
+      toast.error('Seuls le responsable commercial et l\'administrateur peuvent créer une demande d\'achat.');
       return;
     }
 
@@ -235,7 +234,7 @@ export const PurchaseRequestManager = () => {
     try {
       const result = await documentService.createPurchaseRequest({
         requesterName: requesterName.trim() || undefined,
-        requesterRole: isResponsableCommercial ? 'responsable_commercial' : undefined,
+        requesterRole: isAdmin ? 'admin' : isResponsableCommercial ? 'responsable_commercial' : undefined,
         notes: notes.trim() || undefined,
         targetRole,
         items: validLines.map((line) => ({
@@ -319,7 +318,7 @@ export const PurchaseRequestManager = () => {
         <div>
           <h2 className="text-2xl font-bold">Demandes d'achat</h2>
           <p className="text-sm text-muted-foreground">
-            Le responsable commercial envoie la demande au responsable stock ou directement aux achats. Le responsable magasin ne peut que transférer vers les achats les demandes qui lui sont adressées.
+            Le responsable commercial ou l&apos;administrateur envoie la demande au responsable stock ou directement aux achats. Le responsable magasin ne peut que transférer vers les achats les demandes qui lui sont adressées.
           </p>
         </div>
 
@@ -556,7 +555,7 @@ export const PurchaseRequestManager = () => {
             </Dialog>
           ) : (
             <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-              Seul le responsable commercial peut créer une demande d'achat.
+              Seuls le responsable commercial et l&apos;administrateur peuvent créer une demande d&apos;achat.
             </div>
           )}
         </div>

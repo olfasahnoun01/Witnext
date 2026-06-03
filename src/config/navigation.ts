@@ -29,6 +29,7 @@ import {
   ShoppingBag,
   PackageCheck,
   TrendingUp,
+  Briefcase,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -48,6 +49,15 @@ export interface BigSection {
 
 export const BIG_SECTIONS: BigSection[] = [
   {
+    id: 'commercial',
+    label: 'Commercial',
+    icon: Briefcase,
+    subsections: [
+      { id: 'gallery', label: 'Galerie commerciale', icon: ImageIcon },
+      { id: 'rdv', label: 'Rendez-vous', icon: CalendarClock },
+    ],
+  },
+  {
     id: 'ventes',
     label: 'Ventes',
     icon: ShoppingCart,
@@ -58,8 +68,6 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'bl-vente', label: 'Bons de Livraison', icon: Truck },
       { id: 'factures-vente', label: 'Factures', icon: Receipt },
       { id: 'suivi-clients', label: 'Suivi Clients', icon: UserCheck },
-      { id: 'gallery', label: 'Galerie commerciale', icon: ImageIcon },
-      { id: 'rdv', label: 'Rendez-vous', icon: CalendarClock },
     ],
   },
   {
@@ -95,6 +103,7 @@ export const BIG_SECTIONS: BigSection[] = [
     label: 'Ressources Humaines',
     icon: UsersIcon,
     subsections: [
+      { id: 'rh-employes', label: 'Employées', icon: Users },
       { id: 'planning', label: 'Planning', icon: CalendarDays },
       { id: 'rh-rapports', label: 'Rapports', icon: ClipboardPen },
       { id: 'rh-statistiques', label: 'Statistiques', icon: FileBarChart },

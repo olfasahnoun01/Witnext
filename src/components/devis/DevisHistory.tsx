@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, useCallback, useEffect } from 'react';
-import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus, Truck, ChevronDown, Inbox, ListChecks } from 'lucide-react';
+import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus, Truck, ChevronDown, Inbox, ListChecks, MoreHorizontal } from 'lucide-react';
 import { EchantillonModal } from './EchantillonModal';
 import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
@@ -20,10 +20,19 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
+import { ACHATS_EXCEL_TABLE_CLASS, VENTES_EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
 import { partitionDraftsAndRest, sortDevisListRecentFirst } from '@/lib/devisListLayout';
 import { documentAuditTableHeadCells, DocumentAuditTableCells } from '@/components/devis/DocumentAuditTableColumns';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
+const DEVIS_TABLE_COL_COUNT = 14;
 
 interface DevisHistoryProps {
   savedDevis: Devis[];
@@ -196,35 +205,103 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     setPreviewTitle('');
   }, [previewUrl]);
 
+  const listAccent = selectedType === 'achat' ? 'achat' : selectedType === 'vente' ? 'vente' : (defaultTypeFilter === 'achat' ? 'achat' : 'vente');
+  const excelTableClass = listAccent === 'achat' ? ACHATS_EXCEL_TABLE_CLASS : VENTES_EXCEL_TABLE_CLASS;
+  const listCardBorder = listAccent === 'achat' ? 'border-orange-500/25' : 'border-emerald-500/25';
+  const listHeaderBg = listAccent === 'achat' ? 'bg-orange-500/5' : 'bg-emerald-500/5';
+
   const devisTableHead = (
     <thead>
-      <tr className="border-b border-border">
-        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Type</th>
-        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">N°</th>
-        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
-        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Tiers</th>
-        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Créé par</th>
+      <tr>
+        <th className="text-left w-12">Actions</th>
+        <th className="text-left">Type</th>
+        <th className="text-left">N°</th>
+        <th className="text-left">Date</th>
+        <th className="text-left">Tiers</th>
+        <th className="text-left">Créé par</th>
         {documentAuditTableHeadCells}
-        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Statut</th>
-        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Articles</th>
-        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
-        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Mode</th>
-        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Échantillon</th>
-        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">PDF</th>
-        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
+        <th className="text-left">Statut</th>
+        <th className="text-left">Articles</th>
+        <th className="text-left">Total</th>
+        <th className="text-left">Mode</th>
+        <th className="text-left">Échantillon</th>
+        <th className="text-left">PDF</th>
       </tr>
     </thead>
   );
+
+  const renderDevisActionsMenu = (d: Devis) => {
+    const canModify =
+      (isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && canEdit && d.status !== 'accepté';
+    const canDelete = isAdminOrMod || (currentUserId && d.created_by === currentUserId);
+    const showBc = !!onConvertToBC && d.type === 'vente';
+    const showBcFournisseur = !!onConvertToBCFournisseur && d.type === 'vente';
+    const hasMenu = showBc || showBcFournisseur || canModify || canDelete;
+
+    if (!hasMenu) {
+      return <span className="text-muted-foreground text-xs">—</span>;
+    }
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            aria-label="Actions sur le devis"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-52">
+          {showBc && (
+            <DropdownMenuItem onClick={() => onConvertToBC!(d)}>
+              <FileText className="mr-2 h-4 w-4" />
+              Créer BC
+            </DropdownMenuItem>
+          )}
+          {showBcFournisseur && (
+            <DropdownMenuItem onClick={() => onConvertToBCFournisseur!(d)}>
+              <Truck className="mr-2 h-4 w-4" />
+              BC Fournisseur
+            </DropdownMenuItem>
+          )}
+          {(showBc || showBcFournisseur) && (canModify || canDelete) && <DropdownMenuSeparator />}
+          {canModify && (
+            <DropdownMenuItem onClick={() => onEdit(d)}>
+              <Edit className="mr-2 h-4 w-4" />
+              Modifier
+            </DropdownMenuItem>
+          )}
+          {canDelete && (
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => setDeleteConfirm(d)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Supprimer
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
 
   const renderDevisRow = (d: Devis) => {
     const totalQty = d.items.reduce((s, i) => s + i.quantity, 0);
     const generating = isGenerating === d.id;
     return (
-      <tr key={d.id} className="border-b border-border/50 hover:bg-muted/30">
+      <tr key={d.id}>
+        <td className="py-2 px-2">{renderDevisActionsMenu(d)}</td>
         <td className="py-3 px-4">
-          <span className={`px-2 py-1 rounded text-xs font-medium ${
-            d.type === 'achat' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
-          }`}>
+          <span className={cn(
+            'px-2 py-1 rounded text-xs font-medium border',
+            d.type === 'achat'
+              ? 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950/40 dark:text-orange-200'
+              : 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200'
+          )}>
             {d.type === 'achat' ? '📥 Achat' : '📤 Vente'}
           </span>
         </td>
@@ -313,34 +390,6 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
             </button>
           </div>
         </td>
-        <td className="py-3 px-4">
-          <div className="flex flex-wrap gap-2">
-            {onConvertToBC && d.type === 'vente' && (
-              <Button size="sm" variant="secondary" onClick={() => onConvertToBC(d)}>
-                <FileText className="w-4 h-4" />
-                Créer BC
-              </Button>
-            )}
-            {onConvertToBCFournisseur && d.type === 'vente' && (
-              <Button size="sm" variant="outline" className="gap-1 border-primary/30" onClick={() => onConvertToBCFournisseur(d)}>
-                <Truck className="w-4 h-4" />
-                BC Fournisseur
-              </Button>
-            )}
-            {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && canEdit && d.status !== 'accepté' && (
-              <Button size="sm" variant="outline" onClick={() => onEdit(d)}>
-                <Edit className="w-4 h-4" />
-                Modifier
-              </Button>
-            )}
-            {(isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && (
-              <Button size="sm" variant="destructive" onClick={() => setDeleteConfirm(d)}>
-                <Trash2 className="w-4 h-4" />
-                Supprimer
-              </Button>
-            )}
-          </div>
-        </td>
       </tr>
     );
   };
@@ -359,11 +408,17 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
 
   return (
     <>
-      <div className="bg-card rounded-xl border border-border p-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+      <div className={cn('bg-card rounded-xl border p-6', listCardBorder)}>
+        <div className={cn('flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6 -mx-2 px-2 py-3 rounded-lg', listHeaderBg)}>
           <div className="flex items-center gap-4">
-            <h3 className="text-lg font-semibold text-foreground">Mes Devis</h3>
-            <Button onClick={onAdd} size="sm" className="h-8 gap-2">
+            <h3 className={cn('text-lg font-semibold', listAccent === 'achat' ? 'text-orange-950 dark:text-orange-100' : 'text-emerald-950 dark:text-emerald-100')}>
+              Mes Devis
+            </h3>
+            <Button
+              onClick={onAdd}
+              size="sm"
+              className={cn('h-8 gap-2', listAccent === 'achat' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-emerald-600 hover:bg-emerald-700')}
+            >
               <Plus className="w-4 h-4" />
               Ajouter Devis
             </Button>
@@ -424,13 +479,13 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
               </span>
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-2">
-              <div className={cn('overflow-x-auto overflow-y-auto max-h-[min(50vh,28rem)] rounded-lg border border-border', EXCEL_TABLE_CLASS)}>
-                <table className="w-full">
+              <div className={cn('overflow-x-auto overflow-y-auto max-h-[min(50vh,28rem)] rounded-lg border', listCardBorder, excelTableClass)}>
+                <table>
                   {devisTableHead}
                   <tbody>
                     {draftsSorted.length === 0 ? (
                       <tr>
-                        <td colSpan={12} className="py-8 text-center text-sm text-muted-foreground">
+                        <td colSpan={DEVIS_TABLE_COL_COUNT} className="py-8 text-center text-sm text-muted-foreground">
                           Aucun brouillon pour ces filtres.
                         </td>
                       </tr>
@@ -446,21 +501,24 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
           <Collapsible defaultOpen>
             <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-left text-sm font-semibold text-foreground hover:bg-muted/50">
               <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=closed]:-rotate-90" />
-              <ListChecks className="h-4 w-4 shrink-0 text-primary" />
+              <ListChecks className={cn('h-4 w-4 shrink-0', listAccent === 'achat' ? 'text-orange-600' : 'text-emerald-600')} />
               <span>Confirmés et autres statuts</span>
               <span className="text-muted-foreground font-normal text-xs hidden sm:inline">(confirmé, envoyé, accepté…)</span>
-              <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+              <span className={cn(
+                'ml-auto rounded-full px-2 py-0.5 text-xs font-medium',
+                listAccent === 'achat' ? 'bg-orange-500/15 text-orange-900 dark:text-orange-200' : 'bg-emerald-500/15 text-emerald-900 dark:text-emerald-200'
+              )}>
                 {restSorted.length}
               </span>
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-2">
-              <div className={cn('overflow-x-auto overflow-y-auto max-h-[min(50vh,28rem)] rounded-lg border border-border', EXCEL_TABLE_CLASS)}>
-                <table className="w-full">
+              <div className={cn('overflow-x-auto overflow-y-auto max-h-[min(50vh,28rem)] rounded-lg border', listCardBorder, excelTableClass)}>
+                <table>
                   {devisTableHead}
                   <tbody>
                     {restSorted.length === 0 ? (
                       <tr>
-                        <td colSpan={12} className="py-8 text-center text-sm text-muted-foreground">
+                        <td colSpan={DEVIS_TABLE_COL_COUNT} className="py-8 text-center text-sm text-muted-foreground">
                           Aucun document traité pour ces filtres.
                         </td>
                       </tr>

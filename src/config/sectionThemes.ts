@@ -34,6 +34,15 @@ export const SECTION_THEMES: Record<string, SectionTheme> = {
     subActive: 'bg-emerald-600 text-white shadow-md',
     subInactive: 'text-sidebar-foreground hover:bg-emerald-500/10 hover:text-emerald-900 dark:hover:text-emerald-100',
   },
+  commercial: {
+    headerExpanded: 'bg-rose-500/15 text-rose-950 dark:text-rose-100 border-rose-500/35',
+    headerCollapsed: 'text-rose-950/80 dark:text-rose-100/70 hover:bg-rose-500/10',
+    iconExpanded: 'bg-rose-600 text-white',
+    iconCollapsed: 'bg-rose-500/20 text-rose-700 dark:text-rose-300',
+    treeBorder: 'border-rose-500/30',
+    subActive: 'bg-rose-600 text-white shadow-md',
+    subInactive: 'text-sidebar-foreground hover:bg-rose-500/10 hover:text-rose-950 dark:hover:text-rose-100',
+  },
   achats: {
     headerExpanded: 'bg-orange-500/15 text-orange-950 dark:text-orange-100 border-orange-500/35',
     headerCollapsed: 'text-orange-950/80 dark:text-orange-100/70 hover:bg-orange-500/10',

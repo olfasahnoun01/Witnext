@@ -86,6 +86,10 @@ import { AccountingStatementsPanel } from './statements/AccountingStatementsPane
 
 import { FinanceOverviewCharts } from './overview/FinanceOverviewCharts';
 
+import { PayrollSlipsPanel } from './payroll/PayrollSlipsPanel';
+
+import { CnssDeclarationPanel } from './payroll/CnssDeclarationPanel';
+
 import { sumPurchasesTtc, sumSalesTtc } from '../lib/financeOverviewStats';
 
 import { FinanceAmount } from './shared/FinanceAmount';
@@ -664,6 +668,14 @@ export function FinanceDashboard() {
 
               />
 
+            )}
+
+            {fiscalSub === 'payroll-slips' && (
+              <PayrollSlipsPanel companyId={company.id} companyName={company.name} />
+            )}
+
+            {fiscalSub === 'cnss-declaration' && (
+              <CnssDeclarationPanel companyId={company.id} companyName={company.name} />
             )}
 
             </FinanceWorkArea>

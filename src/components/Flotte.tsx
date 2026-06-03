@@ -19,6 +19,13 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  buildVehicleReminderRows,
+  isReminderDue,
+  localDateIso,
+  upsertVehicleRemindersForVehicle,
+} from '@/lib/vehicleReminders';
+import { syncVehicleReminderNotifications } from '@/services/notificationService';
 
 interface Vehicle {
   id: string;
@@ -147,12 +154,14 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
   const fetchVehicles = async () => {
     setIsLoading(true);
     try {
+      const today = localDateIso();
       const [vehiclesRes, remindersRes, driversRes] = await Promise.all([
         supabase.from('vehicles').select('*').order('created_at', { ascending: false }),
         supabase
           .from('vehicle_reminders')
           .select('*, vehicle:vehicles(modele, matricule)')
           .eq('is_done', false)
+          .lte('remind_at', today)
           .order('remind_at', { ascending: true }),
         supabase
           .from('employees')
@@ -278,12 +287,34 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
         contract_holder_name: form.contract_holder_name.trim() || null,
         contract_document_url: form.contract_document_url.trim() || null,
       };
-      const query = editingVehicle
-        ? supabase.from('vehicles').update(payload).eq('id', editingVehicle.id)
-        : supabase.from('vehicles').insert([payload as never]);
-      const { error } = await query;
+      let vehicleId = editingVehicle?.id;
+      if (editingVehicle) {
+        const { error } = await supabase.from('vehicles').update(payload).eq('id', editingVehicle.id);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase.from('vehicles').insert([payload as never]).select('id').single();
+        if (error) throw error;
+        vehicleId = data?.id;
+      }
 
-      if (error) throw error;
+      if (vehicleId) {
+        const reminderResult = await upsertVehicleRemindersForVehicle({
+          id: vehicleId,
+          vignette_due_date: form.vignette_due_date || null,
+          vignette_remind_at: form.vignette_remind_at || null,
+          assurance_due_date: form.assurance_due_date || null,
+          assurance_remind_at: form.assurance_remind_at || null,
+          leasing_due_date: form.leasing_due_date || null,
+          leasing_remind_at: form.leasing_remind_at || null,
+          visite_technique_end_date: form.visite_technique_end_date || null,
+          visite_technique_remind_at: form.visite_technique_remind_at || null,
+        });
+        if (!reminderResult.ok) {
+          console.warn('[Flotte] vehicle reminders:', reminderResult.error);
+        }
+        void syncVehicleReminderNotifications();
+      }
+
       toast.success(editingVehicle ? 'Véhicule mis à jour' : 'Véhicule ajouté');
       setIsDialogOpen(false);
       fetchVehicles();
@@ -394,43 +425,17 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
   };
 
   const handleCreateReminders = async (vehicle: Vehicle) => {
-    const defs: { type: VehicleReminder['reminder_type']; due?: string | null; remindAt?: string | null }[] = [
-      { type: 'vignette', due: vehicle.vignette_due_date, remindAt: vehicle.vignette_remind_at },
-      { type: 'assurance', due: vehicle.assurance_due_date, remindAt: vehicle.assurance_remind_at },
-      { type: 'leasing', due: vehicle.leasing_due_date, remindAt: vehicle.leasing_remind_at },
-      { type: 'visite_technique', due: vehicle.visite_technique_end_date, remindAt: vehicle.visite_technique_remind_at },
-    ];
-    const rows = defs
-      .filter((d) => d.due)
-      .map((d) => {
-        const dueDate = new Date(`${d.due}T00:00:00`);
-        const remindAt = d.remindAt
-          ? d.remindAt
-          : (() => {
-              const fallback = new Date(dueDate);
-              fallback.setDate(fallback.getDate() - 7);
-              return fallback.toISOString().split('T')[0];
-            })();
-        return {
-          vehicle_id: vehicle.id,
-          reminder_type: d.type,
-          due_date: d.due!,
-          remind_at: remindAt,
-          is_done: false,
-          note: null,
-        };
-      });
+    const rows = buildVehicleReminderRows(vehicle);
     if (rows.length === 0) {
-      toast.error('Aucune échéance disponible pour créer les rappels');
+      toast.error('Renseignez au moins une date d\'échéance ou une date de rappel');
       return;
     }
-    const { error } = await supabase.from('vehicle_reminders').upsert(rows as never, {
-      onConflict: 'vehicle_id,reminder_type,due_date',
-    });
-    if (error) {
+    const result = await upsertVehicleRemindersForVehicle(vehicle);
+    if (!result.ok) {
       toast.error('Erreur création rappels');
       return;
     }
+    void syncVehicleReminderNotifications();
     toast.success('Rappels créés');
     fetchVehicles();
   };
@@ -494,13 +499,22 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
         ) : (
           <div className="space-y-2 max-h-52 overflow-y-auto">
             {reminders.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-lg border border-border p-2">
+              <div
+                key={r.id}
+                className={`flex items-center justify-between rounded-lg border p-2 ${
+                  isReminderDue(r.remind_at)
+                    ? 'border-amber-500/40 bg-amber-500/10'
+                    : 'border-border'
+                }`}
+              >
                 <div className="text-sm">
                   <span className="font-medium">{reminderLabel[r.reminder_type]}</span>
                   {' · '}
                   {(r.vehicle?.modele || 'Véhicule')} ({r.vehicle?.matricule || '-'})
+                  {' · Rappel: '}
+                  {new Date(`${r.remind_at}T12:00:00`).toLocaleDateString('fr-FR')}
                   {' · Échéance: '}
-                  {new Date(r.due_date).toLocaleDateString('fr-FR')}
+                  {new Date(`${r.due_date}T12:00:00`).toLocaleDateString('fr-FR')}
                 </div>
                 <Button size="sm" variant="outline" onClick={() => markReminderDone(r.id)} className="gap-1">
                   <CheckCircle2 className="w-3 h-3" />

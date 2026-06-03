@@ -2,12 +2,8 @@ import { formatDerniereModification, formatModifieePar, type DocumentAuditFields
 
 export const documentAuditTableHeadCells = (
   <>
-    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground whitespace-nowrap">
-      Dernière modification
-    </th>
-    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground whitespace-nowrap">
-      Modifiée par
-    </th>
+    <th className="text-left whitespace-nowrap">Dernière modification</th>
+    <th className="text-left whitespace-nowrap">Modifiée par</th>
   </>
 );
 

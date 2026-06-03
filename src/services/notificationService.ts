@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { posteMatches } from '@/lib/userPositions';
+import { localDateIso } from '@/lib/vehicleReminders';
 
 export type AppNotification = {
   id: string;
@@ -133,9 +134,13 @@ const REMINDER_LABELS: Record<string, string> = {
 
 /** Rappels véhicules dus : notifier tous les comptes avec accès section Véhicules (+ admins). */
 export async function syncVehicleReminderNotifications() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateIso();
 
-  const [{ data: reminders, error: rErr }, recipientIds] = await Promise.all([
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const [{ data: reminders, error: rErr }, sectionRecipientIds] = await Promise.all([
     supabase
       .from('vehicle_reminders')
       .select('id, reminder_type, due_date, remind_at, vehicle:vehicles(modele, matricule)')
@@ -143,6 +148,10 @@ export async function syncVehicleReminderNotifications() {
       .lte('remind_at', today),
     resolveUserIdsWithSectionAccess('vehicules'),
   ]);
+
+  const recipientIds = [
+    ...new Set([...sectionRecipientIds, ...(user?.id ? [user.id] : [])]),
+  ];
 
   if (rErr) {
     console.warn('[notifications] vehicle reminders:', rErr.message);

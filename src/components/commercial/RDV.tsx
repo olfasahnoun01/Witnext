@@ -1,13 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+import { COMMERCIAL_EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -483,11 +477,11 @@ export const RDV = () => {
         </div>
       </div>
 
-      <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm overflow-hidden">
-        <CardHeader className="pb-4">
+      <Card className="border border-rose-500/20 shadow-lg bg-card overflow-hidden">
+        <CardHeader className="pb-4 bg-rose-500/5 border-b border-rose-500/15">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <CardTitle className="text-xl flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-primary" />
+            <CardTitle className="text-xl flex items-center gap-2 text-rose-950 dark:text-rose-100">
+              <Calendar className="w-5 h-5 text-rose-600" />
               Répertoire des Rendez-vous
             </CardTitle>
             <div className="flex items-center gap-2">
@@ -515,83 +509,83 @@ export const RDV = () => {
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             </div>
           ) : viewMode === 'table' ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-muted/50">
-                  <TableRow>
-                    <TableHead className="w-[100px] font-bold">N° RDV</TableHead>
-                    <TableHead className="font-bold">Date Création</TableHead>
-                    <TableHead className="font-bold min-w-[150px]">Société</TableHead>
-                    <TableHead className="font-bold">Activité</TableHead>
-                    <TableHead className="font-bold min-w-[200px]">Adresse</TableHead>
-                    <TableHead className="font-bold">Téléphone</TableHead>
-                    <TableHead className="font-bold">Email</TableHead>
-                    <TableHead className="font-bold">Contact</TableHead>
-                    <TableHead className="font-bold">Date RDV</TableHead>
-                    <TableHead className="font-bold min-w-[200px]">Besoin</TableHead>
-                    <TableHead className="font-bold">P. Jointe</TableHead>
-                    <TableHead className="font-bold">Chargé</TableHead>
-                    <TableHead className="text-right font-bold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <div className={cn('overflow-x-auto', COMMERCIAL_EXCEL_TABLE_CLASS)}>
+              <table>
+                <thead>
+                  <tr>
+                    <th className="w-[100px]">N° RDV</th>
+                    <th>Date création</th>
+                    <th className="min-w-[150px]">Société</th>
+                    <th>Activité</th>
+                    <th className="min-w-[200px]">Adresse</th>
+                    <th>Téléphone</th>
+                    <th>Email</th>
+                    <th>Contact</th>
+                    <th>Date RDV</th>
+                    <th className="min-w-[200px]">Besoin</th>
+                    <th>P. jointe</th>
+                    <th>Chargé</th>
+                    <th className="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {filteredRdvs.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={13} className="h-32 text-center text-muted-foreground italic">
-                        Aucun rendez-vous trouvé. Cliquez sur "Nouveau RDV" pour commencer.
-                      </TableCell>
-                    </TableRow>
+                    <tr>
+                      <td colSpan={13} className="h-32 text-center text-muted-foreground italic bg-background">
+                        Aucun rendez-vous trouvé. Cliquez sur « Nouveau RDV » pour commencer.
+                      </td>
+                    </tr>
                   ) : (
                     filteredRdvs.map((rdv) => (
-                      <TableRow key={rdv.id} className="hover:bg-muted/30 transition-colors">
-                        <TableCell className="font-mono text-xs font-bold text-primary">{rdv.numero}</TableCell>
-                        <TableCell className="text-xs">{rdv.dateCreation}</TableCell>
-                        <TableCell className="font-medium">{rdv.societe}</TableCell>
-                        <TableCell className="text-xs">{rdv.activite}</TableCell>
-                        <TableCell className="text-xs truncate max-w-[200px]" title={rdv.adresse}>{rdv.adresse}</TableCell>
-                        <TableCell className="text-xs max-w-[180px]" title={formatPhonesDisplay(rdv.telephone)}>
+                      <tr key={rdv.id}>
+                        <td className="font-mono text-xs font-bold text-rose-700 dark:text-rose-300">{rdv.numero}</td>
+                        <td className="text-xs whitespace-nowrap">{rdv.dateCreation}</td>
+                        <td className="font-medium">{rdv.societe}</td>
+                        <td className="text-xs">{rdv.activite}</td>
+                        <td className="text-xs max-w-[200px] truncate" title={rdv.adresse}>{rdv.adresse}</td>
+                        <td className="text-xs max-w-[180px]" title={formatPhonesDisplay(rdv.telephone)}>
                           {formatPhonesDisplay(rdv.telephone) || '—'}
-                        </TableCell>
-                        <TableCell className="text-xs">{rdv.email}</TableCell>
-                        <TableCell className="text-xs">{rdv.personneContactee}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                          {rdv.dateRDV ? format(parseISO(rdv.dateRDV), 'dd/MM/yyyy HH:mm') : '-'}
+                        </td>
+                        <td className="text-xs">{rdv.email}</td>
+                        <td className="text-xs">{rdv.personneContactee}</td>
+                        <td>
+                          <Badge variant="outline" className="bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-950/40 dark:text-sky-200">
+                            {rdv.dateRDV ? format(parseISO(rdv.dateRDV), 'dd/MM/yyyy HH:mm') : '—'}
                           </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs italic text-muted-foreground truncate max-w-[200px]" title={rdv.besoin}>
+                        </td>
+                        <td className="text-xs italic text-muted-foreground max-w-[200px] truncate" title={rdv.besoin}>
                           {rdv.besoin}
-                        </TableCell>
-                        <TableCell>
+                        </td>
+                        <td>
                           {rdv.pieceJointe === 'envoyé' ? (
-                            <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100 gap-1">
+                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100 gap-1">
                               <FileCheck className="w-3 h-3" />
                               Envoyé
                             </Badge>
                           ) : (
-                            <Badge variant="secondary" className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 gap-1">
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100 gap-1">
                               <FileX className="w-3 h-3" />
                               Non envoyé
                             </Badge>
                           )}
-                        </TableCell>
-                        <TableCell className="text-xs font-semibold">{rdv.charge}</TableCell>
-                        <TableCell className="text-right">
+                        </td>
+                        <td className="text-xs font-semibold">{rdv.charge}</td>
+                        <td className="text-right">
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="hover:bg-primary/10"
+                            className="hover:bg-rose-500/15 text-rose-700"
                             onClick={() => handleEditRDV(rdv)}
                             title="Modifier le rendez-vous"
                           >
                             <Pencil className="w-4 h-4" />
                           </Button>
-                        </TableCell>
-                      </TableRow>
+                        </td>
+                      </tr>
                     ))
                   )}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
             </div>
           ) : (
             <div className="flex flex-col md:flex-row h-[600px]">

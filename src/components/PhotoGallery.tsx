@@ -625,15 +625,6 @@ export const PhotoGallery = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">Galerie commerciale (réseaux sociaux, messages clients)</p>
-        <p className="mt-1">
-          Importez noms et photos depuis le site, puis complétez le{' '}
-          <strong className="text-foreground">prix TTC</strong> et les{' '}
-          <strong className="text-foreground">fiches techniques</strong> pour Facebook, WhatsApp, etc.
-        </p>
-      </div>
-
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="flex flex-col sm:flex-row gap-3 flex-1 w-full">

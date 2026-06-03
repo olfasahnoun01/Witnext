@@ -8,6 +8,25 @@ interface PermissionRow {
   subsection_key: string; // '' = full section
 }
 
+const COMMERCIAL_SUBSECTIONS = new Set(['gallery', 'rdv']);
+
+/** Galerie & RDV were under ventes; keep access for legacy permission rows until DB migration runs. */
+function hasLegacyCommercialAccess(perms: PermissionRow[], subsectionId?: string): boolean {
+  const fullVentes = perms.some(
+    (p) => p.section_key === 'ventes' && (!p.subsection_key || p.subsection_key === '')
+  );
+  if (fullVentes) return true;
+  if (subsectionId) {
+    return perms.some((p) => p.section_key === 'ventes' && p.subsection_key === subsectionId);
+  }
+  return perms.some(
+    (p) =>
+      p.section_key === 'ventes' &&
+      p.subsection_key &&
+      COMMERCIAL_SUBSECTIONS.has(p.subsection_key)
+  );
+}
+
 export const usePermissions = () => {
   const { user, isAdmin, isLoading: authLoading } = useAuth();
   const [perms, setPerms] = useState<PermissionRow[]>([]);
@@ -51,7 +70,13 @@ export const usePermissions = () => {
         return true;
       }
       // any sub-section grant under this section
-      return perms.some((p) => p.section_key === sectionId && p.subsection_key);
+      if (perms.some((p) => p.section_key === sectionId && p.subsection_key)) {
+        return true;
+      }
+      if (sectionId === 'commercial') {
+        return hasLegacyCommercialAccess(perms);
+      }
+      return false;
     },
     [isAdmin, perms]
   );
@@ -66,7 +91,13 @@ export const usePermissions = () => {
         return true;
       }
       // Specific sub-section grant
-      return perms.some((p) => p.section_key === sectionId && p.subsection_key === subsectionId);
+      if (perms.some((p) => p.section_key === sectionId && p.subsection_key === subsectionId)) {
+        return true;
+      }
+      if (sectionId === 'commercial' && COMMERCIAL_SUBSECTIONS.has(subsectionId)) {
+        return hasLegacyCommercialAccess(perms, subsectionId);
+      }
+      return false;
     },
     [isAdmin, perms]
   );

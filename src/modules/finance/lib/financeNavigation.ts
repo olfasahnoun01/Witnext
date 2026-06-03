@@ -214,6 +214,18 @@ export function getFiscalSubsections(caps: FinanceCapabilities): FinanceNavItem[
       description: 'Retenues fournisseurs, clients et loyers',
     });
   }
+  items.push(
+    {
+      id: 'payroll-slips',
+      label: 'Fiche de paie',
+      description: 'Fiches mensuelles — CNSS, IRPP, net à payer',
+    },
+    {
+      id: 'cnss-declaration',
+      label: 'Déclaration CNSS',
+      description: 'Déclaration trimestrielle et charges TFP / FOPROLOS',
+    }
+  );
   return items;
 }
 

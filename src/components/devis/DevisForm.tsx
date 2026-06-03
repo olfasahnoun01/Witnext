@@ -1,7 +1,8 @@
 import { memo, useCallback, useState, useEffect, useMemo } from 'react';
 import { ProductGroupFournisseur } from '@/types';
 import { computeDevisTotals, computeDevisLine } from '@/lib/devisPricing';
-import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package, Layers, Truck, Check, AlertCircle, Upload, ChevronsUpDown } from 'lucide-react';
+import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package, Layers, Truck, Check, AlertCircle, Upload, ChevronsUpDown, FileText, ShoppingCart, ArrowDownLeft, ArrowUpRight, StickyNote } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,6 +38,18 @@ import { PhoneLinesEditor } from '@/components/shared/PhoneLinesEditor';
 import { formatPhonesDisplay, serializePhoneList } from '@/lib/phoneList';
 import { validateUploadFile } from '@/lib/uploadValidation';
 import { parseDecimalInput, parseDecimalInputLoose, formatDecimalFieldValue } from '@/lib/numberInput';
+import {
+  DevisField,
+  DevisFlowBadge,
+  DevisFormPageHeader,
+  DevisFormSection,
+  DevisItemsEmptyState,
+  DevisPricingToggle,
+  DevisSegmentedGrid,
+  DevisSegmentedOption,
+  DevisStickyActions,
+  DevisTotalsStrip,
+} from './DevisFormUi';
 
 const DEFAULT_CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
@@ -291,7 +304,6 @@ export const DevisForm = memo(({
       setItemPrixAchat(0);
       setItemRemise(product.remise || 0);
     } else {
-      // Devis vente : PU vente HT à saisir ; prix achat HT = net HT inventaire (prix × (1 − remise variante))
       setItemPrixVenteDraft(null);
       const p = Number(product.price);
       const r = Number(product.remise ?? 0);
@@ -314,6 +326,20 @@ export const DevisForm = memo(({
     setProductSearch('');
     setSearchResults([]);
   }, [isAchat, loadPrixAchatFromInventoryProduct]);
+
+  const clearCatalogSelection = useCallback(() => {
+    achatPriceRequestRef.current += 1;
+    setSelectedProduct(null);
+    setItemDesignation('');
+    setItemFournisseur('');
+    setItemPrixTtc(0);
+    setItemRemise(0);
+    setItemQuantity(1);
+    setItemDescription('');
+    setItemPrixAchat(0);
+    setItemTva(19);
+    setItemPrixVenteDraft(null);
+  }, []);
 
   useEffect(() => {
     setSelectedThirdPartyId('');
@@ -473,7 +499,7 @@ export const DevisForm = memo(({
     setSelectedProduct(null);
     setItemPrixVenteDraft(null);
     achatPriceRequestRef.current += 1;
-  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, itemTva, devisType, articleMode, isAchat, thirdPartyName, setDevisItems]);
+  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, itemTva, devisType, articleMode, isAchat, thirdPartyName, selectedProduct, setDevisItems]);
 
 
 
@@ -983,254 +1009,281 @@ export const DevisForm = memo(({
   const thirdPartyLabel = isAchat ? 'Fournisseur' : 'Client';
   const thirdPartyRole = isAchat ? 'Expéditeur' : 'Destinataire';
 
+  const docLabel = docType === 'bc' ? 'Bon de commande' : 'Devis';
+  const pageTitle = editingDevis ? `Modifier ${docLabel}` : `Nouveau ${docLabel}`;
+  const priceGridCols =
+    devisType === 'vente' ? (isTtc ? 6 : 4) : isTtc ? 5 : 3;
+
   return (
     <>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:h-[calc(100vh-12rem)]">
-        {/* Form */}
-        <div className="bg-card rounded-xl border border-border p-6 space-y-6 lg:overflow-y-auto">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-foreground">
-              {editingDevis 
-                ? `Modifier ${docType === 'bc' ? 'Bon de Commande' : 'Devis'}` 
-                : `Nouveau ${docType === 'bc' ? 'Bon de Commande' : 'Devis'}`}
-            </h3>
-            {editingDevis && (
-              <Button variant="outline" size="sm" onClick={onCancel}>Annuler</Button>
-            )}
-          </div>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] gap-6 xl:min-h-[calc(100vh-12rem)]">
+        {/* ——— Colonne saisie ——— */}
+        <div className="flex flex-col gap-5 lg:overflow-y-auto lg:max-h-[calc(100vh-10rem)] lg:pr-1">
+          <DevisFormPageHeader
+            title={pageTitle}
+            subtitle={
+              isAchat
+                ? 'Document reçu d\'un fournisseur'
+                : 'Document adressé à un client'
+            }
+            badges={<DevisFlowBadge devisType={devisType} docType={docType} />}
+            onCancel={editingDevis ? onCancel : undefined}
+          />
 
-          {/* Document Mode Selector - Only if not editing and not forcing a specific document type */}
-          {!editingDevis && !forceDocType && (
-            <div>
-              <label className="form-label">Mode du Document</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setDocType('devis')}
-                  className={`p-2.5 rounded-lg border-2 text-xs font-semibold transition-all ${docType === 'devis'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:border-muted-foreground'
-                    }`}
-                >
-                  📄 Devis
-                </button>
-                <button
-                  onClick={() => setDocType('bc')}
-                  className={`p-2.5 rounded-lg border-2 text-xs font-semibold transition-all ${docType === 'bc'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:border-muted-foreground'
-                    }`}
-                >
-                  🛒 Bon de Commande
-                </button>
-
-              </div>
-            </div>
-          )}
-
-          {!forceDocType && (
-            <div>
-              <label className="form-label">
-                Flux du {docType === 'bc' ? 'Bon de Commande' : 'Devis'}
-              </label>
-              {lockDevisType ? (
-                <div className="rounded-lg border border-border bg-muted/10 p-3 text-sm text-foreground">
-                  📤 {devisType === 'vente' ? 'Devis Vente' : 'Devis Achat'}
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setDevisType('achat')}
-                    className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${devisType === 'achat'
-                        ? 'border-success bg-success/10 text-success'
-                        : 'border-border text-muted-foreground hover:border-muted-foreground'
-                      }`}
-                  >
-                    📥 Devis Achat
-                  </button>
-                  <button
-                    onClick={() => setDevisType('vente')}
-                    className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${devisType === 'vente'
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border text-muted-foreground hover:border-muted-foreground'
-                      }`}
-                  >
-                    {docType === 'devis' ? '📤 Devis Vente' : '📤 BC Vente'}
-                  </button>
-                </div>
+          {/* Type de document & flux */}
+          {(!editingDevis && !forceDocType) || (!forceDocType && !lockDevisType) ? (
+            <DevisFormSection title="Paramètres du document" icon={FileText}>
+              {!editingDevis && !forceDocType && (
+                <DevisField label="Nature du document">
+                  <DevisSegmentedGrid>
+                    <DevisSegmentedOption
+                      value="devis"
+                      current={docType}
+                      onSelect={setDocType}
+                      accent={isAchat ? 'achat' : 'vente'}
+                      label="Devis"
+                      sublabel="Proposition commerciale"
+                      icon={FileText}
+                    />
+                    <DevisSegmentedOption
+                      value="bc"
+                      current={docType}
+                      onSelect={setDocType}
+                      accent={isAchat ? 'achat' : 'vente'}
+                      label="Bon de commande"
+                      sublabel="Commande confirmée"
+                      icon={ShoppingCart}
+                    />
+                  </DevisSegmentedGrid>
+                </DevisField>
               )}
-              <p className="text-xs text-muted-foreground mt-2">
-                {isAchat
-                  ? docType === 'bc'
-                    ? '⬇️ Un fournisseur nous envoie sa commande'
-                    : '⬇️ Un fournisseur nous envoie un devis (nous sommes le récepteur)'
-                  : docType === 'bc'
-                    ? '⬆️ Nous envoyons une commande à un client'
-                    : '⬆️ Nous envoyons un devis à un client'}
-              </p>
-            </div>
-          )}
-
-          {/* TTC / HT Switch */}
-          {(
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border">
-              <div>
-                <p className="text-sm font-medium text-foreground">Mode de tarification</p>
-                <p className="text-xs text-muted-foreground">
-                  {isTtc ? 'Les prix incluent la TVA (19%)' : 'Les prix sont Hors Taxes'}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-medium ${!isTtc ? 'text-primary' : 'text-muted-foreground'}`}>HT</span>
-                <button
-                  type="button"
-                  onClick={() => setIsTtc(!isTtc)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isTtc ? 'bg-primary' : 'bg-muted-foreground/30'
-                    }`}
+              {!forceDocType && (
+                <DevisField
+                  label="Sens du flux"
+                  hint={
+                    isAchat
+                      ? 'Vous recevez ce document d\'un fournisseur'
+                      : 'Vous émettez ce document vers un client'
+                  }
                 >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isTtc ? 'translate-x-6' : 'translate-x-1'
-                    }`} />
-                </button>
-                <span className={`text-xs font-medium ${isTtc ? 'text-primary' : 'text-muted-foreground'}`}>TTC</span>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">N° Devis</label>
-              <input type="text" value={devisNumber} onChange={e => setDevisNumber(e.target.value)} className="form-input" />
-            </div>
-            <div>
-              <label className="form-label">Date</label>
-              <input type="date" value={devisDate} onChange={e => setDevisDate(e.target.value)} className="form-input" />
-            </div>
-          </div>
-
-          {docType === 'bc' && (
-            <div>
-              <label className="form-label">Statut BC</label>
-              <Select
-                value={documentStatus}
-                onValueChange={(v) => setDocumentStatus(v as 'brouillon' | 'envoyé' | 'accepté' | 'refusé' | 'confirmé' | 'reçu' | 'intégré')}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choisir un statut" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="brouillon">Brouillon</SelectItem>
-                  <SelectItem value="envoyé">Envoyé</SelectItem>
-                  <SelectItem value="confirmé">Confirmé</SelectItem>
-                  <SelectItem value="reçu">Reçu</SelectItem>
-                  <SelectItem value="intégré">Intégré</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Third Party */}
-          <div className={`p-4 rounded-xl ${isAchat ? 'bg-success/5 border border-success/20' : 'bg-primary/5 border border-primary/20'}`}>
-            <div className="flex items-center justify-between mb-3">
-              <h4 className={`font-medium flex items-center gap-2 ${isAchat ? 'text-success' : 'text-primary'}`}>
-                <ThirdPartyIcon className="w-4 h-4" />
-                {thirdPartyLabel} <span className="text-xs text-muted-foreground">({thirdPartyRole})</span>
-              </h4>
-              {isAchat && (
-                <Button variant="ghost" size="sm" onClick={() => setShowNewFournisseur(true)} className="text-xs">
-                  <UserPlus className="w-3.5 h-3.5 mr-1" />
-                  Nouveau
-                </Button>
+                  {lockDevisType ? (
+                    <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm font-medium flex items-center gap-2">
+                      {devisType === 'vente' ? (
+                        <ArrowUpRight className="h-4 w-4 text-emerald-600" />
+                      ) : (
+                        <ArrowDownLeft className="h-4 w-4 text-orange-600" />
+                      )}
+                      {devisType === 'vente' ? 'Vente' : 'Achat'}
+                    </div>
+                  ) : (
+                    <DevisSegmentedGrid>
+                      <DevisSegmentedOption
+                        value="achat"
+                        current={devisType}
+                        onSelect={setDevisType}
+                        accent="achat"
+                        label="Achat"
+                        sublabel="Entrant"
+                        icon={ArrowDownLeft}
+                      />
+                      <DevisSegmentedOption
+                        value="vente"
+                        current={devisType}
+                        onSelect={setDevisType}
+                        accent="vente"
+                        label="Vente"
+                        sublabel="Sortant"
+                        icon={ArrowUpRight}
+                      />
+                    </DevisSegmentedGrid>
+                  )}
+                </DevisField>
               )}
-            </div>
-            <div className="space-y-3">
-              <div className="relative">
+            </DevisFormSection>
+          ) : null}
+
+          <DevisPricingToggle isTtc={isTtc} onChange={setIsTtc} />
+
+          <DevisFormSection title="Identification" description="Numéro, date et statut du document">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <DevisField label="N° document">
                 <input
                   type="text"
-                  value={thirdPartyName}
-                  onChange={e => handleThirdPartyNameChange(e.target.value)}
+                  value={devisNumber}
+                  onChange={(e) => setDevisNumber(e.target.value)}
                   className="form-input"
-                  placeholder={`Tapez le nom du ${thirdPartyLabel.toLowerCase()}...`}
                 />
-                {filteredThirdParties.length > 0 && (
-                  <div className="absolute left-0 right-0 mt-1 z-20 max-h-56 overflow-y-auto rounded-xl border border-border bg-card shadow-md">
-                    {filteredThirdParties.map(item => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onMouseDown={() => handleThirdPartySuggestionSelect(item)}
-                        className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-muted"
-                      >
-                        {item.nom}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <input type="text" value={thirdPartyPhone} onChange={e => setThirdPartyPhone(e.target.value)} className="form-input" placeholder="Téléphone" />
-                <input type="text" value={thirdPartyTaxId} onChange={e => setThirdPartyTaxId(e.target.value)} className="form-input" placeholder="Matricule Fiscale" />
-              </div>
-              <input type="text" value={thirdPartyAddress} onChange={e => setThirdPartyAddress(e.target.value)} className="form-input" placeholder="Adresse" />
+              </DevisField>
+              <DevisField label="Date">
+                <input
+                  type="date"
+                  value={devisDate}
+                  onChange={(e) => setDevisDate(e.target.value)}
+                  className="form-input"
+                />
+              </DevisField>
             </div>
-          </div>
+            {docType === 'bc' && (
+              <DevisField label="Statut du bon de commande">
+                <Select
+                  value={documentStatus}
+                  onValueChange={(v) =>
+                    setDocumentStatus(
+                      v as 'brouillon' | 'envoyé' | 'accepté' | 'refusé' | 'confirmé' | 'reçu' | 'intégré'
+                    )
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choisir un statut" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="brouillon">Brouillon</SelectItem>
+                    <SelectItem value="envoyé">Envoyé</SelectItem>
+                    <SelectItem value="confirmé">Confirmé</SelectItem>
+                    <SelectItem value="reçu">Reçu</SelectItem>
+                    <SelectItem value="intégré">Intégré</SelectItem>
+                  </SelectContent>
+                </Select>
+              </DevisField>
+            )}
+          </DevisFormSection>
 
-          {/* Add Item */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="font-medium text-foreground">Ajouter un Article</h4>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setShowAddVariant(true)} className="text-xs">
-                  <Layers className="w-3.5 h-3.5 mr-1" />
-                  Ajouter Variante
+          <DevisFormSection
+            title={thirdPartyLabel}
+            description={`${thirdPartyRole} — coordonnées et identification fiscale`}
+            icon={ThirdPartyIcon}
+            tone={isAchat ? 'achat' : 'vente'}
+            action={
+              isAchat ? (
+                <Button variant="outline" size="sm" onClick={() => setShowNewFournisseur(true)} className="h-8">
+                  <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                  Nouveau
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setShowNewArticle(true)} className="text-xs">
-                  <Plus className="w-3.5 h-3.5 mr-1" />
-                  Créer Article
-                </Button>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mb-3">
-              ⚠️ Les devis n'affectent pas le stock
-            </p>
-
-            {/* Mode toggle */}
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => {
-                  achatPriceRequestRef.current += 1;
-                  setArticleMode('search');
-                  setSelectedProduct(null);
-                  setItemDesignation('');
-                  setItemFournisseur('');
-                  setItemPrixTtc(0);
-                  setItemPrixVenteDraft(null);
-                  setItemDescription('');
-                }}
-                className={`p-2 rounded-lg border text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${articleMode === 'search' ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-muted-foreground'
-                  }`}
-              >
-                <Search className="w-3.5 h-3.5" /> Sélectionner existant
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  achatPriceRequestRef.current += 1;
-                  setArticleMode('manual');
-                  setSelectedProduct(null);
-                  setItemDesignation('');
-                  setItemFournisseur('');
-                  setItemPrixTtc(0);
-                  setItemPrixVenteDraft(null);
-                  setItemDescription('');
-                }}
-                className={`p-2 rounded-lg border text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${articleMode === 'manual' ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-muted-foreground'
-                  }`}
-              >
-                <Edit className="w-3.5 h-3.5" /> Saisie libre
-              </button>
-            </div>
-
+              ) : undefined
+            }
+          >
             <div className="space-y-3">
+              <DevisField label="Raison sociale / nom">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={thirdPartyName}
+                    onChange={(e) => handleThirdPartyNameChange(e.target.value)}
+                    className="form-input"
+                    placeholder={`Rechercher ou saisir un ${thirdPartyLabel.toLowerCase()}…`}
+                  />
+                  {filteredThirdParties.length > 0 && (
+                    <div className="absolute left-0 right-0 mt-1 z-20 max-h-52 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg">
+                      {filteredThirdParties.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onMouseDown={() => handleThirdPartySuggestionSelect(item)}
+                          className="w-full px-3 py-2.5 text-left text-sm hover:bg-muted transition-colors border-b border-border/50 last:border-0"
+                        >
+                          <span className="font-medium">{item.nom}</span>
+                          {item.matricule_fiscale && (
+                            <span className="block text-xs text-muted-foreground font-mono mt-0.5">
+                              {item.matricule_fiscale}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </DevisField>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <DevisField label="Téléphone">
+                  <input
+                    type="text"
+                    value={thirdPartyPhone}
+                    onChange={(e) => setThirdPartyPhone(e.target.value)}
+                    className="form-input"
+                    placeholder="+216 …"
+                  />
+                </DevisField>
+                <DevisField label="Matricule fiscal">
+                  <input
+                    type="text"
+                    value={thirdPartyTaxId}
+                    onChange={(e) => setThirdPartyTaxId(e.target.value)}
+                    className="form-input"
+                    placeholder="MF / TVA"
+                  />
+                </DevisField>
+              </div>
+              <DevisField label="Adresse">
+                <input
+                  type="text"
+                  value={thirdPartyAddress}
+                  onChange={(e) => setThirdPartyAddress(e.target.value)}
+                  className="form-input"
+                  placeholder="Adresse complète"
+                />
+              </DevisField>
+            </div>
+          </DevisFormSection>
+
+          <DevisFormSection
+            title="Ajouter une ligne"
+            description="Les devis n'impactent pas le stock magasin"
+            icon={Package}
+            action={
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => setShowAddVariant(true)} className="h-8">
+                  <Layers className="w-3.5 h-3.5 mr-1.5" />
+                  Variante
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setShowNewArticle(true)} className="h-8">
+                  <Plus className="w-3.5 h-3.5 mr-1.5" />
+                  Nouvel article
+                </Button>
+              </div>
+            }
+          >
+            <DevisField label="Mode de saisie">
+              <DevisSegmentedGrid>
+                <DevisSegmentedOption
+                  value="search"
+                  current={articleMode}
+                  accent={isAchat ? 'achat' : 'vente'}
+                  onSelect={(v) => {
+                    achatPriceRequestRef.current += 1;
+                    setArticleMode(v);
+                    setSelectedProduct(null);
+                    setItemDesignation('');
+                    setItemFournisseur('');
+                    setItemPrixTtc(0);
+                    setItemPrixVenteDraft(null);
+                    setItemDescription('');
+                  }}
+                  label="Catalogue"
+                  sublabel="Recherche inventaire"
+                  icon={Search}
+                />
+                <DevisSegmentedOption
+                  value="manual"
+                  current={articleMode}
+                  accent={isAchat ? 'achat' : 'vente'}
+                  onSelect={(v) => {
+                    achatPriceRequestRef.current += 1;
+                    setArticleMode(v);
+                    setSelectedProduct(null);
+                    setItemDesignation('');
+                    setItemFournisseur('');
+                    setItemPrixTtc(0);
+                    setItemPrixVenteDraft(null);
+                    setItemDescription('');
+                  }}
+                  label="Saisie libre"
+                  sublabel="Désignation manuelle"
+                  icon={Edit}
+                />
+              </DevisSegmentedGrid>
+            </DevisField>
+
+            <div className="space-y-4 rounded-lg border border-dashed border-border/80 bg-muted/20 p-4">
               {articleMode === 'search' ? (
                 <>
                   {/* Search existing products */}
@@ -1274,21 +1327,34 @@ export const DevisForm = memo(({
                   )}
                   {isSearching && <p className="text-xs text-muted-foreground">Recherche...</p>}
 
-                  {/* Selected product info or fill fields */}
                   {selectedProduct && (
                     <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
-                      <p className="text-sm font-medium text-foreground">{selectedProduct.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {selectedProduct.sku}
-                        {isAchat
-                          ? ` — PU ${selectedProduct.price.toFixed(3)} HT`
-                          : ' — Prix d\'achat HT prérempli avec le net HT inventaire (prix × (1 − remise variante)) ; si absent, tarif fournisseur du groupe ou prix HT variante. Saisissez le PU vente HT ; remise et TVA du devis s\'appliquent au prix de vente uniquement.'}
-                      </p>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <p className="text-sm font-medium text-foreground">{selectedProduct.name}</p>
+                          <p className="text-xs text-muted-foreground font-mono">{selectedProduct.sku}</p>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            {isAchat
+                              ? `Prix catalogue HT : ${selectedProduct.price.toFixed(3)}`
+                              : 'Prix d\'achat HT prérempli depuis l\'inventaire. Saisissez le PU vente HT ; remise et TVA s\'appliquent sur le prix de vente.'}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={clearCatalogSelection}
+                          aria-label="Retirer la sélection"
+                          title="Retirer la sélection"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   )}
 
-                  {/* Quantity, Price & Remise */}
-                  <div className={`grid gap-3 ${devisType === 'vente' ? (isTtc ? 'grid-cols-6' : 'grid-cols-4') : (isTtc ? 'grid-cols-5' : 'grid-cols-3')}`}>
+                  <div className={cn('grid gap-3', priceGridCols === 6 ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6' : priceGridCols === 5 ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5' : priceGridCols === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3')}>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
                       <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
@@ -1346,7 +1412,7 @@ export const DevisForm = memo(({
                     )}
                     {isTtc && (
                       <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC unit.' : 'Prix Vente TTC unit. (après remise)'}</label>
+                        <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC unit.' : 'Prix Vente TTC unit.'}</label>
                         <div className="form-input bg-muted/40 text-sm text-foreground tabular-nums flex items-center min-h-9">
                           {(itemPrixTtc * (1 - itemRemise / 100) * (1 + itemTva / 100)).toFixed(3)}
                         </div>
@@ -1385,7 +1451,7 @@ export const DevisForm = memo(({
                       />
                     </div>
                   </div>
-                  <div className={`grid gap-3 ${devisType === 'vente' ? (isTtc ? 'grid-cols-6' : 'grid-cols-4') : (isTtc ? 'grid-cols-5' : 'grid-cols-3')}`}>
+                  <div className={cn('grid gap-3', priceGridCols === 6 ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6' : priceGridCols === 5 ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5' : priceGridCols === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3')}>
                     <div>
                       <label htmlFor="manual-item-qty" className="text-xs text-muted-foreground mb-1 block">Quantité</label>
                       <input
@@ -1451,7 +1517,7 @@ export const DevisForm = memo(({
                     )}
                     {isTtc && (
                       <div>
-                        <span className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC unit.' : 'Prix Vente TTC unit. (après remise)'}</span>
+                        <span className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC unit.' : 'Prix Vente TTC unit.'}</span>
                         <div
                           className="form-input bg-muted/40 text-sm text-foreground tabular-nums flex items-center min-h-9"
                           tabIndex={-1}
@@ -1467,87 +1533,61 @@ export const DevisForm = memo(({
 
 
 
-              <Button onClick={addItem} disabled={!itemDesignation.trim()} className="w-full">
-                <Plus className="w-4 h-4 mr-2" /> {docType === 'bc' ? 'Ajouter au bon de commande' : 'Ajouter au devis'}
+              <Button onClick={addItem} disabled={!itemDesignation.trim()} className="w-full" size="lg">
+                <Plus className="w-4 h-4 mr-2" />
+                {docType === 'bc' ? 'Ajouter au bon de commande' : 'Ajouter la ligne'}
               </Button>
             </div>
-          </div>
+          </DevisFormSection>
 
-          {/* Notes */}
-          <div>
-            <label className="form-label">Notes</label>
-            <textarea value={notes} onChange={e => setNotes(e.target.value)} className="form-input min-h-[60px] resize-y" placeholder="Notes ou commentaires..." />
-          </div>
+          <DevisFormSection title="Notes" icon={StickyNote} description="Commentaires internes ou conditions particulières">
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="form-input min-h-[72px] resize-y w-full"
+              placeholder="Conditions de paiement, délais, remarques…"
+            />
+          </DevisFormSection>
 
-          {/* Actions */}
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onCancel} className="gap-2">
-              <X className="w-4 h-4" /> Vider
+          <DevisStickyActions>
+            <Button variant="outline" onClick={onCancel} className="gap-2 sm:flex-1">
+              <X className="w-4 h-4" />
+              {editingDevis ? 'Annuler' : 'Vider'}
             </Button>
             {editingDevis ? (
-              <Button onClick={onUpdate} className="flex-1">
-                <Edit className="w-4 h-4 mr-2" /> Mettre à jour
+              <Button onClick={onUpdate} className="gap-2 sm:flex-[2]">
+                <Edit className="w-4 h-4" />
+                Mettre à jour
               </Button>
             ) : (
-              <Button onClick={onSave} className="flex-1" disabled={isSaving}>
-                <Save className="w-4 h-4 mr-2" />
-                {isSaving ? 'Sauvegarde...' : 'Sauvegarder'}
+              <Button onClick={onSave} disabled={isSaving} className="gap-2 sm:flex-[2]">
+                <Save className="w-4 h-4" />
+                {isSaving ? 'Enregistrement…' : 'Enregistrer'}
               </Button>
             )}
-          </div>
+          </DevisStickyActions>
         </div>
 
-        {/* Items Preview */}
-        <div className="bg-card rounded-xl border border-border p-6 lg:overflow-y-auto">
-          <div className="flex items-center justify-between mb-4 sticky top-0 bg-card z-10 pb-2">
-            <h3 className="text-lg font-semibold text-foreground">Articles du Devis</h3>
+        {/* ——— Panneau lignes & totaux ——— */}
+        <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto rounded-xl border bg-card p-4 sm:p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/60">
+            <h3 className="text-base font-semibold text-foreground">Lignes du document</h3>
+            <Badge variant="secondary" className="tabular-nums">
+              {devisItems.length} ligne{devisItems.length !== 1 ? 's' : ''}
+            </Badge>
           </div>
 
-          {devisItems.length > 0 && (
-            <div className={`grid ${isTtc ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'} gap-2 mb-4 p-3 rounded-lg bg-muted/50 border border-border text-center text-xs`}>
-              <div>
-                <p className="text-muted-foreground">Total HT</p>
-                <p className="font-semibold text-foreground">{devisTotals.totalHT.toFixed(3)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Remise</p>
-                <p className="font-semibold text-destructive">-{devisTotals.totalRemise.toFixed(3)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Net HT</p>
-                <p className="font-semibold text-foreground">{devisTotals.totalNet.toFixed(3)}</p>
-              </div>
-              {isTtc && (
-                <div>
-                  <p className="text-muted-foreground">TVA</p>
-                  <p className="font-semibold text-foreground">{devisTotals.totalTVA.toFixed(3)}</p>
-                </div>
-              )}
-              {isTtc && (
-                <div>
-                  <p className="text-muted-foreground">Total TTC</p>
-                  <p className="font-semibold text-foreground">{devisTotals.totalTTC.toFixed(3)}</p>
-                </div>
-              )}
-              <div>
-                <p className="text-muted-foreground">Timbre</p>
-                <p className="font-semibold text-foreground">1.000</p>
-              </div>
-              <div className={`${isTtc ? 'col-span-2 sm:col-span-3' : 'col-span-2'} border-t border-border pt-2 mt-1`}>
-                <p className="text-muted-foreground">{isTtc ? 'Total TTC' : 'Total HT'}</p>
-                <p className="font-bold text-primary text-sm">{(isTtc ? devisTotals.totalFinal : devisTotals.totalFinalHT).toFixed(3)} TND</p>
-              </div>
-            </div>
-          )}
+          {devisItems.length > 0 && <DevisTotalsStrip isTtc={isTtc} totals={devisTotals} />}
 
           {devisItems.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-sm text-muted-foreground">Aucun article ajouté.</p>
-            </div>
+            <DevisItemsEmptyState />
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {devisItems.map((item, idx) => (
-                <div key={idx} className="p-4 rounded-lg bg-muted/50">
+                <div
+                  key={idx}
+                  className="rounded-lg border bg-muted/30 overflow-hidden"
+                >
                   {editingItemIdx === idx ? (
                     <div className="space-y-3">
                       <div className="grid gap-3">
@@ -1564,7 +1604,7 @@ export const DevisForm = memo(({
                           <input type="text" value={editItemDescription} onChange={e => setEditItemDescription(e.target.value)} className="form-input" placeholder="Description (optionnel)" />
                         </div>
                       </div>
-                      <div className={`grid gap-3 ${devisType === 'vente' ? (isTtc ? 'grid-cols-6' : 'grid-cols-4') : (isTtc ? 'grid-cols-5' : 'grid-cols-3')}`}>
+                      <div className={cn('grid gap-3', priceGridCols === 6 ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6' : priceGridCols === 5 ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5' : priceGridCols === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3')}>
                         <div>
                           <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
                           <input type="number" min="1" value={editItemQty} onChange={e => setEditItemQty(parseInt(e.target.value) || 1)} className="form-input" />
@@ -1595,7 +1635,7 @@ export const DevisForm = memo(({
                         )}
                         {isTtc && (
                           <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC unit.' : 'Prix Vente TTC unit. (après remise)'}</label>
+                            <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC unit.' : 'Prix Vente TTC unit.'}</label>
                             <div className="form-input bg-muted/40 text-sm text-foreground tabular-nums flex items-center min-h-9">
                               {(editItemPrix * (1 - editItemRemise / 100) * (1 + editItemTva / 100)).toFixed(3)}
                             </div>
@@ -1608,38 +1648,44 @@ export const DevisForm = memo(({
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <p className="font-medium text-foreground">{item.designation}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {item.fournisseur && `${item.fournisseur} • `}
-                          Qté: {item.quantity}
-                          {item.prix_achat != null && item.prix_achat > 0 && ` • Achat HT: ${item.prix_achat.toFixed(3)}`}
-                          {item.prix_achat != null && item.prix_achat > 0 && isTtc && !isAchat && ` (achat TTC indic.: ${(item.prix_achat * (1 + (item.tva ?? 19) / 100)).toFixed(3)})`}
-                          {` • ${isAchat ? 'PU achat' : 'PU vente'} HT: ${item.prix_ttc.toFixed(3)}`}
-                          {isTtc && ` • TVA: ${item.tva ?? 19}%`}
+                    <div className="flex items-start gap-3 p-3">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background border text-xs font-semibold text-muted-foreground">
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground leading-snug">{item.designation}</p>
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                          {item.fournisseur && <span className="block">{item.fournisseur}</span>}
+                          Qté {item.quantity}
+                          {item.prix_achat != null && item.prix_achat > 0 && ` · Achat HT ${item.prix_achat.toFixed(3)}`}
+                          {` · ${isAchat ? 'PU achat' : 'PU vente'} HT ${item.prix_ttc.toFixed(3)}`}
+                          {item.remise > 0 && ` · Remise ${item.remise}%`}
+                          {isTtc && ` · TVA ${item.tva ?? 19}%`}
                           {(() => {
                             const line = computeDevisLine(item, false);
-                            const bits: string[] = [];
-                            if (item.remise > 0) {
-                              bits.push(`remise ${item.remise}% sur PU HT → net HT unit. ${line.unitAfterRemiseHT.toFixed(3)}`);
-                            }
-                            if (isTtc && !isAchat) {
-                              bits.push(`PU TTC unit. ${line.unitAfterRemiseTTC.toFixed(3)}`);
-                            }
-                            const lineLabel = isTtc ? 'Total ligne TTC' : 'Total ligne HT';
                             const lineVal = isTtc ? line.lineTTC : line.lineHT;
-                            bits.push(`${lineLabel}: ${lineVal.toFixed(3)} TND`);
-                            return bits.length ? ` • ${bits.join(' • ')}` : '';
+                            return ` · Ligne ${lineVal.toFixed(3)} TND`;
                           })()}
                         </p>
-                        {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}
+                        {item.description && (
+                          <p className="text-xs text-muted-foreground/80 mt-1 italic">{item.description}</p>
+                        )}
                       </div>
-                      <div className="flex gap-1">
-                        <button onClick={() => startEditItem(idx)} className="p-2 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors">
+                      <div className="flex shrink-0 gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => startEditItem(idx)}
+                          className="p-2 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                          aria-label="Modifier la ligne"
+                        >
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button onClick={() => removeItem(idx)} className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                        <button
+                          type="button"
+                          onClick={() => removeItem(idx)}
+                          className="p-2 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                          aria-label="Supprimer la ligne"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>

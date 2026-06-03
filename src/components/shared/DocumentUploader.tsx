@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileUp, Loader2, FileText, CheckCircle2, Trash2 } from 'lucide-react';
+import { Upload, FileUp, Loader2, FileText, CheckCircle2, Trash2, Eye, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { loadStorageDocumentPdf, parseSupabaseStorageObjectUrl } from '@/lib/clientDocumentStorage';
 import {
@@ -171,30 +171,19 @@ export const DocumentUploader = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           {currentUrl && (
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              className="h-8 text-xs"
+              size="icon"
+              className="h-8 w-8"
               disabled={consulting || removing}
+              title="Aperçu"
+              aria-label="Aperçu du document"
               onClick={() => void handleConsult()}
             >
-              {consulting ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Consulter'}
-            </Button>
-          )}
-
-          {canRemove && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs text-destructive hover:text-destructive"
-              disabled={uploading || removing}
-              onClick={() => void handleRemove()}
-            >
-              {removing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+              {consulting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
             </Button>
           )}
 
@@ -210,19 +199,37 @@ export const DocumentUploader = ({
             <Button
               type="button"
               variant={currentUrl ? 'secondary' : 'default'}
-              size="sm"
+              size="icon"
               disabled={uploading || removing}
-              className="h-8 gap-2 text-xs"
+              className="h-8 w-8"
+              title={currentUrl ? 'Modifier le fichier' : 'Ajouter un fichier'}
+              aria-label={currentUrl ? 'Modifier le fichier' : 'Ajouter un fichier'}
               onClick={openFilePicker}
             >
               {uploading ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : currentUrl ? (
+                <Pencil className="w-4 h-4" />
               ) : (
-                <Upload className="w-3 h-3" />
+                <Upload className="w-4 h-4" />
               )}
-              {currentUrl ? 'Modifier' : 'Ajouter'}
             </Button>
           </div>
+
+          {canRemove && (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 text-destructive hover:text-destructive"
+              disabled={uploading || removing}
+              title="Supprimer"
+              aria-label="Supprimer le document"
+              onClick={() => void handleRemove()}
+            >
+              {removing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            </Button>
+          )}
         </div>
       </div>
 
