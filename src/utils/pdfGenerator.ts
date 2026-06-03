@@ -559,6 +559,29 @@ export interface DevisPDFData {
   date_echeance?: string | null;
 }
 
+/** Safe PDF basename: document number + client or fournisseur name. */
+export const buildDocumentPdfFileName = (devis: DevisPDFData): string => {
+  const sanitize = (value: string, fallback: string) => {
+    const cleaned = value
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+      .replace(/\s+/g, ' ')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+    return cleaned || fallback;
+  };
+
+  const isVente = devis.type === 'sortant';
+  const num = sanitize(devis.devis_number || 'document', 'document');
+  const party = sanitize(
+    devis.third_party_name || '',
+    isVente ? 'client' : 'fournisseur'
+  );
+  return `${num} ${party}.pdf`;
+};
+
 const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -832,7 +855,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
 export const downloadDevisPDF = async (devis: DevisPDFData) => {
   const doc = await buildDevisPDF(devis);
-  doc.save(`devis_${devis.devis_number}_${devis.devis_date}.pdf`);
+  doc.save(buildDocumentPdfFileName(devis));
 };
 
 export const getDevisPDFBlobUrl = async (devis: DevisPDFData): Promise<string> => {
@@ -840,4 +863,13 @@ export const getDevisPDFBlobUrl = async (devis: DevisPDFData): Promise<string> =
   const buffer = doc.output("arraybuffer");
   const blob = new Blob([buffer], { type: "application/pdf" });
   return URL.createObjectURL(blob);
+};
+
+/** Trigger print on a visible PDF preview iframe (Electron cannot preview hidden-frame prints). */
+export const printPdfPreviewIframe = (iframe: HTMLIFrameElement | null): boolean => {
+  const win = iframe?.contentWindow;
+  if (!win) return false;
+  win.focus();
+  win.print();
+  return true;
 };

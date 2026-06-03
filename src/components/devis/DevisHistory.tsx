@@ -1,11 +1,17 @@
-import { memo, useMemo, useState, useCallback, useEffect } from 'react';
-import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus, Truck, ChevronDown, Inbox, ListChecks, MoreHorizontal } from 'lucide-react';
+import { memo, useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus, Truck, ChevronDown, Inbox, ListChecks, MoreHorizontal, Printer } from 'lucide-react';
 import { EchantillonModal } from './EchantillonModal';
 import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { computeDevisLine, computeDevisTotals } from '@/lib/devisPricing';
-import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
+import {
+  buildDocumentPdfFileName,
+  downloadDevisPDF,
+  getDevisPDFBlobUrl,
+  printPdfPreviewIframe,
+  DevisPDFData,
+} from '@/utils/pdfGenerator';
 import { pdfPreviewDialogContentClassName } from '@/lib/pdfPreviewDialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -100,6 +106,9 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   const [deleteConfirm, setDeleteConfirm] = useState<Devis | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState('');
+  const [previewDownloadName, setPreviewDownloadName] = useState('');
+  const [printWhenPreviewReady, setPrintWhenPreviewReady] = useState(false);
+  const previewIframeRef = useRef<HTMLIFrameElement>(null);
   const [isGenerating, setIsGenerating] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [itemsDevis, setItemsDevis] = useState<Devis | null>(null);
@@ -175,11 +184,14 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     return { draftsSorted: drafts, restSorted: rest };
   }, [filteredDevis]);
 
-  const handlePreview = useCallback(async (d: Devis) => {
+  const openPdfPreview = useCallback(async (d: Devis, options?: { printAfterLoad?: boolean }) => {
     setIsGenerating(d.id);
     try {
-      const url = await getDevisPDFBlobUrl(toDevisPDFData(d));
+      const pdfData = toDevisPDFData(d);
+      const url = await getDevisPDFBlobUrl(pdfData);
       setPreviewTitle(`Devis ${d.devis_number}`);
+      setPreviewDownloadName(buildDocumentPdfFileName(pdfData));
+      setPrintWhenPreviewReady(!!options?.printAfterLoad);
       setPreviewUrl(url);
     } catch (err) {
       console.error('Error generating preview:', err);
@@ -187,6 +199,10 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
       setIsGenerating(null);
     }
   }, []);
+
+  const handlePreview = useCallback((d: Devis) => {
+    void openPdfPreview(d);
+  }, [openPdfPreview]);
 
   const handleDownload = useCallback(async (d: Devis) => {
     setIsGenerating(d.id);
@@ -199,10 +215,26 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     }
   }, []);
 
+  const handlePrint = useCallback((d: Devis) => {
+    void openPdfPreview(d, { printAfterLoad: true });
+  }, [openPdfPreview]);
+
+  const printFromPreviewIframe = useCallback(() => {
+    printPdfPreviewIframe(previewIframeRef.current);
+  }, []);
+
+  const handlePreviewIframeLoad = useCallback(() => {
+    if (!printWhenPreviewReady) return;
+    setPrintWhenPreviewReady(false);
+    printFromPreviewIframe();
+  }, [printWhenPreviewReady, printFromPreviewIframe]);
+
   const closePreview = useCallback(() => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setPreviewTitle('');
+    setPreviewDownloadName('');
+    setPrintWhenPreviewReady(false);
   }, [previewUrl]);
 
   const listAccent = selectedType === 'achat' ? 'achat' : selectedType === 'vente' ? 'vente' : (defaultTypeFilter === 'achat' ? 'achat' : 'vente');
@@ -231,16 +263,13 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   );
 
   const renderDevisActionsMenu = (d: Devis) => {
+    const rowBusy = isGenerating === d.id;
     const canModify =
       (isAdminOrMod || (currentUserId && d.created_by === currentUserId)) && canEdit && d.status !== 'accepté';
     const canDelete = isAdminOrMod || (currentUserId && d.created_by === currentUserId);
     const showBc = !!onConvertToBC && d.type === 'vente';
     const showBcFournisseur = !!onConvertToBCFournisseur && d.type === 'vente';
-    const hasMenu = showBc || showBcFournisseur || canModify || canDelete;
-
-    if (!hasMenu) {
-      return <span className="text-muted-foreground text-xs">—</span>;
-    }
+    const showOtherActions = showBc || showBcFournisseur || canModify || canDelete;
 
     return (
       <DropdownMenu>
@@ -250,12 +279,18 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
             variant="ghost"
             size="icon"
             className="h-8 w-8"
+            disabled={rowBusy}
             aria-label="Actions sur le devis"
           >
-            <MoreHorizontal className="h-4 w-4" />
+            {rowBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-52">
+          <DropdownMenuItem disabled={rowBusy} onClick={() => void handlePrint(d)}>
+            <Printer className="mr-2 h-4 w-4" />
+            Imprimer
+          </DropdownMenuItem>
+          {showOtherActions && <DropdownMenuSeparator />}
           {showBc && (
             <DropdownMenuItem onClick={() => onConvertToBC!(d)}>
               <FileText className="mr-2 h-4 w-4" />
@@ -634,21 +669,29 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
       {/* PDF Preview Dialog */}
       <Dialog open={!!previewUrl} onOpenChange={(open) => { if (!open) closePreview(); }}>
         <DialogContent className={pdfPreviewDialogContentClassName}>
-          <DialogHeader className="flex-shrink-0 flex flex-row items-center justify-between">
+          <DialogHeader className="flex-shrink-0 flex flex-row items-center justify-between gap-2">
             <DialogTitle>{previewTitle}</DialogTitle>
             {previewUrl && (
-              <a href={previewUrl} download={`${previewTitle}.pdf`}>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Download className="w-4 h-4" />
-                  Télécharger
+              <div className="flex items-center gap-2 shrink-0">
+                <Button variant="default" size="sm" className="gap-2" onClick={printFromPreviewIframe}>
+                  <Printer className="w-4 h-4" />
+                  Imprimer
                 </Button>
-              </a>
+                <a href={previewUrl} download={previewDownloadName || `${previewTitle}.pdf`}>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Download className="w-4 h-4" />
+                    Télécharger
+                  </Button>
+                </a>
+              </div>
             )}
           </DialogHeader>
           <div className="flex-1 min-h-0">
             {previewUrl && (
               <iframe
-                src={`${previewUrl}#toolbar=0`}
+                ref={previewIframeRef}
+                src={`${previewUrl}#toolbar=1&navpanes=0`}
+                onLoad={handlePreviewIframeLoad}
                 className="h-[75vh] w-full border rounded-lg bg-muted/30"
                 title="Prévisualisation PDF"
               />
