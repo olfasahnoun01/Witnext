@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Fuel, Plus, Search, Calendar, User, Car, Banknote, ClipboardList, Loader2, Image as ImageIcon, Eye, Pencil } from 'lucide-react';
+import { Fuel, Plus, Search, Calendar, User, Car, Banknote, ClipboardList, Loader2, Image as ImageIcon, Eye, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,8 +26,20 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { getFuelVoucherStatusDisplay, fuelVoucherStatusBadgeClass } from '@/lib/fuelVoucherStatus';
 
 interface FuelVoucher {
   id: string;
@@ -64,6 +76,7 @@ interface Vehicle {
 }
 
 export const BonCarburant = () => {
+  const { isAdmin } = useAuth();
   const [bons, setBons] = useState<FuelVoucher[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -72,6 +85,8 @@ export const BonCarburant = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<FuelVoucher | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [form, setForm] = useState({
     numBon: '',
@@ -182,6 +197,24 @@ export const BonCarburant = () => {
       toast.error(error.message || 'Erreur lors de l\'ajout du bon');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteConfirm) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.from('fuel_vouchers').delete().eq('id', deleteConfirm.id);
+      if (error) throw error;
+      toast.success(`Bon ${deleteConfirm.num_bon} supprimé`);
+      setDeleteConfirm(null);
+      fetchData();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur lors de la suppression';
+      console.error('Error deleting fuel voucher:', error);
+      toast.error(message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -306,8 +339,8 @@ export const BonCarburant = () => {
                     <TableCell className="text-right font-semibold text-foreground">{(bon.montant || 0).toLocaleString()} TND</TableCell>
                     <TableCell className="text-foreground">{new Date(bon.date).toLocaleDateString()}</TableCell>
                     <TableCell>
-                      <Badge className={bon.status === 'used' ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-amber-500 hover:bg-amber-600 text-white'}>
-                        {bon.status === 'pending' ? 'En attente' : bon.status === 'used' ? 'Utilisé' : (bon.status || 'En attente')}
+                      <Badge variant="outline" className={fuelVoucherStatusBadgeClass(bon.status)}>
+                        {getFuelVoucherStatusDisplay(bon.status).label}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
@@ -328,10 +361,30 @@ export const BonCarburant = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button variant="outline" size="sm" onClick={() => openEditDialog(bon)} className="gap-1">
-                        <Pencil className="w-3 h-3" />
-                        Modifier
-                      </Button>
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="Modifier"
+                          aria-label="Modifier le bon"
+                          onClick={() => openEditDialog(bon)}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        {isAdmin && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            title="Supprimer"
+                            aria-label="Supprimer le bon"
+                            onClick={() => setDeleteConfirm(bon)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -506,6 +559,35 @@ export const BonCarburant = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce bon de carburant ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteConfirm && (
+                <>
+                  Le bon <strong>{deleteConfirm.num_bon}</strong> ({getVehicleName(deleteConfirm)},{' '}
+                  {getDriverName(deleteConfirm)}) sera définitivement supprimé. Cette action est irréversible.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDelete();
+              }}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Suppression…' : 'Supprimer'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
         <DialogContent className="max-w-3xl p-0 overflow-hidden bg-transparent border-none">

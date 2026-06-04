@@ -9,9 +9,18 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AlphaLogoBanner } from '@/components/AlphaLogoBanner';
-import { BIG_SECTIONS, SUBSECTION_TO_SECTION } from '@/config/navigation';
+import { BIG_SECTIONS } from '@/config/navigation';
 import { getSectionTheme } from '@/config/sectionThemes';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useAuth } from '@/hooks/useAuth';
+
+function collapsedSectionsState(): Record<string, boolean> {
+  const initial: Record<string, boolean> = {};
+  BIG_SECTIONS.forEach((s) => {
+    initial[s.id] = false;
+  });
+  return initial;
+}
 
 interface SidebarProps {
   activeTab: string;
@@ -21,24 +30,13 @@ interface SidebarProps {
 }
 
 export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarProps) => {
-  // Initialize with the section of the active tab expanded, and others optionally true or false
-  // For better UX, let's have the active one expanded and others collapsed, or all expanded initially.
-  // We'll initialize all to true for discoverability.
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    BIG_SECTIONS.forEach(s => {
-      initial[s.id] = true;
-    });
-    return initial;
-  });
+  const { user } = useAuth();
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(collapsedSectionsState);
 
-  // Make sure the active section is always expanded when navigating (optional but good)
+  // Keep all modules collapsed on sign-in / user change until the user opens a section
   useEffect(() => {
-    const activeSectionId = SUBSECTION_TO_SECTION[activeTab];
-    if (activeSectionId && !expandedSections[activeSectionId]) {
-      setExpandedSections(prev => ({ ...prev, [activeSectionId]: true }));
-    }
-  }, [activeTab]);
+    setExpandedSections(collapsedSectionsState());
+  }, [user?.id]);
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections(prev => ({
@@ -179,18 +177,18 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
           </nav>
 
           {/* Footer */}
-          <div className="p-4 border-t border-sidebar-border/50">
-            <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
-              <p className="text-sm font-medium text-sidebar-foreground">
+          <div className="px-3 py-2 border-t border-sidebar-border/50">
+            <div className="px-2.5 py-2 rounded-lg bg-primary/10 border border-primary/20">
+              <p className="text-[11px] font-semibold leading-tight text-sidebar-foreground">
                 Alpha
               </p>
-              <div className="flex items-center gap-2 mt-2 text-xs text-sidebar-foreground/80">
-                <Phone className="w-3.5 h-3.5" />
-                <span>Contactez l'administrateur</span>
+              <div className="flex items-center gap-1.5 mt-1 text-[10px] leading-tight text-sidebar-foreground/75">
+                <Phone className="w-3 h-3 shrink-0" />
+                <span>Contactez l&apos;administrateur</span>
               </div>
-              <a 
-                href="tel:56244009" 
-                className="text-sm font-semibold text-primary hover:underline mt-1 block"
+              <a
+                href="tel:56244009"
+                className="text-[11px] font-semibold text-primary hover:underline mt-0.5 block leading-tight"
               >
                 56 244 009
               </a>
