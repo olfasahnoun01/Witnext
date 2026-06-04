@@ -1,8 +1,7 @@
 import { memo, useCallback, useState, useEffect, useMemo } from 'react';
 import { ProductGroupFournisseur } from '@/types';
-import { computeDevisTotals, computeDevisLine } from '@/lib/devisPricing';
-import { Plus, Trash2, Edit, Building2, Users, Save, X, UserPlus, Search, Package, Layers, Truck, Check, AlertCircle, Upload, ChevronsUpDown, FileText, ShoppingCart, ArrowDownLeft, ArrowUpRight, StickyNote } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { computeDevisTotals } from '@/lib/devisPricing';
+import { Plus, Trash2, Edit, X, UserPlus, Search, Layers, Check, AlertCircle, Upload, ChevronsUpDown, FileText, ShoppingCart, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,6 +31,8 @@ import {
   searchInventoryProductsLight,
 } from '@/lib/inventoryProductSearch';
 import { DocumentUploader } from '@/components/shared/DocumentUploader';
+import { CommercialAttachmentField } from '@/components/shared/CommercialAttachmentField';
+import type { CommercialAttachmentRecord } from '@/lib/commercialAttachments';
 import { ClientDocumentPreviewDialog } from '@/components/shared/ClientDocumentPreviewDialog';
 import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { PhoneLinesEditor } from '@/components/shared/PhoneLinesEditor';
@@ -42,14 +43,17 @@ import {
   DevisField,
   DevisFlowBadge,
   DevisFormPageHeader,
-  DevisFormSection,
-  DevisItemsEmptyState,
   DevisPricingToggle,
   DevisSegmentedGrid,
   DevisSegmentedOption,
-  DevisStickyActions,
-  DevisTotalsStrip,
+  DevisZohoFooter,
+  DevisZohoSection,
+  DevisZohoShell,
+  DevisZohoTopBar,
+  DevisZohoTotalsPanel,
 } from './DevisFormUi';
+import { DevisArticlesTable } from './DevisArticlesTable';
+import { ImportDevisIntoBcPanel } from './ImportDevisIntoBcPanel';
 
 const DEFAULT_CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
@@ -105,6 +109,13 @@ interface DevisFormProps {
   setDocType: (t: 'devis' | 'bc' | 'ba') => void;
   lockDevisType?: boolean;
   forceDocType?: 'devis' | 'bc';
+  existingAttachments?: CommercialAttachmentRecord[];
+  pendingAttachmentFiles?: File[];
+  onPendingAttachmentFilesChange?: (files: File[]) => void;
+  onRemoveExistingAttachment?: (index: number) => void;
+  /** Devis disponibles pour remplir un BC (liste devis, même type). */
+  importableDevis?: Devis[];
+  onImportDevis?: (selected: Devis[]) => void;
 }
 
 export const DevisForm = memo(({
@@ -116,6 +127,12 @@ export const DevisForm = memo(({
   setNotes, setDocumentStatus, setDevisItems, setIsTtc,
   onSave, onUpdate, onCancel,
   docType, setDocType, lockDevisType, forceDocType,
+  existingAttachments = [],
+  pendingAttachmentFiles = [],
+  onPendingAttachmentFilesChange,
+  onRemoveExistingAttachment,
+  importableDevis = [],
+  onImportDevis,
 }: DevisFormProps) => {
   const isAchat = devisType === 'achat';
 
@@ -244,8 +261,8 @@ export const DevisForm = memo(({
   useEffect(() => {
     const load = async () => {
       const [fRes, cRes, catSettingsRes, productsCatsRes, groupCatsRes] = await Promise.all([
-        supabase.from('fournisseurs').select('id, nom, matricule_fiscale, location, phone, patente_url, registre_commerce_url').order('nom'),
-        supabase.from('clients').select('id, nom, matricule_fiscale, location, phone').order('nom'),
+        supabase.from('fournisseurs').select('id, nom, matricule_fiscale, location, phone, patente_url, registre_commerce_url, created_at').order('created_at', { ascending: false }),
+        supabase.from('clients').select('id, nom, matricule_fiscale, location, phone, created_at').order('created_at', { ascending: false }),
         supabase.from('category_settings').select('category_name'),
         supabase.from('products').select('category'),
         supabase.from('product_groups').select('category'),
@@ -322,7 +339,7 @@ export const DevisForm = memo(({
       if (achat <= 0) loadPrixAchatFromInventoryProduct(product);
     }
     setItemQuantity(1);
-    setItemDescription(`${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`);
+    setItemDescription('');
     setProductSearch('');
     setSearchResults([]);
   }, [isAchat, loadPrixAchatFromInventoryProduct]);
@@ -439,7 +456,7 @@ export const DevisForm = memo(({
       toast.error('Erreur création fournisseur');
     } else if (data) {
       toast.success('Fournisseur créé');
-      setFournisseurs(prev => [...prev, data as Fournisseur].sort((a, b) => a.nom.localeCompare(b.nom)));
+      setFournisseurs((prev) => [data as Fournisseur, ...prev]);
       if (isAchat) {
         setThirdPartyName(data.nom);
         setThirdPartyPhone(formatPhonesDisplay((data as Fournisseur).phone) || '');
@@ -453,36 +470,58 @@ export const DevisForm = memo(({
   }, [newFournisseurName, newFournisseurMatricule, newFournisseurSpecialite, newFournisseurGovernorate, newFournisseurCity, newFournisseurCode, newFournisseurPhoneLines, newFournisseurPatenteUrl, newFournisseurRneUrl, isAchat, setThirdPartyName, setThirdPartyPhone, setThirdPartyAddress, setThirdPartyTaxId, resetNewFournisseurForm]);
 
   const addItem = useCallback(() => {
-    if (!itemDesignation.trim()) { toast.error('Nom d\'article requis'); return; }
+    if (articleMode === 'search') {
+      if (!selectedProduct) {
+        toast.error('Sélectionnez un article dans le catalogue');
+        return;
+      }
+    } else if (!itemDesignation.trim()) {
+      toast.error('Nom d\'article requis');
+      return;
+    }
     if (devisType === 'vente' && itemPrixTtc <= 0) {
       toast.error('Indiquez le prix de vente HT');
       return;
     }
-    
-    const designationLines =
-      articleMode === 'manual'
-        ? [itemDesignation.trim()].filter(Boolean)
-        : itemDesignation.split(',').map(d => d.trim()).filter(d => d !== '');
-    if (designationLines.length === 0) return;
 
-    const lineFournisseur =
-      articleMode === 'manual' && isAchat
-        ? thirdPartyName.trim()
-        : itemFournisseur.trim();
+    const detailDescription = itemDescription.trim();
+    const catalogSku = selectedProduct?.sku?.trim();
 
-    const newItems = designationLines.map(name => ({
-      line_id: Math.random().toString(36).substring(7),
-      designation: name,
-      fournisseur: lineFournisseur,
-      prix_ttc: itemPrixTtc,
-      remise: itemRemise,
-      quantity: itemQuantity,
-      description: itemDescription.trim() || undefined,
-      tva: itemTva,
-      ...(devisType === 'vente' ? { prix_achat: itemPrixAchat } : {}),
-      ...(selectedProduct?.sku ? { sku: selectedProduct.sku } : {}),
-      product_id: selectedProduct?.id,
-    }));
+    const newItems: DevisItem[] =
+      articleMode === 'search' && selectedProduct
+        ? [
+            {
+              line_id: Math.random().toString(36).substring(7),
+              designation: selectedProduct.name,
+              fournisseur: selectedProduct.fournisseur?.trim() || itemFournisseur.trim(),
+              prix_ttc: itemPrixTtc,
+              remise: itemRemise,
+              quantity: itemQuantity,
+              description: detailDescription || undefined,
+              tva: itemTva,
+              ...(catalogSku ? { sku: catalogSku } : {}),
+              product_id: selectedProduct.id,
+              ...(devisType === 'vente' ? { prix_achat: itemPrixAchat } : {}),
+            },
+          ]
+        : itemDesignation
+            .split(',')
+            .map((d) => d.trim())
+            .filter((d) => d !== '')
+            .map((name) => ({
+              line_id: Math.random().toString(36).substring(7),
+              designation: name,
+              fournisseur:
+                articleMode === 'manual' && isAchat
+                  ? thirdPartyName.trim()
+                  : itemFournisseur.trim(),
+              prix_ttc: itemPrixTtc,
+              remise: itemRemise,
+              quantity: itemQuantity,
+              description: detailDescription || undefined,
+              tva: itemTva,
+              ...(devisType === 'vente' ? { prix_achat: itemPrixAchat } : {}),
+            }));
 
     setDevisItems(prev => [...prev, ...newItems]);
 
@@ -507,53 +546,19 @@ export const DevisForm = memo(({
     setDevisItems(prev => prev.filter((_, i) => i !== idx));
   }, [setDevisItems]);
 
-  // Inline edit state for devis items
-  const [editingItemIdx, setEditingItemIdx] = useState<number | null>(null);
-  const [editItemDesignation, setEditItemDesignation] = useState('');
-  const [editItemFournisseur, setEditItemFournisseur] = useState('');
-  const [editItemDescription, setEditItemDescription] = useState('');
-  const [editItemPrix, setEditItemPrix] = useState<number>(0);
-  const [editItemQty, setEditItemQty] = useState<number>(1);
-  const [editItemPrixAchat, setEditItemPrixAchat] = useState<number>(0);
-  const [editItemRemise, setEditItemRemise] = useState<number>(0);
-  const [editItemTva, setEditItemTva] = useState<number>(19);
+  const updateLineItem = useCallback(
+    (idx: number, patch: Partial<DevisItem>) => {
+      setDevisItems((prev) =>
+        prev.map((item, i) => (i === idx ? { ...item, ...patch } : item))
+      );
+    },
+    [setDevisItems]
+  );
 
-  const startEditItem = useCallback((idx: number) => {
-    const item = devisItems[idx];
-    setEditingItemIdx(idx);
-    setEditItemDesignation(item.designation);
-    setEditItemFournisseur(item.fournisseur || '');
-    setEditItemDescription(item.description || '');
-    setEditItemPrix(item.prix_ttc);
-    setEditItemQty(item.quantity);
-    setEditItemPrixAchat(item.prix_achat || 0);
-    setEditItemRemise(item.remise || 0);
-    setEditItemTva(item.tva ?? 19);
-  }, [devisItems]);
-
-  const saveEditItem = useCallback(() => {
-    if (editingItemIdx === null) return;
-    if (!editItemDesignation.trim()) {
-      toast.error('Nom d\'article requis');
-      return;
-    }
-    setDevisItems(prev => prev.map((item, i) => i === editingItemIdx ? {
-      ...item,
-      designation: editItemDesignation.trim(),
-      fournisseur: editItemFournisseur.trim(),
-      description: editItemDescription.trim() || undefined,
-      prix_ttc: editItemPrix,
-      quantity: editItemQty,
-      remise: editItemRemise,
-      tva: editItemTva,
-      ...(devisType === 'vente' ? { prix_achat: editItemPrixAchat } : {}),
-    } : item));
-    setEditingItemIdx(null);
-  }, [editingItemIdx, editItemDesignation, editItemFournisseur, editItemDescription, editItemPrix, editItemQty, editItemRemise, editItemTva, editItemPrixAchat, devisType, setDevisItems]);
-
-  const cancelEditItem = useCallback(() => {
-    setEditingItemIdx(null);
-  }, []);
+  const handleSaveDraft = useCallback(() => {
+    setDocumentStatus('brouillon');
+    requestAnimationFrame(() => onSave());
+  }, [setDocumentStatus, onSave]);
 
   // New article creation
   const resetNewArticleForm = useCallback(() => {
@@ -742,7 +747,13 @@ export const DevisForm = memo(({
 
         toast.success('Article créé avec succès');
         const first = data[0];
-        const description = `${first.sku}${first.size ? ` - Taille: ${first.size}` : ''}${first.color ? ` - ${first.color}` : ''}`;
+        const catalogDetail = (d: { size?: string; color?: string | null }) => {
+          const parts = [
+            d.size ? `Taille: ${d.size}` : '',
+            d.color ? `Couleur: ${d.color}` : '',
+          ].filter(Boolean);
+          return parts.length > 0 ? parts.join(' · ') : undefined;
+        };
 
         if (data.length > 1) {
           const newItems = data.map(d => ({
@@ -752,8 +763,8 @@ export const DevisForm = memo(({
             prix_ttc: devisType === 'vente' ? 0 : (d.price || 0),
             remise: devisType === 'vente' ? 0 : (d.remise || 0),
             quantity: 1,
-            description: `${d.sku}${d.size ? ` - Taille: ${d.size}` : ''}${d.color ? ` - ${d.color}` : ''}`.trim() || undefined,
-            sku: d.sku || undefined,
+            description: catalogDetail(d),
+            sku: d.sku?.trim() || undefined,
             product_id: d.id,
           }));
           setDevisItems(prev => [...prev, ...newItems]);
@@ -768,7 +779,7 @@ export const DevisForm = memo(({
           setItemDesignation(first.name);
           setItemFournisseur(first.fournisseur || '');
           setItemQuantity(1);
-          setItemDescription(description);
+          setItemDescription(catalogDetail(first) || '');
           setSelectedProduct(first as Product);
           if (devisType === 'vente') {
             setItemPrixTtc(0);
@@ -955,7 +966,7 @@ export const DevisForm = memo(({
         if (group) {
           setItemDesignation(group.name);
           setItemFournisseur(group.fournisseur || '');
-          setItemDescription(`${variantSku}${variantSize ? ` - Taille: ${variantSize}` : ''}${variantColor ? ` - ${variantColor}` : ''}`);
+          setItemDescription('');
           setSelectedProduct({
             id: result.id,
             name: group.name,
@@ -1004,21 +1015,22 @@ export const DevisForm = memo(({
   // Lignes devis: `prix_ttc` = PU HT avant remise ; remise % et TVA s'appliquent sur ce PU vente HT uniquement
   const devisTotals = useMemo(() => computeDevisTotals(devisItems, false), [devisItems]);
   const totalAmount = devisTotals.totalFinal;
-  const thirdPartyList = isAchat ? fournisseurs : clients;
-  const ThirdPartyIcon = isAchat ? Building2 : Users;
   const thirdPartyLabel = isAchat ? 'Fournisseur' : 'Client';
-  const thirdPartyRole = isAchat ? 'Expéditeur' : 'Destinataire';
 
   const docLabel = docType === 'bc' ? 'Bon de commande' : 'Devis';
   const pageTitle = editingDevis ? `Modifier ${docLabel}` : `Nouveau ${docLabel}`;
-  const priceGridCols =
-    devisType === 'vente' ? (isTtc ? 6 : 4) : isTtc ? 5 : 3;
+  const savePrimaryLabel =
+    docType === 'bc' ? 'Enregistrer le bon de commande' : 'Enregistrer le devis';
+
+  const canCommitComposerLine =
+    articleMode === 'search'
+      ? Boolean(selectedProduct) && (devisType !== 'vente' || itemPrixTtc > 0)
+      : Boolean(itemDesignation.trim()) && (devisType !== 'vente' || itemPrixTtc > 0);
 
   return (
     <>
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] gap-6 xl:min-h-[calc(100vh-12rem)]">
-        {/* ——— Colonne saisie ——— */}
-        <div className="flex flex-col gap-5 lg:overflow-y-auto lg:max-h-[calc(100vh-10rem)] lg:pr-1">
+      <DevisZohoShell className="max-w-6xl mx-auto">
+        <DevisZohoTopBar>
           <DevisFormPageHeader
             title={pageTitle}
             subtitle={
@@ -1027,104 +1039,107 @@ export const DevisForm = memo(({
                 : 'Document adressé à un client'
             }
             badges={<DevisFlowBadge devisType={devisType} docType={docType} />}
-            onCancel={editingDevis ? onCancel : undefined}
           />
 
-          {/* Type de document & flux */}
-          {(!editingDevis && !forceDocType) || (!forceDocType && !lockDevisType) ? (
-            <DevisFormSection title="Paramètres du document" icon={FileText}>
-              {!editingDevis && !forceDocType && (
-                <DevisField label="Nature du document">
-                  <DevisSegmentedGrid>
-                    <DevisSegmentedOption
-                      value="devis"
-                      current={docType}
-                      onSelect={setDocType}
-                      accent={isAchat ? 'achat' : 'vente'}
-                      label="Devis"
-                      sublabel="Proposition commerciale"
-                      icon={FileText}
-                    />
-                    <DevisSegmentedOption
-                      value="bc"
-                      current={docType}
-                      onSelect={setDocType}
-                      accent={isAchat ? 'achat' : 'vente'}
-                      label="Bon de commande"
-                      sublabel="Commande confirmée"
-                      icon={ShoppingCart}
-                    />
-                  </DevisSegmentedGrid>
-                </DevisField>
-              )}
-              {!forceDocType && (
-                <DevisField
-                  label="Sens du flux"
-                  hint={
-                    isAchat
-                      ? 'Vous recevez ce document d\'un fournisseur'
-                      : 'Vous émettez ce document vers un client'
-                  }
-                >
-                  {lockDevisType ? (
-                    <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm font-medium flex items-center gap-2">
-                      {devisType === 'vente' ? (
-                        <ArrowUpRight className="h-4 w-4 text-emerald-600" />
-                      ) : (
-                        <ArrowDownLeft className="h-4 w-4 text-orange-600" />
-                      )}
-                      {devisType === 'vente' ? 'Vente' : 'Achat'}
-                    </div>
-                  ) : (
-                    <DevisSegmentedGrid>
-                      <DevisSegmentedOption
-                        value="achat"
-                        current={devisType}
-                        onSelect={setDevisType}
-                        accent="achat"
-                        label="Achat"
-                        sublabel="Entrant"
-                        icon={ArrowDownLeft}
-                      />
-                      <DevisSegmentedOption
-                        value="vente"
-                        current={devisType}
-                        onSelect={setDevisType}
-                        accent="vente"
-                        label="Vente"
-                        sublabel="Sortant"
-                        icon={ArrowUpRight}
-                      />
-                    </DevisSegmentedGrid>
-                  )}
-                </DevisField>
-              )}
-            </DevisFormSection>
-          ) : null}
+          <div className="flex flex-wrap gap-4 items-end">
+            {!editingDevis && !forceDocType && (
+              <DevisField label="Nature" className="min-w-[200px]">
+                <DevisSegmentedGrid>
+                  <DevisSegmentedOption
+                    value="devis"
+                    current={docType}
+                    onSelect={setDocType}
+                    accent={isAchat ? 'achat' : 'vente'}
+                    label="Devis"
+                    icon={FileText}
+                  />
+                  <DevisSegmentedOption
+                    value="bc"
+                    current={docType}
+                    onSelect={setDocType}
+                    accent={isAchat ? 'achat' : 'vente'}
+                    label="BC"
+                    icon={ShoppingCart}
+                  />
+                </DevisSegmentedGrid>
+              </DevisField>
+            )}
+            {!forceDocType && !lockDevisType && (
+              <DevisField label="Flux" className="min-w-[180px]">
+                <DevisSegmentedGrid>
+                  <DevisSegmentedOption
+                    value="achat"
+                    current={devisType}
+                    onSelect={setDevisType}
+                    accent="achat"
+                    label="Achat"
+                    icon={ArrowDownLeft}
+                  />
+                  <DevisSegmentedOption
+                    value="vente"
+                    current={devisType}
+                    onSelect={setDevisType}
+                    accent="vente"
+                    label="Vente"
+                    icon={ArrowUpRight}
+                  />
+                </DevisSegmentedGrid>
+              </DevisField>
+            )}
+            <div className="flex-1 min-w-[220px]">
+              <DevisPricingToggle isTtc={isTtc} onChange={setIsTtc} />
+            </div>
+          </div>
 
-          <DevisPricingToggle isTtc={isTtc} onChange={setIsTtc} />
-
-          <DevisFormSection title="Identification" description="Numéro, date et statut du document">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <DevisField label="N° document">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
+            <DevisField label={thirdPartyLabel} className="lg:col-span-5">
+              <div className="relative">
                 <input
                   type="text"
-                  value={devisNumber}
-                  onChange={(e) => setDevisNumber(e.target.value)}
-                  className="form-input"
+                  value={thirdPartyName}
+                  onChange={(e) => handleThirdPartyNameChange(e.target.value)}
+                  className="form-input h-10"
+                  placeholder={`${thirdPartyLabel}…`}
                 />
-              </DevisField>
-              <DevisField label="Date">
-                <input
-                  type="date"
-                  value={devisDate}
-                  onChange={(e) => setDevisDate(e.target.value)}
-                  className="form-input"
-                />
-              </DevisField>
-            </div>
-            {docType === 'bc' && (
-              <DevisField label="Statut du bon de commande">
+                {filteredThirdParties.length > 0 && (
+                  <div className="absolute left-0 right-0 mt-1 z-30 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg">
+                    {filteredThirdParties.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onMouseDown={() => handleThirdPartySuggestionSelect(item)}
+                        className="w-full px-3 py-2.5 text-left text-sm hover:bg-muted transition-colors border-b border-border/50 last:border-0"
+                      >
+                        <span className="font-medium">{item.nom}</span>
+                        {item.matricule_fiscale && (
+                          <span className="block text-xs text-muted-foreground font-mono mt-0.5">
+                            {item.matricule_fiscale}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </DevisField>
+            <DevisField label="N° document" className="lg:col-span-2">
+              <input
+                type="text"
+                value={devisNumber}
+                onChange={(e) => setDevisNumber(e.target.value)}
+                className="form-input h-10"
+              />
+            </DevisField>
+            <DevisField label="Date" className="lg:col-span-2">
+              <input
+                type="date"
+                value={devisDate}
+                onChange={(e) => setDevisDate(e.target.value)}
+                className="form-input h-10"
+              />
+            </DevisField>
+            {docType === 'bc' ? (
+              <DevisField label="Statut" className="lg:col-span-3">
                 <Select
                   value={documentStatus}
                   onValueChange={(v) =>
@@ -1133,8 +1148,8 @@ export const DevisForm = memo(({
                     )
                   }
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir un statut" />
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="Statut" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="brouillon">Brouillon</SelectItem>
@@ -1145,105 +1160,63 @@ export const DevisForm = memo(({
                   </SelectContent>
                 </Select>
               </DevisField>
+            ) : (
+              <div className="lg:col-span-3 hidden lg:block" />
             )}
-          </DevisFormSection>
+          </div>
 
-          <DevisFormSection
-            title={thirdPartyLabel}
-            description={`${thirdPartyRole} — coordonnées et identification fiscale`}
-            icon={ThirdPartyIcon}
-            tone={isAchat ? 'achat' : 'vente'}
-            action={
-              isAchat ? (
-                <Button variant="outline" size="sm" onClick={() => setShowNewFournisseur(true)} className="h-8">
-                  <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-                  Nouveau
-                </Button>
-              ) : undefined
-            }
-          >
-            <div className="space-y-3">
-              <DevisField label="Raison sociale / nom">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={thirdPartyName}
-                    onChange={(e) => handleThirdPartyNameChange(e.target.value)}
-                    className="form-input"
-                    placeholder={`Rechercher ou saisir un ${thirdPartyLabel.toLowerCase()}…`}
-                  />
-                  {filteredThirdParties.length > 0 && (
-                    <div className="absolute left-0 right-0 mt-1 z-20 max-h-52 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg">
-                      {filteredThirdParties.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onMouseDown={() => handleThirdPartySuggestionSelect(item)}
-                          className="w-full px-3 py-2.5 text-left text-sm hover:bg-muted transition-colors border-b border-border/50 last:border-0"
-                        >
-                          <span className="font-medium">{item.nom}</span>
-                          {item.matricule_fiscale && (
-                            <span className="block text-xs text-muted-foreground font-mono mt-0.5">
-                              {item.matricule_fiscale}
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </DevisField>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <DevisField label="Téléphone">
-                  <input
-                    type="text"
-                    value={thirdPartyPhone}
-                    onChange={(e) => setThirdPartyPhone(e.target.value)}
-                    className="form-input"
-                    placeholder="+216 …"
-                  />
-                </DevisField>
-                <DevisField label="Matricule fiscal">
-                  <input
-                    type="text"
-                    value={thirdPartyTaxId}
-                    onChange={(e) => setThirdPartyTaxId(e.target.value)}
-                    className="form-input"
-                    placeholder="MF / TVA"
-                  />
-                </DevisField>
-              </div>
-              <DevisField label="Adresse">
-                <input
-                  type="text"
-                  value={thirdPartyAddress}
-                  onChange={(e) => setThirdPartyAddress(e.target.value)}
-                  className="form-input"
-                  placeholder="Adresse complète"
-                />
-              </DevisField>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <DevisField label="Téléphone">
+              <input
+                type="text"
+                value={thirdPartyPhone}
+                onChange={(e) => setThirdPartyPhone(e.target.value)}
+                className="form-input h-9"
+              />
+            </DevisField>
+            <DevisField label="Matricule fiscal">
+              <input
+                type="text"
+                value={thirdPartyTaxId}
+                onChange={(e) => setThirdPartyTaxId(e.target.value)}
+                className="form-input h-9"
+              />
+            </DevisField>
+            <DevisField label="Adresse">
+              <input
+                type="text"
+                value={thirdPartyAddress}
+                onChange={(e) => setThirdPartyAddress(e.target.value)}
+                className="form-input h-9"
+              />
+            </DevisField>
+          </div>
+
+          {isAchat && (
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowNewFournisseur(true)} className="h-8">
+                <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                Nouveau fournisseur
+              </Button>
             </div>
-          </DevisFormSection>
+          )}
+        </DevisZohoTopBar>
 
-          <DevisFormSection
-            title="Ajouter une ligne"
-            description="Les devis n'impactent pas le stock magasin"
-            icon={Package}
-            action={
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={() => setShowAddVariant(true)} className="h-8">
-                  <Layers className="w-3.5 h-3.5 mr-1.5" />
-                  Variante
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setShowNewArticle(true)} className="h-8">
-                  <Plus className="w-3.5 h-3.5 mr-1.5" />
-                  Nouvel article
-                </Button>
-              </div>
-            }
-          >
-            <DevisField label="Mode de saisie">
-              <DevisSegmentedGrid>
+        {docType === 'bc' && !editingDevis && onImportDevis && (
+          <div className="px-4 sm:px-6 pt-4 border-b border-border/50">
+            <ImportDevisIntoBcPanel
+              devisList={importableDevis}
+              onImport={onImportDevis}
+              disabled={isSaving}
+            />
+          </div>
+        )}
+
+        <DevisZohoSection
+          title="Tableau d'articles"
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              <DevisSegmentedGrid cols={2}>
                 <DevisSegmentedOption
                   value="search"
                   current={articleMode}
@@ -1257,10 +1230,12 @@ export const DevisForm = memo(({
                     setItemPrixTtc(0);
                     setItemPrixVenteDraft(null);
                     setItemDescription('');
+                    setProductSearch('');
+                    setSearchResults([]);
                   }}
                   label="Catalogue"
-                  sublabel="Recherche inventaire"
                   icon={Search}
+                  className="min-h-[2.25rem] py-2"
                 />
                 <DevisSegmentedOption
                   value="manual"
@@ -1275,428 +1250,100 @@ export const DevisForm = memo(({
                     setItemPrixTtc(0);
                     setItemPrixVenteDraft(null);
                     setItemDescription('');
+                    setProductSearch('');
+                    setSearchResults([]);
                   }}
                   label="Saisie libre"
-                  sublabel="Désignation manuelle"
                   icon={Edit}
+                  className="min-h-[2.25rem] py-2"
                 />
               </DevisSegmentedGrid>
+              <Button variant="outline" size="sm" onClick={() => setShowAddVariant(true)} className="h-8 text-xs">
+                <Layers className="w-3.5 h-3.5 mr-1" />
+                Variante
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowNewArticle(true)} className="h-8 text-xs">
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Nouvel article
+              </Button>
+            </div>
+          }
+        >
+          <DevisArticlesTable
+            items={devisItems}
+            isTtc={isTtc}
+            devisType={devisType}
+            isAchat={isAchat}
+            articleMode={articleMode}
+            onUpdate={updateLineItem}
+            onRemove={removeItem}
+            onCommitLine={addItem}
+            canCommitLine={canCommitComposerLine}
+            productSearch={productSearch}
+            onProductSearchChange={setProductSearch}
+            searchResults={searchResults}
+            isSearching={isSearching}
+            selectedProduct={selectedProduct}
+            onSelectProduct={selectExistingProduct}
+            onClearProduct={clearCatalogSelection}
+            itemDesignation={itemDesignation}
+            onItemDesignationChange={setItemDesignation}
+            itemDescription={itemDescription}
+            onItemDescriptionChange={setItemDescription}
+            itemQuantity={itemQuantity}
+            onItemQuantityChange={setItemQuantity}
+            itemPrixAchat={itemPrixAchat}
+            onItemPrixAchatChange={setItemPrixAchat}
+            itemPrixTtc={itemPrixTtc}
+            onItemPrixTtcChange={setItemPrixTtc}
+            itemPrixVenteDraft={itemPrixVenteDraft}
+            onItemPrixVenteDraftChange={setItemPrixVenteDraft}
+            itemRemise={itemRemise}
+            onItemRemiseChange={setItemRemise}
+            itemTva={itemTva}
+            onItemTvaChange={setItemTva}
+          />
+        </DevisZohoSection>
+
+        <div className="px-4 sm:px-6 py-5 border-t border-border/60 flex flex-col lg:flex-row gap-6">
+          <div className="flex-1 space-y-4 min-w-0">
+            <DevisField label="Notes / conditions">
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="form-input min-h-[80px] resize-y w-full"
+                placeholder="Conditions de paiement, délais, remarques…"
+              />
             </DevisField>
-
-            <div className="space-y-4 rounded-lg border border-dashed border-border/80 bg-muted/20 p-4">
-              {articleMode === 'search' ? (
-                <>
-                  {/* Search existing products */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <input
-                      type="text"
-                      value={productSearch}
-                      onChange={e => setProductSearch(e.target.value)}
-                      className="form-input !pl-10"
-                      placeholder="Rechercher par nom ou code article..."
-                    />
-                  </div>
-                  {/* Search results dropdown */}
-                  {searchResults.length > 0 && (
-                    <div className="border border-border rounded-lg max-h-48 overflow-y-auto bg-popover">
-                      {searchResults.map(p => (
-                        <button
-                          key={p.id}
-                          onClick={() => selectExistingProduct(p)}
-                          className="w-full text-left px-3 py-2.5 hover:bg-muted/50 transition-colors border-b border-border last:border-b-0"
-                        >
-                          <div className="flex items-center gap-3">
-                            {p.image ? (
-                              <img src={p.image} alt="" className="w-8 h-8 rounded object-cover" />
-                            ) : (
-                              <div className="w-8 h-8 rounded bg-muted flex items-center justify-center">
-                                <Package className="w-4 h-4 text-muted-foreground" />
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-foreground truncate">{p.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {p.sku} • {p.category}{p.size ? ` • ${p.size}` : ''}{p.color ? ` • ${p.color}` : ''} • {p.price.toFixed(3)} HT
-                              </p>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {isSearching && <p className="text-xs text-muted-foreground">Recherche...</p>}
-
-                  {selectedProduct && (
-                    <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <p className="text-sm font-medium text-foreground">{selectedProduct.name}</p>
-                          <p className="text-xs text-muted-foreground font-mono">{selectedProduct.sku}</p>
-                          <p className="text-xs text-muted-foreground leading-relaxed">
-                            {isAchat
-                              ? `Prix catalogue HT : ${selectedProduct.price.toFixed(3)}`
-                              : 'Prix d\'achat HT prérempli depuis l\'inventaire. Saisissez le PU vente HT ; remise et TVA s\'appliquent sur le prix de vente.'}
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                          onClick={clearCatalogSelection}
-                          aria-label="Retirer la sélection"
-                          title="Retirer la sélection"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className={cn('grid gap-3', priceGridCols === 6 ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6' : priceGridCols === 5 ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5' : priceGridCols === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3')}>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
-                      <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(parseInt(e.target.value) || 1)} className="form-input" />
-                    </div>
-                    {devisType === 'vente' && (
-                      <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
-                        <input type="text" inputMode="decimal" value={formatDecimalFieldValue(itemPrixAchat)} onChange={e => setItemPrixAchat(parseDecimalInput(e.target.value))} className="form-input" />
-                      </div>
-                    )}
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={
-                          devisType === 'vente'
-                            ? (itemPrixVenteDraft ?? formatDecimalFieldValue(itemPrixTtc))
-                            : formatDecimalFieldValue(itemPrixTtc)
-                        }
-                        onChange={e => {
-                          if (devisType === 'vente') {
-                            setItemPrixVenteDraft(e.target.value);
-                            setItemPrixTtc(parseDecimalInputLoose(e.target.value));
-                          } else {
-                            setItemPrixTtc(parseDecimalInput(e.target.value));
-                          }
-                        }}
-                        onFocus={
-                          devisType === 'vente'
-                            ? () =>
-                                setItemPrixVenteDraft(
-                                  itemPrixTtc === 0 ? '' : formatDecimalFieldValue(itemPrixTtc)
-                                )
-                            : undefined
-                        }
-                        onBlur={devisType === 'vente' ? () => setItemPrixVenteDraft(null) : undefined}
-                        className="form-input"
-                        placeholder={devisType === 'vente' ? 'Saisir le PU vente HT' : undefined}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
-                      <input type="text" inputMode="decimal" value={itemRemise || ''} onChange={e => setItemRemise(parseDecimalInput(e.target.value))} className="form-input" />
-                    </div>
-                    {isTtc && (
-                      <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
-                        <select value={String(itemTva)} onChange={e => setItemTva(Number(e.target.value))} className="form-input">
-                          <option value="7">7%</option>
-                          <option value="13">13%</option>
-                          <option value="19">19%</option>
-                        </select>
-                      </div>
-                    )}
-                    {isTtc && (
-                      <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC unit.' : 'Prix Vente TTC unit.'}</label>
-                        <div className="form-input bg-muted/40 text-sm text-foreground tabular-nums flex items-center min-h-9">
-                          {(itemPrixTtc * (1 - itemRemise / 100) * (1 + itemTva / 100)).toFixed(3)}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* Manual entry — multiline fields + natural Tab / Shift+Tab order */}
-                  <div className="space-y-3">
-                    <div>
-                      <Label htmlFor="manual-item-designation" className="text-xs text-muted-foreground mb-1 block">
-                        Nom de l&apos;article *
-                      </Label>
-                      <Textarea
-                        id="manual-item-designation"
-                        rows={2}
-                        value={itemDesignation}
-                        onChange={e => setItemDesignation(e.target.value)}
-                        className="form-input min-h-[2.5rem] resize-y"
-                        placeholder="Nom de l'article"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="manual-item-description" className="text-xs text-muted-foreground mb-1 block">
-                        Description (opt.)
-                      </Label>
-                      <Textarea
-                        id="manual-item-description"
-                        rows={2}
-                        value={itemDescription}
-                        onChange={e => setItemDescription(e.target.value)}
-                        className="form-input min-h-[2.5rem] resize-y"
-                        placeholder="Description"
-                      />
-                    </div>
-                  </div>
-                  <div className={cn('grid gap-3', priceGridCols === 6 ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6' : priceGridCols === 5 ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5' : priceGridCols === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3')}>
-                    <div>
-                      <label htmlFor="manual-item-qty" className="text-xs text-muted-foreground mb-1 block">Quantité</label>
-                      <input
-                        id="manual-item-qty"
-                        type="text"
-                        inputMode="numeric"
-                        value={itemQuantity}
-                        onChange={e => setItemQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                        className="form-input"
-                      />
-                    </div>
-                    {devisType === 'vente' && (
-                      <div>
-                        <label htmlFor="manual-item-prix-achat" className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
-                        <input id="manual-item-prix-achat" type="text" inputMode="decimal" value={formatDecimalFieldValue(itemPrixAchat)} onChange={e => setItemPrixAchat(parseDecimalInput(e.target.value))} className="form-input" />
-                      </div>
-                    )}
-                    <div>
-                      <label htmlFor="manual-item-prix-ht" className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
-                      <input
-                        id="manual-item-prix-ht"
-                        type="text"
-                        inputMode="decimal"
-                        value={
-                          devisType === 'vente'
-                            ? (itemPrixVenteDraft ?? formatDecimalFieldValue(itemPrixTtc))
-                            : formatDecimalFieldValue(itemPrixTtc)
-                        }
-                        onChange={e => {
-                          if (devisType === 'vente') {
-                            setItemPrixVenteDraft(e.target.value);
-                            setItemPrixTtc(parseDecimalInputLoose(e.target.value));
-                          } else {
-                            setItemPrixTtc(parseDecimalInput(e.target.value));
-                          }
-                        }}
-                        onFocus={
-                          devisType === 'vente'
-                            ? () =>
-                                setItemPrixVenteDraft(
-                                  itemPrixTtc === 0 ? '' : formatDecimalFieldValue(itemPrixTtc)
-                                )
-                            : undefined
-                        }
-                        onBlur={devisType === 'vente' ? () => setItemPrixVenteDraft(null) : undefined}
-                        className="form-input"
-                        placeholder={devisType === 'vente' ? 'Saisir le PU vente HT' : undefined}
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="manual-item-remise" className="text-xs text-muted-foreground mb-1 block">Remise %</label>
-                      <input id="manual-item-remise" type="text" inputMode="decimal" value={itemRemise || ''} onChange={e => setItemRemise(parseDecimalInput(e.target.value))} className="form-input" />
-                    </div>
-                    {isTtc && (
-                      <div>
-                        <label htmlFor="manual-item-tva" className="text-xs text-muted-foreground mb-1 block">TVA %</label>
-                        <select id="manual-item-tva" value={String(itemTva)} onChange={e => setItemTva(Number(e.target.value))} className="form-input">
-                          <option value="7">7%</option>
-                          <option value="13">13%</option>
-                          <option value="19">19%</option>
-                        </select>
-                      </div>
-                    )}
-                    {isTtc && (
-                      <div>
-                        <span className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC unit.' : 'Prix Vente TTC unit.'}</span>
-                        <div
-                          className="form-input bg-muted/40 text-sm text-foreground tabular-nums flex items-center min-h-9"
-                          tabIndex={-1}
-                          aria-hidden
-                        >
-                          {(itemPrixTtc * (1 - itemRemise / 100) * (1 + itemTva / 100)).toFixed(3)}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-
-
-
-              <Button onClick={addItem} disabled={!itemDesignation.trim()} className="w-full" size="lg">
-                <Plus className="w-4 h-4 mr-2" />
-                {docType === 'bc' ? 'Ajouter au bon de commande' : 'Ajouter la ligne'}
-              </Button>
-            </div>
-          </DevisFormSection>
-
-          <DevisFormSection title="Notes" icon={StickyNote} description="Commentaires internes ou conditions particulières">
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="form-input min-h-[72px] resize-y w-full"
-              placeholder="Conditions de paiement, délais, remarques…"
-            />
-          </DevisFormSection>
-
-          <DevisStickyActions>
-            <Button variant="outline" onClick={onCancel} className="gap-2 sm:flex-1">
-              <X className="w-4 h-4" />
-              {editingDevis ? 'Annuler' : 'Vider'}
-            </Button>
-            {editingDevis ? (
-              <Button onClick={onUpdate} className="gap-2 sm:flex-[2]">
-                <Edit className="w-4 h-4" />
-                Mettre à jour
-              </Button>
-            ) : (
-              <Button onClick={onSave} disabled={isSaving} className="gap-2 sm:flex-[2]">
-                <Save className="w-4 h-4" />
-                {isSaving ? 'Enregistrement…' : 'Enregistrer'}
-              </Button>
+            {(docType === 'bc' || docType === 'devis') && onPendingAttachmentFilesChange && (
+              <CommercialAttachmentField
+                label={docType === 'bc' ? 'Bon de commande scanné / pièces jointes' : 'Pièces jointes'}
+                hint={
+                  docType === 'bc'
+                    ? 'Importez un BC déjà signé (PDF, photo…) ou tout fichier — visible par l\'équipe.'
+                    : 'PDF, images ou tout fichier — visible par les autres utilisateurs.'
+                }
+                existing={existingAttachments}
+                pendingFiles={pendingAttachmentFiles}
+                onPendingChange={onPendingAttachmentFilesChange}
+                onRemoveExisting={onRemoveExistingAttachment}
+                disabled={isSaving}
+              />
             )}
-          </DevisStickyActions>
-        </div>
-
-        {/* ——— Panneau lignes & totaux ——— */}
-        <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto rounded-xl border bg-card p-4 sm:p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/60">
-            <h3 className="text-base font-semibold text-foreground">Lignes du document</h3>
-            <Badge variant="secondary" className="tabular-nums">
-              {devisItems.length} ligne{devisItems.length !== 1 ? 's' : ''}
-            </Badge>
           </div>
-
-          {devisItems.length > 0 && <DevisTotalsStrip isTtc={isTtc} totals={devisTotals} />}
-
-          {devisItems.length === 0 ? (
-            <DevisItemsEmptyState />
-          ) : (
-            <div className="space-y-2">
-              {devisItems.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="rounded-lg border bg-muted/30 overflow-hidden"
-                >
-                  {editingItemIdx === idx ? (
-                    <div className="space-y-3">
-                      <div className="grid gap-3">
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">Article / désignation</label>
-                          <input type="text" value={editItemDesignation} onChange={e => setEditItemDesignation(e.target.value)} className="form-input" placeholder="Nom de l'article" />
-                        </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">Fournisseur</label>
-                          <input type="text" value={editItemFournisseur} onChange={e => setEditItemFournisseur(e.target.value)} className="form-input" placeholder="Fournisseur" />
-                        </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">Description</label>
-                          <input type="text" value={editItemDescription} onChange={e => setEditItemDescription(e.target.value)} className="form-input" placeholder="Description (optionnel)" />
-                        </div>
-                      </div>
-                      <div className={cn('grid gap-3', priceGridCols === 6 ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6' : priceGridCols === 5 ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5' : priceGridCols === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3')}>
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">Qté</label>
-                          <input type="number" min="1" value={editItemQty} onChange={e => setEditItemQty(parseInt(e.target.value) || 1)} className="form-input" />
-                        </div>
-                        {devisType === 'vente' && (
-                          <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Prix Achat HT</label>
-                            <input type="text" inputMode="decimal" value={formatDecimalFieldValue(editItemPrixAchat)} onChange={e => setEditItemPrixAchat(parseDecimalInput(e.target.value))} className="form-input" />
-                          </div>
-                        )}
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat HT' : 'Prix Vente HT'}</label>
-                          <input type="text" inputMode="decimal" value={editItemPrix || ''} onChange={e => setEditItemPrix(parseDecimalInput(e.target.value))} className="form-input" />
-                        </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">Remise %</label>
-                          <input type="text" inputMode="decimal" value={editItemRemise || ''} onChange={e => setEditItemRemise(parseDecimalInput(e.target.value))} className="form-input" />
-                        </div>
-                        {isTtc && (
-                          <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">TVA %</label>
-                            <select value={String(editItemTva)} onChange={e => setEditItemTva(Number(e.target.value))} className="form-input">
-                              <option value="7">7%</option>
-                              <option value="13">13%</option>
-                              <option value="19">19%</option>
-                            </select>
-                          </div>
-                        )}
-                        {isTtc && (
-                          <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">{isAchat ? 'Prix Achat TTC unit.' : 'Prix Vente TTC unit.'}</label>
-                            <div className="form-input bg-muted/40 text-sm text-foreground tabular-nums flex items-center min-h-9">
-                              {(editItemPrix * (1 - editItemRemise / 100) * (1 + editItemTva / 100)).toFixed(3)}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex gap-2 justify-end">
-                        <Button size="sm" variant="outline" onClick={cancelEditItem}><X className="w-3 h-3 mr-1" /> Annuler</Button>
-                        <Button size="sm" onClick={saveEditItem}><Check className="w-3 h-3 mr-1" /> Valider</Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start gap-3 p-3">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background border text-xs font-semibold text-muted-foreground">
-                        {idx + 1}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-foreground leading-snug">{item.designation}</p>
-                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                          {item.fournisseur && <span className="block">{item.fournisseur}</span>}
-                          Qté {item.quantity}
-                          {item.prix_achat != null && item.prix_achat > 0 && ` · Achat HT ${item.prix_achat.toFixed(3)}`}
-                          {` · ${isAchat ? 'PU achat' : 'PU vente'} HT ${item.prix_ttc.toFixed(3)}`}
-                          {item.remise > 0 && ` · Remise ${item.remise}%`}
-                          {isTtc && ` · TVA ${item.tva ?? 19}%`}
-                          {(() => {
-                            const line = computeDevisLine(item, false);
-                            const lineVal = isTtc ? line.lineTTC : line.lineHT;
-                            return ` · Ligne ${lineVal.toFixed(3)} TND`;
-                          })()}
-                        </p>
-                        {item.description && (
-                          <p className="text-xs text-muted-foreground/80 mt-1 italic">{item.description}</p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => startEditItem(idx)}
-                          className="p-2 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
-                          aria-label="Modifier la ligne"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeItem(idx)}
-                          className="p-2 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                          aria-label="Supprimer la ligne"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+          <DevisZohoTotalsPanel isTtc={isTtc} totals={devisTotals} />
         </div>
-      </div>
+
+        <DevisZohoFooter
+          editing={Boolean(editingDevis)}
+          isSaving={isSaving}
+          onCancel={onCancel}
+          onSave={onSave}
+          onUpdate={onUpdate}
+          onSaveDraft={docType === 'bc' && !editingDevis ? handleSaveDraft : undefined}
+          saveLabel={savePrimaryLabel}
+        />
+      </DevisZohoShell>
 
       {/* New Fournisseur Dialog */}
       <Dialog open={showNewFournisseur} onOpenChange={(open) => {

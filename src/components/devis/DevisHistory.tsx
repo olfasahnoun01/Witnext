@@ -1,5 +1,7 @@
 import { memo, useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus, Truck, ChevronDown, Inbox, ListChecks, MoreHorizontal, Printer } from 'lucide-react';
+import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus, Truck, MoreHorizontal, Printer, GitMerge } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { CommercialAttachmentBadges } from '@/components/shared/CommercialAttachmentBadges';
 import { EchantillonModal } from './EchantillonModal';
 import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
@@ -27,9 +29,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ACHATS_EXCEL_TABLE_CLASS, VENTES_EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
-import { partitionDraftsAndRest, sortDevisListRecentFirst } from '@/lib/devisListLayout';
+import { isDevisConfirmed, sortDevisListRecentFirst } from '@/lib/devisListLayout';
 import { documentAuditTableHeadCells, DocumentAuditTableCells } from '@/components/devis/DocumentAuditTableColumns';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useListPagination } from '@/hooks/useListPagination';
+import { ListPagination } from '@/components/shared/ListPagination';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,7 +41,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-const DEVIS_TABLE_COL_COUNT = 14;
+const DEVIS_TABLE_COL_COUNT = 16;
 
 interface DevisHistoryProps {
   savedDevis: Devis[];
@@ -48,43 +51,21 @@ interface DevisHistoryProps {
   onEdit: (d: Devis) => void;
   onDelete: (d: Devis) => void;
   onConvertToBC?: (d: Devis) => void;
+  /** Fusionne plusieurs devis (même client) en un seul BC */
+  onConvertMultipleToBC?: (list: Devis[]) => void;
   /** Crée un BC Fournisseur (documents v2) à partir d'un devis vente */
   onConvertToBCFournisseur?: (d: Devis) => void;
   onAdd: () => void;
   defaultTypeFilter?: 'all' | 'achat' | 'vente';
 }
 
-const devisStatusLabel = (status: Devis['status'] | undefined | null) => {
-  const s = status || 'brouillon';
-  const labels: Record<Devis['status'], string> = {
-    brouillon: 'Brouillon',
-    envoyé: 'Envoyé',
-    accepté: 'Accepté',
-    refusé: 'Refusé',
-    confirmé: 'Confirmé',
-    reçu: 'Reçu',
-    intégré: 'Intégré',
-  };
-  return labels[s] || s;
-};
+const devisConfirmationLabel = (status: Devis['status'] | undefined | null) =>
+  isDevisConfirmed(status) ? 'Confirmé' : 'Non confirmé';
 
-const devisStatusBadgeClass = (status: Devis['status'] | undefined | null) => {
-  const s = status || 'brouillon';
-  switch (s) {
-    case 'accepté':
-    case 'intégré':
-      return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800';
-    case 'confirmé':
-    case 'reçu':
-      return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800';
-    case 'envoyé':
-      return 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800';
-    case 'refusé':
-      return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800';
-    default:
-      return 'bg-muted text-muted-foreground border-border';
-  }
-};
+const devisConfirmationBadgeClass = (status: Devis['status'] | undefined | null) =>
+  isDevisConfirmed(status)
+    ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800'
+    : 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-800';
 
 const toDevisPDFData = (d: Devis): DevisPDFData => ({
   devis_number: d.devis_number,
@@ -102,7 +83,7 @@ const toDevisPDFData = (d: Devis): DevisPDFData => ({
   is_ba: d.is_ba,
 });
 
-export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBC, onConvertToBCFournisseur, onAdd, defaultTypeFilter }: DevisHistoryProps) => {
+export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBC, onConvertMultipleToBC, onConvertToBCFournisseur, onAdd, defaultTypeFilter }: DevisHistoryProps) => {
   const [deleteConfirm, setDeleteConfirm] = useState<Devis | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState('');
@@ -116,6 +97,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   const [echantillonDevis, setEchantillonDevis] = useState<{ id: number; number: string } | null>(null);
   const [echantillonCounts, setEchantillonCounts] = useState<Record<number, number>>({});
   const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>(defaultTypeFilter || 'all');
+  const [selectedConfirmation, setSelectedConfirmation] = useState<'all' | 'confirmed' | 'unconfirmed'>('all');
+  const [selectedDevisIds, setSelectedDevisIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (defaultTypeFilter) setSelectedType(defaultTypeFilter);
@@ -175,14 +158,29 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     if (selectedType !== 'all') {
       result = result.filter(d => d.type === selectedType);
     }
+    if (selectedConfirmation === 'confirmed') {
+      result = result.filter((d) => isDevisConfirmed(d.status));
+    } else if (selectedConfirmation === 'unconfirmed') {
+      result = result.filter((d) => !isDevisConfirmed(d.status));
+    }
     return result;
-  }, [savedDevis, searchTerm, selectedFournisseur, selectedType]);
+  }, [savedDevis, searchTerm, selectedFournisseur, selectedType, selectedConfirmation]);
 
-  const { draftsSorted, restSorted } = useMemo(() => {
-    const sorted = sortDevisListRecentFirst(filteredDevis);
-    const { drafts, rest } = partitionDraftsAndRest(sorted);
-    return { draftsSorted: drafts, restSorted: rest };
-  }, [filteredDevis]);
+  const devisSorted = useMemo(
+    () => sortDevisListRecentFirst(filteredDevis),
+    [filteredDevis]
+  );
+
+  const listResetKey = `${searchTerm}|${selectedFournisseur}|${selectedType}|${selectedConfirmation}`;
+  const {
+    slice: devisPage,
+    page,
+    totalPages,
+    total,
+    from,
+    to,
+    setPage,
+  } = useListPagination(devisSorted, listResetKey);
 
   const openPdfPreview = useCallback(async (d: Devis, options?: { printAfterLoad?: boolean }) => {
     setIsGenerating(d.id);
@@ -242,9 +240,32 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   const listCardBorder = listAccent === 'achat' ? 'border-orange-500/25' : 'border-emerald-500/25';
   const listHeaderBg = listAccent === 'achat' ? 'bg-orange-500/5' : 'bg-emerald-500/5';
 
+  const showMergeSelection = Boolean(onConvertMultipleToBC && onConvertToBC);
+
+  const toggleDevisSelection = useCallback((id: number, checked: boolean) => {
+    setSelectedDevisIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const selectedDevisList = useMemo(
+    () => savedDevis.filter((d) => selectedDevisIds.has(d.id)),
+    [savedDevis, selectedDevisIds]
+  );
+
+  const handleMergeSelectedToBC = useCallback(() => {
+    if (!onConvertMultipleToBC || selectedDevisList.length < 2) return;
+    onConvertMultipleToBC(selectedDevisList);
+    setSelectedDevisIds(new Set());
+  }, [onConvertMultipleToBC, selectedDevisList]);
+
   const devisTableHead = (
     <thead>
       <tr>
+        {showMergeSelection && <th className="text-left w-10 py-3 px-2" aria-label="Sélection" />}
         <th className="text-left w-12">Actions</th>
         <th className="text-left">Type</th>
         <th className="text-left">N°</th>
@@ -256,6 +277,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
         <th className="text-left">Articles</th>
         <th className="text-left">Total</th>
         <th className="text-left">Mode</th>
+        <th className="text-left">Fichiers</th>
         <th className="text-left">Échantillon</th>
         <th className="text-left">PDF</th>
       </tr>
@@ -329,6 +351,15 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     const generating = isGenerating === d.id;
     return (
       <tr key={d.id}>
+        {showMergeSelection && (
+          <td className="py-2 px-2">
+            <Checkbox
+              checked={selectedDevisIds.has(d.id)}
+              onCheckedChange={(v) => toggleDevisSelection(d.id, v === true)}
+              aria-label={`Sélectionner ${d.devis_number}`}
+            />
+          </td>
+        )}
         <td className="py-2 px-2">{renderDevisActionsMenu(d)}</td>
         <td className="py-3 px-4">
           <span className={cn(
@@ -350,10 +381,10 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
         <td className="py-3 px-4 text-sm">
           <Badge
             variant="outline"
-            className={cn('font-medium normal-case', devisStatusBadgeClass(d.status))}
-            title={d.status ? String(d.status) : undefined}
+            className={cn('font-medium normal-case', devisConfirmationBadgeClass(d.status))}
+            title={d.status ? `Statut détaillé : ${d.status}` : undefined}
           >
-            {devisStatusLabel(d.status)}
+            {devisConfirmationLabel(d.status)}
           </Badge>
         </td>
         <td className="py-3 px-4">
@@ -383,6 +414,9 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
           }`}>
             {d.is_ttc ? 'TTC' : 'HT'}
           </span>
+        </td>
+        <td className="py-3 px-4">
+          <CommercialAttachmentBadges attachments={d.attachment_urls} />
         </td>
         <td className="py-3 px-4">
           {d.type === 'vente' ? (
@@ -495,77 +529,58 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 ))}
               </SelectContent>
             </Select>
+            <Select value={selectedConfirmation} onValueChange={(v) => setSelectedConfirmation(v as typeof selectedConfirmation)}>
+              <SelectTrigger className="h-9 w-40 bg-background">
+                <SelectValue placeholder="Confirmation" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover z-50">
+                <SelectItem value="all">Tous statuts</SelectItem>
+                <SelectItem value="confirmed">Confirmé</SelectItem>
+                <SelectItem value="unconfirmed">Non confirmé</SelectItem>
+              </SelectContent>
+            </Select>
             <span className="text-sm text-muted-foreground whitespace-nowrap">{filteredDevis.length} devis</span>
+            {showMergeSelection && selectedDevisIds.size >= 2 && (
+              <Button
+                size="sm"
+                className="h-9 gap-1.5"
+                onClick={handleMergeSelectedToBC}
+              >
+                <GitMerge className="w-4 h-4" />
+                Fusionner en 1 BC ({selectedDevisIds.size})
+              </Button>
+            )}
           </div>
         </div>
 
         <p className="text-xs text-muted-foreground mb-4">
-          Classement type boîte mail : brouillons séparés des autres statuts ; le plus récent en haut dans chaque groupe.
+          Tous les devis dans une seule liste (plus récent en haut), 10 par page. Statut : confirmé ou non confirmé.
         </p>
 
-        <div className="space-y-4">
-          <Collapsible defaultOpen={draftsSorted.length > 0}>
-            <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-lg border border-amber-200/60 bg-amber-500/5 px-3 py-2.5 text-left text-sm font-semibold text-foreground hover:bg-amber-500/10 dark:border-amber-900/50 dark:bg-amber-950/20">
-              <ChevronDown className="h-4 w-4 shrink-0 text-amber-700 transition-transform duration-200 group-data-[state=closed]:-rotate-90 dark:text-amber-400" />
-              <Inbox className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
-              <span>Brouillons</span>
-              <span className="ml-auto rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-900 dark:text-amber-200">
-                {draftsSorted.length}
-              </span>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2">
-              <div className={cn('overflow-x-auto overflow-y-auto max-h-[min(50vh,28rem)] rounded-lg border', listCardBorder, excelTableClass)}>
-                <table>
-                  {devisTableHead}
-                  <tbody>
-                    {draftsSorted.length === 0 ? (
-                      <tr>
-                        <td colSpan={DEVIS_TABLE_COL_COUNT} className="py-8 text-center text-sm text-muted-foreground">
-                          Aucun brouillon pour ces filtres.
-                        </td>
-                      </tr>
-                    ) : (
-                      draftsSorted.map(renderDevisRow)
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          <Collapsible defaultOpen>
-            <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-left text-sm font-semibold text-foreground hover:bg-muted/50">
-              <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=closed]:-rotate-90" />
-              <ListChecks className={cn('h-4 w-4 shrink-0', listAccent === 'achat' ? 'text-orange-600' : 'text-emerald-600')} />
-              <span>Confirmés et autres statuts</span>
-              <span className="text-muted-foreground font-normal text-xs hidden sm:inline">(confirmé, envoyé, accepté…)</span>
-              <span className={cn(
-                'ml-auto rounded-full px-2 py-0.5 text-xs font-medium',
-                listAccent === 'achat' ? 'bg-orange-500/15 text-orange-900 dark:text-orange-200' : 'bg-emerald-500/15 text-emerald-900 dark:text-emerald-200'
-              )}>
-                {restSorted.length}
-              </span>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2">
-              <div className={cn('overflow-x-auto overflow-y-auto max-h-[min(50vh,28rem)] rounded-lg border', listCardBorder, excelTableClass)}>
-                <table>
-                  {devisTableHead}
-                  <tbody>
-                    {restSorted.length === 0 ? (
-                      <tr>
-                        <td colSpan={DEVIS_TABLE_COL_COUNT} className="py-8 text-center text-sm text-muted-foreground">
-                          Aucun document traité pour ces filtres.
-                        </td>
-                      </tr>
-                    ) : (
-                      restSorted.map(renderDevisRow)
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
+        <div className={cn('overflow-x-auto overflow-y-auto max-h-[min(65vh,36rem)] rounded-lg border', listCardBorder, excelTableClass)}>
+          <table>
+            {devisTableHead}
+            <tbody>
+              {devisSorted.length === 0 ? (
+                <tr>
+                  <td colSpan={DEVIS_TABLE_COL_COUNT} className="py-8 text-center text-sm text-muted-foreground">
+                    Aucun devis pour ces filtres.
+                  </td>
+                </tr>
+              ) : (
+                devisPage.map(renderDevisRow)
+              )}
+            </tbody>
+          </table>
         </div>
+        <ListPagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          from={from}
+          to={to}
+          onPageChange={setPage}
+        />
       </div>
 
       {/* Items Detail Dialog */}

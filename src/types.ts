@@ -130,18 +130,30 @@ export interface Devis {
   is_ttc: boolean;
   is_bc: boolean;
   is_ba: boolean;
+  is_bl?: boolean;
   source_devis_id: number | null;
+  source_devis_ids?: number[] | null;
+  source_bc_id?: number | null;
+  source_bc_ids?: number[] | null;
+  source_bc_number?: string | null;
+  attachment_urls?: { url: string; name: string; mime: string; path?: string }[];
   created_by: string | null;
   updated_by?: string | null;
   creator_name?: string | null;
   modifier_name?: string | null;
   source_devis_number?: string | null;
+  /** Parent client when this achat BC comes from procurement (v2 BC_FOURNISSEUR). */
+  source_client_name?: string | null;
+  /** documents.id when the row is mapped from the unified engine (not legacy devis). */
+  document_v2_id?: string;
   created_at: string;
   updated_at: string;
 }
 
 // BonCommande is just a Devis with is_bc = true
 export type BonCommande = Devis;
+
+export type BonLivraison = Devis;
 
 export interface Facture {
   id: string; // UUID
@@ -158,6 +170,10 @@ export interface Facture {
   status: 'brouillon' | 'envoyée' | 'payée' | 'retard' | 'annulée';
   is_ttc: boolean;
   source_bc_id: number | null;
+  source_bc_ids?: number[] | null;
+  source_bl_id?: number | null;
+  source_bl_ids?: number[] | null;
+  attachment_urls?: { url: string; name: string; mime: string; path?: string }[];
   notes: string | null;
   created_by: string | null;
   created_at: string;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Search, 
   CheckCircle, 
@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { documentService } from '@/services/documentService';
+import { enrichUnifiedDocumentDisplay } from '@/lib/unifiedDocumentDisplay';
 import { toast } from 'sonner';
 import { ReceptionDialog } from './ReceptionDialog';
 import { 
@@ -36,12 +37,21 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
 import {
+  ensureSupabaseSessionReady,
+  isAuthSessionError,
+  isJwtExpiredError,
+  SESSION_EXPIRED_USER_MESSAGE,
+  supabaseQueryWithAuthRetry,
+} from '@/lib/supabaseSession';
+import {
   attachProfileNames,
   buildProfilesMap,
   collectUserIdsForProfiles,
   formatDerniereModification,
   formatModifieePar,
 } from '@/lib/documentListAudit';
+import { useListPagination } from '@/hooks/useListPagination';
+import { ListPagination } from '@/components/shared/ListPagination';
 
 interface UnifiedDocumentListProps {
   title?: string;
@@ -77,9 +87,16 @@ export const UnifiedDocumentList = ({
   const loadDocuments = useCallback(async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('documents')
-        .select(`
+      const ready = await ensureSupabaseSessionReady();
+      if (!ready) {
+        toast.error(SESSION_EXPIRED_USER_MESSAGE);
+        return;
+      }
+
+      const runDocumentsQuery = () => {
+        let query = supabase
+          .from('documents')
+          .select(`
           *,
           fournisseurs(nom),
           clients(nom),
@@ -88,40 +105,52 @@ export const UnifiedDocumentList = ({
             products(name)
           )
         `)
-        .in('type', documentTypes);
+          .in('type', documentTypes);
 
-      if (metadataFilter) {
-        query = query.filter(`metadata->>${metadataFilter.key}`, 'eq', metadataFilter.value);
-      }
+        if (metadataFilter) {
+          query = query.filter(`metadata->>${metadataFilter.key}`, 'eq', metadataFilter.value);
+        }
 
-      const { data, error } = await query
-        .order('created_at', { ascending: false })
-        .limit(500);
+        return query.order('created_at', { ascending: false }).limit(500);
+      };
+
+      const { data, error } = await supabaseQueryWithAuthRetry(runDocumentsQuery);
 
       if (error) throw error;
       
-      let mapped = data.map(d => ({
-        ...d,
-        fournisseur_name: d.fournisseurs?.nom,
-        client_name: d.clients?.nom,
-        lines: d.document_lines,
-      })) as UnifiedDocument[];
+      let mapped = data.map((d) =>
+        enrichUnifiedDocumentDisplay({
+          ...d,
+          fournisseur_name: d.fournisseurs?.nom,
+          client_name: d.clients?.nom,
+          lines: d.document_lines,
+        } as UnifiedDocument)
+      );
 
       const userIds = collectUserIdsForProfiles(mapped);
       if (userIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name, email')
-          .in('user_id', userIds);
-        if (profiles?.length) {
+        const { data: profiles, error: profilesError } = await supabaseQueryWithAuthRetry(() =>
+          supabase
+            .from('profiles')
+            .select('user_id, full_name, email')
+            .in('user_id', userIds)
+        );
+        if (profilesError) {
+          console.warn('[UnifiedDocumentList] profiles load failed:', profilesError.message);
+        } else if (profiles?.length) {
           const profilesMap = buildProfilesMap(profiles);
           mapped = mapped.map((doc) => attachProfileNames(doc, profilesMap));
         }
       }
 
       setDocuments(mapped);
-    } catch (error: any) {
-      toast.error("Erreur lors du chargement : " + error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(
+        isJwtExpiredError(message) || isAuthSessionError(message)
+          ? SESSION_EXPIRED_USER_MESSAGE
+          : `Erreur lors du chargement : ${message}`
+      );
     } finally {
       setLoading(false);
     }
@@ -230,11 +259,26 @@ export const UnifiedDocumentList = ({
     }
   };
 
-  const filteredDocs = documents.filter(d => 
-    d.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    d.fournisseur_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    d.client_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredDocs = useMemo(
+    () =>
+      documents.filter(
+        (d) =>
+          d.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          d.fournisseur_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          d.client_name?.toLowerCase().includes(searchTerm.toLowerCase())
+      ),
+    [documents, searchTerm]
   );
+
+  const {
+    slice: docsPage,
+    page,
+    totalPages,
+    total,
+    from,
+    to,
+    setPage,
+  } = useListPagination(filteredDocs, searchTerm);
 
   return (
     <div className="space-y-6">
@@ -261,7 +305,7 @@ export const UnifiedDocumentList = ({
           <div className="col-span-full text-center py-12 bg-muted/20 rounded-xl border border-dashed">
             Aucun document trouvé.
           </div>
-        ) : filteredDocs.map((doc) => (
+        ) : docsPage.map((doc) => (
           <Card key={doc.id} className="overflow-hidden hover:shadow-md transition-shadow">
             <CardHeader className="pb-3 border-b bg-muted/10">
               <div className="flex justify-between items-start">
@@ -308,10 +352,23 @@ export const UnifiedDocumentList = ({
               </div>
             </CardHeader>
             <CardContent className="pt-4 space-y-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Tiers :</span>
-                <span className="font-bold">{doc.fournisseur_name || doc.client_name || "N/A"}</span>
-              </div>
+              {(doc.type === 'BC_CLIENT' || doc.type === 'BC_FOURNISSEUR') ? (
+                <>
+                  <div className="flex justify-between text-sm gap-2">
+                    <span className="text-muted-foreground shrink-0">Client :</span>
+                    <span className="font-medium text-right">{doc.client_name || '—'}</span>
+                  </div>
+                  <div className="flex justify-between text-sm gap-2">
+                    <span className="text-muted-foreground shrink-0">Fournisseur :</span>
+                    <span className="font-bold text-right">{doc.fournisseur_name || '—'}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Tiers :</span>
+                  <span className="font-bold">{doc.fournisseur_name || doc.client_name || 'N/A'}</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Articles :</span>
                 <span>{doc.lines?.length || 0} articles</span>
@@ -405,6 +462,17 @@ export const UnifiedDocumentList = ({
           </Card>
         ))}
       </div>
+
+      {!loading && (
+        <ListPagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          from={from}
+          to={to}
+          onPageChange={setPage}
+        />
+      )}
 
       <ReceptionDialog 
         open={!!receptionBC} 

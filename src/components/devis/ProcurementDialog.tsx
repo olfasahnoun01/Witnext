@@ -39,7 +39,7 @@ export const ProcurementDialog = ({
   open,
   onOpenChange,
   sourceBC,
-  targetDocType = 'DEVIS_FOURNISSEUR',
+  targetDocType = 'BC_FOURNISSEUR',
   onSuccess,
 }: ProcurementDialogProps) => {
   const [allocations, setAllocations] = useState<Record<string, Allocation[]>>({});
@@ -142,10 +142,15 @@ export const ProcurementDialog = ({
         });
       });
 
-      const supplierRequests = Object.keys(supplierMap).map(id => ({
-        fournisseur_id: parseInt(id),
-        items: supplierMap[parseInt(id)]
-      }));
+      const supplierRequests = Object.keys(supplierMap).map(id => {
+        const fournisseurId = parseInt(id, 10);
+        const provider = providers.find((p) => p.id === fournisseurId);
+        return {
+          fournisseur_id: fournisseurId,
+          fournisseur_name: provider?.nom || '',
+          items: supplierMap[fournisseurId],
+        };
+      });
 
       if (supplierRequests.length === 0) {
         toast.error('Veuillez allouer au moins un article à un fournisseur');
@@ -254,7 +259,7 @@ export const ProcurementDialog = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart className="w-5 h-5 text-primary" />
-            {targetDocType === 'BC_FOURNISSEUR' ? 'BC Fournisseur' : 'Devis Fournisseur'} pour {sourceBC.numero}
+            BC Fournisseur pour {sourceBC.numero}
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
             Sélectionnez les fournisseurs pour chaque article de la {sourceLabel}, puis générez les documents d'achat.
@@ -356,7 +361,9 @@ export const ProcurementDialog = ({
             {loading ? "Création..." : (
               <>
                 <FileSignature className="w-4 h-4" />
-                Générer {new Set(Object.values(allocations).flat().filter(a => a.fournisseur_id !== 0).map(a => a.fournisseur_id)).size} {targetDocType === 'BC_FOURNISSEUR' ? 'BC Fournisseurs' : 'Devis Fournisseurs'}
+                Générer{' '}
+                {new Set(Object.values(allocations).flat().filter(a => a.fournisseur_id !== 0).map(a => a.fournisseur_id)).size}{' '}
+                BC Fournisseur(s)
               </>
             )}
           </Button>

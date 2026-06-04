@@ -9,6 +9,78 @@ import companyLogo from '@/assets/grosafe-logo.webp';
 const PDF_LOGO_MAX_HEIGHT = 18;
 const PDF_LOGO_MAX_WIDTH = 50;
 
+const DEVIS_PDF_MARGIN_X = 14;
+
+/** Short header labels — single line in narrow PDF columns (devis / BC / BL / facture). */
+const DEVIS_PDF_TABLE_HEAD_TTC = [
+  '#',
+  'Code',
+  'Désignation',
+  'Description',
+  'Qté',
+  'PU HT',
+  'Rem.%',
+  'Net HT',
+  'TVA',
+  'Mnt HT',
+] as const;
+
+const DEVIS_PDF_TABLE_HEAD_HT = [
+  '#',
+  'Code',
+  'Désignation',
+  'Description',
+  'Qté',
+  'PU HT',
+  'Rem.%',
+  'Net HT',
+  'Mnt HT',
+] as const;
+
+const DEVIS_PDF_HEAD_STYLES = {
+  fillColor: [30, 58, 95] as [number, number, number],
+  textColor: 255,
+  fontSize: 7,
+  fontStyle: 'bold' as const,
+  cellPadding: { top: 2, right: 1.5, bottom: 2, left: 1.5 },
+  minCellHeight: 5,
+  overflow: 'hidden' as const,
+  valign: 'middle' as const,
+};
+
+/** Column widths + alignment (header follows same halign as body). */
+function getDevisPdfTableColumnStyles(isTTC: boolean, availableWidth: number): Record<number, object> {
+  const text = { valign: 'top' as const, halign: 'left' as const };
+  const right = { valign: 'middle' as const, halign: 'right' as const };
+  const center = { valign: 'middle' as const, halign: 'center' as const };
+
+  if (isTTC) {
+    return {
+      0: { cellWidth: availableWidth * 0.04, ...center },
+      1: { cellWidth: availableWidth * 0.085, ...text },
+      2: { cellWidth: availableWidth * 0.17, ...text },
+      3: { cellWidth: availableWidth * 0.24, ...text },
+      4: { cellWidth: availableWidth * 0.045, ...center },
+      5: { cellWidth: availableWidth * 0.105, ...right },
+      6: { cellWidth: availableWidth * 0.065, ...center },
+      7: { cellWidth: availableWidth * 0.105, ...right },
+      8: { cellWidth: availableWidth * 0.042, ...center },
+      9: { cellWidth: availableWidth * 0.108, ...right },
+    };
+  }
+  return {
+    0: { cellWidth: availableWidth * 0.045, ...center },
+    1: { cellWidth: availableWidth * 0.09, ...text },
+    2: { cellWidth: availableWidth * 0.2, ...text },
+    3: { cellWidth: availableWidth * 0.27, ...text },
+    4: { cellWidth: availableWidth * 0.055, ...center },
+    5: { cellWidth: availableWidth * 0.11, ...right },
+    6: { cellWidth: availableWidth * 0.07, ...center },
+    7: { cellWidth: availableWidth * 0.11, ...right },
+    8: { cellWidth: availableWidth * 0.11, ...right },
+  };
+}
+
 interface PdfLogoAsset {
   dataUrl: string;
   widthMm: number;
@@ -555,6 +627,7 @@ export interface DevisPDFData {
   is_ttc: boolean;
   is_bc: boolean;
   is_ba: boolean;
+  is_bl?: boolean;
   is_facture?: boolean;
   date_echeance?: string | null;
 }
@@ -613,13 +686,15 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   const isVente = devis.type === 'sortant' || devis.type === 'vente' as any;
   const title = devis.is_facture
     ? 'FACTURE'
-    : devis.is_ba
-      ? "BON D'ACHAT"
-      : devis.is_bc
-        ? 'BON DE COMMANDE'
-        : isVente
-          ? 'OFFRE DE PRIX'
-          : 'DEMANDE DE PRIX';
+    : devis.is_bl
+      ? 'BON DE LIVRAISON'
+      : devis.is_ba
+        ? "BON D'ACHAT"
+        : devis.is_bc
+          ? 'BON DE COMMANDE'
+          : isVente
+            ? 'OFFRE DE PRIX'
+            : 'DEMANDE DE PRIX';
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 58, 95);
@@ -692,10 +767,9 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     ];
   });
 
-  const sousTotalLabel = 'Montant HT';
-  const headRow = isTTC
-    ? ['#', 'Code article', 'Désignation', 'Description', 'Qté', 'Prix U HT', 'Remise', 'Net U HT', 'TVA', sousTotalLabel]
-    : ['#', 'Code article', 'Désignation', 'Description', 'Qté', 'Prix U HT', 'Remise', 'Net U HT', sousTotalLabel];
+  const headRow = isTTC ? [...DEVIS_PDF_TABLE_HEAD_TTC] : [...DEVIS_PDF_TABLE_HEAD_HT];
+
+  const itemsTableWidth = pageWidth - DEVIS_PDF_MARGIN_X * 2;
 
   let devisTableEndY = 120;
   autoTable(doc, {
@@ -703,38 +777,24 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     head: [headRow],
     body: tableData.length > 0 ? tableData : [headRow.map(() => '')],
     theme: 'grid',
-    headStyles: {
-      fillColor: [30, 58, 95],
-      fontSize: 9,
-      fontStyle: 'bold',
-      halign: 'center'
+    tableWidth: itemsTableWidth,
+    headStyles: DEVIS_PDF_HEAD_STYLES,
+    styles: {
+      fontSize: 8,
+      cellPadding: 3,
+      overflow: 'linebreak',
+      valign: 'top',
     },
-    styles: { fontSize: 9, cellPadding: 4 },
     rowPageBreak: 'avoid',
-    columnStyles: isTTC ? {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 22 },
-      2: { cellWidth: 'auto' },
-      3: { cellWidth: 28 },
-      4: { halign: 'center' },
-      5: { halign: 'right' },
-      6: { halign: 'center' },
-      7: { halign: 'right' },
-      8: { halign: 'center' },
-      9: { halign: 'right' },
-    } : {
-      0: { cellWidth: 12, halign: 'center' },
-      1: { cellWidth: 22 },
-      2: { cellWidth: 'auto' },
-      3: { cellWidth: 28 },
-      4: { halign: 'center' },
-      5: { halign: 'right' },
-      6: { halign: 'center' },
-      7: { halign: 'right' },
-      8: { halign: 'right' },
-    },
+    columnStyles: getDevisPdfTableColumnStyles(isTTC, itemsTableWidth),
     alternateRowStyles: { fillColor: [245, 247, 250] },
-    margin: { left: 14, right: 14, bottom: 35 },
+    margin: { left: DEVIS_PDF_MARGIN_X, right: DEVIS_PDF_MARGIN_X, bottom: 35 },
+    didParseCell: (data) => {
+      if (data.section === 'head') {
+        data.cell.styles.overflow = 'hidden';
+        data.cell.styles.fontSize = 7;
+      }
+    },
     didDrawPage: (data) => {
       devisTableEndY = data.cursor?.y || devisTableEndY;
     }
@@ -768,8 +828,8 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 
   // Manual drawing of totals to guarantee right alignment
   let ty = tableEndY + 12;
-  const tableWidth = 96;
-  const startX = pageWidth - tableWidth - 14;
+  const totalsBoxWidth = 96;
+  const startX = pageWidth - totalsBoxWidth - 14;
 
   // Calculate total height to check for page break
   const totalTotalsHeight = (totalsRows.length - 1) * 8 + 10 + 12; // 12 is the margin top
@@ -788,14 +848,14 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     // Background
     if (isLast) {
       doc.setFillColor(30, 58, 95);
-      doc.rect(startX, ty - 6, tableWidth, rowHeight, 'F');
+      doc.rect(startX, ty - 6, totalsBoxWidth, rowHeight, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
     } else {
       if (i % 2 === 0) doc.setFillColor(248, 249, 252);
       else doc.setFillColor(255, 255, 255);
-      doc.rect(startX, ty - 6, tableWidth, rowHeight, 'F');
+      doc.rect(startX, ty - 6, totalsBoxWidth, rowHeight, 'F');
       doc.setTextColor(40, 40, 40);
       doc.setFont('helvetica', label === 'Net HT' || label === 'Total TTC' || label === 'Total HT' ? 'bold' : 'normal');
       doc.setFontSize(9);
@@ -803,12 +863,12 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       // Border bottom
       doc.setDrawColor(230, 230, 230);
       doc.setLineWidth(0.1);
-      doc.line(startX, ty - 6 + rowHeight, startX + tableWidth, ty - 6 + rowHeight);
+      doc.line(startX, ty - 6 + rowHeight, startX + totalsBoxWidth, ty - 6 + rowHeight);
     }
     
     // Text
     doc.text(label, startX + 5, ty);
-    doc.text(val, startX + tableWidth - 5, ty, { align: 'right' });
+    doc.text(val, startX + totalsBoxWidth - 5, ty, { align: 'right' });
     
     ty += rowHeight;
   });

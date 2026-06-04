@@ -15,6 +15,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { deleteFactureVente } from '@/services/factureService';
+import { useListPagination } from '@/hooks/useListPagination';
+import { ListPagination } from '@/components/shared/ListPagination';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -70,11 +72,25 @@ export const FacturesVente = () => {
       const rows = (data || []) as Facture[];
       setFactures(rows);
 
-      const bcIds = [...new Set(rows.map((f) => f.source_bc_id).filter((id): id is number => typeof id === 'number'))];
-      if (bcIds.length > 0) {
-        const { data: bcs } = await supabase.from('devis').select('id, devis_number').in('id', bcIds);
+      const blIds = [
+        ...new Set(
+          rows.flatMap((f) => {
+            const ids: number[] = [];
+            if (typeof f.source_bl_id === 'number') ids.push(f.source_bl_id);
+            if (Array.isArray(f.source_bl_ids)) {
+              for (const id of f.source_bl_ids) {
+                if (typeof id === 'number') ids.push(id);
+              }
+            }
+            if (ids.length === 0 && typeof f.source_bc_id === 'number') ids.push(f.source_bc_id);
+            return ids;
+          })
+        ),
+      ];
+      if (blIds.length > 0) {
+        const { data: bls } = await supabase.from('devis').select('id, devis_number').in('id', blIds);
         const map = new Map<number, string>();
-        (bcs || []).forEach((r: { id: number; devis_number: string }) => map.set(r.id, r.devis_number));
+        (bls || []).forEach((r: { id: number; devis_number: string }) => map.set(r.id, r.devis_number));
         setBcNumberById(map);
       } else {
         setBcNumberById(new Map());
@@ -170,13 +186,21 @@ export const FacturesVente = () => {
         (f) =>
           f.numero?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           f.third_party_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (f.source_bc_id &&
-            (bcNumberById.get(f.source_bc_id) || '')
-              .toLowerCase()
-              .includes(searchQuery.toLowerCase()))
+          ((f.source_bl_id && (bcNumberById.get(f.source_bl_id) || '').toLowerCase().includes(searchQuery.toLowerCase())) ||
+            (f.source_bc_id && (bcNumberById.get(f.source_bc_id) || '').toLowerCase().includes(searchQuery.toLowerCase())))
       ),
     [factures, searchQuery, bcNumberById]
   );
+
+  const {
+    slice: facturesPage,
+    page,
+    totalPages,
+    total,
+    from,
+    to,
+    setPage,
+  } = useListPagination(filteredFactures, searchQuery);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -184,7 +208,7 @@ export const FacturesVente = () => {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Factures de Vente</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Les factures sont générées depuis la liste des bons de commande (BC vente) : bouton « Facture ».
+            Les factures sont générées depuis la liste des bons de livraison (BL vente) : bouton « Facture ». Liste paginée (10 par page).
           </p>
         </div>
 
@@ -206,7 +230,7 @@ export const FacturesVente = () => {
             <thead className="bg-muted/50 text-muted-foreground">
               <tr>
                 <th className="px-6 py-4 font-medium">N° Facture</th>
-                <th className="px-6 py-4 font-medium">BC source</th>
+                <th className="px-6 py-4 font-medium">BL source</th>
                 <th className="px-6 py-4 font-medium">Client</th>
                 <th className="px-6 py-4 font-medium">Date</th>
                 <th className="px-6 py-4 font-medium">Échéance</th>
@@ -232,15 +256,17 @@ export const FacturesVente = () => {
                   </td>
                 </tr>
               ) : (
-                filteredFactures.map((facture) => (
+                facturesPage.map((facture) => (
                   <tr key={facture.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-6 py-4 font-medium text-foreground">
                       {facture.numero}
                     </td>
                     <td className="px-6 py-4 text-sm text-muted-foreground">
-                      {facture.source_bc_id
-                        ? bcNumberById.get(facture.source_bc_id) || `BC #${facture.source_bc_id}`
-                        : '—'}
+                      {(() => {
+                        const blId = facture.source_bl_id ?? facture.source_bc_id;
+                        if (!blId) return '—';
+                        return bcNumberById.get(blId) || `BL #${blId}`;
+                      })()}
                     </td>
                     <td className="px-6 py-4">
                       {facture.third_party_name || '-'}
@@ -298,6 +324,16 @@ export const FacturesVente = () => {
             </tbody>
           </table>
         </div>
+        {!isLoading && (
+          <ListPagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            from={from}
+            to={to}
+            onPageChange={setPage}
+          />
+        )}
       </div>
 
       <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
@@ -306,8 +342,8 @@ export const FacturesVente = () => {
             <AlertDialogTitle>Supprimer la facture ?</AlertDialogTitle>
             <AlertDialogDescription>
               La facture <strong>{deleteConfirm?.numero}</strong> sera supprimée définitivement.
-              {deleteConfirm?.source_bc_id && (
-                <> Le bouton « Facture » redeviendra disponible sur le BC source.</>
+              {deleteConfirm?.source_bl_id && (
+                <> Le bouton « Facture » redeviendra disponible sur le BL source.</>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>

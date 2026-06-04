@@ -215,6 +215,11 @@ export const BACreationDialog = ({
 
   const addItemFromProduct = useCallback((product: Product) => {
     const localId = Math.random().toString(36).substring(7);
+    const sku = product.sku?.trim();
+    const sizeColorParts = [
+      product.size ? `Taille: ${product.size}` : '',
+      product.color ? `Couleur: ${product.color}` : '',
+    ].filter(Boolean);
     const newItem = {
       localId,
       designation: product.name,
@@ -222,7 +227,9 @@ export const BACreationDialog = ({
       prix_ttc: product.price || 0,
       remise: product.remise || 0,
       quantity: 1,
-      description: `${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`,
+      ...(sku ? { sku } : {}),
+      product_id: product.id,
+      description: sizeColorParts.length > 0 ? sizeColorParts.join(' · ') : undefined,
       tva: 19,
       ...(sourceBC?.type === 'vente' ? { prix_achat: product.price || 0 } : {}),
     };

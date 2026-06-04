@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, createContext, useContext, ReactNode } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { isAuthSessionError, isJwtExpiredError, refreshSupabaseSessionIfNeeded } from '@/lib/supabaseSession';
 import { toast } from '@/hooks/use-toast';
 
 interface AuthContextType {
@@ -229,29 +230,53 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
-    // Set up periodic session validation (every 5 minutes)
-    const sessionCheckInterval = setInterval(async () => {
+    const validateOrRefreshSession = async () => {
+      if (!userRef.current) return;
+
       const { data: { session: currentSession }, error } = await supabase.auth.getSession();
-      
+
       if (error) {
         console.error('Session validation failed:', error);
-        // Check if it's a refresh token error
-        if (error.message?.includes('refresh_token') || 
-            error.message?.includes('Invalid Refresh Token') ||
-            error.message?.includes('session_not_found')) {
+        if (isAuthSessionError(error.message)) {
           await handleSessionExpired('Token de rafraîchissement invalide');
         }
-      } else if (!currentSession && userRef.current) {
-        // Session was lost unexpectedly
-        await handleSessionExpired('Session perdue');
+        return;
       }
-    }, 5 * 60 * 1000); // Check every 5 minutes
+
+      if (!currentSession) {
+        await handleSessionExpired('Session perdue');
+        return;
+      }
+
+      const expiresAt = currentSession.expires_at ?? 0;
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (expiresAt - nowSec <= 120) {
+        const ok = await refreshSupabaseSessionIfNeeded(0);
+        if (!ok) {
+          await handleSessionExpired('Session expirée');
+        }
+      }
+    };
+
+    const sessionCheckInterval = setInterval(() => {
+      void validateOrRefreshSession();
+    }, 5 * 60 * 1000);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && userRef.current) {
+        void refreshSupabaseSessionIfNeeded();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', onVisibilityChange);
 
     return () => {
       cancelled = true;
       window.clearTimeout(safetyTimer);
       subscription.unsubscribe();
       clearInterval(sessionCheckInterval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', onVisibilityChange);
       removeSessionChannel();
     };
   }, []);
@@ -323,10 +348,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       applyRoleFlags(userId, false, false);
     } catch (error) {
       // Check if error is due to session expiration
-      if (error instanceof Error && 
-          (error.message?.includes('JWT') || 
-           error.message?.includes('token') ||
-           error.message?.includes('session'))) {
+      if (error instanceof Error && isAuthSessionError(error.message)) {
         await handleSessionExpired('Erreur d\'authentification');
       }
       applyRoleFlags(userId, false, false);

@@ -7,17 +7,33 @@ import { Devis, DevisItem, BonCommande } from '@/types';
 import { buildProfilesMap, collectUserIdsForProfiles } from '@/lib/documentListAudit';
 import { useAuth } from '@/hooks/useAuth';
 import { computeDevisTotals } from '@/lib/devisPricing';
+import { parseAttachmentUrls, uploadCommercialAttachments, type CommercialAttachmentRecord } from '@/lib/commercialAttachments';
+import { buildMergedBcNotes, mergeDevisItemsFromSources, validateDevisMergeForBc } from '@/lib/mergeCommercialDocuments';
+import {
+  ensureSupabaseSessionReady,
+  isAuthSessionError,
+  isJwtExpiredError,
+  SESSION_EXPIRED_USER_MESSAGE,
+  supabaseQueryWithAuthRetry,
+} from '@/lib/supabaseSession';
 import { DevisForm } from './devis/DevisForm';
 import { DevisHistory } from './devis/DevisHistory';
 import { BonCommandeList } from './devis/BonCommandeList';
+import { BonLivraisonList } from './devis/BonLivraisonList';
 import { DevisHelper } from './devis/DevisHelper';
 import { BCCreationDialog } from './devis/BCCreationDialog';
 import { DevisToSupplierBCDialog } from './devis/DevisToSupplierBCDialog';
+import { documentService } from '@/services/documentService';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 
-const parseDevisRow = (d: any, profilesMap: Record<string, string>, sourceDevisMap?: Record<number, string>): Devis => {
+const parseDevisRow = (
+  d: any,
+  profilesMap: Record<string, string>,
+  sourceDevisMap?: Record<number, string>,
+  sourceBcMap?: Record<number, string>
+): Devis => {
   let parsedItems: DevisItem[] = [];
   if (d.items) {
     if (typeof d.items === 'string') {
@@ -34,21 +50,49 @@ const parseDevisRow = (d: any, profilesMap: Record<string, string>, sourceDevisM
     total_amount: Number(d.total_amount) || 0,
     is_bc: d.is_bc ?? false,
     is_ba: d.is_ba ?? false,
+    is_bl: d.is_bl ?? false,
     source_devis_id: d.source_devis_id ?? null,
+    source_bc_id: d.source_bc_id ?? null,
+    source_bc_ids: Array.isArray(d.source_bc_ids)
+      ? (d.source_bc_ids as number[]).filter((id) => typeof id === 'number')
+      : null,
+    source_bc_number: (() => {
+      const multi = Array.isArray(d.source_bc_ids)
+        ? (d.source_bc_ids as number[])
+            .map((id) => sourceBcMap?.[id])
+            .filter(Boolean)
+            .join(', ')
+        : '';
+      if (multi) return multi;
+      return d.source_bc_id && sourceBcMap ? sourceBcMap[d.source_bc_id] || null : null;
+    })(),
     creator_name: d.created_by ? (profilesMap[d.created_by] || null) : null,
     updated_by: d.updated_by ?? null,
     modifier_name: d.updated_by ? (profilesMap[d.updated_by] || null) : null,
-    source_devis_number: d.source_devis_id && sourceDevisMap ? (sourceDevisMap[d.source_devis_id] || null) : null,
+    source_devis_number: (() => {
+      const multi = Array.isArray(d.source_devis_ids)
+        ? (d.source_devis_ids as number[])
+            .map((id) => sourceDevisMap?.[id])
+            .filter(Boolean)
+            .join(', ')
+        : '';
+      if (multi) return multi;
+      return d.source_devis_id && sourceDevisMap ? sourceDevisMap[d.source_devis_id] || null : null;
+    })(),
+    source_devis_ids: Array.isArray(d.source_devis_ids)
+      ? (d.source_devis_ids as number[]).filter((id) => typeof id === 'number')
+      : null,
+    attachment_urls: parseAttachmentUrls(d.attachment_urls),
   };
 };
 
 interface GestionDevisProps {
   onTabChange?: (tab: string) => void;
-  initialSection?: 'form' | 'history' | 'bc' | 'helper';
+  initialSection?: 'form' | 'history' | 'bc' | 'bl' | 'helper';
   initialDocType?: 'devis' | 'bc' | 'ba';
   initialDevisType?: 'achat' | 'vente';
   lockDevisType?: boolean;
-  sectionMode?: 'devis' | 'bc';
+  sectionMode?: 'devis' | 'bc' | 'bl';
 }
 
 export const GestionDevis = ({
@@ -61,14 +105,17 @@ export const GestionDevis = ({
 }: GestionDevisProps) => {
   const { isAdmin, isModerator, user } = useAuth();
   const canEdit = true;
-  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'helper'>(
-    (initialSection as any) === 'ba' ? 'form' : initialSection
+  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'bl' | 'helper'>(
+    initialSection === 'ba' ? 'form' : initialSection
   );
   const [allDevis, setAllDevis] = useState<Devis[]>([]);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingDevis, setEditingDevis] = useState<Devis | null>(null);
   const [isBCReviewOpen, setIsBCReviewOpen] = useState(false);
-  const [devisToConvert, setDevisToConvert] = useState<Devis | null>(null);
+  const [devisListToConvert, setDevisListToConvert] = useState<Devis[]>([]);
+  const [existingAttachments, setExistingAttachments] = useState<CommercialAttachmentRecord[]>([]);
+  const [pendingAttachmentFiles, setPendingAttachmentFiles] = useState<File[]>([]);
+  const [importSourceDevisIds, setImportSourceDevisIds] = useState<number[]>([]);
   const [devisForSupplierBC, setDevisForSupplierBC] = useState<Devis | null>(null);
   const [docType, setDocType] = useState<'devis' | 'bc' | 'ba'>(
     (initialDocType as any) === 'ba' ? 'ba' : initialDocType
@@ -92,44 +139,87 @@ export const GestionDevis = ({
   const [isTtc, setIsTtc] = useState(true);
 
   // Derived lists
-  const savedDevis = useMemo(() => allDevis.filter(d => !d.is_bc && !d.is_ba), [allDevis]);
-  const bonsCommande = useMemo(() => allDevis.filter(d => d.is_bc), [allDevis]);
+  const savedDevis = useMemo(() => allDevis.filter((d) => !d.is_bc && !d.is_ba && !d.is_bl), [allDevis]);
+  const importableDevisForBc = useMemo(
+    () => savedDevis.filter((d) => d.type === devisType),
+    [savedDevis, devisType]
+  );
+  const bonsCommande = useMemo(() => allDevis.filter((d) => d.is_bc && !d.is_bl), [allDevis]);
+  const bonsLivraison = useMemo(() => allDevis.filter((d) => d.is_bl), [allDevis]);
   const bonsAchat = useMemo(() => allDevis.filter(d => d.is_ba), [allDevis]);
   /** Hide "Liste BC" in nav only on locked Mes Devis pages (vente/achat); keep it on dedicated Liste BC routes (sectionMode bc). */
   const hideListBcTab = Boolean(sectionMode === 'devis' && lockDevisType);
 
   const loadAll = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('devis')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1000);
+    const ready = await ensureSupabaseSessionReady();
+    if (!ready) {
+      toast.error(SESSION_EXPIRED_USER_MESSAGE);
+      return;
+    }
 
-    if (!error && data) {
+    const { data, error } = await supabaseQueryWithAuthRetry(() =>
+      supabase
+        .from('devis')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1000)
+    );
+
+    if (error) {
+      toast.error(
+        isJwtExpiredError(error.message) || isAuthSessionError(error.message)
+          ? SESSION_EXPIRED_USER_MESSAGE
+          : `Impossible de charger les documents : ${error.message}`
+      );
+      return;
+    }
+
+    if (data) {
       const userIds = collectUserIdsForProfiles(data);
       let profilesMap: Record<string, string> = {};
       if (userIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name, email')
-          .in('user_id', userIds);
-        if (profiles) {
+        const { data: profiles, error: profilesError } = await supabaseQueryWithAuthRetry(() =>
+          supabase
+            .from('profiles')
+            .select('user_id, full_name, email')
+            .in('user_id', userIds)
+        );
+        if (profilesError) {
+          console.warn('[GestionDevis] profiles load failed:', profilesError.message);
+        } else if (profiles) {
           profilesMap = buildProfilesMap(profiles);
         }
       }
 
-      // Build source devis number map for BCs
-      const sourceIds = [...new Set(data.filter(d => (d as any).source_devis_id).map(d => (d as any).source_devis_id))] as number[];
+      const sourceIds = [
+        ...new Set(
+          data.flatMap((d) => {
+            const ids: number[] = [];
+            if ((d as { source_devis_id?: number }).source_devis_id) {
+              ids.push((d as { source_devis_id: number }).source_devis_id);
+            }
+            const multi = (d as { source_devis_ids?: number[] }).source_devis_ids;
+            if (Array.isArray(multi)) ids.push(...multi.filter((id) => typeof id === 'number'));
+            return ids;
+          })
+        ),
+      ] as number[];
       let sourceDevisMap: Record<number, string> = {};
+      const sourceBcMap: Record<number, string> = {};
       if (sourceIds.length > 0) {
-        data.forEach(d => {
+        data.forEach((d) => {
           if (sourceIds.includes(d.id)) {
             sourceDevisMap[d.id] = d.devis_number;
           }
         });
       }
+      data.forEach((d) => {
+        if ((d as { is_bc?: boolean }).is_bc) {
+          sourceBcMap[d.id] = d.devis_number;
+        }
+      });
 
-      setAllDevis(data.map(d => parseDevisRow(d, profilesMap, sourceDevisMap)));
+      setAllDevis(data.map((d) => parseDevisRow(d, profilesMap, sourceDevisMap, sourceBcMap)));
     }
   }, []);
 
@@ -183,6 +273,9 @@ export const GestionDevis = ({
     setDocumentStatus('brouillon');
     if (clearItems) setDevisItems([]);
     setIsTtc(true);
+    setExistingAttachments([]);
+    setPendingAttachmentFiles([]);
+    setImportSourceDevisIds([]);
   }, []);
 
   const resetForm = useCallback(() => {
@@ -204,10 +297,45 @@ export const GestionDevis = ({
     clearFormFields();
   }, [clearFormFields]);
 
+  const importDevisIntoBcForm = useCallback((list: Devis[]) => {
+    if (list.length === 0) return;
+    if (list.length > 1) {
+      const check = validateDevisMergeForBc(list);
+      if (!check.ok) {
+        toast.error(check.error);
+        return;
+      }
+    }
+    const primary = list[0];
+    setThirdPartyName(primary.third_party_name || '');
+    setThirdPartyAddress(primary.third_party_address || '');
+    setThirdPartyTaxId(primary.third_party_tax_id || '');
+    setThirdPartyPhone(primary.third_party_phone || '');
+    setIsTtc(primary.is_ttc);
+    setDevisItems(
+      list.length > 1
+        ? mergeDevisItemsFromSources(list)
+        : JSON.parse(JSON.stringify(primary.items))
+    );
+    if (!notes.trim() && primary.notes) setNotes(primary.notes);
+    setImportSourceDevisIds(list.map((d) => d.id));
+    toast.success(
+      list.length > 1
+        ? `${list.length} devis importés dans le bon de commande`
+        : `Devis ${primary.devis_number} importé`
+    );
+  }, [notes]);
+
+  const hasDocumentContent =
+    devisItems.length > 0 ||
+    pendingAttachmentFiles.length > 0 ||
+    existingAttachments.length > 0 ||
+    notes.trim().length > 0;
+
   const saveDevis = useCallback(async () => {
     if (isSaving) return;
-    if (devisItems.length === 0) {
-      toast.error('Ajoutez au moins un article');
+    if (!hasDocumentContent) {
+      toast.error('Ajoutez des lignes, une pièce jointe (PDF, image…) ou des notes');
       return;
     }
     const currentDevisNumber = devisNumberRef.current;
@@ -221,7 +349,8 @@ export const GestionDevis = ({
       const totalAmount = totals.totalTTC;
       const { data: { user } } = await supabase.auth.getUser();
 
-      const { error } = await supabase.from('devis').insert({
+      const folderKind = docType === 'bc' ? 'bc' : 'devis';
+      const { data: inserted, error } = await supabase.from('devis').insert({
         type: devisType,
         devis_number: currentDevisNumber,
         devis_date: devisDate,
@@ -237,13 +366,27 @@ export const GestionDevis = ({
         is_bc: docType === 'bc',
         is_ba: false,
         status: docType === 'bc' ? documentStatus : 'brouillon',
-      } as any);
+        attachment_urls: existingAttachments,
+        source_devis_id:
+          docType === 'bc' && importSourceDevisIds.length > 0 ? importSourceDevisIds[0] : null,
+        source_devis_ids:
+          docType === 'bc' && importSourceDevisIds.length > 1 ? importSourceDevisIds : null,
+      } as any).select('id').single();
 
-      if (error) {
+      if (error || !inserted) {
         toast.error('Erreur lors de la sauvegarde');
         console.error(error);
       } else {
-        toast.success('Devis sauvegardé');
+        const docId = (inserted as { id: number }).id;
+        if (pendingAttachmentFiles.length > 0) {
+          const uploaded = await uploadCommercialAttachments(
+            pendingAttachmentFiles,
+            `${folderKind}/${docId}`
+          );
+          const merged = [...existingAttachments, ...uploaded];
+          await supabase.from('devis').update({ attachment_urls: merged } as never).eq('id', docId);
+        }
+        toast.success(docType === 'bc' ? 'Bon de commande enregistré' : 'Devis sauvegardé');
         await loadAll();
         clearFormFields();
       }
@@ -253,12 +396,26 @@ export const GestionDevis = ({
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, devisType, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, docType, documentStatus, loadAll, clearFormFields]);
+  }, [isSaving, hasDocumentContent, devisType, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, docType, documentStatus, existingAttachments, pendingAttachmentFiles, importSourceDevisIds, loadAll, clearFormFields]);
 
   const updateDevis = useCallback(async () => {
     if (!editingDevis) return;
+    if (!hasDocumentContent) {
+      toast.error('Ajoutez des lignes, une pièce jointe ou des notes');
+      return;
+    }
     const totals = computeDevisTotals(devisItems, false);
     const totalAmount = totals.totalTTC;
+    const folderKind = docType === 'bc' || editingDevis.is_bc ? 'bc' : 'devis';
+
+    let attachmentUrls = existingAttachments;
+    if (pendingAttachmentFiles.length > 0) {
+      const uploaded = await uploadCommercialAttachments(
+        pendingAttachmentFiles,
+        `${folderKind}/${editingDevis.id}`
+      );
+      attachmentUrls = [...existingAttachments, ...uploaded];
+    }
 
     const { error } = await supabase.from('devis').update({
       type: devisType,
@@ -272,9 +429,11 @@ export const GestionDevis = ({
       total_amount: totalAmount,
       notes: notes || null,
       is_ttc: isTtc,
-      is_bc: docType === 'bc',
+      is_bc: editingDevis.is_bc && !editingDevis.is_bl,
+      is_bl: editingDevis.is_bl ?? false,
       is_ba: false,
       status: docType === 'bc' ? documentStatus : editingDevis.status,
+      attachment_urls: attachmentUrls,
     } as any).eq('id', editingDevis.id);
 
     if (error) {
@@ -284,7 +443,7 @@ export const GestionDevis = ({
       resetForm();
       loadAll();
     }
-  }, [editingDevis, docType, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, documentStatus, loadAll, resetForm]);
+  }, [editingDevis, hasDocumentContent, docType, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, documentStatus, existingAttachments, pendingAttachmentFiles, loadAll, resetForm]);
 
   const deleteDevis = useCallback(async (devis: Devis) => {
     const { error } = await supabase.from('devis').delete().eq('id', devis.id);
@@ -292,14 +451,25 @@ export const GestionDevis = ({
       toast.error('Erreur lors de la suppression');
     } else {
       let msg = 'Devis supprimé';
-      if (devis.is_bc) msg = 'Bon de commande supprimé';
+      if (devis.is_bl) msg = 'Bon de livraison supprimé';
+      else if (devis.is_bc) msg = 'Bon de commande supprimé';
       toast.success(msg);
       loadAll();
     }
   }, [loadAll]);
 
   const convertToBC = useCallback((devis: Devis) => {
-    setDevisToConvert(devis);
+    setDevisListToConvert([devis]);
+    setIsBCReviewOpen(true);
+  }, []);
+
+  const convertMultipleToBC = useCallback((list: Devis[]) => {
+    const check = validateDevisMergeForBc(list);
+    if (!check.ok) {
+      toast.error(check.error);
+      return;
+    }
+    setDevisListToConvert(list);
     setIsBCReviewOpen(true);
   }, []);
 
@@ -308,42 +478,52 @@ export const GestionDevis = ({
   }, []);
 
   const handleConfirmBC = useCallback(async (modifiedItems: DevisItem[], bcStatus: 'brouillon' | 'envoyé' | 'confirmé') => {
-    if (!devisToConvert) return;
-    
+    if (devisListToConvert.length === 0) return;
+
+    const sources = devisListToConvert;
+    const primary = sources[0];
+    const isMerge = sources.length > 1;
+
     try {
-      const bcNumber = generateNextNumber(devisToConvert.type, 'bc');
+      const bcNumber = generateNextNumber(primary.type, 'bc');
       const { data: { user } } = await supabase.auth.getUser();
       const totals = computeDevisTotals(modifiedItems, false);
+      const mergedAttachments = sources.flatMap((d) => parseAttachmentUrls(d.attachment_urls));
 
       const { error } = await supabase.from('devis').insert({
         devis_number: bcNumber,
         devis_date: new Date().toISOString().split('T')[0],
-        source_devis_id: devisToConvert.id,
-        type: devisToConvert.type,
-        third_party_name: devisToConvert.third_party_name,
-        third_party_address: devisToConvert.third_party_address,
-        third_party_tax_id: devisToConvert.third_party_tax_id,
-        third_party_phone: devisToConvert.third_party_phone,
+        source_devis_id: primary.id,
+        source_devis_ids: isMerge ? sources.map((d) => d.id) : null,
+        type: primary.type,
+        third_party_name: primary.third_party_name,
+        third_party_address: primary.third_party_address,
+        third_party_tax_id: primary.third_party_tax_id,
+        third_party_phone: primary.third_party_phone,
         items: JSON.parse(JSON.stringify(modifiedItems)),
         total_amount: totals.totalTTC,
-        notes: devisToConvert.notes,
-        is_ttc: devisToConvert.is_ttc,
+        notes: isMerge ? buildMergedBcNotes(sources) : primary.notes,
+        is_ttc: primary.is_ttc,
         is_bc: true,
         created_by: user?.id,
         status: bcStatus,
+        attachment_urls: mergedAttachments,
       } as any);
 
       if (error) {
         toast.error('Erreur lors de la création du BC');
         console.error(error);
       } else {
-        await supabase
-          .from('devis')
-          .update({ status: 'accepté' } as any)
-          .eq('id', devisToConvert.id);
+        const stamp = new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+        for (const src of sources) {
+          await documentService.appendLegacyDevisNote(
+            src.id,
+            `[${stamp}] BC client créé : ${bcNumber} (le devis reste dans la liste).`
+          );
+        }
         toast.success(`BC ${bcNumber} créé avec succès`);
         setIsBCReviewOpen(false);
-        setDevisToConvert(null);
+        setDevisListToConvert([]);
         await loadAll();
         setActiveSection('bc');
       }
@@ -351,13 +531,13 @@ export const GestionDevis = ({
       console.error(err);
       toast.error('Erreur lors de la création');
     }
-  }, [devisToConvert, generateNextNumber, loadAll]);
+  }, [devisListToConvert, generateNextNumber, loadAll]);
 
   const startEdit = useCallback((d: Devis) => {
     setEditingDevis(d);
     setDevisType(d.type);
     if (d.is_ba) setDocType('ba');
-    else if (d.is_bc) setDocType('bc');
+    else if (d.is_bc || d.is_bl) setDocType('bc');
     else setDocType('devis');
     
     setDevisNumber(d.devis_number);
@@ -370,6 +550,8 @@ export const GestionDevis = ({
     setDocumentStatus(d.status || 'brouillon');
     setDevisItems(d.items);
     setIsTtc(d.is_ttc);
+    setExistingAttachments(parseAttachmentUrls(d.attachment_urls));
+    setPendingAttachmentFiles([]);
     setShowEditDialog(true);
   }, []);
 
@@ -386,60 +568,137 @@ export const GestionDevis = ({
     : 'bg-emerald-600 text-white shadow-md';
   const tabBarClass = accentIsAchat ? 'bg-orange-500/10' : 'bg-emerald-500/10';
 
+  if (sectionMode === 'bl') {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <BonLivraisonList
+          bonsLivraison={bonsLivraison}
+          currentUserId={user?.id || null}
+          isAdminOrMod={isAdmin || isModerator}
+          onEdit={startEdit}
+          onDelete={deleteDevis}
+          onRefresh={loadAll}
+        />
+        <Dialog open={showEditDialog} onOpenChange={(open) => { if (!open) resetForm(); }}>
+          <DialogContent className="max-w-6xl max-h-[95vh] overflow-auto p-0">
+            <DialogHeader className="p-6 pb-0">
+              <DialogTitle>Modifier BL {editingDevis?.devis_number}</DialogTitle>
+            </DialogHeader>
+            <div className="p-6 pt-2">
+              {editingDevis && (
+                <DevisForm
+                  devisType={devisType}
+                  devisNumber={devisNumber}
+                  devisDate={devisDate}
+                  thirdPartyName={thirdPartyName}
+                  thirdPartyAddress={thirdPartyAddress}
+                  thirdPartyTaxId={thirdPartyTaxId}
+                  thirdPartyPhone={thirdPartyPhone}
+                  notes={notes}
+                  devisItems={devisItems}
+                  editingDevis={editingDevis}
+                  isSaving={isSaving}
+                  isTtc={isTtc}
+                  docType="bc"
+                  setDocType={setDocType}
+                  setDevisType={handleTypeChange}
+                  setDevisNumber={setDevisNumber}
+                  setDevisDate={setDevisDate}
+                  setThirdPartyName={setThirdPartyName}
+                  setThirdPartyAddress={setThirdPartyAddress}
+                  setThirdPartyTaxId={setThirdPartyTaxId}
+                  setThirdPartyPhone={setThirdPartyPhone}
+                  setNotes={setNotes}
+                  documentStatus={documentStatus}
+                  setDocumentStatus={setDocumentStatus}
+                  setDevisItems={setDevisItems}
+                  setIsTtc={setIsTtc}
+                  onSave={saveDevis}
+                  onUpdate={updateDevis}
+                  onCancel={resetForm}
+                  lockDevisType={lockDevisType}
+                  existingAttachments={existingAttachments}
+                  pendingAttachmentFiles={pendingAttachmentFiles}
+                  onPendingAttachmentFilesChange={setPendingAttachmentFiles}
+                  onRemoveExistingAttachment={(index) =>
+                    setExistingAttachments((prev) => prev.filter((_, i) => i !== index))
+                  }
+                />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  const formTabLabel = editingDevis
+    ? 'Modifier'
+    : sectionMode === 'bc'
+      ? 'Nouveau BC'
+      : sectionMode === 'devis'
+        ? 'Nouveau devis'
+        : 'Créer';
+  const formTabTitle = editingDevis
+    ? 'Modifier le document en cours'
+    : sectionMode === 'bc'
+      ? 'Créer un bon de commande'
+      : sectionMode === 'devis'
+        ? 'Créer un devis'
+        : 'Créer un document';
+
+  const sectionTabClass = (active: boolean) =>
+    cn(
+      'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap shrink-0',
+      active ? tabActiveClass : 'text-muted-foreground hover:text-foreground hover:bg-background/60'
+    );
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Section tabs */}
-      <div className={cn('flex gap-2 p-1 rounded-xl w-fit flex-wrap', tabBarClass)}>
+    <div className="space-y-3 animate-fade-in">
+      {/* Section tabs — compact bar to maximize form/list area */}
+      <div className={cn('inline-flex flex-wrap items-center gap-0.5 p-0.5 rounded-lg max-w-full', tabBarClass)}>
         <button
+          type="button"
+          title={formTabTitle}
           onClick={() => {
             if (!editingDevis) handleAddNew(sectionMode ?? 'devis');
             else setActiveSection('form');
           }}
-          className={cn(
-            'flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all',
-            activeSection === 'form' ? tabActiveClass : 'text-muted-foreground hover:text-foreground'
-          )}
+          className={sectionTabClass(activeSection === 'form')}
         >
-          <Plus className="w-4 h-4" />
-          {editingDevis
-            ? 'Modifier Document'
-            : sectionMode === 'bc'
-              ? 'CRÉER UN BON DE COMMANDE'
-              : sectionMode === 'devis'
-                ? 'CRÉER UN DEVIS'
-                : 'CRÉER DOCUMENT'}
+          <Plus className="w-3.5 h-3.5 shrink-0" />
+          {formTabLabel}
         </button>
         <button
+          type="button"
+          title="Liste des devis"
           onClick={() => setActiveSection('history')}
-          className={cn(
-            'flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all',
-            activeSection === 'history' ? tabActiveClass : 'text-muted-foreground hover:text-foreground'
-          )}
+          className={sectionTabClass(activeSection === 'history')}
         >
-          <History className="w-4 h-4" />
-          Liste Devis ({savedDevis.length})
+          <History className="w-3.5 h-3.5 shrink-0" />
+          Devis
+          <span className="tabular-nums opacity-80">({savedDevis.length})</span>
         </button>
         {!hideListBcTab && (
           <button
+            type="button"
+            title="Liste des bons de commande"
             onClick={() => setActiveSection('bc')}
-            className={cn(
-              'flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all',
-              activeSection === 'bc' ? tabActiveClass : 'text-muted-foreground hover:text-foreground'
-            )}
+            className={sectionTabClass(activeSection === 'bc')}
           >
-            <FileText className="w-4 h-4" />
-            Liste BC ({bonsCommande.length})
+            <FileText className="w-3.5 h-3.5 shrink-0" />
+            BC
+            <span className="tabular-nums opacity-80">({bonsCommande.length})</span>
           </button>
         )}
         <button
+          type="button"
+          title="Assistant import devis (PDF)"
           onClick={() => setActiveSection('helper')}
-          className={cn(
-            'flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all',
-            activeSection === 'helper' ? tabActiveClass : 'text-muted-foreground hover:text-foreground'
-          )}
+          className={sectionTabClass(activeSection === 'helper')}
         >
-          <Search className="w-4 h-4" />
-          Devis Helper
+          <Search className="w-3.5 h-3.5 shrink-0" />
+          Helper
         </button>
       </div>
 
@@ -476,6 +735,14 @@ export const GestionDevis = ({
           onCancel={editingDevis ? resetForm : clearInputsOnly}
           lockDevisType={lockDevisType}
           forceDocType={sectionMode}
+          existingAttachments={existingAttachments}
+          pendingAttachmentFiles={pendingAttachmentFiles}
+          onPendingAttachmentFilesChange={setPendingAttachmentFiles}
+          onRemoveExistingAttachment={(index) =>
+            setExistingAttachments((prev) => prev.filter((_, i) => i !== index))
+          }
+          importableDevis={docType === 'bc' ? importableDevisForBc : []}
+          onImportDevis={docType === 'bc' ? importDevisIntoBcForm : undefined}
         />
       )}
 
@@ -488,6 +755,7 @@ export const GestionDevis = ({
           onEdit={startEdit}
           onDelete={deleteDevis}
           onConvertToBC={convertToBC}
+          onConvertMultipleToBC={convertMultipleToBC}
           onConvertToBCFournisseur={initialDevisType === 'vente' ? convertToBCFournisseur : undefined}
           onAdd={() => handleAddNew(sectionMode ?? 'devis')}
           defaultTypeFilter={initialDevisType ?? 'all'}
@@ -507,8 +775,6 @@ export const GestionDevis = ({
           defaultTypeFilter={initialDevisType ?? 'vente'}
         />
       )}
-
-
 
       {activeSection === 'helper' && (
         <DevisHelper onTabChange={onTabChange} />
@@ -553,6 +819,14 @@ export const GestionDevis = ({
                 onUpdate={updateDevis}
                 onCancel={resetForm}
                 lockDevisType={lockDevisType}
+                existingAttachments={existingAttachments}
+                pendingAttachmentFiles={pendingAttachmentFiles}
+                onPendingAttachmentFilesChange={setPendingAttachmentFiles}
+                onRemoveExistingAttachment={(index) =>
+                  setExistingAttachments((prev) => prev.filter((_, i) => i !== index))
+                }
+                importableDevis={docType === 'bc' ? importableDevisForBc : []}
+                onImportDevis={docType === 'bc' ? importDevisIntoBcForm : undefined}
               />
             )}
           </div>
@@ -561,8 +835,11 @@ export const GestionDevis = ({
 
       <BCCreationDialog
         open={isBCReviewOpen}
-        onOpenChange={setIsBCReviewOpen}
-        sourceDevis={devisToConvert}
+        onOpenChange={(open) => {
+          setIsBCReviewOpen(open);
+          if (!open) setDevisListToConvert([]);
+        }}
+        sourceDevisList={devisListToConvert}
         onConfirm={handleConfirmBC}
       />
 

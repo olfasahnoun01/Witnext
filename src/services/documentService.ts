@@ -148,9 +148,20 @@ export const documentService = {
         : `[${stamp}] Converti en devis fournisseur (approvisionnement).`;
     const prevNotes = (row.notes || '').trim();
     const nextNotes = prevNotes ? `${prevNotes}\n${actionNote}` : actionNote;
-    const payload: { notes: string; type?: string } = { notes: nextNotes };
-    if (row.type === 'vente') payload.type = 'achat';
-    await supabase.from('devis').update(payload).eq('id', id);
+    await supabase.from('devis').update({ notes: nextNotes }).eq('id', id);
+  },
+
+  /** Append an audit line on a legacy `devis` row without changing status or type. */
+  async appendLegacyDevisNote(legacyId: number, noteLine: string): Promise<void> {
+    const { data: row, error: fetchErr } = await supabase
+      .from('devis')
+      .select('notes')
+      .eq('id', legacyId)
+      .maybeSingle();
+    if (fetchErr || !row) return;
+    const prevNotes = (row.notes || '').trim();
+    const nextNotes = prevNotes ? `${prevNotes}\n${noteLine}` : noteLine;
+    await supabase.from('devis').update({ notes: nextNotes }).eq('id', legacyId);
   },
 
   /**
@@ -278,6 +289,7 @@ export const documentService = {
     sourceDoc: UnifiedDocument,
     allocations: Array<{
       fournisseur_id: number,
+      fournisseur_name?: string,
       items: Array<{
         product_id: number,
         quantity: number,
@@ -290,8 +302,20 @@ export const documentService = {
       const results = [];
       const parentId = await this.ensureModernDocument(sourceDoc);
 
+      const clientLabel =
+        sourceDoc.client_name?.trim() ||
+        (typeof sourceDoc.metadata?.source_bc_client_name === 'string'
+          ? sourceDoc.metadata.source_bc_client_name.trim()
+          : '') ||
+        (typeof sourceDoc.metadata?.client_name === 'string'
+          ? sourceDoc.metadata.client_name.trim()
+          : '') ||
+        null;
+
       for (const allocation of allocations) {
         const numero = await this.generateNextNumber('BC_FOURNISSEUR');
+        const fournisseurLabel = allocation.fournisseur_name?.trim() || undefined;
+
         const { data: doc, error: docError } = await supabase
           .from('documents')
           .insert({
@@ -300,6 +324,13 @@ export const documentService = {
             status: 'PENDING',
             fournisseur_id: allocation.fournisseur_id,
             parent_id: parentId,
+            metadata: {
+              source_bc_client_name: clientLabel || undefined,
+              source_fournisseur_name: fournisseurLabel,
+              fournisseur_name: fournisseurLabel,
+              source_bc_numero: sourceDoc.numero,
+              legacy_parent_id: sourceDoc.id,
+            },
           })
           .select()
           .single();
@@ -339,6 +370,7 @@ export const documentService = {
     requesterName?: string;
     requesterRole?: string;
     targetRole?: 'responsable_stock' | 'responsable_achat';
+    attachment_urls?: Array<{ url: string; name: string; mime: string; path?: string }>;
     items: Array<{
       product_id?: number | null;
       quantity: number;
@@ -367,6 +399,7 @@ export const documentService = {
             requester_name: params.requesterName || null,
             requester_role: params.requesterRole || 'agent_commercial',
             target_role: params.targetRole || 'responsable_stock',
+            attachment_urls: params.attachment_urls || [],
           },
         })
         .select()
@@ -374,21 +407,25 @@ export const documentService = {
 
       if (docError) throw docError;
 
-      const lines = params.items.map((item) => ({
-        document_id: doc.id,
-        product_id: item.product_id ?? null,
-        quantity: item.quantity,
-        unit_price: 0,
-        total_price: 0,
-        description: [
-          item.custom_name?.trim(),
-          item.supplier_name?.trim() ? `Fournisseur: ${item.supplier_name.trim()}` : '',
-          item.description?.trim(),
-        ].filter(Boolean).join(' | ') || null,
-      }));
+      if (params.items.length > 0) {
+        const lines = params.items.map((item) => ({
+          document_id: doc.id,
+          product_id: item.product_id ?? null,
+          quantity: item.quantity,
+          unit_price: 0,
+          total_price: 0,
+          description: [
+            item.custom_name?.trim(),
+            item.supplier_name?.trim() ? `Fournisseur: ${item.supplier_name.trim()}` : '',
+            item.description?.trim(),
+          ]
+            .filter(Boolean)
+            .join(' | ') || null,
+        }));
 
-      const { error: linesError } = await supabase.from('document_lines').insert(lines);
-      if (linesError) throw linesError;
+        const { error: linesError } = await supabase.from('document_lines').insert(lines);
+        if (linesError) throw linesError;
+      }
 
       const targetRole = params.targetRole || 'responsable_stock';
       void notifyPurchaseRequestCreated({
@@ -956,7 +993,7 @@ export const documentService = {
         description: descParts.join(' — ') || undefined,
       };
     });
-    return this.createDocument({
+    const result = await this.createDocument({
       type: 'BC_FOURNISSEUR',
       status: 'PENDING',
       fournisseurId,
@@ -969,5 +1006,14 @@ export const documentService = {
       },
       lines,
     });
+    if (result.success && result.document) {
+      const stamp = new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+      const numero = (result.document as { numero?: string }).numero || '';
+      await this.appendLegacyDevisNote(
+        devis.id,
+        `[${stamp}] BC fournisseur créé : ${numero} (devis client ${devis.devis_number} conservé dans la liste).`
+      );
+    }
+    return result;
   },
 };

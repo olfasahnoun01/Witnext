@@ -229,8 +229,8 @@ export function DevisItemsEmptyState() {
         </span>
       </div>
       <p className="text-sm font-medium text-foreground">Aucun article pour l&apos;instant</p>
-      <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
-        Recherchez un produit ou saisissez une ligne à gauche, puis ajoutez-la au document.
+      <p className="text-xs text-muted-foreground mt-1 max-w-[280px]">
+        Remplissez la dernière ligne du tableau (catalogue ou saisie libre), puis validez avec Entrée ou le bouton +.
       </p>
     </div>
   );
@@ -314,4 +314,150 @@ export function DevisPriceFieldsGrid({
           ? 'grid-cols-2 sm:grid-cols-4'
           : 'grid-cols-2 sm:grid-cols-3';
   return <div className={cn('grid gap-3', colClass)}>{children}</div>;
+}
+
+/** Inputs intégrés au tableau type Zoho Books */
+export const devisZohoCellInputClass =
+  'h-9 w-full min-w-0 rounded-md border border-transparent bg-transparent px-2 text-sm tabular-nums text-foreground placeholder:text-muted-foreground/70 hover:border-border/80 focus:border-primary/40 focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/15 transition-colors';
+
+export const devisZohoCellTextareaClass =
+  'w-full min-w-0 rounded-md border border-transparent bg-transparent px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/70 hover:border-border/80 focus:border-primary/40 focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/15 resize-y min-h-[2.25rem] transition-colors';
+
+export function DevisZohoShell({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={cn(
+        'rounded-xl border border-border/80 bg-card shadow-sm overflow-hidden',
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function DevisZohoTopBar({ children }: { children: ReactNode }) {
+  return <div className="border-b border-border/70 bg-muted/25 px-4 sm:px-6 py-4 space-y-4">{children}</div>;
+}
+
+export function DevisZohoSection({
+  title,
+  action,
+  children,
+  className,
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cn('px-4 sm:px-6 py-5', className)}>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{title}</h3>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+export function DevisZohoTotalsPanel({
+  isTtc,
+  totals,
+}: {
+  isTtc: boolean;
+  totals: {
+    totalHT: number;
+    totalRemise: number;
+    totalNet: number;
+    totalTVA: number;
+    totalTTC: number;
+    totalFinal: number;
+    totalFinalHT: number;
+  };
+}) {
+  const rows: { label: string; value: string; bold?: boolean; accent?: boolean }[] = [
+    { label: 'Sous-total', value: `${totals.totalHT.toFixed(3)} TND` },
+  ];
+  if (totals.totalRemise > 0) {
+    rows.push({ label: 'Remise', value: `-${totals.totalRemise.toFixed(3)} TND` });
+  }
+  rows.push({ label: 'Net HT', value: `${totals.totalNet.toFixed(3)} TND` });
+  if (isTtc) {
+    rows.push({ label: 'TVA', value: `${totals.totalTVA.toFixed(3)} TND` });
+    rows.push({ label: 'Total TTC', value: `${totals.totalTTC.toFixed(3)} TND` });
+  }
+  rows.push({ label: 'Timbre fiscal', value: '1.000 TND' });
+
+  return (
+    <div className="w-full max-w-sm ml-auto rounded-lg border bg-muted/20 p-4 space-y-2">
+      {rows.map((r) => (
+        <div key={r.label} className="flex justify-between gap-4 text-sm">
+          <span className="text-muted-foreground">{r.label}</span>
+          <span className={cn('tabular-nums font-medium text-foreground', r.accent && 'text-primary')}>
+            {r.value}
+          </span>
+        </div>
+      ))}
+      <div className="flex justify-between gap-4 pt-3 mt-1 border-t border-border/80">
+        <span className="text-sm font-semibold text-foreground">
+          {isTtc ? 'À payer (TTC + timbre)' : 'Total HT + timbre'}
+        </span>
+        <span className="text-lg font-bold text-primary tabular-nums">
+          {(isTtc ? totals.totalFinal : totals.totalFinalHT).toFixed(3)} TND
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export function DevisZohoFooter({
+  editing,
+  isSaving,
+  onCancel,
+  onSave,
+  onUpdate,
+  onSaveDraft,
+  saveLabel,
+}: {
+  editing: boolean;
+  isSaving?: boolean;
+  onCancel: () => void;
+  onSave: () => void;
+  onUpdate: () => void;
+  onSaveDraft?: () => void;
+  saveLabel?: string;
+}) {
+  return (
+    <div className="border-t border-border/70 bg-muted/15 px-4 sm:px-6 py-4 flex flex-col-reverse sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
+      <div className="flex flex-col-reverse sm:flex-row gap-2 sm:mr-auto">
+        {onSaveDraft && !editing && (
+          <button
+            type="button"
+            onClick={onSaveDraft}
+            disabled={isSaving}
+            className="inline-flex items-center justify-center h-10 px-4 rounded-md border border-border bg-background text-sm font-medium text-foreground hover:bg-muted/60 disabled:opacity-50"
+          >
+            Enregistrer comme brouillon
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={editing ? onUpdate : onSave}
+          disabled={isSaving}
+          className="inline-flex items-center justify-center h-10 px-6 rounded-md bg-[#1b9a8a] hover:bg-[#168a7c] text-white text-sm font-semibold shadow-sm disabled:opacity-50"
+        >
+          {isSaving ? 'Enregistrement…' : editing ? 'Mettre à jour' : saveLabel ?? 'Enregistrer'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="inline-flex items-center justify-center h-10 px-4 text-sm text-muted-foreground hover:text-foreground"
+        >
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
 }

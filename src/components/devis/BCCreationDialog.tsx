@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/table';
 import { Plus, Trash2, Search, Package, AlertCircle } from 'lucide-react';
 import { computeDevisTotals, computeDevisLine } from '@/lib/devisPricing';
+import { mergeDevisItemsFromSources } from '@/lib/mergeCommercialDocuments';
+import { getDevisItemDisplayCode } from '@/lib/devisItemPdf';
 import { mapLightRowToProduct, searchInventoryProductsLight } from '@/lib/inventoryProductSearch';
 import { useDebounce } from '@/hooks/useDebounce';
 import {
@@ -21,16 +23,19 @@ import { toast } from 'sonner';
 interface BCCreationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  sourceDevis: Devis | null;
+  /** Un ou plusieurs devis sources (fusion = plusieurs devis → un BC). */
+  sourceDevisList: Devis[];
   onConfirm: (items: DevisItem[], status: 'brouillon' | 'envoyé' | 'confirmé') => void;
 }
 
 export const BCCreationDialog = ({
   open,
   onOpenChange,
-  sourceDevis,
+  sourceDevisList,
   onConfirm,
 }: BCCreationDialogProps) => {
+  const sourceDevis = sourceDevisList[0] ?? null;
+  const isMerge = sourceDevisList.length > 1;
   const [items, setItems] = useState<DevisItem[]>([]);
   const [bcStatus, setBcStatus] = useState<'brouillon' | 'envoyé' | 'confirmé'>('confirmé');
   const [productSearch, setProductSearch] = useState('');
@@ -38,13 +43,15 @@ export const BCCreationDialog = ({
   const [isSearching, setIsSearching] = useState(false);
   const debouncedSearch = useDebounce(productSearch, 300);
 
-  // Initialize items when devis is provided
   useEffect(() => {
-    if (sourceDevis && open) {
-      setItems(JSON.parse(JSON.stringify(sourceDevis.items)));
+    if (open && sourceDevisList.length > 0) {
+      const initial = isMerge
+        ? mergeDevisItemsFromSources(sourceDevisList)
+        : JSON.parse(JSON.stringify(sourceDevisList[0].items));
+      setItems(initial);
       setBcStatus('confirmé');
     }
-  }, [sourceDevis, open]);
+  }, [open, sourceDevisList, isMerge]);
 
   // Search existing products (name or sku contains; up to 150 merged)
   useEffect(() => {
@@ -76,14 +83,20 @@ export const BCCreationDialog = ({
   }, [debouncedSearch, sourceDevis?.type, sourceDevis?.third_party_name]);
 
   const addItemFromProduct = useCallback((product: Product) => {
-    const isAchat = sourceDevis?.type === 'achat';
+    const sku = product.sku?.trim();
+    const sizeColorParts = [
+      product.size ? `Taille: ${product.size}` : '',
+      product.color ? `Couleur: ${product.color}` : '',
+    ].filter(Boolean);
     setItems(prev => [...prev, {
       designation: product.name,
       fournisseur: product.fournisseur || '',
       prix_ttc: product.price || 0,
       remise: product.remise || 0,
       quantity: 1,
-      description: `${product.sku}${product.size ? ` - Taille: ${product.size}` : ''}${product.color ? ` - ${product.color}` : ''}`,
+      ...(sku ? { sku } : {}),
+      product_id: product.id,
+      description: sizeColorParts.length > 0 ? sizeColorParts.join(' · ') : undefined,
       tva: 19,
       ...(sourceDevis?.type === 'vente' ? { prix_achat: product.price || 0 } : {}),
     }]);
@@ -122,18 +135,26 @@ export const BCCreationDialog = ({
 
   if (!sourceDevis) return null;
 
+  const sourceLabel = isMerge
+    ? sourceDevisList.map((d) => d.devis_number).join(', ')
+    : sourceDevis.devis_number;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Package className="w-5 h-5 text-primary" />
-            Révision du Bon de Commande pour {sourceDevis.devis_number}
+            {isMerge
+              ? `Fusionner ${sourceDevisList.length} devis en un bon de commande`
+              : `Révision du Bon de Commande pour ${sourceDevis.devis_number}`}
           </DialogTitle>
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 p-2 rounded-md flex items-center gap-2 mt-2">
             <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
             <p className="text-xs text-amber-700 dark:text-amber-400">
-              Le devis original ne sera pas modifié. Ces changements ne s'appliqueront qu'au BC.
+              {isMerge
+                ? `Devis sources : ${sourceLabel}. Les devis restent dans la liste ; une note de liaison au BC sera ajoutée.`
+                : 'Le devis original reste dans la liste. Seul le nouveau BC est créé.'}
             </p>
           </div>
         </DialogHeader>
@@ -201,7 +222,9 @@ export const BCCreationDialog = ({
               <TableHeader className="bg-muted/50">
                 <TableRow>
                   <TableHead className="w-[70px] px-2 text-center">Qté</TableHead>
-                  <TableHead className="w-[200px]">Désignation</TableHead>
+                  <TableHead className="w-[110px]">Code article</TableHead>
+                  <TableHead className="w-[180px]">Désignation</TableHead>
+                  <TableHead className="min-w-[120px]">Détails</TableHead>
                   {sourceDevis.type === 'vente' && (
                     <TableHead className="text-right w-[110px]">Prix Achat HT</TableHead>
                   )}
@@ -215,7 +238,7 @@ export const BCCreationDialog = ({
               <TableBody>
                 {items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                       Aucun article dans ce BC
                     </TableCell>
                   </TableRow>
@@ -233,9 +256,14 @@ export const BCCreationDialog = ({
                             className="h-8 text-center px-1"
                           />
                         </TableCell>
+                        <TableCell className="font-mono text-[11px] whitespace-nowrap" title={getDevisItemDisplayCode(item)}>
+                          {getDevisItemDisplayCode(item)}
+                        </TableCell>
                         <TableCell>
-                          <p className="font-medium text-xs line-clamp-1" title={item.designation}>{item.designation}</p>
-                          <p className="text-[9px] text-muted-foreground line-clamp-1">{item.description || '-'}</p>
+                          <p className="font-medium text-xs line-clamp-2" title={item.designation}>{item.designation}</p>
+                        </TableCell>
+                        <TableCell className="text-[10px] text-muted-foreground italic line-clamp-2">
+                          {item.description || '—'}
                         </TableCell>
                         {sourceDevis.type === 'vente' && (
                           <TableCell className="text-right px-1">

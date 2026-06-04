@@ -150,11 +150,12 @@ const Index = () => {
           <GestionDevis onTabChange={handleTabChange} initialSection="bc" initialDevisType="vente" sectionMode="bc" />
         )}
         {activeTab === 'bl-vente' && (
-          <UnifiedDocumentList
-            title="Bons de Livraison"
-            description="Suivez les bons de livraison générés depuis le magasin."
-            documentTypes={['BL_CLIENT']}
-            metadataFilter={{ key: 'origin', value: 'magasin' }}
+          <GestionDevis
+            onTabChange={handleTabChange}
+            initialSection="bl"
+            initialDevisType="vente"
+            lockDevisType
+            sectionMode="bl"
           />
         )}
         {activeTab === 'factures-vente' && (

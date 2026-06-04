@@ -15,6 +15,12 @@ export function isListDocumentDraft(status: Devis['status'] | string | null | un
   return s === 'brouillon';
 }
 
+/** Devis considéré comme confirmé (accepté, confirmé, reçu, intégré). */
+export function isDevisConfirmed(status: Devis['status'] | string | null | undefined): boolean {
+  const s = (status == null || status === '') ? 'brouillon' : String(status).toLowerCase().trim();
+  return s === 'accepté' || s === 'confirmé' || s === 'reçu' || s === 'intégré';
+}
+
 /** Sort newest first (Gmail-style). */
 export function sortDevisListRecentFirst<T extends Pick<Devis, 'updated_at' | 'created_at' | 'devis_date'>>(items: T[]): T[] {
   return [...items].sort((a, b) => devisListSortTimeMs(b) - devisListSortTimeMs(a));

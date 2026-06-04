@@ -19,7 +19,7 @@ export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInput
       const { data, error } = await supabase
         .from('fournisseurs')
         .select('nom')
-        .order('nom');
+        .order('created_at', { ascending: false });
       
       if (!error && data) {
         const uniqueNames = Array.from(new Set(data.map(f => f.nom).filter(Boolean)));

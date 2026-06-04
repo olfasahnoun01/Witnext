@@ -124,7 +124,7 @@ export const Clients = memo(() => {
         .from('clients')
         .select('*')
         .eq('company_id', grosafeId)
-        .order('nom');
+        .order('created_at', { ascending: false });
 
       if (error) {
         toast.error('Erreur lors du chargement des clients');

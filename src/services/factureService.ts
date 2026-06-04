@@ -1,5 +1,8 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { BonCommande } from '@/types';
+import { parseAttachmentUrls } from '@/lib/commercialAttachments';
+import { mergeBlItems, validateBlMergeForFacture } from '@/lib/mergeCommercialDocuments';
+import type { BonLivraison } from '@/services/bonLivraisonService';
+import { supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
 import { computeDevisTotals } from '@/lib/devisPricing';
 
 const FACTURE_NUM_PREFIX = () => {
@@ -28,22 +31,49 @@ export async function generateNextFactureNumero(): Promise<string> {
   return `${prefix}${String(maxSeq + 1).padStart(5, '0')}`;
 }
 
-export async function fetchBcIdsHavingFactureVente(): Promise<Set<number>> {
-  const { data, error } = await supabase
-    .from('factures')
-    .select('source_bc_id')
-    .eq('type', 'vente')
-    .not('source_bc_id', 'is', null);
+function collectBlIdsFromFactureRow(row: {
+  source_bl_id: number | null;
+  source_bl_ids?: unknown;
+  source_bc_id?: number | null;
+  source_bc_ids?: unknown;
+}): number[] {
+  const ids: number[] = [];
+  if (typeof row.source_bl_id === 'number' && row.source_bl_id > 0) {
+    ids.push(row.source_bl_id);
+  }
+  if (Array.isArray(row.source_bl_ids)) {
+    for (const id of row.source_bl_ids) {
+      if (typeof id === 'number' && id > 0) ids.push(id);
+    }
+  }
+  return ids;
+}
+
+/** BL vente déjà convertis en facture. */
+export async function fetchBlIdsHavingFactureVente(): Promise<Set<number>> {
+  const { data, error } = await supabaseQueryWithAuthRetry(() =>
+    supabase.from('factures').select('source_bl_id, source_bl_ids').eq('type', 'vente')
+  );
 
   if (error) {
-    console.warn('[factureService] fetchBcIdsHavingFactureVente:', error.message);
+    console.warn('[factureService] fetchBlIdsHavingFactureVente:', error.message);
     return new Set();
   }
-  return new Set(
-    (data || [])
-      .map((r: { source_bc_id: number | null }) => r.source_bc_id)
-      .filter((id): id is number => typeof id === 'number' && id > 0)
-  );
+  const set = new Set<number>();
+  for (const row of data || []) {
+    for (const id of collectBlIdsFromFactureRow(row as {
+      source_bl_id: number | null;
+      source_bl_ids?: unknown;
+    })) {
+      set.add(id);
+    }
+  }
+  return set;
+}
+
+async function factureExistsForBlId(blId: number): Promise<boolean> {
+  const ids = await fetchBlIdsHavingFactureVente();
+  return ids.has(blId);
 }
 
 export type CreateFactureFromBcResult =
@@ -51,17 +81,17 @@ export type CreateFactureFromBcResult =
   | { success: false; error: string };
 
 /**
- * Inserts a row in `public.factures` from a vente bon de commande (`devis` with is_bc).
+ * Inserts a row in `public.factures` from a vente bon de livraison (`devis` with is_bl).
  */
-export async function createFactureFromBonCommandeVente(bc: BonCommande): Promise<CreateFactureFromBcResult> {
-  if (bc.type !== 'vente') {
-    return { success: false, error: 'La facture de vente ne peut être générée que depuis un BC client (vente).' };
+export async function createFactureFromBonLivraisonVente(bl: BonLivraison): Promise<CreateFactureFromBcResult> {
+  if (bl.type !== 'vente' || !bl.is_bl) {
+    return { success: false, error: 'La facture de vente ne peut être générée que depuis un bon de livraison client.' };
   }
 
   const { data: existing, error: exErr } = await supabase
     .from('factures')
     .select('id, numero')
-    .eq('source_bc_id', bc.id)
+    .eq('source_bl_id', bl.id)
     .eq('type', 'vente')
     .maybeSingle();
 
@@ -71,7 +101,7 @@ export async function createFactureFromBonCommandeVente(bc: BonCommande): Promis
   if (existing) {
     return {
       success: false,
-      error: `Une facture existe déjà pour ce BC (${(existing as { numero: string }).numero}).`,
+      error: `Une facture existe déjà pour ce BL (${(existing as { numero: string }).numero}).`,
     };
   }
 
@@ -83,11 +113,11 @@ export async function createFactureFromBonCommandeVente(bc: BonCommande): Promis
     return { success: false, error: msg };
   }
 
-  const totals = computeDevisTotals(bc.items, false);
+  const totals = computeDevisTotals(bl.items, false);
   const totalAmount =
-    Number(bc.total_amount) > 0 ? Number(bc.total_amount) : Number(totals.totalFinal.toFixed(3));
+    Number(bl.total_amount) > 0 ? Number(bl.total_amount) : Number(totals.totalFinal.toFixed(3));
 
-  const dateCreation = (bc.devis_date || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const dateCreation = (bl.devis_date || '').slice(0, 10) || new Date().toISOString().split('T')[0];
   const due = new Date(dateCreation);
   due.setDate(due.getDate() + 30);
   const dateEcheance = due.toISOString().slice(0, 10);
@@ -101,18 +131,89 @@ export async function createFactureFromBonCommandeVente(bc: BonCommande): Promis
       type: 'vente',
       date_creation: dateCreation,
       date_echeance: dateEcheance,
-      third_party_name: bc.third_party_name,
-      third_party_address: bc.third_party_address,
-      third_party_tax_id: bc.third_party_tax_id,
-      third_party_phone: bc.third_party_phone,
-      items: bc.items as unknown as Record<string, unknown>,
+      third_party_name: bl.third_party_name,
+      third_party_address: bl.third_party_address,
+      third_party_tax_id: bl.third_party_tax_id,
+      third_party_phone: bl.third_party_phone,
+      items: bl.items as unknown as Record<string, unknown>,
       total_amount: totalAmount,
       status: 'brouillon',
-      is_ttc: bc.is_ttc,
-      source_bc_id: bc.id,
-      notes: `Généré depuis le bon de commande ${bc.devis_number}.`,
+      is_ttc: bl.is_ttc,
+      source_bl_id: bl.id,
+      notes: `Généré depuis le bon de livraison ${bl.devis_number}.`,
       created_by: auth.user?.id ?? null,
-    })
+    } as never)
+    .select('id')
+    .single();
+
+  if (insErr || !inserted) {
+    return { success: false, error: insErr?.message || 'Insertion facture refusée' };
+  }
+
+  return { success: true, factureId: (inserted as { id: string }).id, numero };
+}
+
+/**
+ * Fusionne plusieurs BL vente (même client) en une seule facture.
+ */
+export async function createFactureFromMultipleBonsLivraisonVente(
+  blList: BonLivraison[]
+): Promise<CreateFactureFromBcResult> {
+  const check = validateBlMergeForFacture(blList);
+  if (!check.ok) return { success: false, error: check.error };
+
+  for (const bl of blList) {
+    if (await factureExistsForBlId(bl.id)) {
+      return {
+        success: false,
+        error: `Le BL ${bl.devis_number} est déjà lié à une facture.`,
+      };
+    }
+  }
+
+  const primary = blList[0];
+  const mergedItems = mergeBlItems(blList);
+  const totals = computeDevisTotals(mergedItems, false);
+  const totalAmount = totals.totalFinal;
+
+  let numero: string;
+  try {
+    numero = await generateNextFactureNumero();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Numérotation facture impossible';
+    return { success: false, error: msg };
+  }
+
+  const dateCreation = (primary.devis_date || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const due = new Date(dateCreation);
+  due.setDate(due.getDate() + 30);
+
+  const blNumbers = blList.map((b) => b.devis_number).join(', ');
+  const mergedAttachments = blList.flatMap((b) => parseAttachmentUrls(b.attachment_urls));
+
+  const { data: auth } = await supabase.auth.getUser();
+
+  const { data: inserted, error: insErr } = await supabase
+    .from('factures')
+    .insert({
+      numero,
+      type: 'vente',
+      date_creation: dateCreation,
+      date_echeance: due.toISOString().slice(0, 10),
+      third_party_name: primary.third_party_name,
+      third_party_address: primary.third_party_address,
+      third_party_tax_id: primary.third_party_tax_id,
+      third_party_phone: primary.third_party_phone,
+      items: mergedItems as unknown as Record<string, unknown>,
+      total_amount: totalAmount,
+      status: 'brouillon',
+      is_ttc: primary.is_ttc,
+      source_bl_id: primary.id,
+      source_bl_ids: blList.map((b) => b.id),
+      attachment_urls: mergedAttachments,
+      notes: `Facture fusionnée depuis les BL : ${blNumbers}.`,
+      created_by: auth.user?.id ?? null,
+    } as never)
     .select('id')
     .single();
 

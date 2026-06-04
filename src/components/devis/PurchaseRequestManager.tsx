@@ -12,6 +12,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { documentService } from '@/services/documentService';
+import { CommercialAttachmentField } from '@/components/shared/CommercialAttachmentField';
+import { CommercialAttachmentBadges } from '@/components/shared/CommercialAttachmentBadges';
+import { uploadCommercialAttachments } from '@/lib/commercialAttachments';
 import { UnifiedDocument } from '@/types';
 import { ProcurementDialog } from './ProcurementDialog';
 
@@ -84,6 +87,7 @@ export const PurchaseRequestManager = () => {
   const [targetRole, setTargetRole] = useState<'responsable_stock' | 'responsable_achat'>('responsable_stock');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<PurchaseRequestLine[]>([emptyLine()]);
+  const [pendingAttachmentFiles, setPendingAttachmentFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [procurementRequest, setProcurementRequest] = useState<UnifiedDocument | null>(null);
 
@@ -126,7 +130,7 @@ export const PurchaseRequestManager = () => {
         supabase
           .from('fournisseurs')
           .select('id, nom')
-          .order('nom'),
+          .order('created_at', { ascending: false }),
       ]);
 
       if (docsError) throw docsError;
@@ -185,6 +189,7 @@ export const PurchaseRequestManager = () => {
     setTargetRole(purchaseRequestTargets[0] ?? 'responsable_stock');
     setNotes('');
     setLines([emptyLine()]);
+    setPendingAttachmentFiles([]);
   }, [user, purchaseRequestTargets]);
 
   const addLine = () => {
@@ -225,8 +230,10 @@ export const PurchaseRequestManager = () => {
       (line.mode === 'inventory' ? line.product_id > 0 : line.custom_name.trim().length > 0) &&
       line.fournisseur_name.trim().length > 0
     );
-    if (validLines.length === 0) {
-      toast.error('Chaque ligne doit contenir un produit, un fournisseur et une quantité');
+    const hasContent =
+      validLines.length > 0 || pendingAttachmentFiles.length > 0 || notes.trim().length > 0;
+    if (!hasContent) {
+      toast.error('Saisissez des lignes, joignez un fichier (PDF, image…) ou ajoutez des notes');
       return;
     }
 
@@ -237,6 +244,7 @@ export const PurchaseRequestManager = () => {
         requesterRole: isAdmin ? 'admin' : isResponsableCommercial ? 'responsable_commercial' : undefined,
         notes: notes.trim() || undefined,
         targetRole,
+        attachment_urls: [],
         items: validLines.map((line) => ({
           product_id: line.mode === 'inventory' ? line.product_id : null,
           custom_name: line.mode === 'free' ? line.custom_name : undefined,
@@ -246,9 +254,26 @@ export const PurchaseRequestManager = () => {
         })),
       });
 
-      if (!result.success) {
+      if (!result.success || !result.document) {
         toast.error(result.error || 'Erreur lors de la création');
         return;
+      }
+
+      if (pendingAttachmentFiles.length > 0) {
+        const uploaded = await uploadCommercialAttachments(
+          pendingAttachmentFiles,
+          `demande-achat/${result.document.id}`
+        );
+        const meta = (result.document.metadata as Record<string, unknown>) || {};
+        const { error: metaErr } = await supabase
+          .from('documents')
+          .update({
+            metadata: { ...meta, attachment_urls: uploaded },
+          })
+          .eq('id', result.document.id);
+        if (metaErr) {
+          toast.error('Demande créée mais échec des pièces jointes');
+        }
       }
 
       toast.success('Demande d\'achat créée');
@@ -543,6 +568,15 @@ export const PurchaseRequestManager = () => {
                 </div>
               </div>
 
+              <CommercialAttachmentField
+                label="Pièces jointes (PDF, photos, fichiers)"
+                hint="Joignez un cahier des charges, une photo produit ou tout document — visible par le stock et les achats."
+                existing={[]}
+                pendingFiles={pendingAttachmentFiles}
+                onPendingChange={setPendingAttachmentFiles}
+                disabled={submitting}
+              />
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Annuler
@@ -581,6 +615,7 @@ export const PurchaseRequestManager = () => {
                   <TableHead>Destinataire</TableHead>
                   <TableHead>Articles</TableHead>
                   <TableHead>Statut stock</TableHead>
+                  <TableHead>Fichiers</TableHead>
                   <TableHead>Notes</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -611,6 +646,9 @@ export const PurchaseRequestManager = () => {
                         </div>
                       </TableCell>
                       <TableCell>{stockReviewLabel(request)}</TableCell>
+                      <TableCell>
+                        <CommercialAttachmentBadges metadata={metadata} />
+                      </TableCell>
                       <TableCell className="max-w-[280px] truncate" title={request.notes || getExtraDescription(request.lines?.[0]?.description) || ''}>
                         {request.notes || getExtraDescription(request.lines?.[0]?.description) || '-'}
                       </TableCell>
