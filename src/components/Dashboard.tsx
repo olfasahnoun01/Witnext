@@ -14,6 +14,7 @@ import { useProductGroupCategoryStats } from '@/hooks/useProductGroupCategorySta
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { waitForSupabaseSession } from '@/lib/waitForSupabaseSession';
+import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import { InventoryCategoryChartsCards } from '@/components/inventory/InventoryCategoryChartsCards';
 
 // Memoized KPI Card component
@@ -156,6 +157,8 @@ export const Dashboard = memo(() => {
       subscription.unsubscribe();
     };
   }, [authLoading, user?.id, loadData]);
+
+  useSessionResumeReload(loadData);
 
   // Subscribe to realtime updates
   useRealtimeData({

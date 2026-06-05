@@ -1,7 +1,8 @@
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { toast } from '@/hooks/use-toast';
+import { onSessionResume } from '@/lib/sessionResume';
 
 type TableName = 'products' | 'transactions' | 'product_groups' | 'fournisseurs' | 'documents';
 
@@ -28,6 +29,7 @@ const EVENT_LABELS: Record<string, string> = {
 const REALTIME_REFETCH_MS = 400;
 
 export const useRealtimeData = ({ tables, onDataChange, showToast = true }: UseRealtimeOptions) => {
+  const [resumeGeneration, setResumeGeneration] = useState(0);
   const isFirstRender = useRef(true);
   const onDataChangeRef = useRef(onDataChange);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -36,6 +38,13 @@ export const useRealtimeData = ({ tables, onDataChange, showToast = true }: UseR
   useEffect(() => {
     onDataChangeRef.current = onDataChange;
   }, [onDataChange]);
+
+  useEffect(() => {
+    return onSessionResume(() => {
+      setResumeGeneration((n) => n + 1);
+      onDataChangeRef.current();
+    });
+  }, []);
 
   // Memoize tables array to prevent unnecessary re-subscriptions
   const tablesKey = useMemo(() => tables.join(','), [tables]);
@@ -105,5 +114,5 @@ export const useRealtimeData = ({ tables, onDataChange, showToast = true }: UseR
         supabase.removeChannel(channel);
       });
     };
-  }, [tablesKey, showToast]);
+  }, [tablesKey, showToast, resumeGeneration]);
 };

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Devis, DevisItem, BonCommande } from '@/types';
 import { buildProfilesMap, collectUserIdsForProfiles } from '@/lib/documentListAudit';
 import { useAuth } from '@/hooks/useAuth';
+import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import { computeDevisTotals } from '@/lib/devisPricing';
 import { parseAttachmentUrls, uploadCommercialAttachments, type CommercialAttachmentRecord } from '@/lib/commercialAttachments';
 import { buildMergedBcNotes, mergeDevisItemsFromSources, validateDevisMergeForBc } from '@/lib/mergeCommercialDocuments';
@@ -224,6 +225,7 @@ export const GestionDevis = ({
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+  useSessionResumeReload(loadAll);
 
   // Update active section and doc type if props change
   useEffect(() => {

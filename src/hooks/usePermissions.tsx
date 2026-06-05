@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import { BIG_SECTIONS, SUBSECTION_TO_SECTION } from '@/config/navigation';
 
 interface PermissionRow {
@@ -61,6 +62,8 @@ export const usePermissions = () => {
       void load().catch((err) => console.error('[Permissions] load failed:', err));
     }
   }, [authLoading, load]);
+
+  useSessionResumeReload(load);
 
   const canAccessSection = useCallback(
     (sectionId: string): boolean => {

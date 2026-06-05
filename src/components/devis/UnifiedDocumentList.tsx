@@ -43,6 +43,7 @@ import {
   SESSION_EXPIRED_USER_MESSAGE,
   supabaseQueryWithAuthRetry,
 } from '@/lib/supabaseSession';
+import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import {
   attachProfileNames,
   buildProfilesMap,
@@ -159,6 +160,8 @@ export const UnifiedDocumentList = ({
   useEffect(() => {
     loadDocuments();
   }, [loadDocuments]);
+
+  useSessionResumeReload(loadDocuments);
 
   const handleDownloadPDF = async (doc: UnifiedDocument) => {
     try {

@@ -3,6 +3,14 @@
 interface Window {
   electronAPI?: {
     onUpdateMessage: (callback: (message: string) => void) => void;
+    onUpdateInfo: (
+      callback: (info: {
+        currentVersion: string;
+        newVersion: string;
+        totalBytes: number | null;
+        grouped: boolean;
+      }) => void
+    ) => void;
     onUpdateProgress: (
       callback: (
         progress: {

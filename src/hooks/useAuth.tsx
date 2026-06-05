@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, createContext, useContext, ReactNode } fro
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { isAuthSessionError, isJwtExpiredError, refreshSupabaseSessionIfNeeded } from '@/lib/supabaseSession';
+import { notifySessionResume } from '@/lib/sessionResume';
 import { toast } from '@/hooks/use-toast';
 
 interface AuthContextType {
@@ -204,6 +205,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setSessionExpired(false);
           setSession(nextSession);
           setUser(nextSession?.user ?? null);
+          notifySessionResume();
           return;
         }
 
@@ -230,8 +232,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
-    const validateOrRefreshSession = async () => {
-      if (!userRef.current) return;
+    const validateOrRefreshSession = async (): Promise<{ ok: boolean; refreshed: boolean }> => {
+      if (!userRef.current) return { ok: false, refreshed: false };
 
       const { data: { session: currentSession }, error } = await supabase.auth.getSession();
 
@@ -240,12 +242,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (isAuthSessionError(error.message)) {
           await handleSessionExpired('Token de rafraîchissement invalide');
         }
-        return;
+        return { ok: false, refreshed: false };
       }
 
       if (!currentSession) {
         await handleSessionExpired('Session perdue');
-        return;
+        return { ok: false, refreshed: false };
       }
 
       const expiresAt = currentSession.expires_at ?? 0;
@@ -254,21 +256,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const ok = await refreshSupabaseSessionIfNeeded(0);
         if (!ok) {
           await handleSessionExpired('Session expirée');
+          return { ok: false, refreshed: false };
         }
+        return { ok: true, refreshed: true };
       }
+
+      return { ok: true, refreshed: false };
+    };
+
+    const resumeAfterIdle = () => {
+      if (!userRef.current) return;
+      void validateOrRefreshSession().then(({ ok }) => {
+        if (ok) notifySessionResume();
+      });
     };
 
     const sessionCheckInterval = setInterval(() => {
-      void validateOrRefreshSession();
-    }, 5 * 60 * 1000);
+      void validateOrRefreshSession().then(({ ok, refreshed }) => {
+        if (ok && refreshed) notifySessionResume();
+      });
+    }, 3 * 60 * 1000);
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && userRef.current) {
-        void refreshSupabaseSessionIfNeeded();
+      if (document.visibilityState === 'visible') {
+        resumeAfterIdle();
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('focus', onVisibilityChange);
+    window.addEventListener('focus', resumeAfterIdle);
+    window.addEventListener('online', resumeAfterIdle);
+    window.addEventListener('pageshow', resumeAfterIdle);
 
     return () => {
       cancelled = true;
@@ -276,7 +293,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       subscription.unsubscribe();
       clearInterval(sessionCheckInterval);
       document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('focus', onVisibilityChange);
+      window.removeEventListener('focus', resumeAfterIdle);
+      window.removeEventListener('online', resumeAfterIdle);
+      window.removeEventListener('pageshow', resumeAfterIdle);
       removeSessionChannel();
     };
   }, []);

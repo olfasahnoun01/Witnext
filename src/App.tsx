@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { AutoUpdateNotifier } from "@/components/AutoUpdateNotifier";
+import { SessionResumeHandler } from "@/components/SessionResumeHandler";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Loader2 } from "lucide-react";
 
@@ -77,6 +78,7 @@ const App = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <SessionResumeHandler />
       <ThemeProvider
         attribute="class"
         defaultTheme="system"

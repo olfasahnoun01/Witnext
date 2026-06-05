@@ -146,6 +146,49 @@ function createWindow() {
   });
 }
 
+function parseVersionParts(version) {
+  return String(version || '')
+    .replace(/^v/i, '')
+    .split(/[.\-+]/)
+    .map((part) => parseInt(part, 10) || 0);
+}
+
+function isGroupedUpdate(currentVersion, newVersion) {
+  const current = parseVersionParts(currentVersion);
+  const next = parseVersionParts(newVersion);
+  if (current.length < 2 || next.length < 2) {
+    return currentVersion !== newVersion;
+  }
+  if (next[0] !== current[0]) return true;
+  if (next[1] !== current[1]) return true;
+  if (next.length > 2 && current.length > 2 && next[2] - current[2] > 1) return true;
+  return false;
+}
+
+function resolveUpdateFileSize(info) {
+  const files = Array.isArray(info?.files) ? info.files : [];
+  const preferred =
+    files.find((file) => file.url && String(file.url).endsWith('.exe')) ||
+    files.find((file) => typeof file.size === 'number' && file.size > 0) ||
+    files[0];
+  return typeof preferred?.size === 'number' && preferred.size > 0 ? preferred.size : null;
+}
+
+function sendToRenderer(channel, payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, payload);
+  }
+}
+
+/** Latest pending update metadata (always jumps to newest release in one download). */
+let pendingUpdateMeta = null;
+
+// Always fetch the newest installer from latest.yml (one grouped download).
+autoUpdater.autoDownload = true;
+autoUpdater.allowDowngrade = false;
+// Full installer: predictable size when users skipped several releases.
+autoUpdater.disableDifferentialDownload = true;
+
 // Auto-update logging and events
 autoUpdater.on('checking-for-update', () => {
   console.log('Checking for update...');
@@ -153,39 +196,78 @@ autoUpdater.on('checking-for-update', () => {
 
 autoUpdater.on('update-available', (info) => {
   console.log('Update available:', info);
-  if (mainWindow) {
-    mainWindow.webContents.send('update-message', 'Une mise à jour est disponible. Téléchargement en cours...');
-  }
+  const currentVersion = app.getVersion();
+  const newVersion = info.version || 'inconnue';
+  const totalBytes = resolveUpdateFileSize(info);
+  const grouped = isGroupedUpdate(currentVersion, newVersion);
+
+  pendingUpdateMeta = { currentVersion, newVersion, totalBytes, grouped };
+
+  sendToRenderer('update-info', pendingUpdateMeta);
+
+  const sizeLabel = totalBytes ? formatBytesForLog(totalBytes) : 'taille inconnue';
+  const jumpLabel = grouped
+    ? `Mise à jour groupée ${currentVersion} → ${newVersion}`
+    : `Mise à jour ${currentVersion} → ${newVersion}`;
+
+  sendToRenderer(
+    'update-message',
+    `${jumpLabel}. Téléchargement (${sizeLabel})…`
+  );
 });
+
+function formatBytesForLog(bytes) {
+  if (!bytes || bytes <= 0) return '0 o';
+  const units = ['o', 'Ko', 'Mo', 'Go'];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  const value = bytes / Math.pow(1024, i);
+  const digits = i === 0 ? 0 : value >= 100 ? 0 : value >= 10 ? 1 : 2;
+  return `${value.toFixed(digits)} ${units[i]}`;
+}
 
 autoUpdater.on('update-not-available', (info) => {
   console.log('Update not available:', info);
+  pendingUpdateMeta = null;
 });
 
 autoUpdater.on('error', (err) => {
   console.error('Error in auto-updater:', err);
+  pendingUpdateMeta = null;
+  sendToRenderer('update-progress', null);
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
-  let log_message = "Download speed: " + progressObj.bytesPerSecond;
-  log_message = log_message + ' - Downloaded ' + progressObj.percent + '%';
-  log_message = log_message + ' (' + progressObj.transferred + "/" + progressObj.total + ')';
+  const total =
+    progressObj.total > 0
+      ? progressObj.total
+      : pendingUpdateMeta?.totalBytes || 0;
+
+  const percent =
+    total > 0
+      ? Math.min(100, (progressObj.transferred / total) * 100)
+      : progressObj.percent;
+
+  const log_message =
+    `Download speed: ${progressObj.bytesPerSecond} B/s - ${percent.toFixed(1)}%` +
+    ` (${progressObj.transferred}/${total || '?'})`;
   console.log(log_message);
+
+  sendToRenderer('update-progress', {
+    percent,
+    transferred: progressObj.transferred,
+    total,
+    bytesPerSecond: progressObj.bytesPerSecond,
+  });
+
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('update-progress', {
-      percent: progressObj.percent,
-      transferred: progressObj.transferred,
-      total: progressObj.total,
-      bytesPerSecond: progressObj.bytesPerSecond
-    });
-    mainWindow.setProgressBar(progressObj.percent / 100);
+    mainWindow.setProgressBar(percent / 100);
   }
 });
 
 autoUpdater.on('update-downloaded', async (info) => {
   console.log('Update downloaded:', info);
+  sendToRenderer('update-progress', null);
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('update-progress', null);
     mainWindow.setProgressBar(-1);
   }
 
@@ -195,12 +277,18 @@ autoUpdater.on('update-downloaded', async (info) => {
     console.warn('Legacy install/shortcut cleanup failed (non-fatal):', err);
   }
 
+  const fromVersion = pendingUpdateMeta?.currentVersion || app.getVersion();
+  const toVersion = info.version || pendingUpdateMeta?.newVersion || 'nouvelle version';
+  const grouped = pendingUpdateMeta?.grouped;
+
   const dialogOpts = {
     type: 'info',
     buttons: ['Redémarrer', 'Plus tard'],
-    title: 'Mise à jour disponible',
-    message: 'Une nouvelle version de l\'application a été téléchargée.',
-    detail: 'Voulez-vous redémarrer l\'application pour appliquer les mises à jour maintenant ?'
+    title: grouped ? 'Mise à jour groupée prête' : 'Mise à jour prête',
+    message: `La version ${toVersion} a été téléchargée.`,
+    detail: grouped
+      ? `Toutes les mises à jour depuis la version ${fromVersion} sont regroupées dans ce téléchargement.\n\nRedémarrer maintenant pour installer ?`
+      : `Redémarrer l'application pour passer de ${fromVersion} à ${toVersion} ?`,
   };
 
   dialog.showMessageBox(mainWindow, dialogOpts).then((returnValue) => {
@@ -235,9 +323,9 @@ if (singleInstanceLock) {
 
     createWindow();
 
-    // Check for updates
+    // Check for updates (custom in-app UI; no OS notification)
     if (!isDev) {
-      autoUpdater.checkForUpdatesAndNotify();
+      autoUpdater.checkForUpdates();
     }
 
     app.on('activate', function () {

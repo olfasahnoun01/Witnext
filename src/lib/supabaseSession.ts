@@ -52,9 +52,13 @@ export async function ensureSupabaseSessionReady(maxMs = 8000): Promise<boolean>
   while (Date.now() < deadline) {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.access_token) {
-      return refreshSupabaseSessionIfNeeded();
+      const ready = await refreshSupabaseSessionIfNeeded();
+      if (ready) return true;
+    } else if (session?.refresh_token) {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (!error && data.session?.access_token) return true;
     }
-    await new Promise((r) => window.setTimeout(r, 50));
+    await new Promise((r) => window.setTimeout(r, 100));
   }
 
   return false;

@@ -112,7 +112,7 @@ export function DevisArticlesTable({
   const composerPrixRef = useRef<HTMLInputElement>(null);
   const searchRef = composerSearchRef ?? localSearchRef;
 
-  const prixUnitHeader = devisType === 'achat' ? 'P. achat HT' : 'P. vente HT';
+  const prixUnitHeader = devisType === 'achat' ? 'P. achat HT' : 'Prix unitaire HT';
 
   const previewLine = computeDevisLine(
     {
@@ -165,7 +165,7 @@ export function DevisArticlesTable({
             <th className={cn(TH, 'text-right')}>{prixUnitHeader}</th>
             <th className={cn(TH, 'text-center')}>Remise %</th>
             {isTtc && <th className={cn(TH, 'text-center')}>TVA</th>}
-            <th className={cn(TH, 'text-right')}>Montant</th>
+            <th className={cn(TH, 'text-right')}>Total HT</th>
             <th className={cn(TH, 'text-center')} aria-hidden />
           </tr>
         </thead>

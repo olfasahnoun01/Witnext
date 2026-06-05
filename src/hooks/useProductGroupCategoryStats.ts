@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { getProductGroupCountsByCategory } from '@/services/productGroupService';
 import { waitForSupabaseSession } from '@/lib/waitForSupabaseSession';
+import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import { DEFAULT_INVENTORY_CATEGORIES } from '@/constants/inventoryCategories';
 
 export interface CategoryCount {
@@ -180,6 +181,8 @@ export function useProductGroupCategoryStats() {
     prevMainCategoriesKeyRef.current = '';
     void fetchCategoryCounts({ showLoading: true });
   }, [authLoading, user?.id, fetchCategoryCounts]);
+
+  useSessionResumeReload(() => fetchCategoryCounts({ showLoading: false }));
 
   // Re-aggregate when custom categories arrive (stable deps — no refresh loop)
   useEffect(() => {
