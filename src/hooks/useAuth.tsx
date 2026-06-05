@@ -3,6 +3,7 @@ import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { isAuthSessionError, isJwtExpiredError, refreshSupabaseSessionIfNeeded } from '@/lib/supabaseSession';
 import { notifySessionResume } from '@/lib/sessionResume';
+import { debugLog } from '@/lib/debugLog';
 import { toast } from '@/hooks/use-toast';
 
 interface AuthContextType {
@@ -201,6 +202,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         if (event === 'TOKEN_REFRESHED') {
+          debugLog('useAuth.tsx:TOKEN_REFRESHED', 'auth event', {
+            expiresAt: nextSession?.expires_at ?? null,
+            userId: nextSession?.user?.id?.slice(0, 8) ?? null,
+          }, 'D');
           sessionExpiredRef.current = false;
           setSessionExpired(false);
           setSession(nextSession);
@@ -255,18 +260,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (expiresAt - nowSec <= 120) {
         const ok = await refreshSupabaseSessionIfNeeded(0);
         if (!ok) {
+          debugLog('useAuth.tsx:validate', 'refresh failed, signing out', {
+            secsToExpiry: expiresAt - nowSec,
+          }, 'A');
           await handleSessionExpired('Session expirée');
           return { ok: false, refreshed: false };
         }
+        debugLog('useAuth.tsx:validate', 'refresh succeeded on wake', {
+          secsToExpiry: expiresAt - nowSec,
+        }, 'A');
         return { ok: true, refreshed: true };
       }
 
+      debugLog('useAuth.tsx:validate', 'session valid, no refresh needed', {
+        secsToExpiry: expiresAt - nowSec,
+      }, 'D');
       return { ok: true, refreshed: false };
     };
 
     const resumeAfterIdle = () => {
       if (!userRef.current) return;
-      void validateOrRefreshSession().then(({ ok }) => {
+      debugLog('useAuth.tsx:resumeAfterIdle', 'wake/resume triggered', {
+        visibility: document.visibilityState,
+      }, 'C');
+      void validateOrRefreshSession().then(({ ok, refreshed }) => {
+        debugLog('useAuth.tsx:resumeAfterIdle', 'validate result', { ok, refreshed }, 'A');
         if (ok) notifySessionResume();
       });
     };

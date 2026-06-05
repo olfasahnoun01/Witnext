@@ -1,5 +1,6 @@
 import type { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { debugLog } from '@/lib/debugLog';
 
 /** True when Supabase rejected the access token (expired / invalid). */
 export function isJwtExpiredError(message: string | undefined | null): boolean {
@@ -42,7 +43,15 @@ export async function refreshSupabaseSessionIfNeeded(
   if (expiresAt - nowSec > bufferSec) return true;
 
   const { data, error } = await supabase.auth.refreshSession();
-  return !error && !!data.session?.access_token;
+  const ok = !error && !!data.session?.access_token;
+  debugLog('supabaseSession.ts:refresh', 'refreshSession result', {
+    ok,
+    hasError: !!error,
+    errorMsg: error?.message?.slice(0, 80) ?? null,
+    secsToExpiry: expiresAt - nowSec,
+    bufferSec,
+  }, 'A');
+  return ok;
 }
 
 /** Wait for a session, refreshing proactively before API calls. */
@@ -61,6 +70,7 @@ export async function ensureSupabaseSessionReady(maxMs = 8000): Promise<boolean>
     await new Promise((r) => window.setTimeout(r, 100));
   }
 
+  debugLog('supabaseSession.ts:ensureReady', 'ensureSupabaseSessionReady timeout', { maxMs }, 'B');
   return false;
 }
 
@@ -76,9 +86,18 @@ export async function supabaseQueryWithAuthRetry<T>(
 
   let result = await run();
   if (result.error && isJwtExpiredError(result.error.message)) {
+    debugLog('supabaseSession.ts:authRetry', 'JWT error on query, retrying', {
+      errorMsg: result.error.message?.slice(0, 80),
+    }, 'E');
     const refreshed = await refreshSupabaseSessionIfNeeded(0);
     if (refreshed) {
       result = await run();
+      debugLog('supabaseSession.ts:authRetry', 'retry after refresh', {
+        ok: !result.error,
+        errorMsg: result.error?.message?.slice(0, 80) ?? null,
+      }, 'E');
+    } else {
+      debugLog('supabaseSession.ts:authRetry', 'retry refresh failed', {}, 'E');
     }
   }
 

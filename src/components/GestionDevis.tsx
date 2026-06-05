@@ -7,6 +7,7 @@ import { Devis, DevisItem, BonCommande } from '@/types';
 import { buildProfilesMap, collectUserIdsForProfiles } from '@/lib/documentListAudit';
 import { useAuth } from '@/hooks/useAuth';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
+import { debugLog } from '@/lib/debugLog';
 import { computeDevisTotals } from '@/lib/devisPricing';
 import { parseAttachmentUrls, uploadCommercialAttachments, type CommercialAttachmentRecord } from '@/lib/commercialAttachments';
 import { buildMergedBcNotes, mergeDevisItemsFromSources, validateDevisMergeForBc } from '@/lib/mergeCommercialDocuments';
@@ -153,6 +154,7 @@ export const GestionDevis = ({
 
   const loadAll = useCallback(async () => {
     const ready = await ensureSupabaseSessionReady();
+    debugLog('GestionDevis.tsx:loadAll', 'session ready check', { ready }, 'B');
     if (!ready) {
       toast.error(SESSION_EXPIRED_USER_MESSAGE);
       return;
@@ -167,6 +169,11 @@ export const GestionDevis = ({
     );
 
     if (error) {
+      debugLog('GestionDevis.tsx:loadAll', 'devis query error', {
+        isJwt: isJwtExpiredError(error.message),
+        isAuth: isAuthSessionError(error.message),
+        errorMsg: error.message?.slice(0, 80),
+      }, 'E');
       toast.error(
         isJwtExpiredError(error.message) || isAuthSessionError(error.message)
           ? SESSION_EXPIRED_USER_MESSAGE
@@ -174,6 +181,10 @@ export const GestionDevis = ({
       );
       return;
     }
+
+    debugLog('GestionDevis.tsx:loadAll', 'devis query success', {
+      rowCount: data?.length ?? 0,
+    }, 'C');
 
     if (data) {
       const userIds = collectUserIdsForProfiles(data);

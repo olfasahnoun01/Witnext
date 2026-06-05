@@ -1,3 +1,5 @@
+import { debugLog } from '@/lib/debugLog';
+
 type ResumeListener = () => void;
 
 const resumeListeners = new Set<ResumeListener>();
@@ -12,6 +14,9 @@ export function onSessionResume(listener: ResumeListener): () => void {
 
 /** Notify all listeners that the auth session is fresh and data should reload. */
 export function notifySessionResume(): void {
+  debugLog('sessionResume.ts:notify', 'notifySessionResume', {
+    listenerCount: resumeListeners.size,
+  }, 'C');
   resumeListeners.forEach((listener) => {
     try {
       listener();
