@@ -1,7 +1,7 @@
 import { memo, useCallback, useState, useEffect, useMemo } from 'react';
 import { ProductGroupFournisseur } from '@/types';
 import { computeDevisTotals } from '@/lib/devisPricing';
-import { Plus, Trash2, Edit, X, UserPlus, Search, Layers, Check, AlertCircle, Upload, ChevronsUpDown, FileText, ShoppingCart, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { Plus, Trash2, Edit, X, Search, Layers, Check, AlertCircle, Upload, ChevronsUpDown, FileText, ShoppingCart, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -53,7 +53,10 @@ import {
   DevisZohoTotalsPanel,
 } from './DevisFormUi';
 import { DevisArticlesTable } from './DevisArticlesTable';
+import { DevisDocumentSettingsTable } from './DevisDocumentSettingsTable';
+import { DevisPartyFieldsTable } from './DevisPartyFieldsTable';
 import { ImportDevisIntoBcPanel } from './ImportDevisIntoBcPanel';
+import { useAppLayout } from '@/contexts/AppLayoutContext';
 
 const DEFAULT_CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
@@ -134,6 +137,7 @@ export const DevisForm = memo(({
   importableDevis = [],
   onImportDevis,
 }: DevisFormProps) => {
+  const { sidebarOpen } = useAppLayout();
   const isAchat = devisType === 'achat';
 
   // Third parties
@@ -166,6 +170,7 @@ export const DevisForm = memo(({
   const debouncedSearch = useDebounce(productSearch, 300);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const achatPriceRequestRef = useRef(0);
+  const composerSearchRef = useRef<HTMLInputElement>(null);
 
   // Item form (manual or from selected product)
   const [itemDesignation, setItemDesignation] = useState('');
@@ -290,6 +295,14 @@ export const DevisForm = memo(({
       setSearchResults([]);
       return;
     }
+    if (selectedProduct) {
+      const label = `${selectedProduct.sku} — ${selectedProduct.name}`.trim();
+      if (debouncedSearch.trim() === label) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
+    }
     let cancelled = false;
     const search = async () => {
       setIsSearching(true);
@@ -307,7 +320,7 @@ export const DevisForm = memo(({
     return () => {
       cancelled = true;
     };
-  }, [debouncedSearch, isAchat, thirdPartyName]);
+  }, [debouncedSearch, isAchat, thirdPartyName, selectedProduct]);
 
   const selectExistingProduct = useCallback((product: Product) => {
     achatPriceRequestRef.current += 1;
@@ -340,7 +353,7 @@ export const DevisForm = memo(({
     }
     setItemQuantity(1);
     setItemDescription('');
-    setProductSearch('');
+    setProductSearch(`${product.sku} — ${product.name}`.trim());
     setSearchResults([]);
   }, [isAchat, loadPrixAchatFromInventoryProduct]);
 
@@ -356,6 +369,8 @@ export const DevisForm = memo(({
     setItemPrixAchat(0);
     setItemTva(19);
     setItemPrixVenteDraft(null);
+    setProductSearch('');
+    setSearchResults([]);
   }, []);
 
   useEffect(() => {
@@ -538,6 +553,9 @@ export const DevisForm = memo(({
     setSelectedProduct(null);
     setItemPrixVenteDraft(null);
     achatPriceRequestRef.current += 1;
+    if (articleMode === 'search') {
+      requestAnimationFrame(() => composerSearchRef.current?.focus());
+    }
   }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, itemTva, devisType, articleMode, isAchat, thirdPartyName, selectedProduct, setDevisItems]);
 
 
@@ -1029,7 +1047,12 @@ export const DevisForm = memo(({
 
   return (
     <>
-      <DevisZohoShell className="max-w-6xl mx-auto">
+      <DevisZohoShell
+        className={cn(
+          'w-full',
+          sidebarOpen ? 'max-w-6xl mx-auto' : 'max-w-none'
+        )}
+      >
         <DevisZohoTopBar>
           <DevisFormPageHeader
             title={pageTitle}
@@ -1041,9 +1064,9 @@ export const DevisForm = memo(({
             badges={<DevisFlowBadge devisType={devisType} docType={docType} />}
           />
 
-          <div className="flex flex-wrap gap-4 items-end">
-            {!editingDevis && !forceDocType && (
-              <DevisField label="Nature" className="min-w-[200px]">
+          <DevisDocumentSettingsTable
+            natureCell={
+              !editingDevis && !forceDocType ? (
                 <DevisSegmentedGrid>
                   <DevisSegmentedOption
                     value="devis"
@@ -1052,6 +1075,7 @@ export const DevisForm = memo(({
                     accent={isAchat ? 'achat' : 'vente'}
                     label="Devis"
                     icon={FileText}
+                    className="min-h-[2.5rem] py-1.5"
                   />
                   <DevisSegmentedOption
                     value="bc"
@@ -1060,12 +1084,17 @@ export const DevisForm = memo(({
                     accent={isAchat ? 'achat' : 'vente'}
                     label="BC"
                     icon={ShoppingCart}
+                    className="min-h-[2.5rem] py-1.5"
                   />
                 </DevisSegmentedGrid>
-              </DevisField>
-            )}
-            {!forceDocType && !lockDevisType && (
-              <DevisField label="Flux" className="min-w-[180px]">
+              ) : (
+                <span className="text-sm font-medium text-foreground">
+                  {docType === 'bc' ? 'Bon de commande' : 'Devis'}
+                </span>
+              )
+            }
+            fluxCell={
+              !forceDocType && !lockDevisType ? (
                 <DevisSegmentedGrid>
                   <DevisSegmentedOption
                     value="achat"
@@ -1074,6 +1103,7 @@ export const DevisForm = memo(({
                     accent="achat"
                     label="Achat"
                     icon={ArrowDownLeft}
+                    className="min-h-[2.5rem] py-1.5"
                   />
                   <DevisSegmentedOption
                     value="vente"
@@ -1082,125 +1112,41 @@ export const DevisForm = memo(({
                     accent="vente"
                     label="Vente"
                     icon={ArrowUpRight}
+                    className="min-h-[2.5rem] py-1.5"
                   />
                 </DevisSegmentedGrid>
-              </DevisField>
-            )}
-            <div className="flex-1 min-w-[220px]">
-              <DevisPricingToggle isTtc={isTtc} onChange={setIsTtc} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
-            <DevisField label={thirdPartyLabel} className="lg:col-span-5">
-              <div className="relative">
-                <input
-                  type="text"
-                  value={thirdPartyName}
-                  onChange={(e) => handleThirdPartyNameChange(e.target.value)}
-                  className="form-input h-10"
-                  placeholder={`${thirdPartyLabel}…`}
-                />
-                {filteredThirdParties.length > 0 && (
-                  <div className="absolute left-0 right-0 mt-1 z-30 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg">
-                    {filteredThirdParties.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onMouseDown={() => handleThirdPartySuggestionSelect(item)}
-                        className="w-full px-3 py-2.5 text-left text-sm hover:bg-muted transition-colors border-b border-border/50 last:border-0"
-                      >
-                        <span className="font-medium">{item.nom}</span>
-                        {item.matricule_fiscale && (
-                          <span className="block text-xs text-muted-foreground font-mono mt-0.5">
-                            {item.matricule_fiscale}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </DevisField>
-            <DevisField label="N° document" className="lg:col-span-2">
-              <input
-                type="text"
-                value={devisNumber}
-                onChange={(e) => setDevisNumber(e.target.value)}
-                className="form-input h-10"
-              />
-            </DevisField>
-            <DevisField label="Date" className="lg:col-span-2">
-              <input
-                type="date"
-                value={devisDate}
-                onChange={(e) => setDevisDate(e.target.value)}
-                className="form-input h-10"
-              />
-            </DevisField>
-            {docType === 'bc' ? (
-              <DevisField label="Statut" className="lg:col-span-3">
-                <Select
-                  value={documentStatus}
-                  onValueChange={(v) =>
-                    setDocumentStatus(
-                      v as 'brouillon' | 'envoyé' | 'accepté' | 'refusé' | 'confirmé' | 'reçu' | 'intégré'
-                    )
-                  }
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue placeholder="Statut" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="brouillon">Brouillon</SelectItem>
-                    <SelectItem value="envoyé">Envoyé</SelectItem>
-                    <SelectItem value="confirmé">Confirmé</SelectItem>
-                    <SelectItem value="reçu">Reçu</SelectItem>
-                    <SelectItem value="intégré">Intégré</SelectItem>
-                  </SelectContent>
-                </Select>
-              </DevisField>
-            ) : (
-              <div className="lg:col-span-3 hidden lg:block" />
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <DevisField label="Téléphone">
-              <input
-                type="text"
-                value={thirdPartyPhone}
-                onChange={(e) => setThirdPartyPhone(e.target.value)}
-                className="form-input h-9"
-              />
-            </DevisField>
-            <DevisField label="Matricule fiscal">
-              <input
-                type="text"
-                value={thirdPartyTaxId}
-                onChange={(e) => setThirdPartyTaxId(e.target.value)}
-                className="form-input h-9"
-              />
-            </DevisField>
-            <DevisField label="Adresse">
-              <input
-                type="text"
-                value={thirdPartyAddress}
-                onChange={(e) => setThirdPartyAddress(e.target.value)}
-                className="form-input h-9"
-              />
-            </DevisField>
-          </div>
-
-          {isAchat && (
-            <div className="flex justify-end">
-              <Button variant="outline" size="sm" onClick={() => setShowNewFournisseur(true)} className="h-8">
-                <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-                Nouveau fournisseur
-              </Button>
-            </div>
-          )}
+              ) : (
+                <DevisFlowBadge devisType={devisType} docType={docType} />
+              )
+            }
+            pricingCell={<DevisPricingToggle isTtc={isTtc} onChange={setIsTtc} embedded />}
+          />
         </DevisZohoTopBar>
+
+        <DevisZohoSection title={thirdPartyLabel}>
+          <DevisPartyFieldsTable
+            partyLabel={thirdPartyLabel}
+            thirdPartyName={thirdPartyName}
+            onThirdPartyNameChange={handleThirdPartyNameChange}
+            suggestions={filteredThirdParties}
+            onSuggestionSelect={handleThirdPartySuggestionSelect}
+            devisNumber={devisNumber}
+            onDevisNumberChange={setDevisNumber}
+            devisDate={devisDate}
+            onDevisDateChange={setDevisDate}
+            thirdPartyPhone={thirdPartyPhone}
+            onThirdPartyPhoneChange={setThirdPartyPhone}
+            thirdPartyTaxId={thirdPartyTaxId}
+            onThirdPartyTaxIdChange={setThirdPartyTaxId}
+            thirdPartyAddress={thirdPartyAddress}
+            onThirdPartyAddressChange={setThirdPartyAddress}
+            docType={docType}
+            documentStatus={documentStatus}
+            onDocumentStatusChange={(v) => setDocumentStatus(v)}
+            showNewFournisseur={isAchat}
+            onNewFournisseur={() => setShowNewFournisseur(true)}
+          />
+        </DevisZohoSection>
 
         {docType === 'bc' && !editingDevis && onImportDevis && (
           <div className="px-4 sm:px-6 pt-4 border-b border-border/50">
@@ -1273,8 +1219,8 @@ export const DevisForm = memo(({
             items={devisItems}
             isTtc={isTtc}
             devisType={devisType}
-            isAchat={isAchat}
             articleMode={articleMode}
+            composerSearchRef={composerSearchRef}
             onUpdate={updateLineItem}
             onRemove={removeItem}
             onCommitLine={addItem}

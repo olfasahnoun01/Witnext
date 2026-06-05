@@ -1,5 +1,5 @@
-import { useCallback, type ReactNode } from 'react';
-import { Package, Plus, Search, Trash2, X } from 'lucide-react';
+import { useCallback, useRef, type ReactNode } from 'react';
+import { Plus, Search, Trash2 } from 'lucide-react';
 import type { DevisItem, Product } from '@/types';
 import { computeDevisLine } from '@/lib/devisPricing';
 import { getDevisItemDisplayCode } from '@/lib/devisItemPdf';
@@ -10,14 +10,19 @@ import {
 } from '@/lib/numberInput';
 import { cn } from '@/lib/utils';
 import { devisZohoCellInputClass, devisZohoCellTextareaClass } from './DevisFormUi';
+import { DevisAnchoredDropdown } from './DevisAnchoredDropdown';
 
 export type DevisArticleComposerMode = 'search' | 'manual';
+
+const TH =
+  'border border-border bg-muted/50 px-2 py-2.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap';
+const TD = 'border border-border px-2 py-2 align-top';
+const TD_COMPOSER = 'border border-border px-2 py-2 align-top bg-muted/20';
 
 export interface DevisArticlesTableProps {
   items: DevisItem[];
   isTtc: boolean;
   devisType: 'achat' | 'vente';
-  isAchat: boolean;
   articleMode: DevisArticleComposerMode;
   onUpdate: (idx: number, patch: Partial<DevisItem>) => void;
   onRemove: (idx: number) => void;
@@ -46,6 +51,7 @@ export interface DevisArticlesTableProps {
   onItemRemiseChange: (value: number) => void;
   itemTva: number;
   onItemTvaChange: (value: number) => void;
+  composerSearchRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 function ComposerEnterCommit({
@@ -72,7 +78,6 @@ export function DevisArticlesTable({
   items,
   isTtc,
   devisType,
-  isAchat,
   articleMode,
   onUpdate,
   onRemove,
@@ -101,8 +106,14 @@ export function DevisArticlesTable({
   onItemRemiseChange,
   itemTva,
   onItemTvaChange,
+  composerSearchRef,
 }: DevisArticlesTableProps) {
-  const rateLabel = devisType === 'achat' ? 'Prix achat HT' : 'Prix vente HT';
+  const localSearchRef = useRef<HTMLInputElement>(null);
+  const composerPrixRef = useRef<HTMLInputElement>(null);
+  const searchRef = composerSearchRef ?? localSearchRef;
+
+  const prixUnitHeader = devisType === 'achat' ? 'P. achat HT' : 'P. vente HT';
+
   const previewLine = computeDevisLine(
     {
       designation: '',
@@ -116,26 +127,46 @@ export function DevisArticlesTable({
   );
   const composerPreview = isTtc ? previewLine.lineTTC : previewLine.lineHT;
 
-  const prixVenteDisplay =
+  const prixUnitDisplay =
     devisType === 'vente'
       ? itemPrixVenteDraft ?? formatDecimalFieldValue(itemPrixTtc)
       : formatDecimalFieldValue(itemPrixTtc);
 
+  const handlePickProduct = (product: Product) => {
+    onSelectProduct(product);
+    requestAnimationFrame(() => composerPrixRef.current?.focus());
+  };
+
+  const handleSearchChange = (value: string) => {
+    onProductSearchChange(value);
+    if (selectedProduct && value.trim() !== `${selectedProduct.sku} — ${selectedProduct.name}`.trim()) {
+      onClearProduct();
+    }
+  };
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-border/80">
-      <table className="w-full min-w-[880px] text-sm border-collapse">
+    <div className="overflow-x-auto rounded-md border-2 border-border">
+      <table className="w-full min-w-[920px] table-fixed border-collapse text-sm">
+        <colgroup>
+          <col style={{ width: devisType === 'vente' ? '24%' : '30%' }} />
+          <col style={{ width: '9%' }} />
+          {devisType === 'vente' && <col style={{ width: '12%' }} />}
+          <col style={{ width: '12%' }} />
+          <col style={{ width: '10%' }} />
+          {isTtc && <col style={{ width: '12%' }} />}
+          <col style={{ width: '12%' }} />
+          <col style={{ width: '5%' }} />
+        </colgroup>
         <thead>
-          <tr className="border-b bg-muted/40 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            <th className="text-left py-3 px-3 min-w-[280px]">Détails de l&apos;article</th>
-            <th className="text-center py-3 px-2 w-[88px]">Quantité</th>
-            {devisType === 'vente' && (
-              <th className="text-right py-3 px-2 w-[96px] hidden lg:table-cell">P. achat HT</th>
-            )}
-            <th className="text-right py-3 px-2 w-[100px]">Taux</th>
-            <th className="text-center py-3 px-2 w-[80px]">Remise</th>
-            {isTtc && <th className="text-center py-3 px-2 w-[100px]">Taxe</th>}
-            <th className="text-right py-3 px-3 w-[108px]">Montant</th>
-            <th className="w-10 py-3" aria-hidden />
+          <tr>
+            <th className={cn(TH, 'text-left')}>Article</th>
+            <th className={cn(TH, 'text-center')}>Qté</th>
+            {devisType === 'vente' && <th className={cn(TH, 'text-right')}>P. achat HT</th>}
+            <th className={cn(TH, 'text-right')}>{prixUnitHeader}</th>
+            <th className={cn(TH, 'text-center')}>Remise %</th>
+            {isTtc && <th className={cn(TH, 'text-center')}>TVA</th>}
+            <th className={cn(TH, 'text-right')}>Montant</th>
+            <th className={cn(TH, 'text-center')} aria-hidden />
           </tr>
         </thead>
         <tbody>
@@ -146,43 +177,31 @@ export function DevisArticlesTable({
             const title = code ? `${code} — ${item.designation}` : item.designation;
 
             return (
-              <tr
-                key={item.line_id ?? `line-${idx}`}
-                className="border-b border-border/50 align-top hover:bg-muted/15 transition-colors"
-              >
-                <td className="py-2 px-2">
-                  <div className="flex gap-2">
-                    <div className="mt-1 h-10 w-10 shrink-0 rounded-md border border-dashed border-border/80 bg-muted/30 flex items-center justify-center">
-                      <Package className="h-4 w-4 text-muted-foreground/60" aria-hidden />
-                    </div>
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <input
-                        type="text"
-                        value={item.designation}
-                        onChange={(e) => onUpdate(idx, { designation: e.target.value })}
-                        className={cn(devisZohoCellInputClass, 'font-medium')}
-                        placeholder="Désignation"
-                      />
-                      {code && (
-                        <p className="px-2 text-[11px] font-mono text-muted-foreground truncate" title={code}>
-                          {code}
-                        </p>
-                      )}
-                      <textarea
-                        value={item.description ?? ''}
-                        onChange={(e) =>
-                          onUpdate(idx, {
-                            description: e.target.value.trim() || undefined,
-                          })
-                        }
-                        rows={2}
-                        className={devisZohoCellTextareaClass}
-                        placeholder="Description (pointures, tailles…)"
-                      />
-                    </div>
-                  </div>
+              <tr key={item.line_id ?? `line-${idx}`} className="hover:bg-muted/10">
+                <td className={TD}>
+                  <input
+                    type="text"
+                    value={item.designation}
+                    onChange={(e) => onUpdate(idx, { designation: e.target.value })}
+                    className={cn(devisZohoCellInputClass, 'font-medium text-xs')}
+                    placeholder="Désignation"
+                  />
+                  {code && (
+                    <p className="mt-0.5 px-1 text-[10px] font-mono text-muted-foreground truncate" title={code}>
+                      {code}
+                    </p>
+                  )}
+                  <textarea
+                    value={item.description ?? ''}
+                    onChange={(e) =>
+                      onUpdate(idx, { description: e.target.value.trim() || undefined })
+                    }
+                    rows={1}
+                    className={cn(devisZohoCellTextareaClass, 'mt-1 text-xs min-h-[1.75rem]')}
+                    placeholder="Détails…"
+                  />
                 </td>
-                <td className="py-2 px-2">
+                <td className={TD}>
                   <input
                     type="number"
                     min={1}
@@ -190,13 +209,12 @@ export function DevisArticlesTable({
                     onChange={(e) =>
                       onUpdate(idx, { quantity: Math.max(1, parseInt(e.target.value, 10) || 1) })
                     }
-                    className={cn(devisZohoCellInputClass, 'text-center')}
+                    className={cn(devisZohoCellInputClass, 'text-center text-xs')}
                     aria-label={`Quantité ${title}`}
                   />
-                  <p className="text-[10px] text-center text-muted-foreground mt-0.5">pcs</p>
                 </td>
                 {devisType === 'vente' && (
-                  <td className="py-2 px-2 hidden lg:table-cell">
+                  <td className={TD}>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -204,11 +222,11 @@ export function DevisArticlesTable({
                       onChange={(e) =>
                         onUpdate(idx, { prix_achat: parseDecimalInput(e.target.value) })
                       }
-                      className={cn(devisZohoCellInputClass, 'text-right')}
+                      className={cn(devisZohoCellInputClass, 'text-right text-xs')}
                     />
                   </td>
                 )}
-                <td className="py-2 px-2">
+                <td className={TD}>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -216,11 +234,10 @@ export function DevisArticlesTable({
                     onChange={(e) =>
                       onUpdate(idx, { prix_ttc: parseDecimalInput(e.target.value) })
                     }
-                    className={cn(devisZohoCellInputClass, 'text-right')}
+                    className={cn(devisZohoCellInputClass, 'text-right text-xs')}
                   />
-                  <p className="text-[10px] text-right text-muted-foreground/80 mt-0.5 pr-1">HT</p>
                 </td>
-                <td className="py-2 px-2">
+                <td className={TD}>
                   <div className="flex items-center gap-0.5">
                     <input
                       type="text"
@@ -229,35 +246,35 @@ export function DevisArticlesTable({
                       onChange={(e) =>
                         onUpdate(idx, { remise: parseDecimalInput(e.target.value) })
                       }
-                      className={cn(devisZohoCellInputClass, 'text-center')}
+                      className={cn(devisZohoCellInputClass, 'text-center text-xs')}
                     />
-                    <span className="text-xs text-muted-foreground shrink-0">%</span>
+                    <span className="text-[10px] text-muted-foreground">%</span>
                   </div>
                 </td>
                 {isTtc && (
-                  <td className="py-2 px-2">
+                  <td className={TD}>
                     <select
                       value={String(item.tva ?? 19)}
                       onChange={(e) => onUpdate(idx, { tva: Number(e.target.value) })}
-                      className={cn(devisZohoCellInputClass, 'text-center text-xs')}
+                      className={cn(devisZohoCellInputClass, 'text-center text-[11px]')}
                     >
-                      <option value="7">TVA 7%</option>
-                      <option value="13">TVA 13%</option>
-                      <option value="19">TVA 19%</option>
+                      <option value="7">7%</option>
+                      <option value="13">13%</option>
+                      <option value="19">19%</option>
                     </select>
                   </td>
                 )}
-                <td className="py-2 px-3 text-right font-semibold tabular-nums text-foreground">
+                <td className={cn(TD, 'text-right font-semibold tabular-nums text-xs')}>
                   {lineVal.toFixed(3)}
                 </td>
-                <td className="py-2 px-1">
+                <td className={cn(TD, 'text-center')}>
                   <button
                     type="button"
                     onClick={() => onRemove(idx)}
-                    className="p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                     aria-label={`Supprimer ${title}`}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </td>
               </tr>
@@ -265,115 +282,96 @@ export function DevisArticlesTable({
           })}
 
           <ComposerEnterCommit onCommit={onCommitLine}>
-            <td className="py-3 px-2 align-top bg-muted/10">
-              <div className="flex gap-2">
-                <div className="mt-1 h-10 w-10 shrink-0 rounded-md border border-dashed border-primary/30 bg-primary/5 flex items-center justify-center">
-                  <Plus className="h-4 w-4 text-primary/70" aria-hidden />
-                </div>
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  {articleMode === 'search' ? (
-                    <>
-                      <div className="relative">
-                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                        <input
-                          type="text"
-                          value={productSearch}
-                          onChange={(e) => onProductSearchChange(e.target.value)}
-                          className={cn(devisZohoCellInputClass, 'pl-8')}
-                          placeholder="Saisissez ou sélectionnez un article du catalogue…"
-                        />
-                      </div>
-                      {searchResults.length > 0 && (
-                        <div className="rounded-md border border-border bg-popover shadow-md max-h-40 overflow-y-auto z-20">
-                          {searchResults.map((p) => (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => onSelectProduct(p)}
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted border-b border-border/40 last:border-0"
-                            >
-                              <span className="font-medium">{p.name}</span>
-                              <span className="block text-xs text-muted-foreground font-mono">
-                                {p.sku} · {p.price.toFixed(3)} HT
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {isSearching && (
-                        <p className="text-[11px] text-muted-foreground px-1">Recherche…</p>
-                      )}
-                      {selectedProduct && (
-                        <div className="flex items-start gap-2 rounded-md border border-primary/25 bg-primary/5 px-2 py-1.5">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">{selectedProduct.name}</p>
-                            <p className="text-[11px] font-mono text-muted-foreground">{selectedProduct.sku}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={onClearProduct}
-                            className="p-1 text-muted-foreground hover:text-destructive"
-                            aria-label="Retirer la sélection"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      )}
-                      <textarea
-                        value={itemDescription}
-                        onChange={(e) => onItemDescriptionChange(e.target.value)}
-                        rows={2}
-                        className={devisZohoCellTextareaClass}
-                        placeholder="Description (pointures, tailles…)"
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <input
-                        type="text"
-                        value={itemDesignation}
-                        onChange={(e) => onItemDesignationChange(e.target.value)}
-                        className={cn(devisZohoCellInputClass, 'font-medium')}
-                        placeholder="Saisie libre — désignation de l'article…"
-                      />
-                      <textarea
-                        value={itemDescription}
-                        onChange={(e) => onItemDescriptionChange(e.target.value)}
-                        rows={2}
-                        className={devisZohoCellTextareaClass}
-                        placeholder="Description (pointures, tailles…)"
-                      />
-                    </>
+            <td className={TD_COMPOSER}>
+              {articleMode === 'search' ? (
+                <div className="space-y-1">
+                  <div className="relative">
+                    <Search className="absolute left-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+                    <input
+                      ref={searchRef}
+                      type="text"
+                      value={productSearch}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      className={cn(devisZohoCellInputClass, 'pl-7 text-xs w-full')}
+                      placeholder="Rechercher ou sélectionner un article…"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <DevisAnchoredDropdown
+                    anchorRef={searchRef}
+                    open={searchResults.length > 0}
+                    className="max-h-36"
+                  >
+                    {searchResults.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onMouseDown={() => handlePickProduct(p)}
+                        className="w-full text-left px-2 py-1.5 text-xs hover:bg-muted border-b border-border last:border-b-0"
+                      >
+                        <span className="font-medium block truncate">{p.name}</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          {p.sku} · {p.price.toFixed(3)} HT
+                        </span>
+                      </button>
+                    ))}
+                  </DevisAnchoredDropdown>
+                  {isSearching && (
+                    <p className="text-[10px] text-muted-foreground">Recherche…</p>
                   )}
+                  <textarea
+                    value={itemDescription}
+                    onChange={(e) => onItemDescriptionChange(e.target.value)}
+                    rows={1}
+                    className={cn(devisZohoCellTextareaClass, 'text-xs min-h-[1.75rem]')}
+                    placeholder="Détails (optionnel)…"
+                  />
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-1">
+                  <input
+                    type="text"
+                    value={itemDesignation}
+                    onChange={(e) => onItemDesignationChange(e.target.value)}
+                    className={cn(devisZohoCellInputClass, 'font-medium text-xs w-full')}
+                    placeholder="Saisie libre — article…"
+                  />
+                  <textarea
+                    value={itemDescription}
+                    onChange={(e) => onItemDescriptionChange(e.target.value)}
+                    rows={1}
+                    className={cn(devisZohoCellTextareaClass, 'text-xs min-h-[1.75rem]')}
+                    placeholder="Détails (optionnel)…"
+                  />
+                </div>
+              )}
             </td>
-            <td className="py-3 px-2 align-top bg-muted/10">
+            <td className={TD_COMPOSER}>
               <input
                 type="number"
                 min={1}
                 value={itemQuantity}
                 onChange={(e) => onItemQuantityChange(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                className={cn(devisZohoCellInputClass, 'text-center')}
+                className={cn(devisZohoCellInputClass, 'text-center text-xs w-full')}
               />
-              <p className="text-[10px] text-center text-muted-foreground mt-0.5">pcs</p>
             </td>
             {devisType === 'vente' && (
-              <td className="py-3 px-2 align-top bg-muted/10 hidden lg:table-cell">
+              <td className={TD_COMPOSER}>
                 <input
                   type="text"
                   inputMode="decimal"
                   value={formatDecimalFieldValue(itemPrixAchat)}
                   onChange={(e) => onItemPrixAchatChange(parseDecimalInput(e.target.value))}
-                  className={cn(devisZohoCellInputClass, 'text-right')}
+                  className={cn(devisZohoCellInputClass, 'text-right text-xs w-full')}
                 />
               </td>
             )}
-            <td className="py-3 px-2 align-top bg-muted/10">
+            <td className={TD_COMPOSER}>
               <input
+                ref={composerPrixRef}
                 type="text"
                 inputMode="decimal"
-                value={prixVenteDisplay}
+                value={prixUnitDisplay}
                 onChange={(e) => {
                   if (devisType === 'vente') {
                     onItemPrixVenteDraftChange(e.target.value);
@@ -391,59 +389,54 @@ export function DevisArticlesTable({
                     : undefined
                 }
                 onBlur={devisType === 'vente' ? () => onItemPrixVenteDraftChange(null) : undefined}
-                className={cn(devisZohoCellInputClass, 'text-right')}
-                placeholder={isAchat ? rateLabel : 'PU vente HT'}
-                aria-label={rateLabel}
+                className={cn(devisZohoCellInputClass, 'text-right text-xs w-full')}
+                placeholder="0.000"
+                aria-label={prixUnitHeader}
               />
-              <p className="text-[10px] text-right text-muted-foreground/80 mt-0.5 pr-1">HT</p>
             </td>
-            <td className="py-3 px-2 align-top bg-muted/10">
+            <td className={TD_COMPOSER}>
               <div className="flex items-center gap-0.5">
                 <input
                   type="text"
                   inputMode="decimal"
                   value={itemRemise ? String(itemRemise) : ''}
                   onChange={(e) => onItemRemiseChange(parseDecimalInput(e.target.value))}
-                  className={cn(devisZohoCellInputClass, 'text-center')}
+                  className={cn(devisZohoCellInputClass, 'text-center text-xs')}
                 />
-                <span className="text-xs text-muted-foreground">%</span>
+                <span className="text-[10px] text-muted-foreground">%</span>
               </div>
             </td>
             {isTtc && (
-              <td className="py-3 px-2 align-top bg-muted/10">
+              <td className={TD_COMPOSER}>
                 <select
                   value={String(itemTva)}
                   onChange={(e) => onItemTvaChange(Number(e.target.value))}
-                  className={cn(devisZohoCellInputClass, 'text-center text-xs')}
+                  className={cn(devisZohoCellInputClass, 'text-center text-[11px] w-full')}
                 >
-                  <option value="7">TVA 7%</option>
-                  <option value="13">TVA 13%</option>
-                  <option value="19">TVA 19%</option>
+                  <option value="7">7%</option>
+                  <option value="13">13%</option>
+                  <option value="19">19%</option>
                 </select>
               </td>
             )}
-            <td className="py-3 px-3 align-top bg-muted/10 text-right tabular-nums text-muted-foreground text-sm">
+            <td className={cn(TD_COMPOSER, 'text-right tabular-nums text-xs text-muted-foreground')}>
               {composerPreview > 0 ? composerPreview.toFixed(3) : '—'}
             </td>
-            <td className="py-3 px-1 align-top bg-muted/10">
+            <td className={cn(TD_COMPOSER, 'text-center')}>
               <button
                 type="button"
                 onClick={onCommitLine}
                 disabled={!canCommitLine}
-                className="p-2 rounded-md text-primary hover:bg-primary/10 disabled:opacity-40 disabled:pointer-events-none"
+                className="p-1.5 rounded text-primary hover:bg-primary/10 disabled:opacity-40"
                 title="Valider la ligne (Entrée)"
-                aria-label="Ajouter la ligne au tableau"
+                aria-label="Ajouter la ligne"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3.5 w-3.5" />
               </button>
             </td>
           </ComposerEnterCommit>
         </tbody>
       </table>
-      <p className="text-[11px] text-muted-foreground px-3 py-2 border-t border-border/50 bg-muted/5">
-        Catalogue ou saisie libre dans la dernière ligne ·{' '}
-        <kbd className="px-1 rounded bg-muted text-[10px]">Entrée</kbd> pour ajouter au tableau
-      </p>
     </div>
   );
 }

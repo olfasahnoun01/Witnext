@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { cn } from '@/lib/utils';
+import { AppLayoutProvider } from '@/contexts/AppLayoutContext';
 
 // Eagerly import Dashboard since it's the default view
 import { Dashboard } from '@/components/Dashboard';
@@ -207,30 +208,32 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar 
-        activeTab={activeTab} 
-        onTabChange={handleTabChange}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-      />
-      
-      <div className={cn("transition-all duration-300", sidebarOpen ? "lg:ml-72" : "lg:ml-0")}>
-        <Header 
-          title={SUBSECTION_LABELS[activeTab] || 'Alpha'} 
+    <AppLayoutProvider sidebarOpen={sidebarOpen}>
+      <div className="min-h-screen bg-background">
+        <Sidebar
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
-          sidebarOpen={sidebarOpen}
-          onNavigateTab={handleTabChange}
         />
-        <main className="p-6">
-          {renderContent()}
-        </main>
+
+        <div className={cn('transition-all duration-300', sidebarOpen ? 'lg:ml-72' : 'lg:ml-0')}>
+          <Header
+            title={SUBSECTION_LABELS[activeTab] || 'Alpha'}
+            onToggle={() => setSidebarOpen(!sidebarOpen)}
+            sidebarOpen={sidebarOpen}
+            onNavigateTab={handleTabChange}
+          />
+          <main className="p-6">
+            {renderContent()}
+          </main>
+        </div>
+
+        <Suspense fallback={null}>
+          <TeamChat />
+        </Suspense>
       </div>
-      
-      <Suspense fallback={null}>
-        <TeamChat />
-      </Suspense>
-    </div>
+    </AppLayoutProvider>
   );
 };
 

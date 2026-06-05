@@ -140,12 +140,20 @@ export function DevisSegmentedGrid({
 export function DevisPricingToggle({
   isTtc,
   onChange,
+  embedded,
 }: {
   isTtc: boolean;
   onChange: (v: boolean) => void;
+  /** Sans bordure externe — pour cellule de tableau */
+  embedded?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-4 py-3">
+    <div
+      className={cn(
+        'flex items-center justify-between gap-3',
+        embedded ? 'px-0.5 py-0.5' : 'rounded-lg border bg-muted/30 px-4 py-3'
+      )}
+    >
       <div>
         <p className="text-sm font-medium">Mode de tarification</p>
         <p className="text-xs text-muted-foreground mt-0.5">
@@ -314,6 +322,23 @@ export function DevisPriceFieldsGrid({
           ? 'grid-cols-2 sm:grid-cols-4'
           : 'grid-cols-2 sm:grid-cols-3';
   return <div className={cn('grid gap-3', colClass)}>{children}</div>;
+}
+
+/** Grille formulaire devis (client, document, articles) */
+export const devisFormTableThClass =
+  'border border-border bg-muted/50 px-3 py-2.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap';
+
+export const devisFormTableTdClass = 'border border-border px-2 py-2 align-top';
+
+export const devisFormTableInputClass =
+  'h-9 w-full min-w-0 rounded-md border border-border bg-background px-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15';
+
+export function DevisFormTable({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={cn('overflow-x-auto rounded-md border-2 border-border', className)}>
+      <table className="w-full table-fixed border-collapse text-sm">{children}</table>
+    </div>
+  );
 }
 
 /** Inputs intégrés au tableau type Zoho Books */
