@@ -15,9 +15,9 @@ import { DevisAnchoredDropdown } from './DevisAnchoredDropdown';
 export type DevisArticleComposerMode = 'search' | 'manual';
 
 const TH =
-  'border border-border bg-muted/50 px-2 py-2.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap';
-const TD = 'border border-border px-2 py-2 align-top';
-const TD_COMPOSER = 'border border-border px-2 py-2 align-top bg-muted/20';
+  'border border-border bg-muted px-2 py-2.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap';
+const TD = 'border border-border px-2 py-2 align-top bg-card';
+const TD_COMPOSER = 'border border-border px-2 py-2 align-top bg-muted/50';
 
 export interface DevisArticlesTableProps {
   items: DevisItem[];

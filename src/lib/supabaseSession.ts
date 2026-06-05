@@ -26,7 +26,8 @@ export function isAuthSessionError(message: string | undefined | null): boolean 
   );
 }
 
-const SESSION_READY_BUFFER_SEC = 90;
+/** Must match useAuth validateOrRefreshSession threshold (120s). */
+const SESSION_READY_BUFFER_SEC = 120;
 
 /**
  * Refresh the session if the access token expires soon (or already expired).
@@ -40,7 +41,14 @@ export async function refreshSupabaseSessionIfNeeded(
 
   const expiresAt = session.expires_at ?? 0;
   const nowSec = Math.floor(Date.now() / 1000);
-  if (expiresAt - nowSec > bufferSec) return true;
+  const secsToExpiry = expiresAt - nowSec;
+  if (secsToExpiry > bufferSec) {
+    debugLog('supabaseSession.ts:refresh', 'refresh skipped, token still valid', {
+      secsToExpiry,
+      bufferSec,
+    }, 'F');
+    return true;
+  }
 
   const { data, error } = await supabase.auth.refreshSession();
   const ok = !error && !!data.session?.access_token;
@@ -48,7 +56,7 @@ export async function refreshSupabaseSessionIfNeeded(
     ok,
     hasError: !!error,
     errorMsg: error?.message?.slice(0, 80) ?? null,
-    secsToExpiry: expiresAt - nowSec,
+    secsToExpiry,
     bufferSec,
   }, 'A');
   return ok;

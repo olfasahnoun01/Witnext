@@ -1,5 +1,12 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
+import {
+  ensureSupabaseSessionReady,
+  supabaseQueryWithAuthRetry,
+} from '@/lib/supabaseSession';
+import { notifySessionInvalid } from '@/lib/sessionResume';
+import { debugLog } from '@/lib/debugLog';
 import { EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -98,17 +105,27 @@ export const Fournisseurs = memo(() => {
   const loadFournisseurs = useCallback(async () => {
     setLoading(true);
     try {
+      const ready = await ensureSupabaseSessionReady();
+      if (!ready) {
+        notifySessionInvalid('Session expirée lors du chargement des fournisseurs');
+        return;
+      }
       const grosafeId = await getGrosafeCompanyId();
-      const { data, error } = await supabase
-        .from('fournisseurs')
-        .select('*')
-        .eq('company_id', grosafeId)
-        .order('created_at', { ascending: false });
+      const { data, error } = await supabaseQueryWithAuthRetry(() =>
+        supabase
+          .from('fournisseurs')
+          .select('*')
+          .eq('company_id', grosafeId)
+          .order('created_at', { ascending: false })
+      );
 
       if (error) {
         toast.error('Erreur lors du chargement des fournisseurs');
         console.error(error);
       } else {
+        debugLog('Fournisseurs.tsx:load', 'fournisseurs loaded', {
+          rowCount: data?.length ?? 0,
+        }, 'F');
         setFournisseurs((data as any) || []);
       }
     } catch (err) {
@@ -122,6 +139,8 @@ export const Fournisseurs = memo(() => {
   useEffect(() => {
     loadFournisseurs();
   }, [loadFournisseurs]);
+
+  useSessionResumeReload(loadFournisseurs);
 
   const resetForm = useCallback(() => {
     setNom('');

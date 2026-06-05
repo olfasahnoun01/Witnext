@@ -326,12 +326,12 @@ export function DevisPriceFieldsGrid({
 
 /** Grille formulaire devis (client, document, articles) */
 export const devisFormTableThClass =
-  'border border-border bg-muted/50 px-3 py-2.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap';
+  'border border-border bg-muted px-3 py-2.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap';
 
-export const devisFormTableTdClass = 'border border-border px-2 py-2 align-top';
+export const devisFormTableTdClass = 'border border-border px-2 py-2 align-top bg-card';
 
 export const devisFormTableInputClass =
-  'h-9 w-full min-w-0 rounded-md border border-border bg-background px-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15';
+  'h-9 w-full min-w-0 rounded-md border-2 border-input bg-card px-2.5 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus:border-input focus:outline-none focus:ring-2 focus:ring-ring/25';
 
 export function DevisFormTable({ children, className }: { children: ReactNode; className?: string }) {
   return (
@@ -343,16 +343,16 @@ export function DevisFormTable({ children, className }: { children: ReactNode; c
 
 /** Inputs intégrés au tableau type Zoho Books */
 export const devisZohoCellInputClass =
-  'h-9 w-full min-w-0 rounded-md border border-transparent bg-transparent px-2 text-sm tabular-nums text-foreground placeholder:text-muted-foreground/70 hover:border-border/80 focus:border-primary/40 focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/15 transition-colors';
+  'h-9 w-full min-w-0 rounded-md border-2 border-input bg-card px-2 text-sm tabular-nums text-foreground shadow-sm placeholder:text-muted-foreground focus:border-input focus:outline-none focus:ring-2 focus:ring-ring/25 transition-colors';
 
 export const devisZohoCellTextareaClass =
-  'w-full min-w-0 rounded-md border border-transparent bg-transparent px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/70 hover:border-border/80 focus:border-primary/40 focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/15 resize-y min-h-[2.25rem] transition-colors';
+  'w-full min-w-0 rounded-md border-2 border-input bg-card px-2 py-1.5 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus:border-input focus:outline-none focus:ring-2 focus:ring-ring/25 resize-y min-h-[2.25rem] transition-colors';
 
 export function DevisZohoShell({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
       className={cn(
-        'rounded-xl border border-border/80 bg-card shadow-sm overflow-hidden',
+        'rounded-xl border-2 border-border bg-card shadow-sm overflow-hidden',
         className
       )}
     >
@@ -362,7 +362,7 @@ export function DevisZohoShell({ children, className }: { children: ReactNode; c
 }
 
 export function DevisZohoTopBar({ children }: { children: ReactNode }) {
-  return <div className="border-b border-border/70 bg-muted/25 px-4 sm:px-6 py-4 space-y-4">{children}</div>;
+  return <div className="border-b-2 border-border bg-muted/40 px-4 sm:px-6 py-4 space-y-4">{children}</div>;
 }
 
 export function DevisZohoSection({

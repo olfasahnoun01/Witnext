@@ -1,4 +1,4 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { 
@@ -13,6 +13,10 @@ import { getAllProducts, createTransaction } from '@/services/dbService';
 import { Product } from '@/types';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
+import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
+import { ensureSupabaseSessionReady } from '@/lib/supabaseSession';
+import { notifySessionInvalid } from '@/lib/sessionResume';
+import { debugLog } from '@/lib/debugLog';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -34,14 +38,24 @@ export const Transactions = memo(() => {
   const [transactionDate, setTransactionDate] = useState<Date>(new Date());
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
-  useEffect(() => {
-    loadProducts();
+  const loadProducts = useCallback(async () => {
+    const ready = await ensureSupabaseSessionReady();
+    if (!ready) {
+      notifySessionInvalid('Session expirée lors du chargement des produits');
+      return;
+    }
+    const productsData = await getAllProducts();
+    debugLog('Transactions.tsx:loadProducts', 'products loaded', {
+      rowCount: productsData.length,
+    }, 'F');
+    setProducts(productsData);
   }, []);
 
-  const loadProducts = async () => {
-    const productsData = await getAllProducts();
-    setProducts(productsData);
-  };
+  useEffect(() => {
+    void loadProducts();
+  }, [loadProducts]);
+
+  useSessionResumeReload(loadProducts);
 
   const selectedProduct = products.find(p => p.id === selectedProductId) || null;
 

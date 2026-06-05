@@ -7,6 +7,7 @@ import { Devis, DevisItem, BonCommande } from '@/types';
 import { buildProfilesMap, collectUserIdsForProfiles } from '@/lib/documentListAudit';
 import { useAuth } from '@/hooks/useAuth';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
+import { notifySessionInvalid } from '@/lib/sessionResume';
 import { debugLog } from '@/lib/debugLog';
 import { computeDevisTotals } from '@/lib/devisPricing';
 import { parseAttachmentUrls, uploadCommercialAttachments, type CommercialAttachmentRecord } from '@/lib/commercialAttachments';
@@ -156,6 +157,7 @@ export const GestionDevis = ({
     const ready = await ensureSupabaseSessionReady();
     debugLog('GestionDevis.tsx:loadAll', 'session ready check', { ready }, 'B');
     if (!ready) {
+      notifySessionInvalid('Session expirée lors du chargement des devis');
       toast.error(SESSION_EXPIRED_USER_MESSAGE);
       return;
     }

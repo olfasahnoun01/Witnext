@@ -1,5 +1,12 @@
 import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
+import {
+  ensureSupabaseSessionReady,
+  supabaseQueryWithAuthRetry,
+} from '@/lib/supabaseSession';
+import { notifySessionInvalid } from '@/lib/sessionResume';
+import { debugLog } from '@/lib/debugLog';
 import { EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -119,17 +126,27 @@ export const Clients = memo(() => {
   const loadClients = useCallback(async () => {
     setLoading(true);
     try {
+      const ready = await ensureSupabaseSessionReady();
+      if (!ready) {
+        notifySessionInvalid('Session expirée lors du chargement des clients');
+        return;
+      }
       const grosafeId = await getGrosafeCompanyId();
-      const { data, error } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('company_id', grosafeId)
-        .order('created_at', { ascending: false });
+      const { data, error } = await supabaseQueryWithAuthRetry(() =>
+        supabase
+          .from('clients')
+          .select('*')
+          .eq('company_id', grosafeId)
+          .order('created_at', { ascending: false })
+      );
 
       if (error) {
         toast.error('Erreur lors du chargement des clients');
         console.error(error);
       } else {
+        debugLog('Clients.tsx:loadClients', 'clients loaded', {
+          rowCount: data?.length ?? 0,
+        }, 'F');
         setClients((data as any) || []);
       }
     } catch (err) {
@@ -143,6 +160,8 @@ export const Clients = memo(() => {
   useEffect(() => {
     loadClients();
   }, [loadClients]);
+
+  useSessionResumeReload(loadClients);
 
   const resetForm = useCallback(() => {
     setNom('');

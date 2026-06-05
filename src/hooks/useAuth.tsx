@@ -305,6 +305,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     window.addEventListener('online', resumeAfterIdle);
     window.addEventListener('pageshow', resumeAfterIdle);
 
+    const onSessionInvalid = (event: Event) => {
+      const reason = (event as CustomEvent<{ reason?: string }>).detail?.reason;
+      void handleSessionExpired(reason || 'Session expirée');
+    };
+    window.addEventListener('app:session-invalid', onSessionInvalid);
+
     return () => {
       cancelled = true;
       window.clearTimeout(safetyTimer);
@@ -314,6 +320,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       window.removeEventListener('focus', resumeAfterIdle);
       window.removeEventListener('online', resumeAfterIdle);
       window.removeEventListener('pageshow', resumeAfterIdle);
+      window.removeEventListener('app:session-invalid', onSessionInvalid);
       removeSessionChannel();
     };
   }, []);
