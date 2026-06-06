@@ -358,7 +358,7 @@ export const GestionDevis = ({
     }
     setIsSaving(true);
     try {
-      const totals = computeDevisTotals(devisItems, isTtc);
+      const totals = computeDevisTotals(devisItems, devisType === 'achat' ? false : isTtc);
       const totalAmount = totals.totalTTC;
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -418,7 +418,7 @@ export const GestionDevis = ({
       toast.error('Ajoutez au moins une ligne d\'article');
       return;
     }
-    const totals = computeDevisTotals(devisItems, isTtc);
+    const totals = computeDevisTotals(devisItems, devisType === 'achat' ? false : isTtc);
     const totalAmount = totals.totalTTC;
     const folderKind = docType === 'bc' || editingDevis.is_bc ? 'bc' : 'devis';
 

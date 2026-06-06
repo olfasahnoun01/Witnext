@@ -1043,7 +1043,12 @@ export const DevisForm = memo(({
   }, [productGroups, groupSearch]);
 
   // Lignes devis: `prix_ttc` = PU HT avant remise ; remise % et TVA s'appliquent sur ce PU vente HT uniquement
-  const devisTotals = useMemo(() => computeDevisTotals(devisItems, isTtc), [devisItems, isTtc]);
+  /** Achat/fournisseur: unit prices are always HT; TTC toggle applies to vente only. */
+  const pricingIsTtc = devisType === 'achat' ? false : isTtc;
+  const devisTotals = useMemo(
+    () => computeDevisTotals(devisItems, pricingIsTtc),
+    [devisItems, pricingIsTtc]
+  );
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyLabel = isAchat ? 'Fournisseur' : 'Client';
 

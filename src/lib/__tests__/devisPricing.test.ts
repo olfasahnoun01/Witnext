@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { computeDevisLine, computeDevisTotals, round3, TIMBRE_FISCAL_DT } from '../devisPricing';
+import {
+  computeArticleTableLineTotalHT,
+  computeDevisLine,
+  computeDevisTotals,
+  round3,
+  TIMBRE_FISCAL_DT,
+} from '../devisPricing';
 import type { DevisItem } from '@/types';
 
 function item(partial: Partial<DevisItem>): DevisItem {
@@ -18,6 +24,24 @@ describe('round3', () => {
   it('rounds to millimes', () => {
     expect(round3(5.7)).toBe(5.7);
     expect(round3(2.3456)).toBe(2.346);
+  });
+});
+
+describe('computeArticleTableLineTotalHT', () => {
+  it('achat: PU achat HT × qté avec remise (ignore TTC mode)', () => {
+    const row = item({ prix_ttc: 50, quantity: 4, remise: 10, tva: 19 });
+    expect(computeArticleTableLineTotalHT(row, 'achat', false)).toBeCloseTo(180, 3);
+    expect(computeArticleTableLineTotalHT(row, 'achat', true)).toBeCloseTo(180, 3);
+  });
+
+  it('vente: PU vente HT × qté avec remise', () => {
+    const row = item({ prix_ttc: 100, quantity: 2, remise: 5, tva: 19 });
+    expect(computeArticleTableLineTotalHT(row, 'vente', false)).toBeCloseTo(190, 3);
+  });
+
+  it('vente TTC mode: dérive le HT avant remise pour Total HT', () => {
+    const row = item({ prix_ttc: 119, quantity: 1, remise: 0, tva: 19 });
+    expect(computeArticleTableLineTotalHT(row, 'vente', true)).toBeCloseTo(100, 3);
   });
 });
 

@@ -1,7 +1,7 @@
 import { useCallback, useRef, type ReactNode } from 'react';
 import { Plus, Search, Trash2 } from 'lucide-react';
 import type { DevisItem, Product } from '@/types';
-import { computeDevisLine } from '@/lib/devisPricing';
+import { computeArticleTableLineTotalHT } from '@/lib/devisPricing';
 import { getDevisItemDisplayCode } from '@/lib/devisItemPdf';
 import {
   parseDecimalInput,
@@ -114,7 +114,7 @@ export function DevisArticlesTable({
 
   const prixUnitHeader = devisType === 'achat' ? 'P. achat HT' : 'Prix unitaire HT';
 
-  const previewLine = computeDevisLine(
+  const composerPreview = computeArticleTableLineTotalHT(
     {
       designation: '',
       fournisseur: '',
@@ -123,10 +123,9 @@ export function DevisArticlesTable({
       quantity: itemQuantity,
       tva: itemTva,
     },
+    devisType,
     isTtc
   );
-  /** Total HT column is always net HT (after remise), never TTC. */
-  const composerPreview = previewLine.lineHT;
 
   const prixUnitDisplay =
     devisType === 'vente'
@@ -172,8 +171,7 @@ export function DevisArticlesTable({
         </thead>
         <tbody>
           {items.map((item, idx) => {
-            const line = computeDevisLine(item, isTtc);
-            const lineVal = line.lineHT;
+            const lineVal = computeArticleTableLineTotalHT(item, devisType, isTtc);
             const code = getDevisItemDisplayCode(item);
             const title = code ? `${code} — ${item.designation}` : item.designation;
 

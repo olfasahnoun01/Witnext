@@ -31,6 +31,25 @@ export interface DevisLinePricing {
   remiseDT_TTC: number; // remise amount in TTC
 }
 
+/**
+ * Total HT column in the articles table: PU (achat or vente) × qté after remise — never includes TVA.
+ * - achat / fournisseur: `prix_ttc` is always PU achat HT (TTC toggle ignored).
+ * - vente / client: `prix_ttc` is PU vente; when TTC input mode is on, HT is derived before remise.
+ */
+export function computeArticleTableLineTotalHT(
+  item: DevisItem,
+  devisType: 'achat' | 'vente',
+  isSortantTTC: boolean
+): number {
+  const remiseFactor = item.remise > 0 ? 1 - item.remise / 100 : 1;
+  const tvaRate = (item.tva ?? 19) / 100;
+  let unitHt = item.prix_ttc;
+  if (devisType === 'vente' && isSortantTTC) {
+    unitHt = item.prix_ttc / (1 + tvaRate);
+  }
+  return round3(unitHt * remiseFactor * item.quantity);
+}
+
 export function computeDevisLine(
   item: DevisItem,
   isSortantTTC: boolean
