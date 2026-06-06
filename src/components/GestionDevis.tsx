@@ -7,6 +7,8 @@ import { Devis, DevisItem, BonCommande } from '@/types';
 import { buildProfilesMap, collectUserIdsForProfiles } from '@/lib/documentListAudit';
 import { useAuth } from '@/hooks/useAuth';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
+import { getActiveCompanyId } from '@/lib/activeCompany';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { notifySessionInvalid } from '@/lib/sessionResume';
 import { debugLog } from '@/lib/debugLog';
 import { computeDevisTotals } from '@/lib/devisPricing';
@@ -162,13 +164,12 @@ export const GestionDevis = ({
       return;
     }
 
-    const { data, error } = await supabaseQueryWithAuthRetry(() =>
-      supabase
-        .from('devis')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1000)
-    );
+    const activeCompanyId = getActiveCompanyId();
+    const { data, error } = await supabaseQueryWithAuthRetry(() => {
+      let q = supabase.from('devis').select('*');
+      if (activeCompanyId) q = q.eq('company_id' as any, activeCompanyId);
+      return q.order('created_at', { ascending: false }).limit(1000);
+    });
 
     if (error) {
       debugLog('GestionDevis.tsx:loadAll', 'devis query error', {
@@ -239,6 +240,7 @@ export const GestionDevis = ({
 
   useEffect(() => { loadAll(); }, [loadAll]);
   useSessionResumeReload(loadAll);
+  useCompanyChangeReload(loadAll);
 
   // Update active section and doc type if props change
   useEffect(() => {
@@ -367,6 +369,7 @@ export const GestionDevis = ({
       const folderKind = docType === 'bc' ? 'bc' : 'devis';
       const { data: inserted, error } = await supabase.from('devis').insert({
         type: devisType,
+        company_id: getActiveCompanyId() || undefined,
         devis_number: currentDevisNumber,
         devis_date: devisDate,
         third_party_name: thirdPartyName || null,
@@ -507,6 +510,7 @@ export const GestionDevis = ({
 
       const { error } = await supabase.from('devis').insert({
         devis_number: bcNumber,
+        company_id: getActiveCompanyId() || undefined,
         devis_date: new Date().toISOString().split('T')[0],
         source_devis_id: primary.id,
         source_devis_ids: isMerge ? sources.map((d) => d.id) : null,

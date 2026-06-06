@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { getActiveCompanyId } from '@/lib/activeCompany';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { HrEmployee, formatHrMoney } from '@/lib/hrTypes';
 import { validateUploadFile } from '@/lib/uploadValidation';
 import {
@@ -55,10 +57,10 @@ export const HrEmployeesList = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('hr_employees')
-      .select('*')
-      .order('nom', { ascending: true });
+    const cid = getActiveCompanyId();
+    let q = supabase.from('hr_employees').select('*');
+    if (cid) q = q.eq('company_id' as any, cid);
+    const { data, error } = await q.order('nom', { ascending: true });
     if (error) {
       toast.error('Erreur chargement employés');
       console.error(error);
@@ -71,6 +73,8 @@ export const HrEmployeesList = () => {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useCompanyChangeReload(load);
 
   const openCreate = () => {
     setEditing(null);

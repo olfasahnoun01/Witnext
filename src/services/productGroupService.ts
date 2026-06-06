@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { ProductGroup, Product, ProductGroupFournisseur } from '@/types';
+import { getActiveCompanyId } from '@/lib/activeCompany';
 
 // Fetch product groups by category with variant aggregations
 export const getProductGroupsByCategory = async (category: string): Promise<ProductGroup[]> => {
@@ -14,7 +15,10 @@ export const getProductGroupsByCategory = async (category: string): Promise<Prod
     } else {
       query = query.ilike('category', category);
     }
-    
+
+    const companyId = getActiveCompanyId();
+    if (companyId) query = query.eq('company_id' as any, companyId);
+
     const { data: groups, error: groupsError } = await query.order('name');
     
     if (groupsError) throw groupsError;
@@ -191,10 +195,15 @@ export const getVariantsByGroupId = async (groupId: number): Promise<Product[]> 
 // Count product groups by category
 export const getProductGroupCountsByCategory = async (): Promise<Record<string, number>> => {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('product_groups')
       .select('category');
-    
+
+    const companyId = getActiveCompanyId();
+    if (companyId) query = query.eq('company_id' as any, companyId);
+
+    const { data, error } = await query;
+
     if (error) throw error;
     
     const counts: Record<string, number> = {};
@@ -221,8 +230,9 @@ export const createProductGroup = async (group: Omit<ProductGroup, 'id' | 'creat
         base_sku: group.base_sku,
         fournisseur: group.fournisseur,
         image: group.image,
-        min_stock: group.min_stock
-      })
+        min_stock: group.min_stock,
+        company_id: getActiveCompanyId() || undefined,
+      } as any)
       .select()
       .single();
     
@@ -308,8 +318,9 @@ export const createVariant = async (groupId: number, variant: {
         remise: variant.remise || 0,
         min_stock: group.min_stock,
         image: group.image,
-        product_group_id: groupId
-      })
+        product_group_id: groupId,
+        company_id: getActiveCompanyId() || undefined,
+      } as any)
       .select()
       .single();
     

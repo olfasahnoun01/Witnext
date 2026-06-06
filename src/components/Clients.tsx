@@ -46,7 +46,8 @@ import { PhoneLinesEditor } from './shared/PhoneLinesEditor';
 import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { formatPhonesDisplay, parsePhoneListFromStorage, serializePhoneList } from '@/lib/phoneList';
 import { generateNextEntityCode } from '@/lib/entityCode';
-import { getGrosafeCompanyId } from '@/lib/companyScope';
+import { getActiveCompanyId } from '@/lib/activeCompany';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { CLIENT_TVA_STATUS_OPTIONS, clientTvaStatusLabel, type ClientTvaStatus } from '@/config/sectionThemes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
@@ -131,14 +132,12 @@ export const Clients = memo(() => {
         notifySessionInvalid('Session expirée lors du chargement des clients');
         return;
       }
-      const grosafeId = await getGrosafeCompanyId();
-      const { data, error } = await supabaseQueryWithAuthRetry(() =>
-        supabase
-          .from('clients')
-          .select('*')
-          .eq('company_id', grosafeId)
-          .order('created_at', { ascending: false })
-      );
+      const companyId = getActiveCompanyId();
+      const { data, error } = await supabaseQueryWithAuthRetry(() => {
+        let q = supabase.from('clients').select('*');
+        if (companyId) q = q.eq('company_id', companyId);
+        return q.order('created_at', { ascending: false });
+      });
 
       if (error) {
         toast.error('Erreur lors du chargement des clients');
@@ -162,6 +161,7 @@ export const Clients = memo(() => {
   }, [loadClients]);
 
   useSessionResumeReload(loadClients);
+  useCompanyChangeReload(loadClients);
 
   const resetForm = useCallback(() => {
     setNom('');
@@ -235,12 +235,9 @@ export const Clients = memo(() => {
     const locationParts = [exactLocation.trim(), selectedCity, selectedGovernorate].filter(Boolean);
     const locationValue = locationParts.length > 0 ? locationParts.join(', ') : null;
 
-    let grosafeId: string;
-    try {
-      grosafeId = await getGrosafeCompanyId();
-    } catch (err) {
-      toast.error('Société Grosafe introuvable — enregistrement annulé');
-      console.error(err);
+    const activeCompanyId = getActiveCompanyId();
+    if (!activeCompanyId) {
+      toast.error('Aucune société active — enregistrement annulé');
       return;
     }
 
@@ -249,7 +246,7 @@ export const Clients = memo(() => {
       code: clientCode,
       matricule_fiscale: matriculeFiscale.trim(),
       tva_status: tvaStatus,
-      company_id: grosafeId,
+      company_id: activeCompanyId,
       phone: phoneStored || null,
       email: email.trim(),
       location: locationValue,

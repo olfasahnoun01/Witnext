@@ -1958,7 +1958,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_dashboard_stats: { Args: never; Returns: Json }
+      get_dashboard_stats: { Args: { p_company_id?: string } | Record<PropertyKey, never>; Returns: Json }
+      list_my_companies: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          code: string
+          name: string
+          created_at: string
+        }[]
+      }
+      user_company_ids: { Args: Record<PropertyKey, never>; Returns: string[] }
+      user_in_company: { Args: { p_company_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

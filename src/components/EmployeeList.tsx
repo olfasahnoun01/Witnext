@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { getActiveCompanyId } from '@/lib/activeCompany';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import {
   Select,
   SelectContent,
@@ -52,10 +54,10 @@ export const EmployeeList = () => {
   const fetchEmployees = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('employees')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const cid = getActiveCompanyId();
+      let q = supabase.from('employees').select('*');
+      if (cid) q = q.eq('company_id' as any, cid);
+      const { data, error } = await q.order('created_at', { ascending: false });
 
       if (error) throw error;
       setEmployees(data || []);
@@ -70,6 +72,8 @@ export const EmployeeList = () => {
   useEffect(() => {
     fetchEmployees();
   }, []);
+
+  useCompanyChangeReload(fetchEmployees);
 
   useEffect(() => {
     if (!isDialogOpen) return;
@@ -147,8 +151,9 @@ export const EmployeeList = () => {
             cin: form.cin.trim() || null,
             email: isChauffeur ? form.email.trim() : null,
             role: form.poste,
-            user_id: userId
-          }]);
+            user_id: userId,
+            company_id: getActiveCompanyId() || undefined,
+          } as any]);
 
         if (insertError) throw insertError;
         toast.success(`${form.prenom} ${form.nom} ajouté(e)`);

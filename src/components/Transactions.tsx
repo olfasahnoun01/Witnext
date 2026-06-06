@@ -14,6 +14,7 @@ import { Product } from '@/types';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { ensureSupabaseSessionReady } from '@/lib/supabaseSession';
 import { notifySessionInvalid } from '@/lib/sessionResume';
 import { debugLog } from '@/lib/debugLog';
@@ -56,6 +57,7 @@ export const Transactions = memo(() => {
   }, [loadProducts]);
 
   useSessionResumeReload(loadProducts);
+  useCompanyChangeReload(loadProducts);
 
   const selectedProduct = products.find(p => p.id === selectedProductId) || null;
 

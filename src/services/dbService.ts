@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Product, Transaction, DashboardStats, CategoryValue } from '@/types';
+import { getActiveCompanyId } from '@/lib/activeCompany';
 import JSZip from 'jszip';
 
 // Initialize database (now just a compatibility function)
@@ -47,12 +48,17 @@ export const getAllProducts = async (): Promise<Product[]> => {
       console.warn(`getAllProducts: stopped after ${MAX_PAGES * PAGE_SIZE} rows (safety cap).`);
       break;
     }
-    const { data, error } = await supabase
+    let query = supabase
       .from('products')
       .select(PRODUCT_COLUMNS_LIGHT)
       .order('name')
       .range(from, from + PAGE_SIZE - 1);
-    
+
+    const companyId = getActiveCompanyId();
+    if (companyId) query = query.eq('company_id' as any, companyId);
+
+    const { data, error } = await query;
+
     if (error) {
       console.error('Erreur lors de la récupération des produits:', error);
       throw new Error(error.message || 'Erreur lors de la récupération des produits');
@@ -110,7 +116,8 @@ export const createProduct = async (product: Omit<Product, 'id' | 'prix_ttc'>): 
         remise: product.remise || 0,
         min_stock: product.min_stock,
         image: product.image || null,
-        color: product.color || null
+        color: product.color || null,
+        company_id: getActiveCompanyId() || undefined,
       } as any)
       .select()
       .single();
@@ -129,7 +136,8 @@ export const createProduct = async (product: Omit<Product, 'id' | 'prix_ttc'>): 
       type: 'IN',
       quantity: product.quantity,
       note: 'Stock initial',
-    });
+      company_id: getActiveCompanyId() || undefined,
+    } as any);
 
     if (txError) {
       console.error('Erreur transaction initiale:', txError);
@@ -187,12 +195,17 @@ export const deleteProduct = async (id: number): Promise<void> => {
 
 // Transactions
 export const getAllTransactions = async (): Promise<Transaction[]> => {
-  const { data, error } = await supabase
+  let query = supabase
     .from('transactions')
     .select('*')
     .order('date', { ascending: false })
     .limit(100);
-  
+
+  const companyId = getActiveCompanyId();
+  if (companyId) query = query.eq('company_id' as any, companyId);
+
+  const { data, error } = await query;
+
   if (error) {
     console.error('Erreur lors de la récupération des transactions:', error);
     return [];
@@ -272,8 +285,9 @@ export const applyProductQuantityChange = async (
 
 // Dashboard Stats - uses server-side aggregation
 export const getDashboardStats = async (): Promise<DashboardStats> => {
-  const { data, error } = await supabase.rpc('get_dashboard_stats');
-  
+  const companyId = getActiveCompanyId();
+  const { data, error } = await supabase.rpc('get_dashboard_stats', companyId ? { p_company_id: companyId } : {});
+
   if (error) {
     console.error('[Dashboard] get_dashboard_stats failed:', error.message, error);
     throw new Error(error.message || 'Impossible de charger les statistiques du tableau de bord');
@@ -536,6 +550,11 @@ export const exportDatabase = async (onProgress?: (message: string) => void): Pr
 };
 
 // Helper function to insert data into any table
+const COMPANY_SCOPED_IMPORT_TABLES = new Set([
+  'clients', 'fournisseurs', 'product_groups', 'products',
+  'transactions', 'documents', 'orders', 'devis',
+]);
+
 const insertTableData = async (
   tableName: string,
   items: any[],
@@ -545,6 +564,7 @@ const insertTableData = async (
 
   const { data: { user } } = await supabase.auth.getUser();
   const currentUserId = user?.id;
+  const importCompanyId = getActiveCompanyId();
 
   for (const item of items) {
     try {
@@ -554,6 +574,11 @@ const insertTableData = async (
       // Strip internal database ID if requested
       if (stripId) {
         delete (insertData as any).id;
+      }
+
+      // Pin imported rows to the active company (restore is per-company).
+      if (importCompanyId && COMPANY_SCOPED_IMPORT_TABLES.has(tableName)) {
+        (insertData as any).company_id = importCompanyId;
       }
       
       // Strip generated columns (PostgreSQL does not allow inserting into these)
@@ -703,7 +728,11 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
     } = dataToImport;
 
     onProgress?.('Suppression des données inventaire (admin)...');
-    const { error: clearError } = await supabase.rpc('restore_inventory_clear_tables');
+    const restoreCompanyId = getActiveCompanyId();
+    if (!restoreCompanyId) {
+      throw new Error('Aucune société active sélectionnée pour la restauration');
+    }
+    const { error: clearError } = await supabase.rpc('restore_inventory_clear_tables', { p_company_id: restoreCompanyId });
     if (clearError) {
       throw new Error(clearError.message || 'Restauration refusée (droits administrateur requis)');
     }
@@ -784,12 +813,17 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
 };
 
 export const getRecentTransactions = async (limit: number = 10): Promise<Transaction[]> => {
-  const { data, error } = await supabase
+  let query = supabase
     .from('transactions')
     .select('*')
     .order('date', { ascending: false })
     .limit(limit);
-  
+
+  const companyId = getActiveCompanyId();
+  if (companyId) query = query.eq('company_id' as any, companyId);
+
+  const { data, error } = await query;
+
   if (error) {
     console.error('Erreur lors de la récupération des transactions:', error);
     return [];
@@ -807,11 +841,16 @@ export const getRecentTransactions = async (limit: number = 10): Promise<Transac
 };
 
 export const getLowStockProducts = async (): Promise<Product[]> => {
-  const { data, error } = await supabase
+  let query = supabase
     .from('products')
     .select(PRODUCT_COLUMNS_LIGHT)
     .order('quantity', { ascending: true });
-  
+
+  const companyId = getActiveCompanyId();
+  if (companyId) query = query.eq('company_id' as any, companyId);
+
+  const { data, error } = await query;
+
   if (error) {
     console.error('Erreur lors de la récupération des produits en stock faible:', error);
     return [];

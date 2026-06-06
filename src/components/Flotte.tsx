@@ -26,6 +26,8 @@ import {
   upsertVehicleRemindersForVehicle,
 } from '@/lib/vehicleReminders';
 import { syncVehicleReminderNotifications } from '@/services/notificationService';
+import { getActiveCompanyId } from '@/lib/activeCompany';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 
 interface Vehicle {
   id: string;
@@ -155,18 +157,18 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
     setIsLoading(true);
     try {
       const today = localDateIso();
+      const cid = getActiveCompanyId();
+      const vehiclesQuery = supabase.from('vehicles').select('*');
+      const employeesQuery = supabase.from('employees').select('id, nom, prenom, role');
       const [vehiclesRes, remindersRes, driversRes] = await Promise.all([
-        supabase.from('vehicles').select('*').order('created_at', { ascending: false }),
+        (cid ? vehiclesQuery.eq('company_id' as any, cid) : vehiclesQuery).order('created_at', { ascending: false }),
         supabase
           .from('vehicle_reminders')
           .select('*, vehicle:vehicles(modele, matricule)')
           .eq('is_done', false)
           .lte('remind_at', today)
           .order('remind_at', { ascending: true }),
-        supabase
-          .from('employees')
-          .select('id, nom, prenom, role')
-          .order('nom'),
+        (cid ? employeesQuery.eq('company_id' as any, cid) : employeesQuery).order('nom'),
       ]);
 
       if (vehiclesRes.error) throw vehiclesRes.error;
@@ -196,6 +198,8 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
   useEffect(() => {
     fetchVehicles();
   }, []);
+
+  useCompanyChangeReload(fetchVehicles);
 
   const openAddDialog = () => {
     setForm({
@@ -292,7 +296,11 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
         const { error } = await supabase.from('vehicles').update(payload).eq('id', editingVehicle.id);
         if (error) throw error;
       } else {
-        const { data, error } = await supabase.from('vehicles').insert([payload as never]).select('id').single();
+        const { data, error } = await supabase
+          .from('vehicles')
+          .insert([{ ...payload, company_id: getActiveCompanyId() || undefined } as never])
+          .select('id')
+          .single();
         if (error) throw error;
         vehicleId = data?.id;
       }

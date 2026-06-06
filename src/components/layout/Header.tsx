@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { OnlineUsersIndicator } from '@/components/OnlineUsersIndicator';
 import { NotificationCenter } from '@/components/notifications/NotificationCenter';
+import { CompanySwitcher } from '@/components/layout/CompanySwitcher';
 import { supabase } from '@/integrations/supabase/client';
 
 interface HeaderProps {
@@ -65,6 +66,9 @@ export const Header = ({ title, onToggle, sidebarOpen, onNavigateTab }: HeaderPr
         </div>
 
         <div className="flex items-center gap-4">
+          {/* Company switcher (multi-company) */}
+          <CompanySwitcher />
+
           {/* Online Users */}
           <OnlineUsersIndicator 
             onlineUsers={onlineUsers} 

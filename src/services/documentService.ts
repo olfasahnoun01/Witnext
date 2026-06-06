@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { getActiveCompanyId } from '@/lib/activeCompany';
 import {
   notifyPurchaseRequestCreated,
   notifyPurchaseRequestForwardedToAchat,
@@ -35,12 +36,15 @@ export const documentService = {
     const prefix = prefixMap[type];
     const year = new Date().getFullYear();
     
-    // Count existing documents of this type in the current year
-    const { count, error } = await supabase
+    // Count existing documents of this type in the current year (per company).
+    const companyId = getActiveCompanyId();
+    let countQuery = supabase
       .from('documents')
       .select('*', { count: 'exact', head: true })
       .eq('type', type)
       .filter('numero', 'ilike', `${prefix}-${year}-%`);
+    if (companyId) countQuery = countQuery.eq('company_id' as any, companyId);
+    const { count, error } = await countQuery;
 
     if (error) {
       console.error('Error generating number:', error);

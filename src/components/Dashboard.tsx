@@ -15,6 +15,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { waitForSupabaseSession } from '@/lib/waitForSupabaseSession';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { InventoryCategoryChartsCards } from '@/components/inventory/InventoryCategoryChartsCards';
 
 // Memoized KPI Card component
@@ -159,6 +160,7 @@ export const Dashboard = memo(() => {
   }, [authLoading, user?.id, loadData]);
 
   useSessionResumeReload(loadData);
+  useCompanyChangeReload(loadData);
 
   // Subscribe to realtime updates
   useRealtimeData({

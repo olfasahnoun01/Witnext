@@ -44,6 +44,7 @@ import {
   supabaseQueryWithAuthRetry,
 } from '@/lib/supabaseSession';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import {
   attachProfileNames,
   buildProfilesMap,
@@ -162,6 +163,7 @@ export const UnifiedDocumentList = ({
   }, [loadDocuments]);
 
   useSessionResumeReload(loadDocuments);
+  useCompanyChangeReload(loadDocuments);
 
   const handleDownloadPDF = async (doc: UnifiedDocument) => {
     try {

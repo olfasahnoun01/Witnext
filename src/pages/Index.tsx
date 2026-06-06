@@ -8,6 +8,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { cn } from '@/lib/utils';
 import { AppLayoutProvider } from '@/contexts/AppLayoutContext';
+import { AppCompanyProvider } from '@/contexts/AppCompanyContext';
 
 // Eagerly import Dashboard since it's the default view
 import { Dashboard } from '@/components/Dashboard';
@@ -208,6 +209,7 @@ const Index = () => {
   };
 
   return (
+    <AppCompanyProvider>
     <AppLayoutProvider sidebarOpen={sidebarOpen}>
       <div className="min-h-screen bg-background">
         <Sidebar
@@ -234,6 +236,7 @@ const Index = () => {
         </Suspense>
       </div>
     </AppLayoutProvider>
+    </AppCompanyProvider>
   );
 };
 

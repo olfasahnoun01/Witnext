@@ -40,7 +40,8 @@ import { ClientDocumentPreviewDialog } from './shared/ClientDocumentPreviewDialo
 import { PhoneLinesEditor } from './shared/PhoneLinesEditor';
 import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { formatPhonesDisplay, parsePhoneListFromStorage, serializePhoneList } from '@/lib/phoneList';
-import { getGrosafeCompanyId } from '@/lib/companyScope';
+import { getActiveCompanyId } from '@/lib/activeCompany';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { toast } from 'sonner';
 import { SPECIALITES } from '@/constants/fournisseurs';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
@@ -110,14 +111,12 @@ export const Fournisseurs = memo(() => {
         notifySessionInvalid('Session expirée lors du chargement des fournisseurs');
         return;
       }
-      const grosafeId = await getGrosafeCompanyId();
-      const { data, error } = await supabaseQueryWithAuthRetry(() =>
-        supabase
-          .from('fournisseurs')
-          .select('*')
-          .eq('company_id', grosafeId)
-          .order('created_at', { ascending: false })
-      );
+      const companyId = getActiveCompanyId();
+      const { data, error } = await supabaseQueryWithAuthRetry(() => {
+        let q = supabase.from('fournisseurs').select('*');
+        if (companyId) q = q.eq('company_id', companyId);
+        return q.order('created_at', { ascending: false });
+      });
 
       if (error) {
         toast.error('Erreur lors du chargement des fournisseurs');
@@ -141,6 +140,7 @@ export const Fournisseurs = memo(() => {
   }, [loadFournisseurs]);
 
   useSessionResumeReload(loadFournisseurs);
+  useCompanyChangeReload(loadFournisseurs);
 
   const resetForm = useCallback(() => {
     setNom('');
@@ -217,12 +217,9 @@ export const Fournisseurs = memo(() => {
     const locationParts = [selectedCity, selectedGovernorate].filter(Boolean);
     const locationValue = locationParts.length > 0 ? locationParts.join(', ') : null;
 
-    let grosafeId: string;
-    try {
-      grosafeId = await getGrosafeCompanyId();
-    } catch (err) {
-      toast.error('Société Grosafe introuvable — enregistrement annulé');
-      console.error(err);
+    const activeCompanyId = getActiveCompanyId();
+    if (!activeCompanyId) {
+      toast.error('Aucune société active — enregistrement annulé');
       return;
     }
 
@@ -231,7 +228,7 @@ export const Fournisseurs = memo(() => {
       code: code.trim() || null,
       matricule_fiscale: matriculeFiscale.trim(),
       specialite,
-      company_id: grosafeId,
+      company_id: activeCompanyId,
       phone: phoneStored || null,
       location: locationValue,
       patente_url: patenteUrl,

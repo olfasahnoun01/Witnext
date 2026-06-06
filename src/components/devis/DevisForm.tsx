@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { MultiFournisseurInput } from '@/components/inventory/MultiFournisseurInput';
 import { createVariant } from '@/services/productGroupService';
+import { getActiveCompanyId } from '@/lib/activeCompany';
 import { SPECIALITES } from '@/constants/fournisseurs';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
 import {
@@ -265,9 +266,12 @@ export const DevisForm = memo(({
 
   useEffect(() => {
     const load = async () => {
+      const cid = getActiveCompanyId();
+      const fournQuery = supabase.from('fournisseurs').select('id, nom, matricule_fiscale, location, phone, patente_url, registre_commerce_url, created_at');
+      const clientsQuery = supabase.from('clients').select('id, nom, matricule_fiscale, location, phone, created_at');
       const [fRes, cRes, catSettingsRes, productsCatsRes, groupCatsRes] = await Promise.all([
-        supabase.from('fournisseurs').select('id, nom, matricule_fiscale, location, phone, patente_url, registre_commerce_url, created_at').order('created_at', { ascending: false }),
-        supabase.from('clients').select('id, nom, matricule_fiscale, location, phone, created_at').order('created_at', { ascending: false }),
+        (cid ? fournQuery.eq('company_id', cid) : fournQuery).order('created_at', { ascending: false }),
+        (cid ? clientsQuery.eq('company_id', cid) : clientsQuery).order('created_at', { ascending: false }),
         supabase.from('category_settings').select('category_name'),
         supabase.from('products').select('category'),
         supabase.from('product_groups').select('category'),
@@ -462,6 +466,7 @@ export const DevisForm = memo(({
       code: newFournisseurCode.trim(),
       matricule_fiscale: newFournisseurMatricule.trim(),
       specialite: newFournisseurSpecialite,
+      company_id: getActiveCompanyId() || undefined,
       phone: phoneStored,
       location: locationValue,
       patente_url: newFournisseurPatenteUrl,
@@ -616,7 +621,9 @@ export const DevisForm = memo(({
     setIsCreatingArticle(true);
     try {
       // Auto-create any new fournisseurs that don't exist in the database
-      const { data: existingFourns } = await supabase.from('fournisseurs').select('nom');
+      const articleCompanyId = getActiveCompanyId();
+      const existingFournQuery = supabase.from('fournisseurs').select('nom');
+      const { data: existingFourns } = await (articleCompanyId ? existingFournQuery.eq('company_id', articleCompanyId) : existingFournQuery);
       const existingNames = new Set((existingFourns || []).map(f => f.nom.toLowerCase()));
 
       const newFournisseurEntries = newArticleFournisseurs
@@ -627,8 +634,9 @@ export const DevisForm = memo(({
           newFournisseurEntries.map(f => ({
             nom: f.fournisseur_name.trim(),
             specialite: newArticle.category || 'Non catégorisé',
+            company_id: articleCompanyId || undefined,
             phone: f.phone?.trim() || null,
-          }))
+          })) as any
         );
       }
 
@@ -643,7 +651,8 @@ export const DevisForm = memo(({
         fournisseur: primaryFournisseur?.fournisseur_name || null,
         min_stock: newArticle.min_stock,
         image: newArticle.image,
-      }).select().single();
+        company_id: articleCompanyId || undefined,
+      } as any).select().single();
 
       if (pgError) { toast.error('Erreur création groupe'); return; }
 
@@ -696,7 +705,10 @@ export const DevisForm = memo(({
           color: newArticle.color.trim() || null,
         }];
 
-      const { data, error } = await supabase.from('products').insert(productsToInsert).select();
+      const { data, error } = await supabase
+        .from('products')
+        .insert(productsToInsert.map((p) => ({ ...p, company_id: articleCompanyId || undefined })) as any)
+        .select();
 
       if (error) {
         console.error('Product insert error:', error);

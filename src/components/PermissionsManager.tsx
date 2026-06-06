@@ -674,19 +674,18 @@ export const PermissionsManager = () => {
           </p>
           <ul className="list-disc pl-5 space-y-1">
             <li>
-              <strong>Ventes, Achats, Magasin &amp; Stock</strong> — Grosafe Equipements uniquement. Aucune société à
-              assigner pour ces modules.
+              <strong>Toutes les données</strong> (clients, fournisseurs, stock, véhicules, employés, documents,
+              finance) sont <strong>isolées par société</strong>. Assignez à chaque utilisateur la ou les sociétés
+              auxquelles il doit accéder — c&apos;est <strong>obligatoire</strong> pour qu&apos;il voie des données.
             </li>
             <li>
-              <strong>Finance</strong> — assignez une ou plusieurs sociétés. Obligatoire si accès Finance.
+              Les utilisateurs sans société assignée reçoivent <strong>Grosafe Equipements</strong> par défaut.
               Directeur Général, Responsable financier et Responsable administrative reçoivent{' '}
               <strong>toutes les sociétés</strong> automatiquement.
             </li>
             <li>
-              <strong>RH et Véhicules</strong> — pool partagé pour tout le groupe ; pas de société à assigner.
-            </li>
-            <li>
-              La sélection de société se fait <strong>dans le module Finance</strong> (pas au login).
+              Un utilisateur avec <strong>plusieurs sociétés</strong> voit un sélecteur de société dans l&apos;en-tête
+              et bascule de l&apos;une à l&apos;autre à tout moment.
             </li>
           </ul>
         </div>
@@ -809,7 +808,7 @@ export const PermissionsManager = () => {
                       <div className="bg-muted/40 border border-border rounded-lg p-3 text-sm text-muted-foreground">
                         <p className="font-medium text-foreground flex items-center gap-2 mb-1">
                           <Building2 className="h-4 w-4 text-primary" />
-                          Sociétés Finance
+                          Sociétés
                         </p>
                         Accès à toutes les sociétés (Grosafe, Granisafe, Safe-Team) — géré automatiquement pour les administrateurs.
                       </div>
@@ -859,11 +858,11 @@ export const PermissionsManager = () => {
                         <div>
                           <p className="font-medium text-sm text-foreground flex items-center gap-2">
                             <Building2 className="h-4 w-4 text-primary" />
-                            Sociétés Finance
+                            Sociétés accessibles
                           </p>
                           <p className="text-xs text-muted-foreground mt-1">
-                            Détermine quelles entités légales l&apos;utilisateur peut consulter dans le module Finance.
-                            Ventes / Achats / Magasin restent Grosafe uniquement.
+                            Détermine quelles sociétés l&apos;utilisateur peut consulter dans <strong>tout l&apos;ERP</strong>
+                            {' '}(clients, fournisseurs, stock, véhicules, employés, documents, finance).
                           </p>
                         </div>
                         {companies.length === 0 ? (
