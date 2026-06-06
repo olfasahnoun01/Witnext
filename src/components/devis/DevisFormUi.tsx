@@ -245,10 +245,8 @@ export function DevisItemsEmptyState() {
 }
 
 export function DevisTotalsStrip({
-  isTtc,
   totals,
 }: {
-  isTtc: boolean;
   totals: {
     totalHT: number;
     totalRemise: number;
@@ -263,12 +261,8 @@ export function DevisTotalsStrip({
     { label: 'Total HT', value: totals.totalHT.toFixed(3), className: '' },
     { label: 'Remise', value: `-${totals.totalRemise.toFixed(3)}`, className: 'text-destructive' },
     { label: 'Net HT', value: totals.totalNet.toFixed(3), className: '' },
-    ...(isTtc
-      ? [
-          { label: 'TVA', value: totals.totalTVA.toFixed(3), className: '' },
-          { label: 'Total TTC', value: totals.totalTTC.toFixed(3), className: '' },
-        ]
-      : []),
+    { label: 'TVA', value: totals.totalTVA.toFixed(3), className: '' },
+    { label: 'Total TTC', value: totals.totalTTC.toFixed(3), className: '' },
     { label: 'Timbre', value: '1.000', className: '' },
   ];
 
@@ -286,9 +280,9 @@ export function DevisTotalsStrip({
         ))}
       </div>
       <div className="flex items-center justify-between pt-2 border-t border-border/80 px-1">
-        <span className="text-sm font-medium">{isTtc ? 'À payer (TTC + timbre)' : 'Total HT + timbre'}</span>
+        <span className="text-sm font-medium">À payer (TTC + timbre)</span>
         <span className="text-lg font-bold text-primary tabular-nums">
-          {(isTtc ? totals.totalFinal : totals.totalFinalHT).toFixed(3)} TND
+          {totals.totalFinal.toFixed(3)} TND
         </span>
       </div>
     </div>
@@ -388,10 +382,8 @@ export function DevisZohoSection({
 }
 
 export function DevisZohoTotalsPanel({
-  isTtc,
   totals,
 }: {
-  isTtc: boolean;
   totals: {
     totalHT: number;
     totalRemise: number;
@@ -409,10 +401,8 @@ export function DevisZohoTotalsPanel({
     rows.push({ label: 'Remise', value: `-${totals.totalRemise.toFixed(3)} TND` });
   }
   rows.push({ label: 'Net HT', value: `${totals.totalNet.toFixed(3)} TND` });
-  if (isTtc) {
-    rows.push({ label: 'TVA', value: `${totals.totalTVA.toFixed(3)} TND` });
-    rows.push({ label: 'Total TTC', value: `${totals.totalTTC.toFixed(3)} TND` });
-  }
+  rows.push({ label: 'TVA', value: `${totals.totalTVA.toFixed(3)} TND` });
+  rows.push({ label: 'Montant TTC', value: `${totals.totalTTC.toFixed(3)} TND` });
   rows.push({ label: 'Timbre fiscal', value: '1.000 TND' });
 
   return (
@@ -426,11 +416,9 @@ export function DevisZohoTotalsPanel({
         </div>
       ))}
       <div className="flex justify-between gap-4 pt-3 mt-1 border-t border-border/80">
-        <span className="text-sm font-semibold text-foreground">
-          {isTtc ? 'À payer (TTC + timbre)' : 'Total HT + timbre'}
-        </span>
+        <span className="text-sm font-semibold text-foreground">À payer (TTC + timbre)</span>
         <span className="text-lg font-bold text-primary tabular-nums">
-          {(isTtc ? totals.totalFinal : totals.totalFinalHT).toFixed(3)} TND
+          {totals.totalFinal.toFixed(3)} TND
         </span>
       </div>
     </div>

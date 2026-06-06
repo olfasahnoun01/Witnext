@@ -123,9 +123,10 @@ export function DevisArticlesTable({
       quantity: itemQuantity,
       tva: itemTva,
     },
-    false
+    isTtc
   );
-  const composerPreview = isTtc ? previewLine.lineTTC : previewLine.lineHT;
+  /** Total HT column is always net HT (after remise), never TTC. */
+  const composerPreview = previewLine.lineHT;
 
   const prixUnitDisplay =
     devisType === 'vente'
@@ -171,8 +172,8 @@ export function DevisArticlesTable({
         </thead>
         <tbody>
           {items.map((item, idx) => {
-            const line = computeDevisLine(item, false);
-            const lineVal = isTtc ? line.lineTTC : line.lineHT;
+            const line = computeDevisLine(item, isTtc);
+            const lineVal = line.lineHT;
             const code = getDevisItemDisplayCode(item);
             const title = code ? `${code} — ${item.designation}` : item.designation;
 

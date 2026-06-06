@@ -1043,7 +1043,7 @@ export const DevisForm = memo(({
   }, [productGroups, groupSearch]);
 
   // Lignes devis: `prix_ttc` = PU HT avant remise ; remise % et TVA s'appliquent sur ce PU vente HT uniquement
-  const devisTotals = useMemo(() => computeDevisTotals(devisItems, false), [devisItems]);
+  const devisTotals = useMemo(() => computeDevisTotals(devisItems, isTtc), [devisItems, isTtc]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyLabel = isAchat ? 'Fournisseur' : 'Client';
 
@@ -1278,8 +1278,8 @@ export const DevisForm = memo(({
                 label={docType === 'bc' ? 'Bon de commande scanné / pièces jointes' : 'Pièces jointes'}
                 hint={
                   docType === 'bc'
-                    ? 'Importez un BC déjà signé (PDF, photo…) ou tout fichier — visible par l\'équipe.'
-                    : 'PDF, images ou tout fichier — visible par les autres utilisateurs.'
+                    ? 'Optionnel — importez un BC déjà signé (PDF, photo…) ou tout fichier.'
+                    : 'Optionnel — PDF, images ou tout fichier.'
                 }
                 existing={existingAttachments}
                 pendingFiles={pendingAttachmentFiles}
@@ -1289,7 +1289,7 @@ export const DevisForm = memo(({
               />
             )}
           </div>
-          <DevisZohoTotalsPanel isTtc={isTtc} totals={devisTotals} />
+          <DevisZohoTotalsPanel totals={devisTotals} />
         </div>
 
         <DevisZohoFooter

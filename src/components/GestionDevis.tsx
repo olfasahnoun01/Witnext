@@ -343,16 +343,12 @@ export const GestionDevis = ({
     );
   }, [notes]);
 
-  const hasDocumentContent =
-    devisItems.length > 0 ||
-    pendingAttachmentFiles.length > 0 ||
-    existingAttachments.length > 0 ||
-    notes.trim().length > 0;
+  const hasDocumentContent = devisItems.length > 0;
 
   const saveDevis = useCallback(async () => {
     if (isSaving) return;
     if (!hasDocumentContent) {
-      toast.error('Ajoutez des lignes, une pièce jointe (PDF, image…) ou des notes');
+      toast.error('Ajoutez au moins une ligne d\'article');
       return;
     }
     const currentDevisNumber = devisNumberRef.current;
@@ -362,7 +358,7 @@ export const GestionDevis = ({
     }
     setIsSaving(true);
     try {
-      const totals = computeDevisTotals(devisItems, false);
+      const totals = computeDevisTotals(devisItems, isTtc);
       const totalAmount = totals.totalTTC;
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -419,10 +415,10 @@ export const GestionDevis = ({
   const updateDevis = useCallback(async () => {
     if (!editingDevis) return;
     if (!hasDocumentContent) {
-      toast.error('Ajoutez des lignes, une pièce jointe ou des notes');
+      toast.error('Ajoutez au moins une ligne d\'article');
       return;
     }
-    const totals = computeDevisTotals(devisItems, false);
+    const totals = computeDevisTotals(devisItems, isTtc);
     const totalAmount = totals.totalTTC;
     const folderKind = docType === 'bc' || editingDevis.is_bc ? 'bc' : 'devis';
 

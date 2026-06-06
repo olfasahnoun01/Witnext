@@ -667,29 +667,6 @@ export const PermissionsManager = () => {
           </Button>
         </div>
 
-        <div className="mb-6 rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground space-y-2">
-          <p className="font-medium text-foreground flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-primary" />
-            Règles d&apos;accès multi-sociétés
-          </p>
-          <ul className="list-disc pl-5 space-y-1">
-            <li>
-              <strong>Toutes les données</strong> (clients, fournisseurs, stock, véhicules, employés, documents,
-              finance) sont <strong>isolées par société</strong>. Assignez à chaque utilisateur la ou les sociétés
-              auxquelles il doit accéder — c&apos;est <strong>obligatoire</strong> pour qu&apos;il voie des données.
-            </li>
-            <li>
-              Les utilisateurs sans société assignée reçoivent <strong>Grosafe Equipements</strong> par défaut.
-              Directeur Général, Responsable financier et Responsable administrative reçoivent{' '}
-              <strong>toutes les sociétés</strong> automatiquement.
-            </li>
-            <li>
-              Un utilisateur avec <strong>plusieurs sociétés</strong> voit un sélecteur de société dans l&apos;en-tête
-              et bascule de l&apos;une à l&apos;autre à tout moment.
-            </li>
-          </ul>
-        </div>
-
         <div className="flex gap-1 mb-6 p-1 bg-muted/50 rounded-lg w-fit">
           <button
             onClick={() => setActiveTab('admins')}
