@@ -122,15 +122,22 @@ export const Dashboard = memo(() => {
 
   const loadData = useCallback(async () => {
     try {
-      const ready = await waitForSupabaseSession();
-      if (!ready) return;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const ready = await waitForSupabaseSession(attempt === 0 ? 8000 : 4000);
+        if (!ready) {
+          await new Promise((r) => window.setTimeout(r, 400 * (attempt + 1)));
+          continue;
+        }
 
-      const [statsData, transactionsData] = await Promise.all([
-        getDashboardStats(),
-        getRecentTransactions(8),
-      ]);
-      setStats(statsData);
-      setRecentTransactions(transactionsData);
+        const [statsData, transactionsData] = await Promise.all([
+          getDashboardStats(),
+          getRecentTransactions(8),
+        ]);
+        setStats(statsData);
+        setRecentTransactions(transactionsData);
+        return;
+      }
+      console.warn('[Dashboard] loadData: session not ready after retries');
     } catch (err) {
       console.error('[Dashboard] loadData failed:', err);
     }

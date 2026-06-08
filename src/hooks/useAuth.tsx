@@ -156,6 +156,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (shouldLoadRoles) await checkUserRoles(userId);
         if (cancelled || userRef.current?.id !== userId) return;
         if (options?.announceLogin) void setupSessionTracking(userId);
+        // Roles + JWT are stable — reload permissions, dashboard, company context.
+        notifySessionResume();
       })();
     };
 

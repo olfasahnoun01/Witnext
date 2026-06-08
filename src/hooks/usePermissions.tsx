@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import { BIG_SECTIONS, SUBSECTION_TO_SECTION } from '@/config/navigation';
+import { ensureSupabaseSessionReady, supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
 
 interface PermissionRow {
   section_key: string;
@@ -29,7 +30,7 @@ function hasLegacyCommercialAccess(perms: PermissionRow[], subsectionId?: string
 }
 
 export const usePermissions = () => {
-  const { user, isAdmin, isLoading: authLoading } = useAuth();
+  const { user, session, isAdmin, isLoading: authLoading } = useAuth();
   const [perms, setPerms] = useState<PermissionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const loadedForUserRef = useRef<string | null>(null);
@@ -43,25 +44,42 @@ export const usePermissions = () => {
       return;
     }
 
-    const isInitialLoadForUser = loadedForUserRef.current !== userId;
-    if (isInitialLoadForUser) {
-      setLoading(true);
+    setLoading(true);
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const ready = await ensureSupabaseSessionReady(attempt === 0 ? 8000 : 4000);
+      if (!ready) {
+        await new Promise((r) => window.setTimeout(r, 400 * (attempt + 1)));
+        continue;
+      }
+
+      const { data, error } = await supabaseQueryWithAuthRetry(() =>
+        (supabase as any)
+          .from('user_section_permissions')
+          .select('section_key, subsection_key')
+          .eq('user_id', userId)
+      );
+
+      if (!error) {
+        setPerms((data ?? []) as PermissionRow[]);
+        loadedForUserRef.current = userId;
+        setLoading(false);
+        return;
+      }
+
+      console.warn(`[Permissions] load attempt ${attempt + 1} failed:`, error.message);
+      await new Promise((r) => window.setTimeout(r, 500 * (attempt + 1)));
     }
 
-    const { data, error } = await (supabase as any)
-      .from('user_section_permissions')
-      .select('section_key, subsection_key')
-      .eq('user_id', userId);
-    if (!error && data) setPerms(data as PermissionRow[]);
-    loadedForUserRef.current = userId;
+    console.error('[Permissions] all load attempts failed for user', userId);
     setLoading(false);
   }, [userId]);
 
   useEffect(() => {
-    if (!authLoading) {
+    if (!authLoading && userId && session?.access_token) {
       void load().catch((err) => console.error('[Permissions] load failed:', err));
     }
-  }, [authLoading, load]);
+  }, [authLoading, userId, session?.access_token, load]);
 
   useSessionResumeReload(load);
 

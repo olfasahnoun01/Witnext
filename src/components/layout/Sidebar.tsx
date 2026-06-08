@@ -45,7 +45,7 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
     }));
   };
 
-  const { canAccessSection, canAccessSubsection, visibleSections } = usePermissions();
+  const { canAccessSection, canAccessSubsection, visibleSections, loading: permissionsLoading } = usePermissions();
 
   return (
     <>
@@ -81,7 +81,21 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
           </div>
 
           <nav className="flex-1 p-4 space-y-4 overflow-y-auto">
-            {visibleSections.map((section) => {
+            {permissionsLoading ? (
+              <div className="space-y-2 px-1">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    className="h-11 rounded-2xl bg-sidebar-accent/25 animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : visibleSections.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-sidebar-foreground/70 leading-relaxed">
+                Aucun module accessible. Contactez l&apos;administrateur si le menu reste vide après connexion.
+              </p>
+            ) : (
+            visibleSections.map((section) => {
               const isExpanded = expandedSections[section.id];
               const visibleSubsections = section.subsections.filter(sub => canAccessSubsection(sub.id));
               
@@ -173,7 +187,8 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
                   </div>
                 </div>
               );
-            })}
+            })
+            )}
           </nav>
 
           {/* Footer */}

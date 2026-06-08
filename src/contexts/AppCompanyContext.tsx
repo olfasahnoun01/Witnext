@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { getActiveCompanyId, setActiveCompanyId, resolveActiveCompanyId } from '@/lib/activeCompany';
+import { ensureSupabaseSessionReady, supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
+import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 
 export interface AppCompany {
   id: string;
@@ -39,7 +41,12 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc('list_my_companies');
+      const ready = await ensureSupabaseSessionReady();
+      if (!ready) throw new Error('Session non prête');
+
+      const { data, error } = await supabaseQueryWithAuthRetry(() =>
+        supabase.rpc('list_my_companies')
+      );
       if (error) throw error;
       const rows = (data ?? []) as AppCompany[];
       setCompanies(rows);
@@ -62,6 +69,8 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useSessionResumeReload(load);
 
   const setCompany = useCallback((id: string) => {
     setCurrentCompanyId(id);

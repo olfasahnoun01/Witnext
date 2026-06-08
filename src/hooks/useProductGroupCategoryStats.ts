@@ -178,9 +178,19 @@ export function useProductGroupCategoryStats() {
 
   useEffect(() => {
     if (authLoading || !user?.id) return;
-    hasLoadedCountsRef.current = false;
-    prevMainCategoriesKeyRef.current = '';
-    void fetchCategoryCounts({ showLoading: true });
+
+    let cancelled = false;
+    void (async () => {
+      const ready = await waitForSupabaseSession();
+      if (!ready || cancelled) return;
+      hasLoadedCountsRef.current = false;
+      prevMainCategoriesKeyRef.current = '';
+      await fetchCategoryCounts({ showLoading: true });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [authLoading, user?.id, fetchCategoryCounts]);
 
   useSessionResumeReload(() => fetchCategoryCounts({ showLoading: false }));
