@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import { BIG_SECTIONS, SUBSECTION_TO_SECTION } from '@/config/navigation';
 import { ensureSupabaseSessionReady, supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
+import { formatError } from '@/lib/formatError';
 
 interface PermissionRow {
   section_key: string;
@@ -33,6 +34,7 @@ export const usePermissions = () => {
   const { user, session, isAdmin, isLoading: authLoading } = useAuth();
   const [perms, setPerms] = useState<PermissionRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const loadedForUserRef = useRef<string | null>(null);
   const userId = user?.id ?? null;
 
@@ -40,11 +42,13 @@ export const usePermissions = () => {
     if (!userId) {
       setPerms([]);
       setLoading(false);
+      setLoadError(null);
       loadedForUserRef.current = null;
       return;
     }
 
     setLoading(true);
+    setLoadError(null);
 
     for (let attempt = 0; attempt < 3; attempt++) {
       const ready = await ensureSupabaseSessionReady(attempt === 0 ? 8000 : 4000);
@@ -63,6 +67,7 @@ export const usePermissions = () => {
       if (!error) {
         setPerms((data ?? []) as PermissionRow[]);
         loadedForUserRef.current = userId;
+        setLoadError(null);
         setLoading(false);
         return;
       }
@@ -72,12 +77,17 @@ export const usePermissions = () => {
     }
 
     console.error('[Permissions] all load attempts failed for user', userId);
+    setLoadError('Impossible de charger vos permissions. Réessayez ou reconnectez-vous.');
     setLoading(false);
   }, [userId]);
 
   useEffect(() => {
     if (!authLoading && userId && session?.access_token) {
-      void load().catch((err) => console.error('[Permissions] load failed:', err));
+      void load().catch((err) => {
+        console.error('[Permissions] load failed:', err);
+        setLoadError(formatError(err, 'Impossible de charger vos permissions.'));
+        setLoading(false);
+      });
     }
   }, [authLoading, userId, session?.access_token, load]);
 
@@ -134,6 +144,7 @@ export const usePermissions = () => {
 
   return {
     loading,
+    loadError,
     isAdmin,
     canAccessSection,
     canAccessSubsection,

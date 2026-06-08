@@ -3,6 +3,7 @@ import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { isAuthSessionError, isJwtExpiredError, refreshSupabaseSessionIfNeeded } from '@/lib/supabaseSession';
 import { notifySessionResume } from '@/lib/sessionResume';
+import { setActiveCompanyId } from '@/lib/activeCompany';
 import { debugLog } from '@/lib/debugLog';
 import { toast } from '@/hooks/use-toast';
 
@@ -77,6 +78,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSessionExpired(true);
     
     // Clear local auth state
+    setActiveCompanyId(null);
     setUser(null);
     setSession(null);
     setIsAdmin(false);
@@ -403,6 +405,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    setActiveCompanyId(null);
     sessionExpiredRef.current = false;
     setUser(null);
     setSession(null);

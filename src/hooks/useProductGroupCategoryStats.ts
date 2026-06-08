@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { getProductGroupCountsByCategory } from '@/services/productGroupService';
 import { waitForSupabaseSession } from '@/lib/waitForSupabaseSession';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
-import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
+import { useAppCompany, useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { DEFAULT_INVENTORY_CATEGORIES } from '@/constants/inventoryCategories';
 
 export interface CategoryCount {
@@ -21,6 +21,9 @@ export interface CategorySettingRow {
 
 export function useProductGroupCategoryStats() {
   const { user, isLoading: authLoading } = useAuth();
+  const { loading: companyLoading, currentCompanyId, companies } = useAppCompany();
+  const companyReady =
+    !companyLoading && (companies.length === 0 || currentCompanyId != null);
   const [categorySettings, setCategorySettings] = useState<CategorySettingRow[]>([]);
   const [categoryCounts, setCategoryCounts] = useState<CategoryCount[]>([]);
   const [uncategorizedCount, setUncategorizedCount] = useState(0);
@@ -103,6 +106,8 @@ export function useProductGroupCategoryStats() {
   }, [MAIN_CATEGORIES]);
 
   const fetchCategoryCounts = useCallback(async (options?: { showLoading?: boolean }) => {
+    if (!companyReady) return;
+
     const gen = ++fetchGenRef.current;
     if (countsFetchInFlightRef.current) return;
     countsFetchInFlightRef.current = true;
@@ -177,7 +182,7 @@ export function useProductGroupCategoryStats() {
   const mainCategoriesKey = MAIN_CATEGORIES.join('|');
 
   useEffect(() => {
-    if (authLoading || !user?.id) return;
+    if (authLoading || !user?.id || !companyReady) return;
 
     let cancelled = false;
     void (async () => {
@@ -191,7 +196,7 @@ export function useProductGroupCategoryStats() {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, user?.id, fetchCategoryCounts]);
+  }, [authLoading, user?.id, companyReady, fetchCategoryCounts]);
 
   useSessionResumeReload(() => fetchCategoryCounts({ showLoading: false }));
   useCompanyChangeReload(() => fetchCategoryCounts({ showLoading: true }));

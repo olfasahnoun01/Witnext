@@ -30,6 +30,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { BIG_SECTIONS } from '@/config/navigation';
 import { posteHasAllFinanceCompanies } from '@/lib/userPositions';
+import { formatError } from '@/lib/formatError';
 
 function allCompanyIdSet(list: CompanyRow[]): Set<string> {
   return new Set(list.map((c) => c.id));
@@ -264,8 +265,8 @@ export const PermissionsManager = () => {
         companyMap[row.user_id].add(row.company_id);
       });
       setUserCompanies(companyMap);
-    } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: e.message });
+    } catch (e: unknown) {
+      toast({ variant: 'destructive', title: 'Erreur', description: formatError(e) });
     } finally {
       setLoading(false);
     }
@@ -383,8 +384,8 @@ export const PermissionsManager = () => {
       } else {
         toast({ title: 'Permissions et sociétés enregistrées' });
       }
-    } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: e.message });
+    } catch (e: unknown) {
+      toast({ variant: 'destructive', title: 'Erreur', description: formatError(e) });
     } finally {
       setSavingPermsFor(null);
     }
@@ -496,7 +497,7 @@ export const PermissionsManager = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (response.error) throw new Error(response.error.message);
-        if (response.data?.error) throw new Error(response.data.error);
+        if (response.data?.error) throw new Error(formatError(response.data.error));
       } else {
         if (!password) {
           toast({ variant: 'destructive', title: 'Erreur', description: 'Le mot de passe est requis' });
@@ -517,7 +518,7 @@ export const PermissionsManager = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (response.error) throw new Error(response.error.message);
-        if (response.data?.error) throw new Error(response.data.error);
+        if (response.data?.error) throw new Error(formatError(response.data.error));
         targetUserId = response.data?.user?.id ?? response.data?.user_id ?? null;
 
         if (targetUserId && isDriverPosition(position)) {
@@ -590,8 +591,8 @@ export const PermissionsManager = () => {
       if (!editingUser && targetUserId) {
         setActiveTab(tabForUser(createdOrUpdated));
       }
-    } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: e.message });
+    } catch (e: unknown) {
+      toast({ variant: 'destructive', title: 'Erreur', description: formatError(e) });
     } finally {
       setSubmitting(false);
     }
@@ -606,11 +607,11 @@ export const PermissionsManager = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.error) throw new Error(response.error.message);
-      if (response.data?.error) throw new Error(response.data.error);
+      if (response.data?.error) throw new Error(formatError(response.data.error));
       toast({ title: 'Utilisateur supprimé' });
       load();
-    } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: e.message });
+    } catch (e: unknown) {
+      toast({ variant: 'destructive', title: 'Erreur', description: formatError(e) });
     }
   };
 

@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { formatError } from '@/lib/formatError';
 import {
   Select,
   SelectContent,
@@ -72,11 +73,11 @@ export const UserManagement = () => {
       }
 
       setUsers(response.data.users || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         variant: 'destructive',
         title: 'Erreur',
-        description: error.message || 'Impossible de charger les utilisateurs'
+        description: formatError(error, 'Impossible de charger les utilisateurs'),
       });
     } finally {
       setIsLoading(false);
@@ -164,7 +165,7 @@ export const UserManagement = () => {
         }
 
         if (response.data.error) {
-          throw new Error(response.data.error);
+          throw new Error(formatError(response.data.error));
         }
 
         toast({
@@ -175,11 +176,11 @@ export const UserManagement = () => {
 
       closeModal();
       loadUsers();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         variant: 'destructive',
         title: 'Erreur',
-        description: error.message || 'Une erreur est survenue'
+        description: formatError(error, 'Une erreur est survenue'),
       });
     } finally {
       setIsSubmitting(false);
@@ -206,7 +207,7 @@ export const UserManagement = () => {
       }
 
       if (response.data.error) {
-        throw new Error(response.data.error);
+        throw new Error(formatError(response.data.error));
       }
 
       toast({
@@ -215,11 +216,11 @@ export const UserManagement = () => {
       });
 
       loadUsers();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         variant: 'destructive',
         title: 'Erreur',
-        description: error.message || 'Impossible de supprimer l\'utilisateur'
+        description: formatError(error, 'Impossible de supprimer l\'utilisateur'),
       });
     }
   };

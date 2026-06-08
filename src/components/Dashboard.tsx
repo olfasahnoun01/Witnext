@@ -15,7 +15,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { waitForSupabaseSession } from '@/lib/waitForSupabaseSession';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
-import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
+import { useAppCompany, useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { InventoryCategoryChartsCards } from '@/components/inventory/InventoryCategoryChartsCards';
 
 // Memoized KPI Card component
@@ -104,6 +104,7 @@ TransactionItem.displayName = 'TransactionItem';
 
 export const Dashboard = memo(() => {
   const { user, isLoading: authLoading } = useAuth();
+  const { loading: companyLoading, currentCompanyId, companies } = useAppCompany();
   const {
     isLoading: categoryChartsLoading,
     inventoryChartBarRows,
@@ -120,7 +121,12 @@ export const Dashboard = memo(() => {
   });
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
 
+  const companyReady =
+    !companyLoading && (companies.length === 0 || currentCompanyId != null);
+
   const loadData = useCallback(async () => {
+    if (!companyReady) return;
+
     try {
       for (let attempt = 0; attempt < 3; attempt++) {
         const ready = await waitForSupabaseSession(attempt === 0 ? 8000 : 4000);
@@ -141,11 +147,11 @@ export const Dashboard = memo(() => {
     } catch (err) {
       console.error('[Dashboard] loadData failed:', err);
     }
-  }, []);
+  }, [companyReady]);
 
-  // Load KPI / activity after auth (category charts load in useProductGroupCategoryStats)
+  // Load KPI / activity after auth + company context (charts load in useProductGroupCategoryStats)
   useEffect(() => {
-    if (authLoading || !user?.id) return;
+    if (authLoading || !user?.id || !companyReady) return;
 
     let cancelled = false;
 
@@ -164,7 +170,7 @@ export const Dashboard = memo(() => {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [authLoading, user?.id, loadData]);
+  }, [authLoading, user?.id, companyReady, loadData]);
 
   useSessionResumeReload(loadData);
   useCompanyChangeReload(loadData);

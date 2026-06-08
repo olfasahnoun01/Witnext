@@ -2,13 +2,19 @@ import { useState, useCallback, lazy, Suspense, useTransition, useEffect } from 
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { Loader2 } from 'lucide-react';
-import { SUBSECTION_LABELS } from '@/config/navigation';
+import {
+  COMPANY_DISPLAY_NAMES,
+  COMPANY_SCOPED_SUBSECTIONS,
+  SUBSECTION_LABELS,
+  isSubsectionVisibleForCompany,
+} from '@/config/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { cn } from '@/lib/utils';
 import { AppLayoutProvider } from '@/contexts/AppLayoutContext';
-import { AppCompanyProvider } from '@/contexts/AppCompanyContext';
+import { AppCompanyProvider, useAppCompany } from '@/contexts/AppCompanyContext';
+import { BootstrapErrorPanel } from '@/components/layout/BootstrapErrorPanel';
 
 // Eagerly import Dashboard since it's the default view
 import { Dashboard } from '@/components/Dashboard';
@@ -30,6 +36,9 @@ const PurchaseRequestManager = lazy(() => import('@/components/devis/PurchaseReq
 const WarehouseDocumentManager = lazy(() => import('@/components/inventory/WarehouseDocumentManager').then(m => ({ default: m.WarehouseDocumentManager })));
 
 const Planning = lazy(() => import('@/components/Planning').then(m => ({ default: m.Planning })));
+const DriverControlPlanning = lazy(() =>
+  import('@/components/rh/DriverControlPlanning').then((m) => ({ default: m.DriverControlPlanning }))
+);
 const RhRapports = lazy(() => import('@/components/rh/RhRapports').then(m => ({ default: m.RhRapports })));
 const RhStatistiques = lazy(() => import('@/components/rh/RhStatistiques').then(m => ({ default: m.RhStatistiques })));
 const HrEmployeesHub = lazy(() => import('@/components/rh/HrEmployeesHub').then(m => ({ default: m.HrEmployeesHub })));
@@ -68,12 +77,50 @@ const AccessDenied = () => (
   </div>
 );
 
-const Index = () => {
+const CompanyScopeDenied = ({ subsectionId }: { subsectionId: string }) => {
+  const required = COMPANY_SCOPED_SUBSECTIONS[subsectionId];
+  const label = required ? COMPANY_DISPLAY_NAMES[required] ?? required : '';
+  return (
+    <div className="flex min-h-[40vh] flex-col items-center justify-center p-12 text-center text-muted-foreground">
+      <p className="text-lg font-medium text-foreground">Section non disponible</p>
+      <p className="mt-2 text-sm max-w-md">
+        {SUBSECTION_LABELS[subsectionId] ?? subsectionId} est réservé à la société{' '}
+        <strong>{label}</strong>. Changez de société via le sélecteur en haut de l&apos;écran.
+      </p>
+    </div>
+  );
+};
+
+const IndexContent = () => {
   const { isAdmin, session } = useAuth();
-  const { canAccessSubsection, loading: permissionsLoading } = usePermissions();
+  const {
+    canAccessSubsection,
+    loading: permissionsLoading,
+    loadError: permissionsLoadError,
+    reload: reloadPermissions,
+  } = usePermissions();
+  const {
+    currentCompany,
+    loading: companyLoading,
+    loadError: companyLoadError,
+    reload: reloadCompany,
+  } = useAppCompany();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
+  const [bootstrapRetrying, setBootstrapRetrying] = useState(false);
   const [, startTransition] = useTransition();
+
+  const bootstrapLoading = permissionsLoading || companyLoading;
+  const bootstrapError = permissionsLoadError || companyLoadError;
+
+  const handleBootstrapRetry = useCallback(async () => {
+    setBootstrapRetrying(true);
+    try {
+      await Promise.all([reloadPermissions(), reloadCompany()]);
+    } finally {
+      setBootstrapRetrying(false);
+    }
+  }, [reloadPermissions, reloadCompany]);
 
   // Prefetch likely next tabs after idle
   useEffect(() => {
@@ -96,13 +143,37 @@ const Index = () => {
     });
   }, []);
 
+  useEffect(() => {
+    if (companyLoading) return;
+    if (!isSubsectionVisibleForCompany(activeTab, currentCompany?.code)) {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab, companyLoading, currentCompany?.code]);
+
   const renderContent = () => {
-    if (permissionsLoading) {
+    if (bootstrapLoading) {
       return <ComponentLoader />;
+    }
+
+    if (bootstrapError) {
+      return (
+        <BootstrapErrorPanel
+          message={bootstrapError}
+          onRetry={() => void handleBootstrapRetry()}
+          retrying={bootstrapRetrying}
+        />
+      );
     }
 
     if (activeTab !== 'dashboard' && !canAccessSubsection(activeTab)) {
       return <AccessDenied />;
+    }
+
+    if (
+      activeTab !== 'dashboard' &&
+      !isSubsectionVisibleForCompany(activeTab, currentCompany?.code)
+    ) {
+      return <CompanyScopeDenied subsectionId={activeTab} />;
     }
 
     if (activeTab === 'dashboard') {
@@ -184,6 +255,7 @@ const Index = () => {
         {/* Ressources Humaines */}
         {activeTab === 'rh-employes' && <HrEmployeesHub />}
         {activeTab === 'planning' && <Planning />}
+        {activeTab === 'rh-planning-controle' && <DriverControlPlanning />}
         {activeTab === 'rh-rapports' && <RhRapports />}
         {activeTab === 'rh-statistiques' && <RhStatistiques />}
         
@@ -209,7 +281,6 @@ const Index = () => {
   };
 
   return (
-    <AppCompanyProvider>
     <AppLayoutProvider sidebarOpen={sidebarOpen}>
       <div className="min-h-screen bg-background">
         <Sidebar
@@ -236,8 +307,13 @@ const Index = () => {
         </Suspense>
       </div>
     </AppLayoutProvider>
-    </AppCompanyProvider>
   );
 };
+
+const Index = () => (
+  <AppCompanyProvider>
+    <IndexContent />
+  </AppCompanyProvider>
+);
 
 export default Index;

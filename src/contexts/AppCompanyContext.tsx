@@ -4,7 +4,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { getActiveCompanyId, setActiveCompanyId, resolveActiveCompanyId } from '@/lib/activeCompany';
 import { ensureSupabaseSessionReady, supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
-
 export interface AppCompany {
   id: string;
   code: string;
@@ -17,6 +16,7 @@ interface AppCompanyContextValue {
   currentCompany: AppCompany | null;
   canSwitchCompany: boolean;
   loading: boolean;
+  loadError: string | null;
   setCompany: (id: string) => void;
   reload: () => Promise<void>;
 }
@@ -31,44 +31,61 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
   const [companies, setCompanies] = useState<AppCompany[]>([]);
   const [currentCompanyId, setCurrentCompanyId] = useState<string | null>(getActiveCompanyId());
   const [loading, setLoading] = useState(true);
-  const initialisedRef = useRef(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!session?.user) {
       setCompanies([]);
+      setCurrentCompanyId(null);
+      setActiveCompanyId(null);
+      setLoadError(null);
       setLoading(false);
       return;
     }
+
     setLoading(true);
-    try {
-      const ready = await ensureSupabaseSessionReady();
-      if (!ready) throw new Error('Session non prête');
+    setLoadError(null);
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const ready = await ensureSupabaseSessionReady(attempt === 0 ? 8000 : 4000);
+      if (!ready) {
+        await new Promise((r) => window.setTimeout(r, 400 * (attempt + 1)));
+        continue;
+      }
 
       const { data, error } = await supabaseQueryWithAuthRetry(() =>
         supabase.rpc('list_my_companies')
       );
-      if (error) throw error;
-      const rows = (data ?? []) as AppCompany[];
-      setCompanies(rows);
 
-          // Pick a valid current company: persisted choice if still allowed,
-          // else Grosafe if present, else the first one.
-          const next = resolveActiveCompanyId(rows, getActiveCompanyId());
+      if (!error) {
+        const rows = (data ?? []) as AppCompany[];
+        setCompanies(rows);
 
-          setCurrentCompanyId(next);
-      setActiveCompanyId(next);
-    } catch (err) {
-      console.error('[AppCompany] failed to load companies:', err);
-      setCompanies([]);
-    } finally {
-      setLoading(false);
-      initialisedRef.current = true;
+        const next = resolveActiveCompanyId(rows, getActiveCompanyId());
+        setCurrentCompanyId(next);
+        setActiveCompanyId(next);
+        setLoadError(rows.length === 0 ? 'Aucune société assignée à votre compte.' : null);
+        setLoading(false);
+        return;
+      }
+
+      console.warn(`[AppCompany] load attempt ${attempt + 1} failed:`, error.message);
+      await new Promise((r) => window.setTimeout(r, 500 * (attempt + 1)));
     }
+
+    console.error('[AppCompany] all load attempts failed');
+    setCompanies([]);
+    setCurrentCompanyId(null);
+    setActiveCompanyId(null);
+    setLoadError('Impossible de charger vos sociétés. Réessayez ou reconnectez-vous.');
+    setLoading(false);
   }, [session?.user]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (session?.access_token) {
+      void load();
+    }
+  }, [load, session?.access_token]);
 
   useSessionResumeReload(load);
 
@@ -92,10 +109,11 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
       currentCompany,
       canSwitchCompany: companies.length > 1,
       loading,
+      loadError,
       setCompany,
       reload: load,
     }),
-    [companies, currentCompanyId, currentCompany, loading, setCompany, load]
+    [companies, currentCompanyId, currentCompany, loading, loadError, setCompany, load]
   );
 
   return <AppCompanyContext.Provider value={value}>{children}</AppCompanyContext.Provider>;
@@ -120,4 +138,12 @@ export function useCompanyChangeReload(reload: () => void | Promise<void>) {
     window.addEventListener(COMPANY_CHANGED_EVENT, handler);
     return () => window.removeEventListener(COMPANY_CHANGED_EVENT, handler);
   }, []);
+}
+
+/** True when company list is loaded and a valid active company is selected (if any exist). */
+export function useCompanyReady(): boolean {
+  const { loading, companies, currentCompanyId } = useAppCompany();
+  if (loading) return false;
+  if (companies.length === 0) return true;
+  return currentCompanyId != null;
 }

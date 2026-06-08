@@ -5,14 +5,14 @@ import {
   X,
   ChevronRight,
   ChevronDown,
-  Phone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AlphaLogoBanner } from '@/components/AlphaLogoBanner';
-import { BIG_SECTIONS } from '@/config/navigation';
+import { BIG_SECTIONS, isSubsectionVisibleForCompany } from '@/config/navigation';
 import { getSectionTheme } from '@/config/sectionThemes';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useAuth } from '@/hooks/useAuth';
+import { useAppCompany } from '@/contexts/AppCompanyContext';
 
 function collapsedSectionsState(): Record<string, boolean> {
   const initial: Record<string, boolean> = {};
@@ -46,6 +46,11 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
   };
 
   const { canAccessSection, canAccessSubsection, visibleSections, loading: permissionsLoading } = usePermissions();
+  const { currentCompany } = useAppCompany();
+
+  const isSubsectionVisible = (subsectionId: string): boolean =>
+    canAccessSubsection(subsectionId) &&
+    isSubsectionVisibleForCompany(subsectionId, currentCompany?.code);
 
   return (
     <>
@@ -97,7 +102,7 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
             ) : (
             visibleSections.map((section) => {
               const isExpanded = expandedSections[section.id];
-              const visibleSubsections = section.subsections.filter(sub => canAccessSubsection(sub.id));
+              const visibleSubsections = section.subsections.filter((sub) => isSubsectionVisible(sub.id));
               
               if (visibleSubsections.length === 0) return null;
 
@@ -190,25 +195,6 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
             })
             )}
           </nav>
-
-          {/* Footer */}
-          <div className="px-3 py-2 border-t border-sidebar-border/50">
-            <div className="px-2.5 py-2 rounded-lg bg-primary/10 border border-primary/20">
-              <p className="text-[11px] font-semibold leading-tight text-sidebar-foreground">
-                Alpha
-              </p>
-              <div className="flex items-center gap-1.5 mt-1 text-[10px] leading-tight text-sidebar-foreground/75">
-                <Phone className="w-3 h-3 shrink-0" />
-                <span>Contactez l&apos;administrateur</span>
-              </div>
-              <a
-                href="tel:56244009"
-                className="text-[11px] font-semibold text-primary hover:underline mt-0.5 block leading-tight"
-              >
-                56 244 009
-              </a>
-            </div>
-          </div>
         </div>
       </aside>
 

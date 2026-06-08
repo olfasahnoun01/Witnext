@@ -30,8 +30,33 @@ import {
   PackageCheck,
   TrendingUp,
   Briefcase,
+  TableProperties,
   type LucideIcon,
 } from 'lucide-react';
+
+/** Sub-sections visible only when the active company code matches. */
+export const COMPANY_SCOPED_SUBSECTIONS: Record<string, string> = {
+  planning: 'granisafe',
+  'rh-rapports': 'granisafe',
+  'rh-statistiques': 'granisafe',
+  'rh-planning-controle': 'granisafe',
+};
+
+export const COMPANY_DISPLAY_NAMES: Record<string, string> = {
+  grosafe: 'Grosafe',
+  granisafe: 'Granisafe',
+  safe_team: 'Safe-Team',
+};
+
+/** True when the subsection is allowed for the active company (or not company-scoped). */
+export function isSubsectionVisibleForCompany(
+  subsectionId: string,
+  companyCode: string | null | undefined
+): boolean {
+  const required = COMPANY_SCOPED_SUBSECTIONS[subsectionId];
+  if (!required) return true;
+  return companyCode === required;
+}
 
 export interface SubSection {
   id: string;
@@ -105,6 +130,7 @@ export const BIG_SECTIONS: BigSection[] = [
     subsections: [
       { id: 'rh-employes', label: 'Employées', icon: Users },
       { id: 'planning', label: 'Planning', icon: CalendarDays },
+      { id: 'rh-planning-controle', label: 'Planning de contrôle', icon: TableProperties },
       { id: 'rh-rapports', label: 'Rapports', icon: ClipboardPen },
       { id: 'rh-statistiques', label: 'Statistiques', icon: FileBarChart },
     ],
