@@ -18,6 +18,8 @@ import {
   FileCheck,
   FileX,
   Pencil,
+  Trash2,
+  MoreHorizontal,
   Download, 
   Filter,
   Table as TableIcon
@@ -39,6 +41,22 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { Calendar as UICalendar } from '@/components/ui/calendar';
 import { format, isSameDay, parseISO } from 'date-fns';
@@ -46,6 +64,9 @@ import { fr } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { PhoneLinesEditor } from '@/components/shared/PhoneLinesEditor';
 import { formatPhonesDisplay, parsePhoneListFromStorage, serializePhoneList } from '@/lib/phoneList';
+import { getActiveCompanyId } from '@/lib/activeCompany';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
+import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 
 interface RDV {
   id: string;
@@ -112,14 +133,16 @@ export const RDV = () => {
   const [editingRDV, setEditingRDV] = useState<RDV | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [deleteTarget, setDeleteTarget] = useState<RDV | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchRdvs = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await (supabase as any)
-        .from('rdvs')
-        .select('*')
-        .order('date_rdv', { ascending: false });
+      const companyId = getActiveCompanyId();
+      let query = (supabase as any).from('rdvs').select('*');
+      if (companyId) query = query.eq('company_id', companyId);
+      const { data, error } = await query.order('date_rdv', { ascending: false });
 
       if (error) throw error;
 
@@ -152,6 +175,9 @@ export const RDV = () => {
   useEffect(() => {
     fetchRdvs();
   }, [fetchRdvs]);
+
+  useSessionResumeReload(fetchRdvs);
+  useCompanyChangeReload(fetchRdvs);
   
   // Form State
   const [formData, setFormData] = useState<RDVFormData>(createEmptyFormData());
@@ -167,6 +193,11 @@ export const RDV = () => {
     const dateRDV = buildRDVDateTime(formData.dateRDV, formData.heureRDV);
 
     try {
+      const companyId = getActiveCompanyId();
+      if (!companyId) {
+        toast.error('Société active non chargée. Réessayez dans quelques secondes.');
+        return;
+      }
       const payload = {
         date_creation: formData.dateCreation || new Date().toISOString().split('T')[0],
         societe: formData.societe || '',
@@ -179,19 +210,30 @@ export const RDV = () => {
         notes: formData.notes || '',
         besoin: formData.besoin || '',
         piece_jointe: formData.pieceJointe,
-        charge: editingRDV?.charge || user?.email || 'Unknown'
+        charge: editingRDV?.charge || user?.email || 'Unknown',
+        ...(companyId ? { company_id: companyId } : {}),
       };
 
-      const query = editingRDV
-        ? (supabase as any).from('rdvs').update(payload).eq('id', editingRDV.id)
-        : (supabase as any).from('rdvs').insert([{
-            ...payload,
-            numero: `RDV-${(rdvs.length + 1).toString().padStart(3, '0')}`
-          }]);
+      if (editingRDV) {
+        const { error } = await (supabase as any)
+          .from('rdvs')
+          .update(payload)
+          .eq('id', editingRDV.id);
+        if (error) throw error;
+      } else {
+        let countQuery = (supabase as any)
+          .from('rdvs')
+          .select('id', { count: 'exact', head: true });
+        if (companyId) countQuery = countQuery.eq('company_id', companyId);
+        const { count, error: countError } = await countQuery;
+        if (countError) throw countError;
 
-      const { error } = await query.select();
-
-      if (error) throw error;
+        const numero = `RDV-${((count ?? 0) + 1).toString().padStart(3, '0')}`;
+        const { error } = await (supabase as any).from('rdvs').insert([
+          { ...payload, numero },
+        ]);
+        if (error) throw error;
+      }
 
       toast.success(editingRDV ? 'Rendez-vous modifié avec succès' : 'Rendez-vous ajouté avec succès');
       setDialogOpen(false);
@@ -199,9 +241,35 @@ export const RDV = () => {
       await fetchRdvs();
     } catch (error: any) {
       console.error('Error saving rdv:', error);
-      toast.error(editingRDV ? 'Erreur lors de la modification du rendez-vous' : 'Erreur lors de l\'ajout du rendez-vous');
+      const detail = error?.message ? `: ${error.message}` : '';
+      toast.error(
+        (editingRDV ? 'Erreur lors de la modification du rendez-vous' : 'Erreur lors de l\'ajout du rendez-vous') +
+          detail
+      );
     }
   };
+
+  const handleDeleteRDV = useCallback(async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await (supabase as any).from('rdvs').delete().eq('id', deleteTarget.id);
+      if (error) throw error;
+      toast.success(`Rendez-vous ${deleteTarget.numero} supprimé`);
+      if (editingRDV?.id === deleteTarget.id) {
+        setDialogOpen(false);
+        resetForm();
+      }
+      setDeleteTarget(null);
+      await fetchRdvs();
+    } catch (error: any) {
+      console.error('Error deleting rdv:', error);
+      const detail = error?.message ? `: ${error.message}` : '';
+      toast.error(`Erreur lors de la suppression du rendez-vous${detail}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [deleteTarget, editingRDV?.id, fetchRdvs, resetForm]);
 
   const handleEditRDV = useCallback((rdv: RDV) => {
     let datePart = '';
@@ -570,16 +638,33 @@ export const RDV = () => {
                           )}
                         </td>
                         <td className="text-xs font-semibold">{rdv.charge}</td>
-                        <td className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="hover:bg-rose-500/15 text-rose-700"
-                            onClick={() => handleEditRDV(rdv)}
-                            title="Modifier le rendez-vous"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Button>
+                        <td className="text-right w-[52px]">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                aria-label="Actions sur le rendez-vous"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem onClick={() => handleEditRDV(rdv)}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Modifier
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => setDeleteTarget(rdv)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Supprimer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
                       </tr>
                     ))
@@ -654,10 +739,19 @@ export const RDV = () => {
                         <div className="mt-3 pt-3 border-t text-[11px] text-muted-foreground line-clamp-2">
                           {rdv.besoin}
                         </div>
-                        <div className="mt-3 flex justify-end">
+                        <div className="mt-3 flex justify-end gap-2">
                           <Button variant="outline" size="sm" onClick={() => handleEditRDV(rdv)}>
                             <Pencil className="w-4 h-4 mr-2" />
                             Modifier
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget(rdv)}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Supprimer
                           </Button>
                         </div>
                       </div>
@@ -669,6 +763,32 @@ export const RDV = () => {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce rendez-vous ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? `Le rendez-vous ${deleteTarget.numero} (${deleteTarget.societe}) sera définitivement supprimé. Cette action est irréversible.`
+                : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleting}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteRDV();
+              }}
+            >
+              {isDeleting ? 'Suppression…' : 'Supprimer'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
