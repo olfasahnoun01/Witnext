@@ -403,6 +403,9 @@ export const GestionDevis = ({
         toast.success(docType === 'bc' ? 'Bon de commande enregistré' : 'Devis sauvegardé');
         await loadAll();
         clearFormFields();
+        if (docType === 'bc') {
+          setActiveSection('bc');
+        }
       }
     } catch (err) {
       console.error(err);

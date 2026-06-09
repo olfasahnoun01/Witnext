@@ -39,6 +39,7 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { getActiveCompanyId } from '@/lib/activeCompany';
 import { getFuelVoucherStatusDisplay, fuelVoucherStatusBadgeClass } from '@/lib/fuelVoucherStatus';
 
 interface FuelVoucher {
@@ -168,6 +169,7 @@ export const BonCarburant = () => {
         type_carburant: form.typeCarburant,
         km: form.kmFinal ? Number(form.kmFinal) : null,
         notes: form.notes.trim() || null,
+        company_id: getActiveCompanyId() || undefined,
         ...(editingVoucherId ? {} : { status: 'pending', voucher_type: 'bon_carburant' }),
         ...(kmInitial != null ? { km_initial: kmInitial } : {}),
       };

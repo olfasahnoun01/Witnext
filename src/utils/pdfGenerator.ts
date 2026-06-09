@@ -58,9 +58,9 @@ function getDevisPdfTableColumnStyles(isTTC: boolean, availableWidth: number): R
     return {
       0: { cellWidth: availableWidth * 0.04, ...center },
       1: { cellWidth: availableWidth * 0.085, ...text },
-      2: { cellWidth: availableWidth * 0.17, ...text },
-      3: { cellWidth: availableWidth * 0.24, ...text },
-      4: { cellWidth: availableWidth * 0.045, ...center },
+      2: { cellWidth: availableWidth * 0.165, ...text },
+      3: { cellWidth: availableWidth * 0.215, ...text },
+      4: { cellWidth: availableWidth * 0.07, ...center },
       5: { cellWidth: availableWidth * 0.105, ...right },
       6: { cellWidth: availableWidth * 0.065, ...center },
       7: { cellWidth: availableWidth * 0.105, ...right },
@@ -71,9 +71,9 @@ function getDevisPdfTableColumnStyles(isTTC: boolean, availableWidth: number): R
   return {
     0: { cellWidth: availableWidth * 0.045, ...center },
     1: { cellWidth: availableWidth * 0.09, ...text },
-    2: { cellWidth: availableWidth * 0.2, ...text },
-    3: { cellWidth: availableWidth * 0.27, ...text },
-    4: { cellWidth: availableWidth * 0.055, ...center },
+    2: { cellWidth: availableWidth * 0.195, ...text },
+    3: { cellWidth: availableWidth * 0.25, ...text },
+    4: { cellWidth: availableWidth * 0.075, ...center },
     5: { cellWidth: availableWidth * 0.11, ...right },
     6: { cellWidth: availableWidth * 0.07, ...center },
     7: { cellWidth: availableWidth * 0.11, ...right },
@@ -241,7 +241,7 @@ export const generateInventoryPDF = (products: Product[], filterName?: string) =
         1: { cellWidth: 'auto' },
         2: { cellWidth: 15 },
         3: { cellWidth: 25 },
-        4: { cellWidth: 10, halign: 'center' },
+        4: { cellWidth: 14, halign: 'center' },
         5: { cellWidth: 15, halign: 'center' },
         6: { cellWidth: 22, halign: 'right' },
         7: { cellWidth: 22, halign: 'right' }
@@ -474,16 +474,16 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
     },
     columnStyles: showPrice ? {
       0: { cellWidth: 18, halign: 'center' },
-      1: { cellWidth: 45 },
-      2: { cellWidth: 50 },
-      3: { cellWidth: 18, halign: 'center' },
+      1: { cellWidth: 42 },
+      2: { cellWidth: 48 },
+      3: { cellWidth: 22, halign: 'center' },
       4: { cellWidth: 28, halign: 'right' },
       5: { cellWidth: 28, halign: 'right' }
     } : {
       0: { cellWidth: 22, halign: 'center' },
-      1: { cellWidth: 55 },
-      2: { cellWidth: 75 },
-      3: { cellWidth: 25, halign: 'center' }
+      1: { cellWidth: 52 },
+      2: { cellWidth: 72 },
+      3: { cellWidth: 28, halign: 'center' }
     },
     alternateRowStyles: {
       fillColor: [245, 247, 250]
@@ -793,6 +793,10 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       if (data.section === 'head') {
         data.cell.styles.overflow = 'hidden';
         data.cell.styles.fontSize = 7;
+      }
+      if (data.section === 'body' && data.column.index === 4) {
+        data.cell.styles.overflow = 'visible';
+        data.cell.styles.halign = 'center';
       }
     },
     didDrawPage: (data) => {
