@@ -31,12 +31,13 @@ function hasLegacyCommercialAccess(perms: PermissionRow[], subsectionId?: string
 }
 
 export const usePermissions = () => {
-  const { user, isAdmin, isLoading: authLoading } = useAuth();
+  const { user, session, isAdmin, isLoading: authLoading } = useAuth();
   const [perms, setPerms] = useState<PermissionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const loadedForUserRef = useRef<string | null>(null);
   const userId = user?.id ?? null;
+  const sessionReady = !authLoading && !!userId && !!session?.access_token;
 
   const load = useCallback(async (opts?: { background?: boolean }) => {
     if (!userId) {
@@ -47,13 +48,16 @@ export const usePermissions = () => {
       return;
     }
 
-    if (!opts?.background) {
+    const hadCachedData = loadedForUserRef.current === userId;
+    const background = opts?.background === true;
+
+    if (!background) {
       setLoading(true);
+      setLoadError(null);
     }
-    setLoadError(null);
 
     for (let attempt = 0; attempt < 3; attempt++) {
-      const ready = await ensureSupabaseSessionReady(attempt === 0 ? 8000 : 4000);
+      const ready = await ensureSupabaseSessionReady(attempt === 0 ? 12_000 : 5000);
       if (!ready) {
         await new Promise((r) => window.setTimeout(r, 400 * (attempt + 1)));
         continue;
@@ -79,25 +83,31 @@ export const usePermissions = () => {
     }
 
     console.error('[Permissions] all load attempts failed for user', userId);
+    if (background && hadCachedData) {
+      console.warn('[Permissions] background reload failed — keeping cached permissions');
+      return;
+    }
     setLoadError('Impossible de charger vos permissions. Réessayez ou reconnectez-vous.');
     setLoading(false);
   }, [userId]);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!userId) {
-      setPerms([]);
-      setLoading(false);
-      setLoadError(null);
-      loadedForUserRef.current = null;
+    if (!sessionReady) {
+      if (!authLoading && !userId) {
+        setPerms([]);
+        setLoading(false);
+        setLoadError(null);
+        loadedForUserRef.current = null;
+      }
       return;
     }
     void load().catch((err) => {
       console.error('[Permissions] load failed:', err);
+      if (loadedForUserRef.current === userId) return;
       setLoadError(formatError(err, 'Impossible de charger vos permissions.'));
       setLoading(false);
     });
-  }, [authLoading, userId, load]);
+  }, [sessionReady, authLoading, userId, load]);
 
   useSessionResumeReload(() => load({ background: true }));
 

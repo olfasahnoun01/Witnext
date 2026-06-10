@@ -29,13 +29,10 @@ export function isAuthSessionError(message: string | undefined | null): boolean 
 /** Must match useAuth validateOrRefreshSession threshold (120s). */
 const SESSION_READY_BUFFER_SEC = 120;
 
-/**
- * Refresh the session if the access token expires soon (or already expired).
- * Returns false only when there is no session or refresh failed.
- */
-export async function refreshSupabaseSessionIfNeeded(
-  bufferSec = SESSION_READY_BUFFER_SEC
-): Promise<boolean> {
+/** Serialize refreshSession — concurrent calls can invalidate the refresh token. */
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function performSessionRefresh(bufferSec: number): Promise<boolean> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.refresh_token) return false;
 
@@ -60,6 +57,23 @@ export async function refreshSupabaseSessionIfNeeded(
     bufferSec,
   }, 'A');
   return ok;
+}
+
+/**
+ * Refresh the session if the access token expires soon (or already expired).
+ * Returns false only when there is no session or refresh failed.
+ */
+export async function refreshSupabaseSessionIfNeeded(
+  bufferSec = SESSION_READY_BUFFER_SEC
+): Promise<boolean> {
+  if (refreshInFlight) {
+    return refreshInFlight;
+  }
+
+  refreshInFlight = performSessionRefresh(bufferSec).finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
 }
 
 /** Wait for a session, refreshing proactively before API calls. */
@@ -93,8 +107,8 @@ export async function supabaseQueryWithAuthRetry<T>(
   await refreshSupabaseSessionIfNeeded();
 
   let result = await run();
-  if (result.error && isJwtExpiredError(result.error.message)) {
-    debugLog('supabaseSession.ts:authRetry', 'JWT error on query, retrying', {
+  if (result.error && isAuthSessionError(result.error.message)) {
+    debugLog('supabaseSession.ts:authRetry', 'auth error on query, retrying', {
       errorMsg: result.error.message?.slice(0, 80),
     }, 'E');
     const refreshed = await refreshSupabaseSessionIfNeeded(0);

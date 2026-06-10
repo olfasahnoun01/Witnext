@@ -8,7 +8,10 @@ export function useSessionResumeReload(reload: () => void | Promise<void>) {
 
   useEffect(() => {
     return onSessionResume(() => {
-      void reloadRef.current();
+      // Brief delay so auth refresh (same wake event) finishes before data loaders run.
+      window.setTimeout(() => {
+        void reloadRef.current();
+      }, 300);
     });
   }, []);
 }
