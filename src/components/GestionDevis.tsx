@@ -242,8 +242,11 @@ export const GestionDevis = ({
   useSessionResumeReload(loadAll);
   useCompanyChangeReload(loadAll);
 
-  // Update active section and doc type if props change
+  // Apply route defaults once on mount only — do not reset section when user is mid-form.
+  const routeDefaultsAppliedRef = useRef(false);
   useEffect(() => {
+    if (routeDefaultsAppliedRef.current) return;
+    routeDefaultsAppliedRef.current = true;
     if (initialSection) setActiveSection(initialSection);
     if (initialDocType) setDocType(initialDocType);
     if (initialDevisType) setDevisType(initialDevisType);
@@ -275,10 +278,10 @@ export const GestionDevis = ({
   }, [savedDevis, bonsCommande, bonsAchat]);
 
   useEffect(() => {
-    if (!editingDevis) {
+    if (!editingDevis && devisItems.length === 0 && !showEditDialog && !isBCReviewOpen) {
       setDevisNumber(generateNextNumber(devisType, docType));
     }
-  }, [allDevis, devisType, docType, editingDevis, generateNextNumber]);
+  }, [allDevis, devisType, docType, editingDevis, devisItems.length, showEditDialog, isBCReviewOpen, generateNextNumber]);
 
   const clearFormFields = useCallback((clearItems = true) => {
     setDevisDate(new Date().toISOString().split('T')[0]);

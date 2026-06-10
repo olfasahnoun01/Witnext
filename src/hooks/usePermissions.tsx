@@ -31,14 +31,14 @@ function hasLegacyCommercialAccess(perms: PermissionRow[], subsectionId?: string
 }
 
 export const usePermissions = () => {
-  const { user, session, isAdmin, isLoading: authLoading } = useAuth();
+  const { user, isAdmin, isLoading: authLoading } = useAuth();
   const [perms, setPerms] = useState<PermissionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const loadedForUserRef = useRef<string | null>(null);
   const userId = user?.id ?? null;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { background?: boolean }) => {
     if (!userId) {
       setPerms([]);
       setLoading(false);
@@ -47,7 +47,9 @@ export const usePermissions = () => {
       return;
     }
 
-    setLoading(true);
+    if (!opts?.background) {
+      setLoading(true);
+    }
     setLoadError(null);
 
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -82,16 +84,22 @@ export const usePermissions = () => {
   }, [userId]);
 
   useEffect(() => {
-    if (!authLoading && userId && session?.access_token) {
-      void load().catch((err) => {
-        console.error('[Permissions] load failed:', err);
-        setLoadError(formatError(err, 'Impossible de charger vos permissions.'));
-        setLoading(false);
-      });
+    if (authLoading) return;
+    if (!userId) {
+      setPerms([]);
+      setLoading(false);
+      setLoadError(null);
+      loadedForUserRef.current = null;
+      return;
     }
-  }, [authLoading, userId, session?.access_token, load]);
+    void load().catch((err) => {
+      console.error('[Permissions] load failed:', err);
+      setLoadError(formatError(err, 'Impossible de charger vos permissions.'));
+      setLoading(false);
+    });
+  }, [authLoading, userId, load]);
 
-  useSessionResumeReload(load);
+  useSessionResumeReload(() => load({ background: true }));
 
   const canAccessSection = useCallback(
     (sectionId: string): boolean => {

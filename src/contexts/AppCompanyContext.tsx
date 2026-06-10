@@ -28,13 +28,14 @@ export const COMPANY_CHANGED_EVENT = 'app:company-changed';
 
 export function AppCompanyProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
+  const userId = session?.user?.id ?? null;
   const [companies, setCompanies] = useState<AppCompany[]>([]);
   const [currentCompanyId, setCurrentCompanyId] = useState<string | null>(getActiveCompanyId());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!session?.user) {
+  const load = useCallback(async (opts?: { background?: boolean }) => {
+    if (!userId) {
       setCompanies([]);
       setCurrentCompanyId(null);
       setActiveCompanyId(null);
@@ -43,7 +44,9 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setLoading(true);
+    if (!opts?.background) {
+      setLoading(true);
+    }
     setLoadError(null);
 
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -79,15 +82,13 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
     setActiveCompanyId(null);
     setLoadError('Impossible de charger vos sociétés. Réessayez ou reconnectez-vous.');
     setLoading(false);
-  }, [session?.user]);
+  }, [userId]);
 
   useEffect(() => {
-    if (session?.access_token) {
-      void load();
-    }
-  }, [load, session?.access_token]);
+    void load();
+  }, [load]);
 
-  useSessionResumeReload(load);
+  useSessionResumeReload(() => load({ background: true }));
 
   const setCompany = useCallback((id: string) => {
     setCurrentCompanyId(id);

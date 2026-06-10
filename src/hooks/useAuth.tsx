@@ -158,8 +158,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (shouldLoadRoles) await checkUserRoles(userId);
         if (cancelled || userRef.current?.id !== userId) return;
         if (options?.announceLogin) void setupSessionTracking(userId);
-        // Roles + JWT are stable — reload permissions, dashboard, company context.
-        notifySessionResume();
+        // Permissions/company/modules load from their own user-id effects — do not
+        // broadcast a global resume here (tab wake / TOKEN_REFRESHED would reset forms).
       })();
     };
 
@@ -214,7 +214,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setSessionExpired(false);
           setSession(nextSession);
           setUser(nextSession?.user ?? null);
-          notifySessionResume();
           return;
         }
 
@@ -289,7 +288,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }, 'C');
       void validateOrRefreshSession().then(({ ok, refreshed }) => {
         debugLog('useAuth.tsx:resumeAfterIdle', 'validate result', { ok, refreshed }, 'A');
-        if (ok) notifySessionResume();
+        // Only notify data loaders when the token was actually refreshed — not on every
+        // tab/window focus, which was unmounting in-progress forms via bootstrap loading.
+        if (ok && refreshed) notifySessionResume();
       });
     };
 

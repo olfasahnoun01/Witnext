@@ -1,8 +1,11 @@
-import { debugLog } from '@/lib/debugLog';
-
 type ResumeListener = () => void;
 
 const resumeListeners = new Set<ResumeListener>();
+
+/** Minimum gap between global resume reload bursts (avoids form resets on tab focus). */
+const RESUME_NOTIFY_MIN_GAP_MS = 8_000;
+let lastResumeNotifyAt = 0;
+let resumeNotifyTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Subscribe to app resume after token refresh / tab wake. */
 export function onSessionResume(listener: ResumeListener): () => void {
@@ -19,11 +22,8 @@ export function notifySessionInvalid(reason: string): void {
   }
 }
 
-/** Notify all listeners that the auth session is fresh and data should reload. */
-export function notifySessionResume(): void {
-  debugLog('sessionResume.ts:notify', 'notifySessionResume', {
-    listenerCount: resumeListeners.size,
-  }, 'C');
+function dispatchSessionResume(): void {
+  lastResumeNotifyAt = Date.now();
   resumeListeners.forEach((listener) => {
     try {
       listener();
@@ -34,4 +34,26 @@ export function notifySessionResume(): void {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('app:session-resume'));
   }
+}
+
+/** Notify listeners that the auth session was refreshed and background reload is useful. */
+export function notifySessionResume(): void {
+  const now = Date.now();
+  const elapsed = now - lastResumeNotifyAt;
+
+  if (elapsed >= RESUME_NOTIFY_MIN_GAP_MS) {
+    if (resumeNotifyTimer) {
+      clearTimeout(resumeNotifyTimer);
+      resumeNotifyTimer = null;
+    }
+    dispatchSessionResume();
+    return;
+  }
+
+  if (resumeNotifyTimer) return;
+
+  resumeNotifyTimer = setTimeout(() => {
+    resumeNotifyTimer = null;
+    dispatchSessionResume();
+  }, RESUME_NOTIFY_MIN_GAP_MS - elapsed);
 }
