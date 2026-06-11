@@ -59,7 +59,6 @@ import { FINANCE_EXCEL_TABLE_CLASS } from '../lib/financeStyles';
 import { getFinanceSectionTheme } from '../lib/financeSectionThemes';
 
 import { CommercialSourcesPanel } from './sources/CommercialSourcesPanel';
-import { CommercialOperationsTrackerPanel } from './sources/CommercialOperationsTrackerPanel';
 import { FinanceCompanyLogo } from './FinanceCompanyLogo';
 
 import { TreasuryHubPanel } from './treasury/TreasuryHubPanel';
@@ -435,10 +434,6 @@ export function FinanceDashboard() {
               showPurchases={showPurchases}
               onInvoiceCreated={load}
             />
-          )}
-
-          {sourcesSub === 'operations' && (
-            <CommercialOperationsTrackerPanel companyId={company.id} />
           )}
           </FinanceWorkArea>
 

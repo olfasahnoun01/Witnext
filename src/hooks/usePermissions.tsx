@@ -12,6 +12,7 @@ interface PermissionRow {
 }
 
 const COMMERCIAL_SUBSECTIONS = new Set(['gallery', 'rdv']);
+const FLUX_ALIASES = new Set(['flux-suivi', 'flux-suivi-magasin', 'bc-fournisseur-reception']);
 
 /** Galerie & RDV were under ventes; keep access for legacy permission rows until DB migration runs. */
 function hasLegacyCommercialAccess(perms: PermissionRow[], subsectionId?: string): boolean {
@@ -27,6 +28,16 @@ function hasLegacyCommercialAccess(perms: PermissionRow[], subsectionId?: string
       p.section_key === 'ventes' &&
       p.subsection_key &&
       COMMERCIAL_SUBSECTIONS.has(p.subsection_key)
+  );
+}
+
+function hasFluxSuiviAccess(perms: PermissionRow[]): boolean {
+  if (perms.some((p) => p.section_key === 'commercial' && p.subsection_key === 'flux-suivi')) {
+    return true;
+  }
+  const crossSections = ['ventes', 'achats', 'magasin', 'finance'] as const;
+  return crossSections.some((sec) =>
+    perms.some((p) => p.section_key === sec && (!p.subsection_key || p.subsection_key === ''))
   );
 }
 
@@ -123,7 +134,7 @@ export const usePermissions = () => {
         return true;
       }
       if (sectionId === 'commercial') {
-        return hasLegacyCommercialAccess(perms);
+        return hasLegacyCommercialAccess(perms) || hasFluxSuiviAccess(perms);
       }
       return false;
     },
@@ -145,6 +156,9 @@ export const usePermissions = () => {
       }
       if (sectionId === 'commercial' && COMMERCIAL_SUBSECTIONS.has(subsectionId)) {
         return hasLegacyCommercialAccess(perms, subsectionId);
+      }
+      if (FLUX_ALIASES.has(subsectionId)) {
+        return hasFluxSuiviAccess(perms);
       }
       return false;
     },

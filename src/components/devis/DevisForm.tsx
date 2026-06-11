@@ -1155,7 +1155,7 @@ export const DevisForm = memo(({
           />
         </DevisZohoSection>
 
-        {docType === 'bc' && !editingDevis && onImportDevis && (
+        {(docType === 'bc' || forceDocType === 'bc') && !editingDevis && onImportDevis && (
           <div className="px-4 sm:px-6 pt-4 border-b border-border/50">
             <ImportDevisIntoBcPanel
               devisList={importableDevis}

@@ -4,6 +4,8 @@ import {
   Users as UsersIcon,
   Wallet,
   Car,
+  Briefcase,
+  GitBranch,
   LayoutDashboard,
   Building2,
   Users,
@@ -14,8 +16,6 @@ import {
   FileSignature,
   ImageIcon,
   CalendarClock,
-  UserCheck,
-  UserCog,
   CalendarDays,
   FileBarChart,
   ClipboardPen,
@@ -29,7 +29,6 @@ import {
   ShoppingBag,
   PackageCheck,
   TrendingUp,
-  Briefcase,
   TableProperties,
   type LucideIcon,
 } from 'lucide-react';
@@ -78,6 +77,7 @@ export const BIG_SECTIONS: BigSection[] = [
     label: 'Commercial',
     icon: Briefcase,
     subsections: [
+      { id: 'flux-suivi', label: 'Suivi des flux', icon: GitBranch },
       { id: 'gallery', label: 'Galerie commerciale', icon: ImageIcon },
       { id: 'rdv', label: 'Rendez-vous', icon: CalendarClock },
     ],
@@ -92,7 +92,6 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'bc-vente', label: 'Bons de Commande', icon: FileText },
       { id: 'bl-vente', label: 'Bons de Livraison', icon: Truck },
       { id: 'factures-vente', label: 'Factures', icon: Receipt },
-      { id: 'suivi-clients', label: 'Suivi Clients', icon: UserCheck },
     ],
   },
   {
@@ -104,7 +103,7 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'commerciale-fournisseurs', label: 'Fournisseurs', icon: Building2 },
       { id: 'devis-achat', label: "Devis fournisseurs", icon: ClipboardList },
       { id: 'bc-achat', label: "BC fournisseurs", icon: FileText },
-      { id: 'suivi-fournisseurs', label: 'Suivi Fournisseurs', icon: UserCog },
+      { id: 'bc-fournisseur-reception', label: 'Réception fournisseurs', icon: PackageCheck },
     ],
   },
   {
@@ -118,6 +117,7 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'be-magasin', label: "Bons d'Entrée", icon: PackageCheck },
       { id: 'bs-magasin', label: 'Bons de Sortie', icon: TrendingUp },
       { id: 'bl-magasin', label: 'Bons de Livraison', icon: Truck },
+      { id: 'flux-suivi-magasin', label: 'Suivi des flux', icon: GitBranch },
       { id: 'comparison', label: 'Comparaison Prix', icon: GitCompare },
       { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
       { id: 'reports', label: 'Rapports & Documents', icon: FileText },

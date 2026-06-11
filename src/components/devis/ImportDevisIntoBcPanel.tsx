@@ -101,28 +101,46 @@ export function ImportDevisIntoBcPanel({ devisList, onImport, disabled }: Props)
           {filtered.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground text-center">Aucun devis ne correspond.</p>
           ) : (
-            filtered.map((d) => (
-              <label
-                key={d.id}
-                className="flex cursor-pointer items-start gap-3 px-3 py-2.5 hover:bg-muted/40 transition-colors"
-              >
-                <Checkbox
-                  checked={selectedIds.has(d.id)}
-                  onCheckedChange={(v) => toggle(d.id, v === true)}
-                  disabled={disabled}
-                  className="mt-0.5"
-                />
-                <span className="min-w-0 flex-1 text-sm">
-                  <span className="font-medium text-foreground">{d.devis_number}</span>
-                  <span className="text-muted-foreground">
-                    {' '}
-                    — {d.third_party_name || 'Sans tiers'} ·{' '}
-                    {new Date(d.devis_date).toLocaleDateString('fr-FR')} · {d.items.length} ligne
-                    {d.items.length !== 1 ? 's' : ''}
+            filtered.map((d) => {
+              const checked = selectedIds.has(d.id);
+              return (
+                <div
+                  key={d.id}
+                  role="button"
+                  tabIndex={disabled ? -1 : 0}
+                  aria-pressed={checked}
+                  onClick={() => {
+                    if (disabled) return;
+                    toggle(d.id, !checked);
+                  }}
+                  onKeyDown={(e) => {
+                    if (disabled) return;
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggle(d.id, !checked);
+                    }
+                  }}
+                  className="flex cursor-pointer items-start gap-3 px-3 py-2.5 hover:bg-muted/40 transition-colors"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(v) => toggle(d.id, v === true)}
+                    disabled={disabled}
+                    className="mt-0.5 pointer-events-none"
+                  />
+                  <span className="min-w-0 flex-1 text-sm">
+                    <span className="font-medium text-foreground">{d.devis_number}</span>
+                    <span className="text-muted-foreground">
+                      {' '}
+                      — {d.third_party_name || 'Sans tiers'} ·{' '}
+                      {new Date(d.devis_date).toLocaleDateString('fr-FR')} · {d.items?.length ?? 0}{' '}
+                      ligne
+                      {(d.items?.length ?? 0) !== 1 ? 's' : ''}
+                    </span>
                   </span>
-                </span>
-              </label>
-            ))
+                </div>
+              );
+            })
           )}
         </div>
 

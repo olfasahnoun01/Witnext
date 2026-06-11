@@ -245,11 +245,6 @@ export function getSourcesSubsections(): FinanceNavItem[] {
       id: 'pieces',
       label: 'Pièces commerciales',
     },
-    {
-      id: 'operations',
-      label: 'Suivi des opérations',
-      description: 'Chaîne Devis → BC → BL → Factures (lecture seule)',
-    },
   ];
 }
 

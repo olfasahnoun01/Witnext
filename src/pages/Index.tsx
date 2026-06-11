@@ -49,7 +49,9 @@ const CartesCarburant = lazy(() => import('@/components/vehicules/CartesCarburan
 const Maintenance = lazy(() => import('@/components/vehicules/Maintenance').then(m => ({ default: m.Maintenance })));
 const ChargesVehicule = lazy(() => import('@/components/vehicules/ChargesVehicule').then(m => ({ default: m.ChargesVehicule })));
 const ComingSoon = lazy(() => import('@/components/ComingSoon').then(m => ({ default: m.ComingSoon })));
-const SuiviManager = lazy(() => import('@/components/commercial/SuiviManager').then(m => ({ default: m.SuiviManager })));
+const FluxSuiviHub = lazy(() =>
+  import('@/modules/flux/components/FluxSuiviHub').then((m) => ({ default: m.FluxSuiviHub }))
+);
 const PermissionsManager = lazy(() => import('@/components/PermissionsManager').then(m => ({ default: m.PermissionsManager })));
 const RDV = lazy(() => import('@/components/commercial/RDV').then(m => ({ default: m.RDV })));
 const TeamChat = lazy(() => import('@/components/TeamChat').then(m => ({ default: m.TeamChat })));
@@ -236,9 +238,26 @@ const IndexContent = () => {
             <FacturesVente />
           </Suspense>
         )}
-        {activeTab === 'suivi-clients' && <SuiviManager type="client" />}
+        {activeTab === 'flux-suivi' && (
+          <Suspense fallback={<ComponentLoader />}>
+            <FluxSuiviHub />
+          </Suspense>
+        )}
+        {(activeTab === 'flux-suivi-magasin' || activeTab === 'suivi-clients' || activeTab === 'suivi-fournisseurs') && (
+          <Suspense fallback={<ComponentLoader />}>
+            <FluxSuiviHub />
+          </Suspense>
+        )}
 
-        {/* Commercial */}
+        {activeTab === 'bc-fournisseur-reception' && (
+          <Suspense fallback={<ComponentLoader />}>
+            <UnifiedDocumentList
+              title="Réception fournisseurs"
+              description="BC fournisseur en attente de réception — saisir les quantités reçues et valider les bons d'entrée."
+              documentTypes={['BC_FOURNISSEUR']}
+            />
+          </Suspense>
+        )}
         {activeTab === 'gallery' && <PhotoGallery />}
         {activeTab === 'rdv' && <RDV />}
 
@@ -250,9 +269,7 @@ const IndexContent = () => {
         {activeTab === 'bc-achat' && (
           <GestionDevis onTabChange={handleTabChange} initialSection="bc" initialDevisType="achat" lockDevisType sectionMode="bc" />
         )}
-        {activeTab === 'suivi-fournisseurs' && <SuiviManager type="fournisseur" />}
-
-        {/* Ressources Humaines */}
+        {/* Commercial */}
         {activeTab === 'rh-employes' && <HrEmployeesHub />}
         {activeTab === 'planning' && <Planning />}
         {activeTab === 'rh-planning-controle' && <DriverControlPlanning />}
