@@ -3,12 +3,8 @@ import { Plus, Search, Trash2 } from 'lucide-react';
 import type { DevisItem, Product } from '@/types';
 import { computeArticleTableLineTotalHT } from '@/lib/devisPricing';
 import { getDevisItemDisplayCode } from '@/lib/devisItemPdf';
-import {
-  parseDecimalInput,
-  parseDecimalInputLoose,
-  formatDecimalFieldValue,
-} from '@/lib/numberInput';
 import { cn } from '@/lib/utils';
+import { DecimalInput } from '@/components/ui/decimal-input';
 import { devisZohoCellInputClass, devisZohoCellTextareaClass } from './DevisFormUi';
 import { DevisAnchoredDropdown } from './DevisAnchoredDropdown';
 
@@ -45,8 +41,6 @@ export interface DevisArticlesTableProps {
   onItemPrixAchatChange: (value: number) => void;
   itemPrixTtc: number;
   onItemPrixTtcChange: (value: number) => void;
-  itemPrixVenteDraft: string | null;
-  onItemPrixVenteDraftChange: (value: string | null) => void;
   itemRemise: number;
   onItemRemiseChange: (value: number) => void;
   itemTva: number;
@@ -100,8 +94,6 @@ export function DevisArticlesTable({
   onItemPrixAchatChange,
   itemPrixTtc,
   onItemPrixTtcChange,
-  itemPrixVenteDraft,
-  onItemPrixVenteDraftChange,
   itemRemise,
   onItemRemiseChange,
   itemTva,
@@ -126,11 +118,6 @@ export function DevisArticlesTable({
     devisType,
     isTtc
   );
-
-  const prixUnitDisplay =
-    devisType === 'vente'
-      ? itemPrixVenteDraft ?? formatDecimalFieldValue(itemPrixTtc)
-      : formatDecimalFieldValue(itemPrixTtc);
 
   const handlePickProduct = (product: Product) => {
     onSelectProduct(product);
@@ -214,38 +201,27 @@ export function DevisArticlesTable({
                 </td>
                 {devisType === 'vente' && (
                   <td className={TD}>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={formatDecimalFieldValue(item.prix_achat ?? 0)}
-                      onChange={(e) =>
-                        onUpdate(idx, { prix_achat: parseDecimalInput(e.target.value) })
-                      }
-                      className={cn(devisZohoCellInputClass, 'text-right text-xs')}
+                    <DecimalInput
+                      value={item.prix_achat ?? 0}
+                      onValueChange={(v) => onUpdate(idx, { prix_achat: v })}
+                      className={cn(devisZohoCellInputClass, 'text-right text-xs h-auto py-1.5')}
                     />
                   </td>
                 )}
                 <td className={TD}>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={formatDecimalFieldValue(item.prix_ttc)}
-                    onChange={(e) =>
-                      onUpdate(idx, { prix_ttc: parseDecimalInput(e.target.value) })
-                    }
-                    className={cn(devisZohoCellInputClass, 'text-right text-xs')}
+                  <DecimalInput
+                    value={item.prix_ttc}
+                    onValueChange={(v) => onUpdate(idx, { prix_ttc: v })}
+                    className={cn(devisZohoCellInputClass, 'text-right text-xs h-auto py-1.5')}
                   />
                 </td>
                 <td className={TD}>
                   <div className="flex items-center gap-0.5">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={item.remise ? String(item.remise) : ''}
-                      onChange={(e) =>
-                        onUpdate(idx, { remise: parseDecimalInput(e.target.value) })
-                      }
-                      className={cn(devisZohoCellInputClass, 'text-center text-xs')}
+                    <DecimalInput
+                      value={item.remise ?? 0}
+                      onValueChange={(v) => onUpdate(idx, { remise: v })}
+                      allowEmptyZero
+                      className={cn(devisZohoCellInputClass, 'text-center text-xs h-auto py-1.5')}
                     />
                     <span className="text-[10px] text-muted-foreground">%</span>
                   </div>
@@ -356,51 +332,30 @@ export function DevisArticlesTable({
             </td>
             {devisType === 'vente' && (
               <td className={TD_COMPOSER}>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={formatDecimalFieldValue(itemPrixAchat)}
-                  onChange={(e) => onItemPrixAchatChange(parseDecimalInput(e.target.value))}
-                  className={cn(devisZohoCellInputClass, 'text-right text-xs w-full')}
+                <DecimalInput
+                  value={itemPrixAchat}
+                  onValueChange={onItemPrixAchatChange}
+                  className={cn(devisZohoCellInputClass, 'text-right text-xs w-full h-auto py-1.5')}
                 />
               </td>
             )}
             <td className={TD_COMPOSER}>
-              <input
+              <DecimalInput
                 ref={composerPrixRef}
-                type="text"
-                inputMode="decimal"
-                value={prixUnitDisplay}
-                onChange={(e) => {
-                  if (devisType === 'vente') {
-                    onItemPrixVenteDraftChange(e.target.value);
-                    onItemPrixTtcChange(parseDecimalInputLoose(e.target.value));
-                  } else {
-                    onItemPrixTtcChange(parseDecimalInput(e.target.value));
-                  }
-                }}
-                onFocus={
-                  devisType === 'vente'
-                    ? () =>
-                        onItemPrixVenteDraftChange(
-                          itemPrixTtc === 0 ? '' : formatDecimalFieldValue(itemPrixTtc)
-                        )
-                    : undefined
-                }
-                onBlur={devisType === 'vente' ? () => onItemPrixVenteDraftChange(null) : undefined}
-                className={cn(devisZohoCellInputClass, 'text-right text-xs w-full')}
+                value={itemPrixTtc}
+                onValueChange={onItemPrixTtcChange}
+                className={cn(devisZohoCellInputClass, 'text-right text-xs w-full h-auto py-1.5')}
                 placeholder="0.000"
                 aria-label={prixUnitHeader}
               />
             </td>
             <td className={TD_COMPOSER}>
               <div className="flex items-center gap-0.5">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={itemRemise ? String(itemRemise) : ''}
-                  onChange={(e) => onItemRemiseChange(parseDecimalInput(e.target.value))}
-                  className={cn(devisZohoCellInputClass, 'text-center text-xs')}
+                <DecimalInput
+                  value={itemRemise}
+                  onValueChange={onItemRemiseChange}
+                  allowEmptyZero
+                  className={cn(devisZohoCellInputClass, 'text-center text-xs w-full h-auto py-1.5')}
                 />
                 <span className="text-[10px] text-muted-foreground">%</span>
               </div>

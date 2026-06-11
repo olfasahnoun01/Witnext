@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { DecimalInput } from '@/components/ui/decimal-input';
 
 interface Fournisseur {
   id: number;
@@ -412,12 +413,9 @@ export const DocumentForm = memo(({
                 placeholder="Qté"
               />
               {showPrice && (
-                <input
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  value={itemPrice || ''}
-                  onChange={(e) => setItemPrice(parseFloat(e.target.value) || 0)}
+                <DecimalInput
+                  value={itemPrice ?? 0}
+                  onValueChange={setItemPrice}
                   className="form-input w-32"
                   placeholder="Prix TND (optionnel)"
                 />
@@ -485,12 +483,9 @@ export const DocumentForm = memo(({
                       {showPrice && (
                         <div>
                           <label className="text-xs text-muted-foreground">Prix TND</label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.001"
-                            value={editItemPrice || ''}
-                            onChange={(e) => setEditItemPrice(parseFloat(e.target.value) || 0)}
+                          <DecimalInput
+                            value={editItemPrice ?? 0}
+                            onValueChange={setEditItemPrice}
                             className="form-input w-32"
                           />
                         </div>

@@ -4,6 +4,8 @@ import { fetchInventoryCategoryNames } from '@/lib/inventoryCategoryNames';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DecimalInput } from '@/components/ui/decimal-input';
+import { filterDecimalDraft, parseDecimalInput } from '@/lib/numberInput';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -362,9 +364,9 @@ export const PhotoGallery = () => {
   };
 
   const parsePrixInput = (raw: string): number | null => {
-    const v = raw.trim().replace(/\s/g, '').replace(',', '.');
+    const v = raw.trim();
     if (!v) return null;
-    const n = Number(v);
+    const n = parseDecimalInput(v);
     return Number.isFinite(n) && n >= 0 ? n : null;
   };
 
@@ -929,7 +931,7 @@ export const PhotoGallery = () => {
                 <Label>Prix vente TTC (TND)</Label>
                 <Input
                   value={formPrixTtc}
-                  onChange={e => setFormPrixTtc(e.target.value)}
+                  onChange={e => setFormPrixTtc(filterDecimalDraft(e.target.value))}
                   inputMode="decimal"
                   placeholder="ex. 58,500"
                 />
@@ -939,7 +941,7 @@ export const PhotoGallery = () => {
                 <Label>Prix d&apos;achat TTC (TND)</Label>
                 <Input
                   value={formPrixAchat}
-                  onChange={e => setFormPrixAchat(e.target.value)}
+                  onChange={e => setFormPrixAchat(filterDecimalDraft(e.target.value))}
                   inputMode="decimal"
                   placeholder="ex. 42,000"
                 />

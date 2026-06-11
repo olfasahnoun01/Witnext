@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DecimalInput } from '@/components/ui/decimal-input';
 import { Label } from '@/components/ui/label';
 import { ProductGroupFournisseur } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
@@ -117,25 +118,19 @@ export const MultiFournisseurInput = ({ value, onChange }: MultiFournisseurInput
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Prix HT</label>
-                  <Input
-                    type="number"
-                    step="0.001"
-                    min="0"
-                    value={item.prix || ''}
-                    onChange={(e) => updateFournisseur(index, 'prix', parseFloat(e.target.value) || 0)}
+                  <DecimalInput
+                    value={item.prix ?? 0}
+                    onValueChange={(v) => updateFournisseur(index, 'prix', v)}
                     placeholder="0.000"
                     className="h-9"
                   />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Remise (%)</label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="100"
-                    value={item.remise || ''}
-                    onChange={(e) => updateFournisseur(index, 'remise', parseFloat(e.target.value) || 0)}
+                  <DecimalInput
+                    value={item.remise ?? 0}
+                    onValueChange={(v) => updateFournisseur(index, 'remise', v)}
+                    allowEmptyZero
                     placeholder="0"
                     className="h-9"
                   />

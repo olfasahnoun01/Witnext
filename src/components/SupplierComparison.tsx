@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Package, Phone, Calculator, Check, Pencil, X, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
+import { DecimalInput } from '@/components/ui/decimal-input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -46,11 +47,11 @@ export const SupplierComparison = () => {
   const [quantity, setQuantity] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editingPrice, setEditingPrice] = useState<string>('');
+  const [editingPrice, setEditingPrice] = useState<number>(0);
   const [isSaving, setIsSaving] = useState(false);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newFournisseurName, setNewFournisseurName] = useState('');
-  const [newFournisseurPrice, setNewFournisseurPrice] = useState('');
+  const [newFournisseurPrice, setNewFournisseurPrice] = useState(0);
   const [existingFournisseurs, setExistingFournisseurs] = useState<string[]>([]);
 
   // Load categories and existing fournisseurs
@@ -177,17 +178,17 @@ export const SupplierComparison = () => {
 
   const handleEditPrice = useCallback((fournisseur: FournisseurPrice) => {
     setEditingId(fournisseur.id);
-    setEditingPrice(fournisseur.prix_ttc.toString());
+    setEditingPrice(fournisseur.prix_ttc);
   }, []);
 
   const handleCancelEdit = useCallback(() => {
     setEditingId(null);
-    setEditingPrice('');
+    setEditingPrice(0);
   }, []);
 
   const handleSavePrice = useCallback(async (fournisseurId: number) => {
-    const newPrice = parseFloat(editingPrice);
-    if (isNaN(newPrice) || newPrice < 0) {
+    const newPrice = editingPrice;
+    if (!Number.isFinite(newPrice) || newPrice < 0) {
       toast.error('Prix invalide');
       return;
     }
@@ -209,7 +210,7 @@ export const SupplierComparison = () => {
 
       toast.success('Prix mis à jour');
       setEditingId(null);
-      setEditingPrice('');
+      setEditingPrice(0);
     } catch (error: any) {
       console.error('Error updating price:', error);
       toast.error(error.message || 'Erreur lors de la mise à jour');
@@ -223,7 +224,7 @@ export const SupplierComparison = () => {
       toast.error('Nom du fournisseur requis');
       return;
     }
-    const price = parseFloat(newFournisseurPrice) || 0;
+    const price = newFournisseurPrice;
     if (price < 0) {
       toast.error('Prix invalide');
       return;
@@ -283,7 +284,7 @@ export const SupplierComparison = () => {
       toast.success('Fournisseur ajouté au produit');
       setIsAddingNew(false);
       setNewFournisseurName('');
-      setNewFournisseurPrice('');
+      setNewFournisseurPrice(0);
     } catch (error: any) {
       console.error('Error adding fournisseur:', error);
       toast.error(error.message || "Erreur lors de l'ajout");
@@ -427,19 +428,17 @@ export const SupplierComparison = () => {
                   </div>
                   <div className="w-32 space-y-1">
                     <Label className="text-xs">Prix TTC</Label>
-                    <Input
-                      type="number"
-                      step="0.001"
-                      min="0"
+                    <DecimalInput
                       value={newFournisseurPrice}
-                      onChange={(e) => setNewFournisseurPrice(e.target.value)}
+                      onValueChange={setNewFournisseurPrice}
+                      className="h-9"
                       placeholder="0.000"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleAddFournisseur();
                         if (e.key === 'Escape') {
                           setIsAddingNew(false);
                           setNewFournisseurName('');
-                          setNewFournisseurPrice('');
+                          setNewFournisseurPrice(0);
                         }
                       }}
                     />
@@ -457,7 +456,7 @@ export const SupplierComparison = () => {
                     onClick={() => {
                       setIsAddingNew(false);
                       setNewFournisseurName('');
-                      setNewFournisseurPrice('');
+                          setNewFournisseurPrice(0);
                     }}
                     disabled={isSaving}
                   >
@@ -520,13 +519,10 @@ export const SupplierComparison = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           {isEditing ? (
-                            <Input
-                              type="number"
-                              step="0.001"
-                              min="0"
+                            <DecimalInput
                               value={editingPrice}
-                              onChange={(e) => setEditingPrice(e.target.value)}
-                              className="w-28 text-right ml-auto"
+                              onValueChange={setEditingPrice}
+                              className="w-28 text-right ml-auto h-8"
                               autoFocus
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') handleSavePrice(fournisseur.id);
@@ -542,7 +538,7 @@ export const SupplierComparison = () => {
                         </TableCell>
                         <TableCell className="text-right font-bold">
                           {isEditing 
-                            ? ((parseFloat(editingPrice) || 0) * quantity).toFixed(3)
+                            ? (editingPrice * quantity).toFixed(3)
                             : total.toFixed(3)
                           } TND
                         </TableCell>

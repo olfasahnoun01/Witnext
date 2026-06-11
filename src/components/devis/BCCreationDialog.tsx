@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Devis, DevisItem, Product } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DecimalInput } from '@/components/ui/decimal-input';
 import { Label } from '@/components/ui/label';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -267,31 +268,25 @@ export const BCCreationDialog = ({
                         </TableCell>
                         {sourceDevis.type === 'vente' && (
                           <TableCell className="text-right px-1">
-                            <Input
-                              type="number"
-                              step="0.001"
-                              value={item.prix_achat || 0}
-                              onChange={(e) => updateItemAchat(idx, parseFloat(e.target.value) || 0)}
+                            <DecimalInput
+                              value={item.prix_achat ?? 0}
+                              onValueChange={(v) => updateItemAchat(idx, v)}
                               className="h-8 text-right w-full"
                             />
                           </TableCell>
                         )}
                         <TableCell className="text-right px-1">
-                          <Input
-                            type="number"
-                            step="0.001"
-                            value={item.prix_ttc}
-                            onChange={(e) => updateItemPrice(idx, parseFloat(e.target.value) || 0)}
+                          <DecimalInput
+                            value={item.prix_ttc ?? 0}
+                            onValueChange={(v) => updateItemPrice(idx, v)}
                             className="h-8 text-right w-full"
                           />
                         </TableCell>
                         <TableCell className="px-1">
-                          <Input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={item.remise}
-                            onChange={(e) => updateItemRemise(idx, parseFloat(e.target.value) || 0)}
+                          <DecimalInput
+                            value={item.remise ?? 0}
+                            onValueChange={(v) => updateItemRemise(idx, v)}
+                            allowEmptyZero
                             className="h-8 text-center px-1"
                           />
                         </TableCell>

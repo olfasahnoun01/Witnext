@@ -15,6 +15,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { DecimalInput } from '@/components/ui/decimal-input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
@@ -582,16 +583,23 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="price">Prix HT</Label>
-                    <Input id="price" type="number" min="0" step="0.001" value={formData.price}
-                      onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))} />
+                    <DecimalInput
+                      id="price"
+                      value={formData.price ?? 0}
+                      onValueChange={(val) => setFormData(prev => ({ ...prev, price: val }))}
+                    />
                   </div>
                 </div>
 
                 <div className="grid gap-2 max-w-xs">
                   <Label htmlFor="remise">Remise (%)</Label>
-                  <Input id="remise" type="number" min="0" max="100" step="0.1" value={formData.remise}
-                    onChange={(e) => setFormData(prev => ({ ...prev, remise: parseFloat(e.target.value) || 0 }))}
-                    placeholder="0" />
+                  <DecimalInput
+                    id="remise"
+                    value={formData.remise ?? 0}
+                    onValueChange={(val) => setFormData(prev => ({ ...prev, remise: val }))}
+                    allowEmptyZero
+                    placeholder="0"
+                  />
                 </div>
               </>
 

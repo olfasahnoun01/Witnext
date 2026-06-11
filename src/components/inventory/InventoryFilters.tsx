@@ -2,6 +2,7 @@ import { memo, useCallback, useState, useEffect } from 'react';
 import { Search, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { filterDecimalDraft } from '@/lib/numberInput';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDebounce } from '@/hooks/useDebounce';
 
@@ -165,23 +166,21 @@ export const InventoryFilters = memo(({
         {/* Price Range */}
         <div className="flex items-center gap-2">
           <Input
-            type="number"
+            type="text"
+            inputMode="decimal"
             placeholder="Prix min"
             value={filters.priceMin}
-            onChange={(e) => handlePriceMinChange(e.target.value)}
+            onChange={(e) => handlePriceMinChange(filterDecimalDraft(e.target.value))}
             className="w-[100px]"
-            min="0"
-            step="0.001"
           />
           <span className="text-muted-foreground">-</span>
           <Input
-            type="number"
+            type="text"
+            inputMode="decimal"
             placeholder="Prix max"
             value={filters.priceMax}
-            onChange={(e) => handlePriceMaxChange(e.target.value)}
+            onChange={(e) => handlePriceMaxChange(filterDecimalDraft(e.target.value))}
             className="w-[100px]"
-            min="0"
-            step="0.001"
           />
         </div>
       </div>

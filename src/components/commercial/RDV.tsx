@@ -124,6 +124,22 @@ const buildRDVDateTime = (date: string, time?: string) => {
   return new Date(`${date}T${normalizedTime}:00`).toISOString();
 };
 
+async function generateNextRdvNumero(companyId: string): Promise<string> {
+  let query = (supabase as any).from('rdvs').select('numero').ilike('numero', 'RDV-%');
+  if (companyId) query = query.eq('company_id', companyId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  let maxSeq = 0;
+  for (const row of data ?? []) {
+    const match = /^RDV-(\d+)$/i.exec(String(row.numero ?? '').trim());
+    if (match) maxSeq = Math.max(maxSeq, parseInt(match[1], 10));
+  }
+
+  return `RDV-${(maxSeq + 1).toString().padStart(3, '0')}`;
+}
+
 export const RDV = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -221,18 +237,23 @@ export const RDV = () => {
           .eq('id', editingRDV.id);
         if (error) throw error;
       } else {
-        let countQuery = (supabase as any)
-          .from('rdvs')
-          .select('id', { count: 'exact', head: true });
-        if (companyId) countQuery = countQuery.eq('company_id', companyId);
-        const { count, error: countError } = await countQuery;
-        if (countError) throw countError;
-
-        const numero = `RDV-${((count ?? 0) + 1).toString().padStart(3, '0')}`;
-        const { error } = await (supabase as any).from('rdvs').insert([
-          { ...payload, numero },
-        ]);
-        if (error) throw error;
+        let lastError: unknown = null;
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const numero = await generateNextRdvNumero(companyId);
+          const { error } = await (supabase as any).from('rdvs').insert([
+            { ...payload, numero },
+          ]);
+          if (!error) {
+            lastError = null;
+            break;
+          }
+          if (error.code === '23505') {
+            lastError = error;
+            continue;
+          }
+          throw error;
+        }
+        if (lastError) throw lastError;
       }
 
       toast.success(editingRDV ? 'Rendez-vous modifié avec succès' : 'Rendez-vous ajouté avec succès');

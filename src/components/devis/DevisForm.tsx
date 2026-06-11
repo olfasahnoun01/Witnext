@@ -39,7 +39,6 @@ import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { PhoneLinesEditor } from '@/components/shared/PhoneLinesEditor';
 import { formatPhonesDisplay, serializePhoneList } from '@/lib/phoneList';
 import { validateUploadFile } from '@/lib/uploadValidation';
-import { parseDecimalInput, parseDecimalInputLoose, formatDecimalFieldValue } from '@/lib/numberInput';
 import {
   DevisField,
   DevisFlowBadge,
@@ -178,7 +177,6 @@ export const DevisForm = memo(({
   const [itemFournisseur, setItemFournisseur] = useState('');
   const [itemPrixTtc, setItemPrixTtc] = useState<number>(0);
   /** Brouillon PU vente HT (devis vente) pour afficher « 12. » sans perdre le point avant blur. */
-  const [itemPrixVenteDraft, setItemPrixVenteDraft] = useState<string | null>(null);
   const [itemRemise, setItemRemise] = useState<number>(0);
   const [itemQuantity, setItemQuantity] = useState<number>(1);
   const [itemDescription, setItemDescription] = useState('');
@@ -334,11 +332,9 @@ export const DevisForm = memo(({
     if (isAchat) {
       const priceHt = product.price || 0;
       setItemPrixTtc(priceHt);
-      setItemPrixVenteDraft(null);
       setItemPrixAchat(0);
       setItemRemise(product.remise || 0);
     } else {
-      setItemPrixVenteDraft(null);
       const p = Number(product.price);
       const r = Number(product.remise ?? 0);
       const netHt = Number.isFinite(p) ? p * (1 - (Number.isFinite(r) ? r : 0) / 100) : 0;
@@ -372,14 +368,12 @@ export const DevisForm = memo(({
     setItemDescription('');
     setItemPrixAchat(0);
     setItemTva(19);
-    setItemPrixVenteDraft(null);
     setProductSearch('');
     setSearchResults([]);
   }, []);
 
   useEffect(() => {
     setSelectedThirdPartyId('');
-    setItemPrixVenteDraft(null);
   }, [devisType]);
 
   const handleThirdPartyNameChange = useCallback((value: string) => {
@@ -556,7 +550,6 @@ export const DevisForm = memo(({
     setProductSearch('');
     setSearchResults([]);
     setSelectedProduct(null);
-    setItemPrixVenteDraft(null);
     achatPriceRequestRef.current += 1;
     if (articleMode === 'search') {
       requestAnimationFrame(() => composerSearchRef.current?.focus());
@@ -801,7 +794,6 @@ export const DevisForm = memo(({
           setItemDesignation('');
           setItemFournisseur('');
           setItemPrixTtc(0);
-          setItemPrixVenteDraft(null);
           setItemQuantity(1);
           setItemDescription('');
           setSelectedProduct(null);
@@ -813,7 +805,6 @@ export const DevisForm = memo(({
           setSelectedProduct(first as Product);
           if (devisType === 'vente') {
             setItemPrixTtc(0);
-            setItemPrixVenteDraft(null);
             setItemRemise(0);
             setItemPrixAchat(0);
             loadPrixAchatFromInventoryProduct({
@@ -1009,7 +1000,6 @@ export const DevisForm = memo(({
           } as Product);
           if (devisType === 'vente') {
             setItemPrixTtc(0);
-            setItemPrixVenteDraft(null);
             setItemRemise(0);
             setItemPrixAchat(0);
             loadPrixAchatFromInventoryProduct({
@@ -1191,7 +1181,6 @@ export const DevisForm = memo(({
                     setItemDesignation('');
                     setItemFournisseur('');
                     setItemPrixTtc(0);
-                    setItemPrixVenteDraft(null);
                     setItemDescription('');
                     setProductSearch('');
                     setSearchResults([]);
@@ -1211,7 +1200,6 @@ export const DevisForm = memo(({
                     setItemDesignation('');
                     setItemFournisseur('');
                     setItemPrixTtc(0);
-                    setItemPrixVenteDraft(null);
                     setItemDescription('');
                     setProductSearch('');
                     setSearchResults([]);
@@ -1259,8 +1247,6 @@ export const DevisForm = memo(({
             onItemPrixAchatChange={setItemPrixAchat}
             itemPrixTtc={itemPrixTtc}
             onItemPrixTtcChange={setItemPrixTtc}
-            itemPrixVenteDraft={itemPrixVenteDraft}
-            onItemPrixVenteDraftChange={setItemPrixVenteDraft}
             itemRemise={itemRemise}
             onItemRemiseChange={setItemRemise}
             itemTva={itemTva}

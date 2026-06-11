@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, memo, createRef } from 'react
 import { X, Upload, Package, Plus, Trash2, ArrowLeft, ArrowRight, FileUp, Eye, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DecimalInput } from '@/components/ui/decimal-input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -573,23 +574,18 @@ export const ProductGroupModal = ({
                       </div>
                       <div className="grid gap-1 col-span-1">
                         <Label className="text-xs">Prix HT</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.001"
-                          value={v.price}
-                          onChange={(e) => updateVariant(idx, 'price', parseFloat(e.target.value) || 0)}
+                        <DecimalInput
+                          value={v.price ?? 0}
+                          onValueChange={(val) => updateVariant(idx, 'price', val)}
                           className="h-8 text-xs px-2"
                         />
                       </div>
                       <div className="grid gap-1 col-span-1">
                         <Label className="text-xs">Rem.%</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={v.remise}
-                          onChange={(e) => updateVariant(idx, 'remise', parseFloat(e.target.value) || 0)}
+                        <DecimalInput
+                          value={v.remise ?? 0}
+                          onValueChange={(val) => updateVariant(idx, 'remise', val)}
+                          allowEmptyZero
                           className="h-8 text-xs px-2"
                         />
                       </div>

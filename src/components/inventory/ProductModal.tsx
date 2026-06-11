@@ -37,6 +37,7 @@ interface ProductModalProps {
 import { DocumentUploader } from '@/components/shared/DocumentUploader';
 import { ClientDocumentPreviewDialog } from '@/components/shared/ClientDocumentPreviewDialog';
 import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
+import { DecimalInput } from '@/components/ui/decimal-input';
 
 export const ProductModal = memo(({
   isOpen,
@@ -202,12 +203,9 @@ export const ProductModal = memo(({
 
             <div>
               <label className="form-label">Prix HT</label>
-              <input
-                type="number"
-                step="0.001"
-                min="0"
-                value={formData.price}
-                onChange={(e) => onFormDataChange({ ...formData, price: parseFloat(e.target.value) || 0 })}
+              <DecimalInput
+                value={formData.price ?? 0}
+                onValueChange={(price) => onFormDataChange({ ...formData, price })}
                 className="form-input"
                 placeholder="0.000 (optionnel)"
               />
@@ -215,13 +213,10 @@ export const ProductModal = memo(({
 
             <div>
               <label className="form-label">Remise (%)</label>
-              <input
-                type="number"
-                step="0.1"
-                min="0"
-                max="100"
-                value={formData.remise}
-                onChange={(e) => onFormDataChange({ ...formData, remise: parseFloat(e.target.value) || 0 })}
+              <DecimalInput
+                value={formData.remise ?? 0}
+                onValueChange={(remise) => onFormDataChange({ ...formData, remise })}
+                allowEmptyZero
                 className="form-input"
                 placeholder="0"
               />

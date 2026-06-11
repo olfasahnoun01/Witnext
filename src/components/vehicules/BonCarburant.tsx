@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Fuel, Plus, Search, Calendar, User, Car, Banknote, ClipboardList, Loader2, Image as ImageIcon, Eye, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DecimalInput } from '@/components/ui/decimal-input';
+import { parseDecimalInput } from '@/lib/numberInput';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -41,6 +43,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { getActiveCompanyId } from '@/lib/activeCompany';
 import { getFuelVoucherStatusDisplay, fuelVoucherStatusBadgeClass } from '@/lib/fuelVoucherStatus';
+import { computeFuelVoucherDistance, fetchLastApprovedKmFinal } from '@/lib/fuelVoucherKm';
 
 interface FuelVoucher {
   id: string;
@@ -88,6 +91,7 @@ export const BonCarburant = () => {
   const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<FuelVoucher | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [kmInitialAutoFilled, setKmInitialAutoFilled] = useState(false);
 
   const [form, setForm] = useState({
     numBon: '',
@@ -96,9 +100,61 @@ export const BonCarburant = () => {
     conducteurId: '',
     typeCarburant: 'gasoil' as string,
     vehiculeId: '',
+    kmInitial: '',
     kmFinal: '',
     notes: '',
   });
+
+  const emptyForm = () => ({
+    numBon: '',
+    date: new Date().toISOString().split('T')[0],
+    montant: '',
+    conducteurId: '',
+    typeCarburant: 'gasoil' as string,
+    vehiculeId: '',
+    kmInitial: '',
+    kmFinal: '',
+    notes: '',
+  });
+
+  const openNewDialog = () => {
+    setEditingVoucherId(null);
+    setKmInitialAutoFilled(false);
+    setForm(emptyForm());
+    setIsDialogOpen(true);
+  };
+
+  const getVoucherDistance = (bon: FuelVoucher): number | null => {
+    const fromDb = computeFuelVoucherDistance(bon.km, bon.km_initial);
+    if (fromDb != null) return fromDb;
+    if (bon.distance != null && !Number.isNaN(Number(bon.distance))) {
+      return Number(bon.distance);
+    }
+    return null;
+  };
+
+  const handleVehicleChange = async (vehicleId: string) => {
+    const veh = vehicles.find((x) => x.id === vehicleId);
+    const fuel =
+      veh?.type_carburant === 'essence' || veh?.type_carburant === 'gasoil'
+        ? veh.type_carburant
+        : 'gasoil';
+
+    if (editingVoucherId) {
+      setForm((prev) => ({ ...prev, vehiculeId: vehicleId, typeCarburant: fuel }));
+      return;
+    }
+
+    const lastKmFinal = await fetchLastApprovedKmFinal(vehicleId);
+    setKmInitialAutoFilled(lastKmFinal != null);
+    setForm((prev) => ({
+      ...prev,
+      vehiculeId: vehicleId,
+      typeCarburant: fuel,
+      kmInitial: lastKmFinal != null ? String(lastKmFinal) : '',
+      kmFinal: '',
+    }));
+  };
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -154,24 +210,36 @@ export const BonCarburant = () => {
 
     setIsSubmitting(true);
     try {
-      const selectedVehicle = vehicles.find((v) => v.id === form.vehiculeId);
-      const kmInitial =
-        selectedVehicle?.kilometrage_actuel != null && !Number.isNaN(Number(selectedVehicle.kilometrage_actuel))
-          ? Number(selectedVehicle.kilometrage_actuel)
-          : null;
+      const kmFinal = form.kmFinal.trim() ? Number(form.kmFinal) : null;
+      const kmInitial = form.kmInitial.trim() ? Number(form.kmInitial) : null;
+
+      if (!editingVoucherId && kmInitial == null) {
+        toast.error(
+          'Indiquez le kilométrage initial. Pour un premier bon, saisissez-le manuellement ; pour les suivants, il est repris du dernier km final approuvé.'
+        );
+        return;
+      }
+
+      if (kmFinal != null && kmInitial != null && kmFinal < kmInitial) {
+        toast.error('Le kilométrage final doit être supérieur ou égal au kilométrage initial');
+        return;
+      }
+
+      const distance = computeFuelVoucherDistance(kmFinal, kmInitial);
 
       const payload = {
         num_bon: form.numBon.trim(),
         date: form.date,
-        montant: parseFloat(form.montant),
+        montant: parseDecimalInput(form.montant),
         conducteur_id: form.conducteurId,
         vehicule_id: form.vehiculeId,
         type_carburant: form.typeCarburant,
-        km: form.kmFinal ? Number(form.kmFinal) : null,
+        km: kmFinal,
+        km_initial: kmInitial,
+        distance,
         notes: form.notes.trim() || null,
         company_id: getActiveCompanyId() || undefined,
         ...(editingVoucherId ? {} : { status: 'pending', voucher_type: 'bon_carburant' }),
-        ...(kmInitial != null ? { km_initial: kmInitial } : {}),
       };
       const query = editingVoucherId
         ? supabase.from('fuel_vouchers').update(payload).eq('id', editingVoucherId)
@@ -181,16 +249,7 @@ export const BonCarburant = () => {
       if (error) throw error;
 
       toast.success(editingVoucherId ? 'Bon de carburant modifié' : 'Bon de carburant ajouté');
-      setForm({
-        numBon: '',
-        date: new Date().toISOString().split('T')[0],
-        montant: '',
-        conducteurId: '',
-        typeCarburant: 'gasoil',
-        vehiculeId: '',
-        kmFinal: '',
-        notes: '',
-      });
+      setForm(emptyForm());
       setEditingVoucherId(null);
       setIsDialogOpen(false);
       fetchData();
@@ -229,6 +288,7 @@ export const BonCarburant = () => {
       conducteurId: bon.conducteur_id || '',
       typeCarburant: bon.type_carburant || 'gasoil',
       vehiculeId: bon.vehicule_id || '',
+      kmInitial: bon.km_initial != null ? String(bon.km_initial) : '',
       kmFinal: bon.km != null ? String(bon.km) : '',
       notes: bon.notes || '',
     });
@@ -257,7 +317,7 @@ export const BonCarburant = () => {
             <p className="text-muted-foreground">Gérez et suivez vos bons de consommation de carburant.</p>
           </div>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} className="gap-2 rounded-xl h-11 px-6 shadow-lg shadow-primary/20 transition-all hover:shadow-xl hover:-translate-y-0.5 bg-primary text-primary-foreground border-none">
+        <Button onClick={openNewDialog} className="gap-2 rounded-xl h-11 px-6 shadow-lg shadow-primary/20 transition-all hover:shadow-xl hover:-translate-y-0.5 bg-primary text-primary-foreground border-none">
           <Plus className="w-5 h-5" />
           Nouveau Bon
         </Button>
@@ -302,7 +362,9 @@ export const BonCarburant = () => {
                 <TableHead className="font-semibold text-right text-foreground">Montant</TableHead>
                 <TableHead className="font-semibold text-foreground">Date</TableHead>
                 <TableHead className="font-semibold text-foreground">Status</TableHead>
-                <TableHead className="font-semibold text-foreground">Km / Distance</TableHead>
+                <TableHead className="font-semibold text-foreground">Km initial</TableHead>
+                <TableHead className="font-semibold text-foreground">Km final</TableHead>
+                <TableHead className="font-semibold text-foreground">Distance</TableHead>
                 <TableHead className="font-semibold text-center text-foreground">Odomètre</TableHead>
                 <TableHead className="font-semibold text-center text-foreground">Actions</TableHead>
               </TableRow>
@@ -310,7 +372,7 @@ export const BonCarburant = () => {
             <TableBody>
               {bons.length === 0 ? (
                 <TableRow className="border-border">
-                  <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={12} className="h-32 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Search className="w-8 h-8 opacity-20" />
                       <p>Aucun bon de carburant trouvé</p>
@@ -346,7 +408,16 @@ export const BonCarburant = () => {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {bon.km ? `${bon.km} km` : '-'} / {bon.distance ? `${bon.distance} km` : '-'}
+                      {bon.km_initial != null ? `${bon.km_initial.toLocaleString()} km` : '-'}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {bon.km != null ? `${bon.km.toLocaleString()} km` : '-'}
+                    </TableCell>
+                    <TableCell className="text-foreground text-sm font-medium">
+                      {(() => {
+                        const distance = getVoucherDistance(bon);
+                        return distance != null ? `${distance.toLocaleString()} km` : '-';
+                      })()}
                     </TableCell>
                     <TableCell className="text-center">
                       {bon.proof_image_url ? (
@@ -396,7 +467,17 @@ export const BonCarburant = () => {
         </div>
       )}
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) {
+            setEditingVoucherId(null);
+            setKmInitialAutoFilled(false);
+            setForm(emptyForm());
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-lg rounded-3xl p-0 overflow-hidden border-none shadow-2xl bg-card">
           <DialogHeader className="p-6 bg-primary text-primary-foreground">
             <DialogTitle className="text-xl flex items-center gap-3">
@@ -437,17 +518,7 @@ export const BonCarburant = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="vehicule" className="text-sm font-semibold text-foreground">Véhicule *</Label>
-                <Select
-                  value={form.vehiculeId}
-                  onValueChange={(v) => {
-                    const veh = vehicles.find((x) => x.id === v);
-                    const fuel =
-                      veh?.type_carburant === 'essence' || veh?.type_carburant === 'gasoil'
-                        ? veh.type_carburant
-                        : 'gasoil';
-                    setForm({ ...form, vehiculeId: v, typeCarburant: fuel });
-                  }}
-                >
+                <Select value={form.vehiculeId} onValueChange={(v) => void handleVehicleChange(v)}>
                   <SelectTrigger className="rounded-xl border-border bg-background h-11 text-foreground">
                     <SelectValue placeholder="Sélectionner un véhicule" />
                   </SelectTrigger>
@@ -493,12 +564,11 @@ export const BonCarburant = () => {
                 <Label htmlFor="montant" className="text-sm font-semibold text-foreground">Montant (TND) *</Label>
                 <div className="relative">
                   <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
+                  <DecimalInput
                     id="montant"
-                    type="number"
+                    value={parseFloat(form.montant) || 0}
+                    onValueChange={(v) => setForm({ ...form, montant: String(v) })}
                     placeholder="0.00"
-                    value={form.montant}
-                    onChange={(e) => setForm({ ...form, montant: e.target.value })}
                     className="pl-10 rounded-xl border-border bg-background h-11 text-foreground"
                   />
                 </div>
@@ -520,17 +590,74 @@ export const BonCarburant = () => {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="kmFinal" className="text-sm font-semibold text-foreground">KM final (modifiable)</Label>
-              <Input
-                id="kmFinal"
-                type="number"
-                placeholder="Ex: 128450"
-                value={form.kmFinal}
-                onChange={(e) => setForm({ ...form, kmFinal: e.target.value })}
-                className="rounded-xl border-border bg-background h-11 text-foreground"
-              />
+            <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-xs text-muted-foreground space-y-1">
+              <p>
+                <strong className="text-foreground">Km initial</strong> — saisi à la création du bon (manuel pour le
+                premier bon du véhicule, puis repris automatiquement du km final du dernier bon approuvé).
+              </p>
+              <p>
+                <strong className="text-foreground">Km final</strong> — saisi par le chauffeur dans l&apos;application
+                mobile à l&apos;approbation. Distance = km final − km initial.
+              </p>
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="kmInitial" className="text-sm font-semibold text-foreground">
+                  Km initial *
+                </Label>
+                <Input
+                  id="kmInitial"
+                  type="number"
+                  placeholder="Premier bon : saisie manuelle"
+                  value={form.kmInitial}
+                  onChange={(e) => {
+                    setKmInitialAutoFilled(false);
+                    setForm({ ...form, kmInitial: e.target.value });
+                  }}
+                  className="rounded-xl border-border bg-background h-11 text-foreground"
+                />
+                {!editingVoucherId && form.vehiculeId && (
+                  <p className="text-xs text-muted-foreground">
+                    {kmInitialAutoFilled
+                      ? 'Km initial repris du km final du dernier bon approuvé (modifiable si besoin).'
+                      : 'Premier bon pour ce véhicule : saisissez le km initial manuellement.'}
+                  </p>
+                )}
+              </div>
+              {editingVoucherId ? (
+                <div className="space-y-2">
+                  <Label htmlFor="kmFinal" className="text-sm font-semibold text-foreground">Km final</Label>
+                  <Input
+                    id="kmFinal"
+                    type="number"
+                    placeholder="Ex: 128450"
+                    value={form.kmFinal}
+                    onChange={(e) => setForm({ ...form, kmFinal: e.target.value })}
+                    className="rounded-xl border-border bg-background h-11 text-foreground"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold text-foreground">Km final</Label>
+                  <div className="rounded-xl border border-dashed border-border bg-muted/20 h-11 flex items-center px-3 text-sm text-muted-foreground">
+                    Saisi par le chauffeur (app mobile)
+                  </div>
+                </div>
+              )}
+            </div>
+            {form.kmInitial.trim() && form.kmFinal.trim() && (
+              <p className="text-sm text-muted-foreground -mt-2">
+                Distance :{' '}
+                <span className="font-semibold text-foreground">
+                  {(() => {
+                    const d = computeFuelVoucherDistance(Number(form.kmFinal), Number(form.kmInitial));
+                    if (d == null || Number.isNaN(d)) return '—';
+                    return d >= 0 ? `${d.toLocaleString()} km` : 'Km final < km initial';
+                  })()}
+                </span>
+              </p>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="notes" className="text-sm font-semibold text-foreground">Notes / Commentaires</Label>
@@ -545,7 +672,7 @@ export const BonCarburant = () => {
           </div>
 
           <DialogFooter className="p-6 bg-muted/30 gap-3 border-t border-border">
-            <Button variant="ghost" onClick={() => { setIsDialogOpen(false); setEditingVoucherId(null); }} className="rounded-xl px-6 h-11 hover:bg-muted/50 text-muted-foreground transition-colors" disabled={isSubmitting}>
+            <Button variant="ghost" onClick={() => { setIsDialogOpen(false); setEditingVoucherId(null); setForm(emptyForm()); }} className="rounded-xl px-6 h-11 hover:bg-muted/50 text-muted-foreground transition-colors" disabled={isSubmitting}>
               Annuler
             </Button>
             <Button onClick={handleSubmit} className="rounded-xl px-8 h-11 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all border-none" disabled={isSubmitting}>

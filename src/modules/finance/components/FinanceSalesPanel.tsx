@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { DecimalInput } from '@/components/ui/decimal-input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -400,8 +401,8 @@ export function FinanceSalesPanel({
                 <div><Label>Code</Label><Input value={line.product_code || ''} onChange={(e) => setForm((f) => ({ ...f, lines: f.lines.map((l, i) => (i === idx ? { ...l, product_code: e.target.value } : l)) }))} /></div>
                 <div><Label>Désignation</Label><Input value={line.description} onChange={(e) => setForm((f) => ({ ...f, lines: f.lines.map((l, i) => (i === idx ? { ...l, description: e.target.value } : l)) }))} /></div>
                 <div><Label>Qté</Label><Input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(e) => setForm((f) => ({ ...f, lines: f.lines.map((l, i) => (i === idx ? { ...l, quantity: Number(e.target.value) || 0 } : l)) }))} /></div>
-                <div><Label>PU HT</Label><Input type="number" min="0" step="0.001" value={line.unit_price_ht} onChange={(e) => setForm((f) => ({ ...f, lines: f.lines.map((l, i) => (i === idx ? { ...l, unit_price_ht: Number(e.target.value) || 0 } : l)) }))} /></div>
-                <div><Label>Remise %</Label><Input type="number" min="0" max="100" step="0.1" value={line.remise_percent ?? 0} onChange={(e) => setForm((f) => ({ ...f, lines: f.lines.map((l, i) => (i === idx ? { ...l, remise_percent: Number(e.target.value) || 0 } : l)) }))} /></div>
+                <div><Label>PU HT</Label><DecimalInput value={line.unit_price_ht} onValueChange={(v) => setForm((f) => ({ ...f, lines: f.lines.map((l, i) => (i === idx ? { ...l, unit_price_ht: v } : l)) }))} /></div>
+                <div><Label>Remise %</Label><DecimalInput allowEmptyZero value={line.remise_percent ?? 0} onValueChange={(v) => setForm((f) => ({ ...f, lines: f.lines.map((l, i) => (i === idx ? { ...l, remise_percent: v } : l)) }))} /></div>
                 <div><Label>Mt remise</Label><Input readOnly className="bg-muted tabular-nums" value={lineCalc.montant_remise.toFixed(3)} /></div>
                 <div><Label>Net HT</Label><Input readOnly className="bg-muted tabular-nums" value={lineCalc.total_ht.toFixed(3)} /></div>
                 <div>
@@ -478,7 +479,7 @@ export function FinanceSalesPanel({
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Enregistrer un règlement client</DialogTitle></DialogHeader>
           <div className="space-y-2">
-            <div><Label>Montant</Label><Input type="number" step="0.001" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} /></div>
+            <div><Label>Montant</Label><DecimalInput value={Number(paymentAmount) || 0} onValueChange={(v) => setPaymentAmount(String(v))} /></div>
             <div>
               <Label>Mode</Label>
               <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as typeof paymentMethod)}>

@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Devis, DevisItem, Product } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DecimalInput } from '@/components/ui/decimal-input';
 import { Label } from '@/components/ui/label';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -467,31 +468,25 @@ export const BACreationDialog = ({
                             </TableCell>
                             {sourceBC.type === 'vente' && (
                               <TableCell className="text-right px-1">
-                                <Input
-                                  type="number"
-                                  step="0.001"
-                                  value={item.prix_achat || 0}
-                                  onChange={(e) => updateItemAchat(item.localId, parseFloat(e.target.value) || 0)}
+                                <DecimalInput
+                                  value={item.prix_achat ?? 0}
+                                  onValueChange={(v) => updateItemAchat(item.localId, v)}
                                   className="h-8 text-right w-full"
                                 />
                               </TableCell>
                             )}
                             <TableCell className="text-right px-1">
-                              <Input
-                                type="number"
-                                step="0.001"
-                                value={item.prix_ttc}
-                                onChange={(e) => updateItemPrice(item.localId, parseFloat(e.target.value) || 0)}
+                              <DecimalInput
+                                value={item.prix_ttc ?? 0}
+                                onValueChange={(v) => updateItemPrice(item.localId, v)}
                                 className="h-8 text-right w-full"
                               />
                             </TableCell>
                             <TableCell className="px-1">
-                              <Input
-                                type="number"
-                                min="0"
-                                max="100"
-                                value={item.remise}
-                                onChange={(e) => updateItemRemise(item.localId, parseFloat(e.target.value) || 0)}
+                              <DecimalInput
+                                value={item.remise ?? 0}
+                                onValueChange={(v) => updateItemRemise(item.localId, v)}
+                                allowEmptyZero
                                 className="h-8 text-center px-1"
                               />
                             </TableCell>
@@ -614,21 +609,17 @@ export const BACreationDialog = ({
                                   />
                                 </TableCell>
                                 <TableCell className="py-2">
-                                  <Input 
-                                    type="number"
-                                    step="0.001"
-                                    value={alloc.prix_ht}
-                                    onChange={(e) => updateAllocation(item.localId, alloc.id, 'prix_ht', parseFloat(e.target.value) || 0)}
+                                  <DecimalInput
+                                    value={alloc.prix_ht ?? 0}
+                                    onValueChange={(v) => updateAllocation(item.localId, alloc.id, 'prix_ht', v)}
                                     className="h-8 text-xs text-right"
                                   />
                                 </TableCell>
                                 <TableCell className="py-2">
-                                  <Input 
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    value={alloc.remise}
-                                    onChange={(e) => updateAllocation(item.localId, alloc.id, 'remise', parseFloat(e.target.value) || 0)}
+                                  <DecimalInput
+                                    value={alloc.remise ?? 0}
+                                    onValueChange={(v) => updateAllocation(item.localId, alloc.id, 'remise', v)}
+                                    allowEmptyZero
                                     className="h-8 text-xs text-center px-1"
                                   />
                                 </TableCell>

@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { UnifiedDocument } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DecimalInput } from '@/components/ui/decimal-input';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -319,11 +320,9 @@ export const ProcurementDialog = ({
                             />
                           </TableCell>
                           <TableCell className="py-2">
-                            <Input 
-                              type="number"
-                              step="0.001"
-                              value={alloc.unit_price}
-                              onChange={(e) => updateAllocation(line.id, alloc.id, 'unit_price', parseFloat(e.target.value) || 0)}
+                            <DecimalInput
+                              value={alloc.unit_price ?? 0}
+                              onValueChange={(v) => updateAllocation(line.id, alloc.id, 'unit_price', v)}
                               className="h-8 text-right text-xs"
                               placeholder="0.000"
                             />

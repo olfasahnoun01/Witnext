@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DecimalInput } from '@/components/ui/decimal-input';
 import { Label } from '@/components/ui/label';
 import { 
   Select, 
@@ -333,12 +334,10 @@ export const DocumentCreationDialog = ({
                             />
                           </td>
                           <td className="p-4 text-right">
-                            <Input 
-                              type="number" 
-                              step="0.001"
+                            <DecimalInput
                               className="h-10 text-right font-medium"
-                              value={line.unit_price}
-                              onChange={(e) => updateLine(line.product_id, 'unit_price', Number(e.target.value))}
+                              value={line.unit_price ?? 0}
+                              onValueChange={(v) => updateLine(line.product_id, 'unit_price', v)}
                             />
                           </td>
                           <td className="p-4 text-right font-bold text-base text-primary">

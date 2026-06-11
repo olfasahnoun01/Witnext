@@ -6,6 +6,11 @@
  * separator. Extracted from DevisForm so it can be shared and unit-tested.
  */
 
+/** Characters allowed while the user is typing a decimal amount. */
+export function filterDecimalDraft(raw: string): string {
+  return raw.replace(/[^\d\s.,]/g, '');
+}
+
 /** Parse a user-entered decimal string into a finite number (0 on failure). */
 export function parseDecimalInput(rawValue: string): number {
   const value = rawValue.trim().replace(/\s/g, '');
@@ -48,4 +53,10 @@ export function parseDecimalInputLoose(rawValue: string): number {
  */
 export function formatDecimalFieldValue(n: number): string {
   return Number.isFinite(n) ? String(n) : '';
+}
+
+/** Display string for {@link DecimalInput} when not focused. */
+export function formatDecimalInputDisplay(n: number, allowEmptyZero = false): string {
+  if (allowEmptyZero && n === 0) return '';
+  return formatDecimalFieldValue(n);
 }
