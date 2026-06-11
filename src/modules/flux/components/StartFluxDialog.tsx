@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Building2, Loader2, Play, Truck, User } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, Loader2, Play, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,13 +13,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -32,8 +25,7 @@ import {
   type FluxPartyOption,
 } from '../services/fluxClientDocuments';
 import { startFluxDossier } from '../services/dossierRepository';
-
-type PartyMode = 'liste' | 'libre';
+import { FluxPartyAutocomplete } from './FluxPartyAutocomplete';
 
 interface StartFluxDialogProps {
   open: boolean;
@@ -45,10 +37,9 @@ interface StartFluxDialogProps {
 export function StartFluxDialog({ open, onOpenChange, companyId, onStarted }: StartFluxDialogProps) {
   const [step, setStep] = useState<1 | 2>(1);
   const [direction, setDirection] = useState<FluxDirection>('vente');
-  const [partyMode, setPartyMode] = useState<PartyMode>('liste');
   const [parties, setParties] = useState<FluxPartyOption[]>([]);
-  const [selectedPartyKey, setSelectedPartyKey] = useState<string>('');
-  const [freePartyName, setFreePartyName] = useState('');
+  const [partyInput, setPartyInput] = useState('');
+  const [selectedParty, setSelectedParty] = useState<FluxPartyOption | null>(null);
   const [docFilter, setDocFilter] = useState('');
   const [documents, setDocuments] = useState<FluxDocumentOption[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<FluxDocumentOption | null>(null);
@@ -62,9 +53,8 @@ export function StartFluxDialog({ open, onOpenChange, companyId, onStarted }: St
   const reset = useCallback(() => {
     setStep(1);
     setDirection('vente');
-    setPartyMode('liste');
-    setSelectedPartyKey('');
-    setFreePartyName('');
+    setPartyInput('');
+    setSelectedParty(null);
     setDocFilter('');
     setDocuments([]);
     setSelectedDoc(null);
@@ -75,7 +65,7 @@ export function StartFluxDialog({ open, onOpenChange, companyId, onStarted }: St
     try {
       const list = await fetchFluxParties(companyId, direction);
       setParties(list);
-      setSelectedPartyKey('');
+      setSelectedParty(null);
     } catch {
       toast.error(`Impossible de charger les ${partyLabel.toLowerCase()}s`);
     } finally {
@@ -91,20 +81,11 @@ export function StartFluxDialog({ open, onOpenChange, companyId, onStarted }: St
     void loadParties();
   }, [open, loadParties, reset]);
 
-  const selectedParty = useMemo(
-    () => parties.find((p) => partyKey(p) === selectedPartyKey) ?? null,
-    [parties, selectedPartyKey]
-  );
+  const partyName = useMemo(() => partyInput.trim(), [partyInput]);
 
-  const partyName = useMemo(() => {
-    if (partyMode === 'libre') return freePartyName.trim();
-    return selectedParty?.nom.trim() ?? '';
-  }, [partyMode, freePartyName, selectedParty]);
+  const partyId = selectedParty?.id ?? null;
 
-  const partyId = partyMode === 'liste' && selectedParty?.id != null ? selectedParty.id : null;
-
-  const canContinueStep1 =
-    partyMode === 'libre' ? freePartyName.trim().length >= 2 : selectedPartyKey !== '';
+  const canContinueStep1 = partyName.length >= 2;
 
   const loadDocuments = useCallback(async () => {
     if (!partyName) return;
@@ -115,7 +96,7 @@ export function StartFluxDialog({ open, onOpenChange, companyId, onStarted }: St
       setDocuments(docs);
       if (docs.length === 0) {
         toast.info(`Aucune pièce trouvée pour ce ${partyLabel.toLowerCase()}`, {
-          description: 'Les noms issus des devis existants sont listés à l\'étape 1.',
+          description: 'Vous pouvez quand même démarrer un dossier si une pièce apparaît plus tard.',
         });
       }
     } catch (e) {
@@ -188,7 +169,7 @@ export function StartFluxDialog({ open, onOpenChange, companyId, onStarted }: St
           </DialogTitle>
           <DialogDescription>
             {step === 1
-              ? 'Clients et fournisseurs sont proposés depuis la liste officielle et les devis déjà saisis.'
+              ? 'Tapez le nom du client ou du fournisseur — les suggestions apparaissent pendant la saisie.'
               : `Pièces pour « ${partyName} »`}
           </DialogDescription>
         </DialogHeader>
@@ -201,8 +182,8 @@ export function StartFluxDialog({ open, onOpenChange, companyId, onStarted }: St
                 value={direction}
                 onValueChange={(v) => {
                   setDirection(v as FluxDirection);
-                  setSelectedPartyKey('');
-                  setFreePartyName('');
+                  setPartyInput('');
+                  setSelectedParty(null);
                 }}
                 className="flex gap-4"
               >
@@ -221,75 +202,16 @@ export function StartFluxDialog({ open, onOpenChange, companyId, onStarted }: St
               </RadioGroup>
             </div>
 
-            <div className="space-y-3">
-              <Label>{partyLabel}</Label>
-              <RadioGroup
-                value={partyMode}
-                onValueChange={(v) => setPartyMode(v as PartyMode)}
-                className="flex gap-4"
-              >
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="liste" id="party-liste" />
-                  <Label htmlFor="party-liste" className="font-normal cursor-pointer">
-                    Liste ({parties.length})
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="libre" id="party-libre" />
-                  <Label htmlFor="party-libre" className="font-normal cursor-pointer">
-                    Saisie libre
-                  </Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            {partyMode === 'liste' ? (
-              <div className="space-y-2">
-                <Label htmlFor="party-select">{partyLabel}</Label>
-                {loadingParties ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
-                  </div>
-                ) : (
-                  <Select value={selectedPartyKey} onValueChange={setSelectedPartyKey}>
-                    <SelectTrigger id="party-select" className="h-11">
-                      <SelectValue placeholder={`Sélectionner un ${partyLabel.toLowerCase()}…`} />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[280px]">
-                      {parties.map((p) => (
-                        <SelectItem key={partyKey(p)} value={partyKey(p)}>
-                          <span className="flex items-center gap-2">
-                            {p.nom}
-                            {p.source === 'devis' && (
-                              <span className="text-[10px] text-muted-foreground">(devis)</span>
-                            )}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                {parties.some((p) => p.source === 'devis') && (
-                  <p className="text-xs text-muted-foreground">
-                    Les entrées « devis » proviennent des tiers déjà renseignés sur vos devis / BC.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label htmlFor="party-free">{partyLabel} (saisie libre)</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="party-free"
-                    className="pl-9 h-11"
-                    placeholder={isClient ? 'Ex. STE ABC SARL' : 'Ex. Fournisseur XYZ'}
-                    value={freePartyName}
-                    onChange={(e) => setFreePartyName(e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
+            <FluxPartyAutocomplete
+              partyLabel={partyLabel}
+              isClient={isClient}
+              parties={parties}
+              loading={loadingParties}
+              value={partyInput}
+              onValueChange={setPartyInput}
+              selectedParty={selectedParty}
+              onSelectParty={setSelectedParty}
+            />
           </div>
         )}
 
@@ -384,12 +306,4 @@ export function StartFluxDialog({ open, onOpenChange, companyId, onStarted }: St
       </DialogContent>
     </Dialog>
   );
-}
-
-function partyKey(p: FluxPartyOption): string {
-  return `${p.kind}-${p.id ?? 'devis'}-${normPartyKey(p.nom)}`;
-}
-
-function normPartyKey(nom: string): string {
-  return nom.trim().toLowerCase().replace(/\s+/g, '-');
 }
