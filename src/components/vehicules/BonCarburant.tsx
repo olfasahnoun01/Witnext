@@ -43,7 +43,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { getActiveCompanyId } from '@/lib/activeCompany';
 import { getFuelVoucherStatusDisplay, fuelVoucherStatusBadgeClass } from '@/lib/fuelVoucherStatus';
-import { computeFuelVoucherDistance, fetchLastApprovedKmFinal } from '@/lib/fuelVoucherKm';
+import {
+  computeFuelVoucherDistance,
+  fetchLastApprovedKmFinal,
+  resolveVoucherKmFinal,
+} from '@/lib/fuelVoucherKm';
 
 interface FuelVoucher {
   id: string;
@@ -59,6 +63,7 @@ interface FuelVoucher {
   km_initial: number | null;
   distance: number | null;
   proof_image_url: string | null;
+  created_at?: string;
   // Joined data
   employee?: { prenom: string; nom: string } | null;
   vehicle?: { modele: string; matricule: string } | null;
@@ -125,8 +130,9 @@ export const BonCarburant = () => {
   };
 
   const getVoucherDistance = (bon: FuelVoucher): number | null => {
-    const fromDb = computeFuelVoucherDistance(bon.km, bon.km_initial);
-    if (fromDb != null) return fromDb;
+    const kmFinal = resolveVoucherKmFinal(bon);
+    const fromCalc = computeFuelVoucherDistance(kmFinal, bon.km_initial);
+    if (fromCalc != null) return fromCalc;
     if (bon.distance != null && !Number.isNaN(Number(bon.distance))) {
       return Number(bon.distance);
     }
@@ -234,12 +240,21 @@ export const BonCarburant = () => {
         conducteur_id: form.conducteurId,
         vehicule_id: form.vehiculeId,
         type_carburant: form.typeCarburant,
-        km: kmFinal,
-        km_initial: kmInitial,
-        distance,
         notes: form.notes.trim() || null,
         company_id: getActiveCompanyId() || undefined,
-        ...(editingVoucherId ? {} : { status: 'pending', voucher_type: 'bon_carburant' }),
+        ...(editingVoucherId
+          ? {
+              km: kmFinal,
+              km_initial: kmInitial,
+              distance,
+            }
+          : {
+              km: null,
+              km_initial: kmInitial,
+              distance: null,
+              status: 'pending',
+              voucher_type: 'bon_carburant',
+            }),
       };
       const query = editingVoucherId
         ? supabase.from('fuel_vouchers').update(payload).eq('id', editingVoucherId)
@@ -380,87 +395,100 @@ export const BonCarburant = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                bons.map((bon) => (
-                  <TableRow key={bon.id} className="hover:bg-muted/50 transition-colors border-border">
-                    <TableCell className="font-medium text-primary">{bon.num_bon}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2 text-foreground">
-                        <Car className="w-4 h-4 text-muted-foreground" />
-                        {getVehicleName(bon)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2 text-foreground">
-                        <User className="w-4 h-4 text-muted-foreground" />
-                        {getDriverName(bon)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={bon.type_carburant === 'essence' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' : 'bg-blue-500/10 text-blue-500 border-blue-500/20'}>
-                        {bon.type_carburant || 'gasoil'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-semibold text-foreground">{(bon.montant || 0).toLocaleString()} TND</TableCell>
-                    <TableCell className="text-foreground">{new Date(bon.date).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={fuelVoucherStatusBadgeClass(bon.status)}>
-                        {getFuelVoucherStatusDisplay(bon.status).label}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {bon.km_initial != null ? `${bon.km_initial.toLocaleString()} km` : '-'}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {bon.km != null ? `${bon.km.toLocaleString()} km` : '-'}
-                    </TableCell>
-                    <TableCell className="text-foreground text-sm font-medium">
-                      {(() => {
-                        const distance = getVoucherDistance(bon);
-                        return distance != null ? `${distance.toLocaleString()} km` : '-';
-                      })()}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {bon.proof_image_url ? (
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-8 w-8 p-0"
-                          onClick={() => setSelectedImage(bon.proof_image_url)}
-                        >
-                          <ImageIcon className="w-4 h-4 text-primary" />
-                        </Button>
-                      ) : (
-                        <span className="text-muted-foreground text-xs italic">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <Button
+                bons.map((bon) => {
+                  const kmFinal = resolveVoucherKmFinal(bon);
+                  const distance = getVoucherDistance(bon);
+
+                  return (
+                    <TableRow key={bon.id} className="hover:bg-muted/50 transition-colors border-border">
+                      <TableCell className="font-medium text-primary">{bon.num_bon}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-foreground">
+                          <Car className="w-4 h-4 text-muted-foreground" />
+                          {getVehicleName(bon)}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-foreground">
+                          <User className="w-4 h-4 text-muted-foreground" />
+                          {getDriverName(bon)}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
                           variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Modifier"
-                          aria-label="Modifier le bon"
-                          onClick={() => openEditDialog(bon)}
+                          className={
+                            bon.type_carburant === 'essence'
+                              ? 'bg-orange-500/10 text-orange-500 border-orange-500/20'
+                              : 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                          }
                         >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        {isAdmin && (
+                          {bon.type_carburant || 'gasoil'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-foreground">
+                        {(bon.montant || 0).toLocaleString()} TND
+                      </TableCell>
+                      <TableCell className="text-foreground">
+                        {new Date(bon.date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={fuelVoucherStatusBadgeClass(bon.status)}>
+                          {getFuelVoucherStatusDisplay(bon.status).label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {bon.km_initial != null ? `${bon.km_initial.toLocaleString()} km` : '-'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {kmFinal != null ? `${kmFinal.toLocaleString()} km` : '-'}
+                      </TableCell>
+                      <TableCell className="text-foreground text-sm font-medium">
+                        {distance != null ? `${distance.toLocaleString()} km` : '-'}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {bon.proof_image_url ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => setSelectedImage(bon.proof_image_url)}
+                          >
+                            <ImageIcon className="w-4 h-4 text-primary" />
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground text-xs italic">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1">
                           <Button
                             variant="outline"
                             size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            title="Supprimer"
-                            aria-label="Supprimer le bon"
-                            onClick={() => setDeleteConfirm(bon)}
+                            className="h-8 w-8"
+                            title="Modifier"
+                            aria-label="Modifier le bon"
+                            onClick={() => openEditDialog(bon)}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Pencil className="w-3.5 h-3.5" />
                           </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                          {isAdmin && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              title="Supprimer"
+                              aria-label="Supprimer le bon"
+                              onClick={() => setDeleteConfirm(bon)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -592,12 +620,14 @@ export const BonCarburant = () => {
 
             <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-xs text-muted-foreground space-y-1">
               <p>
-                <strong className="text-foreground">Km initial</strong> — saisi à la création du bon (manuel pour le
-                premier bon du véhicule, puis repris automatiquement du km final du dernier bon approuvé).
+                <strong className="text-foreground">Km initial</strong> — pour{' '}
+                <strong className="text-foreground">ce véhicule</strong> uniquement : saisi manuellement au premier
+                bon, puis repris du km final du dernier bon approuvé du même véhicule.
               </p>
               <p>
-                <strong className="text-foreground">Km final</strong> — saisi par le chauffeur dans l&apos;application
-                mobile à l&apos;approbation. Distance = km final − km initial.
+                <strong className="text-foreground">Km final</strong> — saisi par le chauffeur (app mobile) à
+                l&apos;approbation. Distance = km final − km initial. La chaîne ne mélange jamais deux véhicules
+                différents.
               </p>
             </div>
 
@@ -620,7 +650,7 @@ export const BonCarburant = () => {
                 {!editingVoucherId && form.vehiculeId && (
                   <p className="text-xs text-muted-foreground">
                     {kmInitialAutoFilled
-                      ? 'Km initial repris du km final du dernier bon approuvé (modifiable si besoin).'
+                      ? 'Km initial repris du km final du dernier bon approuvé de ce véhicule (modifiable si besoin).'
                       : 'Premier bon pour ce véhicule : saisissez le km initial manuellement.'}
                   </p>
                 )}

@@ -36,6 +36,10 @@ const REJECTED_VALUES = new Set([
 
 const USED_VALUES = new Set(['used', 'utilise', 'utilisé', 'utilisee', 'consomme', 'consommé']);
 
+export function isFuelVoucherApproved(raw: string | null | undefined): boolean {
+  return normalizeFuelVoucherStatus(raw) === 'approved' || normalizeFuelVoucherStatus(raw) === 'used';
+}
+
 export function normalizeFuelVoucherStatus(raw: string | null | undefined): FuelVoucherStatusKey {
   const s = (raw || 'pending')
     .toLowerCase()
