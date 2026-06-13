@@ -1,7 +1,29 @@
 import { useState, useMemo, useCallback, useEffect, memo } from 'react';
 import { toast } from 'sonner';
-import { FileText, Trash2, Download, Eye, Loader2, Search, X, Plus, Pencil, ShoppingCart, Truck, GitMerge } from 'lucide-react';
+import {
+  FileText,
+  Trash2,
+  Download,
+  Eye,
+  Loader2,
+  Search,
+  X,
+  Plus,
+  Pencil,
+  ShoppingCart,
+  Truck,
+  GitMerge,
+  MoreHorizontal,
+  Printer,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { BonCommande, UnifiedDocument, UnifiedDocumentLine } from '@/types';
 import { computeDevisTotals } from '@/lib/devisPricing';
@@ -37,7 +59,7 @@ import { ListPagination } from '@/components/shared/ListPagination';
 import { cn } from '@/lib/utils';
 import { ACHATS_EXCEL_TABLE_CLASS, VENTES_EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
 
-const BC_TABLE_COL_COUNT = 16;
+const BC_DATA_COL_COUNT = 15;
 
 interface BonCommandeListProps {
   bonsCommande: BonCommande[];
@@ -301,12 +323,78 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
     }
   }, [selectedBcList, bcIdsWithBl, onRefresh]);
 
+  const bcColCount = BC_DATA_COL_COUNT + (canMergeBl ? 1 : 0);
+
+  const renderBCActionsMenu = (bc: BonCommande) => {
+    const rowBusy = isGenerating === bc.id || blBusyId === bc.id;
+    const canModify = !bc.document_v2_id;
+    const showVenteActions = bc.type === 'vente';
+    const hasBl = bcIdsWithBl.has(bc.id);
+    const showOtherActions = showVenteActions || canModify;
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            disabled={rowBusy}
+            aria-label="Actions sur le BC"
+          >
+            {rowBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-52">
+          <DropdownMenuItem disabled={rowBusy} onClick={() => void handlePreview(bc)}>
+            <Printer className="mr-2 h-4 w-4" />
+            Imprimer
+          </DropdownMenuItem>
+          {showOtherActions && <DropdownMenuSeparator />}
+          {showVenteActions && (
+            <DropdownMenuItem
+              disabled={hasBl || blBusyId === bc.id}
+              onClick={() => void handleGenerateBl(bc)}
+            >
+              <Truck className="mr-2 h-4 w-4" />
+              {hasBl ? 'BL déjà créé' : 'Créer BL'}
+            </DropdownMenuItem>
+          )}
+          {showVenteActions && (
+            <DropdownMenuItem onClick={() => void startProcurement(bc)}>
+              <ShoppingCart className="mr-2 h-4 w-4" />
+              BC Fournisseur
+            </DropdownMenuItem>
+          )}
+          {showVenteActions && canModify && <DropdownMenuSeparator />}
+          {canModify && (
+            <DropdownMenuItem onClick={() => onEdit(bc)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Modifier
+            </DropdownMenuItem>
+          )}
+          {canModify && (
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => setDeleteConfirm(bc)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Supprimer
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
+
   const bcTableHead = (
     <thead>
       <tr className="border-b border-border">
         {canMergeBl && (
           <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground w-10" aria-label="Sélection" />
         )}
+        <th className="text-left w-12 py-3 px-2 text-sm font-medium text-muted-foreground">Actions</th>
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Type</th>
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">N° BC</th>
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Devis source</th>
@@ -320,7 +408,6 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Total</th>
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Fichiers</th>
         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">PDF</th>
-        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
       </tr>
     </thead>
   );
@@ -348,6 +435,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
           </td>
         )}
         {canMergeBl && bc.type !== 'vente' && <td className="py-3 px-2" />}
+        <td className="py-2 px-2">{renderBCActionsMenu(bc)}</td>
         <td className="py-3 px-4">
           <span className={`px-2 py-1 rounded text-xs font-medium ${
             bc.type === 'achat' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
@@ -401,75 +489,6 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
             >
               <Download className="w-4 h-4" />
             </button>
-          </div>
-        </td>
-        <td className="py-3 px-4">
-          <div className="flex items-center gap-2">
-            {bc.type === 'vente' && (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-1.5 h-8 px-2.5 text-xs font-medium border-primary/30 text-primary hover:bg-primary/10"
-                  title={
-                    bcIdsWithBl.has(bc.id)
-                      ? 'Bon de livraison déjà créé pour ce BC'
-                      : 'Créer le bon de livraison (visible dans Ventes → Bons de Livraison)'
-                  }
-                  disabled={bcIdsWithBl.has(bc.id) || blBusyId === bc.id}
-                  onClick={() => void handleGenerateBl(bc)}
-                >
-                  {blBusyId === bc.id ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Truck className="w-3.5 h-3.5" />
-                  )}
-                  {bcIdsWithBl.has(bc.id) ? 'Livré' : 'BL'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-1.5 h-8 px-2.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-200/50 transition-all font-bold text-xs"
-                  title="Créer directement un ou plusieurs BC fournisseur (sans devis fournisseur)"
-                  onClick={() => void startProcurement(bc)}
-                >
-                  <ShoppingCart className="w-3.5 h-3.5" />
-                  BC Fournisseur
-                </Button>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => handlePreview(bc)}
-              disabled={generating}
-              className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
-              title="Prévisualiser PDF"
-            >
-              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-            </button>
-            {!bc.document_v2_id && (
-              <button
-                type="button"
-                onClick={() => onEdit(bc)}
-                className="flex items-center gap-1 px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                title="Modifier"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                <span className="text-xs font-medium">Modif</span>
-              </button>
-            )}
-            {!bc.document_v2_id && (
-              <button
-                type="button"
-                onClick={() => setDeleteConfirm(bc)}
-                className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                title="Supprimer"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
           </div>
         </td>
       </tr>
@@ -556,7 +575,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
             <tbody>
               {bcSorted.length === 0 ? (
                 <tr>
-                  <td colSpan={BC_TABLE_COL_COUNT} className="py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={bcColCount} className="py-8 text-center text-sm text-muted-foreground">
                     Aucun BC pour ces filtres.
                   </td>
                 </tr>

@@ -14,7 +14,11 @@ import {
   Mail,
   Lock,
   Building2,
+  Truck,
+  ArrowLeft,
+  KeyRound,
 } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -121,10 +125,35 @@ function isChauffeurPoste(pos: string | undefined): boolean {
 }
 
 function tabForUser(u: Pick<ManagedUser, 'role' | 'position'>): AccountTab {
-  if (u.role === 'admin' || u.role === 'moderator') return 'admins';
+  if (u.role === 'admin') return 'admins';
+  if (u.role === 'moderator') return 'users';
   if (isDriverPosition(u.position)) return 'drivers';
   return 'users';
 }
+
+const CATEGORY_META: Record<
+  AccountTab,
+  { title: string; description: string; icon: typeof ShieldCheck; accent: string }
+> = {
+  admins: {
+    title: 'Administrateurs',
+    description: 'Comptes avec le rôle administrateur et accès complet à l\'ERP',
+    icon: ShieldCheck,
+    accent: 'border-primary/30 bg-primary/5 hover:bg-primary/10',
+  },
+  users: {
+    title: 'Utilisateurs',
+    description: 'Comptes ERP avec permissions personnalisées (incl. modérateurs)',
+    icon: Users,
+    accent: 'border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10',
+  },
+  drivers: {
+    title: 'Chauffeurs',
+    description: 'Comptes application mobile Flutter (chauffeurs / opérateurs)',
+    icon: Truck,
+    accent: 'border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10',
+  },
+};
 
 function splitFullName(full: string): { prenom: string; nom: string } {
   const trimmed = full.trim();
@@ -193,7 +222,7 @@ export const PermissionsManager = () => {
   // Permissions chosen inline in the create/edit modal
   const [modalPerms, setModalPerms] = useState<Set<string>>(new Set());
   const [modalCompanies, setModalCompanies] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<AccountTab>('admins');
+  const [selectedCategory, setSelectedCategory] = useState<AccountTab | null>(null);
   const [mobilePhone, setMobilePhone] = useState('');
   const [mobileCin, setMobileCin] = useState('');
 
@@ -418,10 +447,10 @@ export const PermissionsManager = () => {
       setMobileCin('');
       setModalPerms(new Set());
       setModalCompanies(new Set());
-      if (activeTab === 'admins') {
+      if (selectedCategory === 'admins') {
         setRole('admin');
         setPosition('Responsable administrative');
-      } else if (activeTab === 'drivers') {
+      } else if (selectedCategory === 'drivers') {
         setRole('user');
         setPosition('Chauffeur');
       } else {
@@ -635,7 +664,204 @@ export const PermissionsManager = () => {
     );
   };
 
-  const filteredUsers = users.filter((u) => tabForUser(u) === activeTab);
+  const countByCategory = (tab: AccountTab) => users.filter((u) => tabForUser(u) === tab).length;
+  const filteredUsers = selectedCategory
+    ? users.filter((u) => tabForUser(u) === selectedCategory)
+    : [];
+
+  const renderUserCredentials = (u: ManagedUser) => (
+    <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+        <KeyRound className="w-3.5 h-3.5" />
+        Identifiants du compte
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <div>
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Mail className="w-3 h-3" /> Email
+          </p>
+          <p className="font-medium text-foreground mt-0.5">{u.email}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Lock className="w-3 h-3" /> Mot de passe
+          </p>
+          <p className="font-medium text-foreground mt-0.5">
+            {isChauffeurPoste(u.position)
+              ? 'Défini à la création — modifiable via « Modifier »'
+              : 'Masqué — modifiable via « Modifier »'}
+          </p>
+        </div>
+        {u.full_name && (
+          <div>
+            <p className="text-xs text-muted-foreground">Nom complet</p>
+            <p className="font-medium text-foreground mt-0.5">{u.full_name}</p>
+          </div>
+        )}
+        {u.position && (
+          <div>
+            <p className="text-xs text-muted-foreground">Poste</p>
+            <p className="font-medium text-foreground mt-0.5">{u.position}</p>
+          </div>
+        )}
+        <div>
+          <p className="text-xs text-muted-foreground">Rôle</p>
+          <div className="mt-1">{getRoleBadge(u.role)}</div>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Créé le</p>
+          <p className="font-medium text-foreground mt-0.5">
+            {new Date(u.created_at).toLocaleDateString('fr-FR')}
+          </p>
+        </div>
+      </div>
+      {isChauffeurPoste(u.position) && (
+        <p className="text-xs text-muted-foreground pt-1 border-t border-border">
+          Connexion mobile : utilisez l&apos;email et le mot de passe ci-dessus dans l&apos;application Flutter.
+        </p>
+      )}
+    </div>
+  );
+
+  const renderUserPermissions = (u: ManagedUser) => {
+    const isAdminUser = u.role === 'admin';
+    const userSet = perms[u.id] ?? new Set<string>();
+
+    if (isChauffeurPoste(u.position)) {
+      return (
+        <p className="text-sm text-muted-foreground rounded-lg border border-border bg-muted/30 px-4 py-3">
+          Compte application mobile uniquement — aucun accès aux modules ERP.
+        </p>
+      );
+    }
+
+    if (isAdminUser) {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Permissions</p>
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm text-muted-foreground">
+            Cet administrateur a accès à toutes les sections et sous-sections par défaut.
+          </div>
+          <div className="bg-muted/40 border border-border rounded-lg p-3 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground flex items-center gap-2 mb-1">
+              <Building2 className="h-4 w-4 text-primary" />
+              Sociétés
+            </p>
+            Accès à toutes les sociétés (Grosafe, Granisafe, Safe-Team) — géré automatiquement pour les administrateurs.
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Permissions</p>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => grantAll(u.id)}>
+              Tout accorder
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => revokeAll(u.id)}>
+              Tout retirer
+            </Button>
+            <Button size="sm" onClick={() => savePermissions(u.id)} disabled={savingPermsFor === u.id}>
+              {savingPermsFor === u.id ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4 mr-2" />
+              )}
+              Enregistrer
+            </Button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {BIG_SECTIONS.map((section) => {
+            const fullGranted = userSet.has(section.id);
+            return (
+              <div key={section.id} className="bg-muted/40 rounded-lg p-3">
+                <label className="flex items-center gap-2 cursor-pointer mb-2">
+                  <Checkbox
+                    checked={fullGranted}
+                    onCheckedChange={() => toggleFullSection(u.id, section.id)}
+                  />
+                  <section.icon className="w-4 h-4 text-primary" />
+                  <span className="font-medium text-sm text-foreground">{section.label}</span>
+                </label>
+                {section.subsections.length > 0 && (
+                  <div className={`pl-6 space-y-1.5 ${fullGranted ? 'opacity-50 pointer-events-none' : ''}`}>
+                    {section.subsections.map((sub) => {
+                      const k = `${section.id}:${sub.id}`;
+                      const checked = fullGranted || userSet.has(k);
+                      return (
+                        <label
+                          key={sub.id}
+                          className="flex items-center gap-2 text-xs cursor-pointer text-muted-foreground hover:text-foreground"
+                        >
+                          <Checkbox
+                            checked={checked}
+                            disabled={fullGranted}
+                            onCheckedChange={() => toggleSubsection(u.id, section.id, sub.id)}
+                          />
+                          <span>{sub.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+          <div>
+            <p className="font-medium text-sm text-foreground flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary" />
+              Sociétés accessibles
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Détermine quelles sociétés l&apos;utilisateur peut consulter dans <strong>tout l&apos;ERP</strong>
+              {' '}(clients, fournisseurs, stock, véhicules, employés, documents, finance).
+            </p>
+          </div>
+          {companies.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Aucune société disponible.</p>
+          ) : posteHasAllFinanceCompanies(u.position) ? (
+            <p className="text-sm text-foreground">
+              Toutes les sociétés ({companies.map((c) => c.name).join(', ')}) — assignation
+              automatique pour ce poste.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              {companies.map((c) => {
+                const companySet = userCompanies[u.id] ?? new Set<string>();
+                const checked = companySet.has(c.id);
+                return (
+                  <label
+                    key={c.id}
+                    className="flex items-center gap-2 text-sm cursor-pointer rounded-md border border-border bg-background px-3 py-2 hover:bg-muted/50"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={() => toggleUserCompany(u.id, c.id)}
+                    />
+                    <span>{c.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          {userHasFinanceAccess(userSet) &&
+            !posteHasAllFinanceCompanies(u.position) &&
+            (userCompanies[u.id]?.size ?? 0) === 0 && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              Cet utilisateur a accès Finance mais aucune société n&apos;est assignée — il ne pourra pas ouvrir le module.
+            </p>
+          )}
+        </div>
+      </>
+    );
+  };
 
   if (loading) {
     return (
@@ -658,7 +884,7 @@ export const PermissionsManager = () => {
                 Gestion des Permissions & Utilisateurs
               </h2>
               <p className="text-sm text-muted-foreground">
-                Gérez les utilisateurs, leurs rôles, puis définissez les sections et sous-sections accessibles.
+                Choisissez une catégorie pour gérer les comptes, identifiants et permissions.
               </p>
             </div>
           </div>
@@ -668,222 +894,145 @@ export const PermissionsManager = () => {
           </Button>
         </div>
 
-        <div className="flex gap-1 mb-6 p-1 bg-muted/50 rounded-lg w-fit">
-          <button
-            onClick={() => setActiveTab('admins')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'admins' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Administrateurs ({users.filter((u) => tabForUser(u) === 'admins').length})
-          </button>
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'users' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Utilisateurs ({users.filter((u) => tabForUser(u) === 'users').length})
-          </button>
-          <button
-            onClick={() => setActiveTab('drivers')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'drivers' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Chauffeurs ({users.filter((u) => tabForUser(u) === 'drivers').length})
-          </button>
-        </div>
-
-        {filteredUsers.length === 0 ? (
-          <div className="text-center py-12">
-            <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">Aucun utilisateur trouvé dans cette section</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredUsers.map((u) => {
-              const isAdminUser = u.role === 'admin';
-              const userSet = perms[u.id] ?? new Set<string>();
-              const isExpanded = !!expandedUsers[u.id];
+        {!selectedCategory ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {(['admins', 'users', 'drivers'] as AccountTab[]).map((tab) => {
+              const meta = CATEGORY_META[tab];
+              const Icon = meta.icon;
+              const count = countByCategory(tab);
               return (
-                <div key={u.id} className="border border-border rounded-xl p-4">
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <p className="font-semibold text-foreground truncate">{u.email}</p>
-                        {getRoleBadge(u.role)}
+                <Card
+                  key={tab}
+                  className={`cursor-pointer transition-all hover:shadow-md ${meta.accent}`}
+                  onClick={() => {
+                    setSelectedCategory(tab);
+                    setExpandedUsers({});
+                  }}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="p-2.5 rounded-xl bg-background/80">
+                        <Icon className="w-6 h-6 text-primary" />
                       </div>
-                      {u.full_name && (
-                        <p className="text-sm text-muted-foreground mt-1">{u.full_name}</p>
-                      )}
-                      {u.position && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{u.position}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Créé le {new Date(u.created_at).toLocaleDateString('fr-FR')}
-                      </p>
+                      <span className="text-2xl font-bold text-foreground">{count}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {!isChauffeurPoste(u.position) && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => toggleExpandedUser(u.id)}
-                      >
-                        {isExpanded ? <ChevronUp className="w-4 h-4 mr-2" /> : <ChevronDown className="w-4 h-4 mr-2" />}
-                        {isExpanded ? 'Masquer permissions' : 'Afficher permissions'}
-                      </Button>
-                      )}
-                      {!isAdminUser && !isChauffeurPoste(u.position) && isExpanded && (
-                        <>
-                          <Button size="sm" variant="outline" onClick={() => grantAll(u.id)}>
-                            Tout accorder
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => revokeAll(u.id)}>
-                            Tout retirer
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => savePermissions(u.id)}
-                            disabled={savingPermsFor === u.id}
-                          >
-                            {savingPermsFor === u.id ? (
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            ) : (
-                              <Save className="w-4 h-4 mr-2" />
-                            )}
-                            Enregistrer
-                          </Button>
-                        </>
-                      )}
-                      <button
-                        onClick={() => openModal(u)}
-                        className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(u)}
-                        className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {isChauffeurPoste(u.position) && (
-                    <p className="mt-3 text-xs text-muted-foreground rounded-lg border border-border bg-muted/30 px-3 py-2">
-                      Compte application mobile uniquement — aucun accès aux modules ERP.
+                    <CardTitle className="text-lg">{meta.title}</CardTitle>
+                    <CardDescription>{meta.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <p className="text-xs text-muted-foreground">
+                      Cliquez pour voir les comptes, identifiants et permissions
                     </p>
-                  )}
-
-                  {isExpanded && !isChauffeurPoste(u.position) && (isAdminUser ? (
-                    <div className="mt-4 space-y-3">
-                      <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm text-muted-foreground">
-                        Cet administrateur a accès à toutes les sections et sous-sections par défaut.
-                      </div>
-                      <div className="bg-muted/40 border border-border rounded-lg p-3 text-sm text-muted-foreground">
-                        <p className="font-medium text-foreground flex items-center gap-2 mb-1">
-                          <Building2 className="h-4 w-4 text-primary" />
-                          Sociétés
-                        </p>
-                        Accès à toutes les sociétés (Grosafe, Granisafe, Safe-Team) — géré automatiquement pour les administrateurs.
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {BIG_SECTIONS.map((section) => {
-                          const fullGranted = userSet.has(section.id);
-                          return (
-                            <div key={section.id} className="bg-muted/40 rounded-lg p-3">
-                              <label className="flex items-center gap-2 cursor-pointer mb-2">
-                                <Checkbox
-                                  checked={fullGranted}
-                                  onCheckedChange={() => toggleFullSection(u.id, section.id)}
-                                />
-                                <section.icon className="w-4 h-4 text-primary" />
-                                <span className="font-medium text-sm text-foreground">{section.label}</span>
-                              </label>
-                              {section.subsections.length > 0 && (
-                                <div className={`pl-6 space-y-1.5 ${fullGranted ? 'opacity-50 pointer-events-none' : ''}`}>
-                                  {section.subsections.map((sub) => {
-                                    const k = `${section.id}:${sub.id}`;
-                                    const checked = fullGranted || userSet.has(k);
-                                    return (
-                                      <label
-                                        key={sub.id}
-                                        className="flex items-center gap-2 text-xs cursor-pointer text-muted-foreground hover:text-foreground"
-                                      >
-                                        <Checkbox
-                                          checked={checked}
-                                          disabled={fullGranted}
-                                          onCheckedChange={() => toggleSubsection(u.id, section.id, sub.id)}
-                                        />
-                                        <span>{sub.label}</span>
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      <div className="mt-4 rounded-lg border border-border bg-muted/20 p-4 space-y-3">
-                        <div>
-                          <p className="font-medium text-sm text-foreground flex items-center gap-2">
-                            <Building2 className="h-4 w-4 text-primary" />
-                            Sociétés accessibles
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Détermine quelles sociétés l&apos;utilisateur peut consulter dans <strong>tout l&apos;ERP</strong>
-                            {' '}(clients, fournisseurs, stock, véhicules, employés, documents, finance).
-                          </p>
-                        </div>
-                        {companies.length === 0 ? (
-                          <p className="text-xs text-muted-foreground">Aucune société disponible.</p>
-                        ) : posteHasAllFinanceCompanies(u.position) ? (
-                          <p className="text-sm text-foreground">
-                            Toutes les sociétés ({companies.map((c) => c.name).join(', ')}) — assignation
-                            automatique pour ce poste.
-                          </p>
-                        ) : (
-                          <div className="flex flex-wrap gap-3">
-                            {companies.map((c) => {
-                              const companySet = userCompanies[u.id] ?? new Set<string>();
-                              const checked = companySet.has(c.id);
-                              return (
-                                <label
-                                  key={c.id}
-                                  className="flex items-center gap-2 text-sm cursor-pointer rounded-md border border-border bg-background px-3 py-2 hover:bg-muted/50"
-                                >
-                                  <Checkbox
-                                    checked={checked}
-                                    onCheckedChange={() => toggleUserCompany(u.id, c.id)}
-                                  />
-                                  <span>{c.name}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
-                        {userHasFinanceAccess(userSet) &&
-                          !posteHasAllFinanceCompanies(u.position) &&
-                          (userCompanies[u.id]?.size ?? 0) === 0 && (
-                          <p className="text-xs text-amber-700 dark:text-amber-400">
-                            Cet utilisateur a accès Finance mais aucune société n&apos;est assignée — il ne pourra pas ouvrir le module.
-                          </p>
-                        )}
-                      </div>
-                    </>
-                  ))}
-                </div>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 mb-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedCategory(null);
+                  setExpandedUsers({});
+                }}
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Retour
+              </Button>
+              <div>
+                <h3 className="font-semibold text-foreground">{CATEGORY_META[selectedCategory].title}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {filteredUsers.length} compte{filteredUsers.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+
+            {filteredUsers.length === 0 ? (
+              <div className="text-center py-12">
+                <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">Aucun compte dans cette section</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {filteredUsers.map((u) => {
+                  const isExpanded = !!expandedUsers[u.id];
+                  return (
+                    <Card
+                      key={u.id}
+                      className={`transition-all ${isExpanded ? 'ring-2 ring-primary/20' : 'hover:shadow-md cursor-pointer'}`}
+                      onClick={() => !isExpanded && toggleExpandedUser(u.id)}
+                    >
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <button
+                            type="button"
+                            className="flex-1 min-w-0 text-left"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleExpandedUser(u.id);
+                            }}
+                          >
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <CardTitle className="text-base truncate">{u.email}</CardTitle>
+                              {getRoleBadge(u.role)}
+                            </div>
+                            {u.full_name && (
+                              <CardDescription className="mt-1">{u.full_name}</CardDescription>
+                            )}
+                            {u.position && (
+                              <p className="text-xs text-muted-foreground mt-0.5">{u.position}</p>
+                            )}
+                          </button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpandedUser(u.id);
+                              }}
+                              className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
+                            >
+                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openModal(u);
+                              }}
+                              className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(u);
+                              }}
+                              className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </CardHeader>
+
+                      {isExpanded && (
+                        <CardContent className="space-y-4 border-t border-border pt-4">
+                          {renderUserCredentials(u)}
+                          {renderUserPermissions(u)}
+                        </CardContent>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
 

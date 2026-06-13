@@ -21,7 +21,7 @@ const DEVIS_PDF_TABLE_HEAD_TTC = [
   'PU HT',
   'Rem.%',
   'Net HT',
-  'TVA',
+  'TVA %',
   'Mnt HT',
 ] as const;
 
@@ -40,13 +40,45 @@ const DEVIS_PDF_TABLE_HEAD_HT = [
 const DEVIS_PDF_HEAD_STYLES = {
   fillColor: [30, 58, 95] as [number, number, number],
   textColor: 255,
-  fontSize: 7,
+  fontSize: 7.5,
   fontStyle: 'bold' as const,
-  cellPadding: { top: 2, right: 1.5, bottom: 2, left: 1.5 },
-  minCellHeight: 5,
-  overflow: 'hidden' as const,
+  cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 },
+  minCellHeight: 6,
+  overflow: 'linebreak' as const,
   valign: 'middle' as const,
 };
+
+/** Relative column weights (must sum to 100). */
+const DEVIS_PDF_COL_WEIGHTS_TTC = [4, 8, 14, 17, 6, 10, 6, 10, 8, 17] as const;
+const DEVIS_PDF_COL_WEIGHTS_HT = [4, 9, 17, 23, 7, 11, 7, 11, 11] as const;
+
+function weightsToColumnStyles(
+  weights: readonly number[],
+  availableWidth: number,
+  alignments: Array<'left' | 'center' | 'right'>
+): Record<number, object> {
+  const totalWeight = weights.reduce((s, w) => s + w, 0);
+  const styles: Record<number, object> = {};
+  weights.forEach((weight, index) => {
+    const halign = alignments[index] ?? 'left';
+    styles[index] = {
+      cellWidth: (availableWidth * weight) / totalWeight,
+      valign: halign === 'left' ? 'top' : 'middle',
+      halign,
+    };
+  });
+  return styles;
+}
+
+/** @internal Exported for unit tests — column width fractions must sum to table width. */
+export function getDevisPdfTableColumnWidths(
+  showTvaColumn: boolean,
+  tableWidth: number
+): number[] {
+  const weights = showTvaColumn ? DEVIS_PDF_COL_WEIGHTS_TTC : DEVIS_PDF_COL_WEIGHTS_HT;
+  const totalWeight = weights.reduce((s, w) => s + w, 0);
+  return weights.map((w) => (tableWidth * w) / totalWeight);
+}
 
 /** Show TVA column + breakdown when legacy TTC flag is set or any line has a TVA rate > 0. */
 export function devisPdfShowsTvaBreakdown(
@@ -59,35 +91,31 @@ export function devisPdfShowsTvaBreakdown(
 
 /** Column widths + alignment (header follows same halign as body). */
 function getDevisPdfTableColumnStyles(showTvaColumn: boolean, availableWidth: number): Record<number, object> {
-  const text = { valign: 'top' as const, halign: 'left' as const };
-  const right = { valign: 'middle' as const, halign: 'right' as const };
-  const center = { valign: 'middle' as const, halign: 'center' as const };
-
   if (showTvaColumn) {
-    return {
-      0: { cellWidth: availableWidth * 0.04, ...center },
-      1: { cellWidth: availableWidth * 0.085, ...text },
-      2: { cellWidth: availableWidth * 0.165, ...text },
-      3: { cellWidth: availableWidth * 0.215, ...text },
-      4: { cellWidth: availableWidth * 0.07, ...center },
-      5: { cellWidth: availableWidth * 0.105, ...right },
-      6: { cellWidth: availableWidth * 0.065, ...center },
-      7: { cellWidth: availableWidth * 0.105, ...right },
-      8: { cellWidth: availableWidth * 0.042, ...center },
-      9: { cellWidth: availableWidth * 0.108, ...right },
-    };
+    return weightsToColumnStyles(DEVIS_PDF_COL_WEIGHTS_TTC, availableWidth, [
+      'center', // #
+      'left', // Code
+      'left', // Désignation
+      'left', // Description
+      'center', // Qté
+      'right', // PU HT
+      'center', // Rem.%
+      'right', // Net HT
+      'center', // TVA %
+      'right', // Mnt HT
+    ]);
   }
-  return {
-    0: { cellWidth: availableWidth * 0.045, ...center },
-    1: { cellWidth: availableWidth * 0.09, ...text },
-    2: { cellWidth: availableWidth * 0.195, ...text },
-    3: { cellWidth: availableWidth * 0.25, ...text },
-    4: { cellWidth: availableWidth * 0.075, ...center },
-    5: { cellWidth: availableWidth * 0.11, ...right },
-    6: { cellWidth: availableWidth * 0.07, ...center },
-    7: { cellWidth: availableWidth * 0.11, ...right },
-    8: { cellWidth: availableWidth * 0.11, ...right },
-  };
+  return weightsToColumnStyles(DEVIS_PDF_COL_WEIGHTS_HT, availableWidth, [
+    'center',
+    'left',
+    'left',
+    'left',
+    'center',
+    'right',
+    'center',
+    'right',
+    'right',
+  ]);
 }
 
 interface PdfLogoAsset {
@@ -789,10 +817,12 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     tableWidth: itemsTableWidth,
     headStyles: DEVIS_PDF_HEAD_STYLES,
     styles: {
-      fontSize: 8,
-      cellPadding: 3,
+      fontSize: 7.5,
+      cellPadding: { top: 2, right: 2, bottom: 2, left: 2 },
       overflow: 'linebreak',
       valign: 'top',
+      lineColor: [210, 210, 210],
+      lineWidth: 0.1,
     },
     rowPageBreak: 'avoid',
     columnStyles: getDevisPdfTableColumnStyles(showTvaColumn, itemsTableWidth),
@@ -800,12 +830,21 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     margin: { left: DEVIS_PDF_MARGIN_X, right: DEVIS_PDF_MARGIN_X, bottom: 35 },
     didParseCell: (data) => {
       if (data.section === 'head') {
-        data.cell.styles.overflow = 'hidden';
-        data.cell.styles.fontSize = 7;
+        data.cell.styles.overflow = 'linebreak';
+        data.cell.styles.fontSize = 7.5;
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.valign = 'middle';
       }
-      if (data.section === 'body' && data.column.index === 4) {
-        data.cell.styles.overflow = 'visible';
-        data.cell.styles.halign = 'center';
+      if (data.section === 'body') {
+        const numericRight = showTvaColumn ? [5, 7, 9] : [5, 7, 8];
+        const numericCenter = showTvaColumn ? [0, 4, 6, 8] : [0, 4, 6];
+        if (numericRight.includes(data.column.index)) {
+          data.cell.styles.halign = 'right';
+          data.cell.styles.valign = 'middle';
+        } else if (numericCenter.includes(data.column.index)) {
+          data.cell.styles.halign = 'center';
+          data.cell.styles.valign = 'middle';
+        }
       }
     },
     didDrawPage: (data) => {
