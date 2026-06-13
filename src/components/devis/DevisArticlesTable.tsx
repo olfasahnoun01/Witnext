@@ -46,6 +46,7 @@ export interface DevisArticlesTableProps {
   onItemRemiseChange: (value: number) => void;
   itemTva: number;
   onItemTvaChange: (value: number) => void;
+  partyExonereDeTva?: boolean;
   composerSearchRef?: React.RefObject<HTMLInputElement | null>;
 }
 
@@ -99,6 +100,7 @@ export function DevisArticlesTable({
   onItemRemiseChange,
   itemTva,
   onItemTvaChange,
+  partyExonereDeTva = false,
   composerSearchRef,
 }: DevisArticlesTableProps) {
   const localSearchRef = useRef<HTMLInputElement>(null);
@@ -229,8 +231,9 @@ export function DevisArticlesTable({
                 </td>
                 <td className={TD}>
                   <DevisTvaSelect
-                    value={item.tva ?? 0}
+                    value={partyExonereDeTva ? 0 : (item.tva ?? 0)}
                     onChange={(rate) => onUpdate(idx, { tva: rate })}
+                    disabled={partyExonereDeTva}
                     className="w-full h-auto py-1.5"
                   />
                 </td>
@@ -359,8 +362,9 @@ export function DevisArticlesTable({
             </td>
             <td className={TD_COMPOSER}>
               <DevisTvaSelect
-                value={itemTva}
+                value={partyExonereDeTva ? 0 : itemTva}
                 onChange={onItemTvaChange}
+                disabled={partyExonereDeTva}
                 className="w-full h-auto py-1.5"
               />
             </td>

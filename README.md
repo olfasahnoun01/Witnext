@@ -14,7 +14,7 @@ Desktop ERP for Grosafe: inventory, sales, purchases, finance, HR, and fleet man
 ```sh
 npm install
 cp .env.example .env.local   # set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY
-npm run dev                    # http://localhost:8080
+npm run dev                    # http://localhost:5173
 ```
 
 ## Scripts

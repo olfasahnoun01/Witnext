@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => {
     base: "./",
     server: {
       host: "::",
-      port: 8080,
+      port: 5173,
       strictPort: true,
       proxy: {
         "/functions/v1": {

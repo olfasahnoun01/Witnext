@@ -21,7 +21,8 @@ if (!singleInstanceLock) {
   app.quit();
 }
 
-const devServerUrl = 'http://127.0.0.1:8080';
+/** Must match vite.config.ts server.port (avoid 8080 — often taken by iVMS-4200 / other tools). */
+const devServerUrl = 'http://127.0.0.1:5173';
 
 let mainWindow;
 

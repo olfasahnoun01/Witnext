@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { Product, DocumentItem, UnifiedDocument } from '@/types';
-import { computeDevisLine, computeDevisTotals } from '@/lib/devisPricing';
+import { computeDevisLine, computeDevisTotals, resolveDevisLineTvaRate } from '@/lib/devisPricing';
 import { getDevisItemArticleCode, getDevisItemDetailDescription } from '@/lib/devisItemPdf';
 import companyLogo from '@/assets/grosafe-logo.webp';
 
@@ -48,13 +48,22 @@ const DEVIS_PDF_HEAD_STYLES = {
   valign: 'middle' as const,
 };
 
+/** Show TVA column + breakdown when legacy TTC flag is set or any line has a TVA rate > 0. */
+export function devisPdfShowsTvaBreakdown(
+  items: DevisPDFData['items'],
+  legacyIsTtc = false
+): boolean {
+  if (legacyIsTtc) return true;
+  return items.some((item) => resolveDevisLineTvaRate(item.tva) > 0);
+}
+
 /** Column widths + alignment (header follows same halign as body). */
-function getDevisPdfTableColumnStyles(isTTC: boolean, availableWidth: number): Record<number, object> {
+function getDevisPdfTableColumnStyles(showTvaColumn: boolean, availableWidth: number): Record<number, object> {
   const text = { valign: 'top' as const, halign: 'left' as const };
   const right = { valign: 'middle' as const, halign: 'right' as const };
   const center = { valign: 'middle' as const, halign: 'center' as const };
 
-  if (isTTC) {
+  if (showTvaColumn) {
     return {
       0: { cellWidth: availableWidth * 0.04, ...center },
       1: { cellWidth: availableWidth * 0.085, ...text },
@@ -744,8 +753,8 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     doc.text(`Tél: ${devis.third_party_phone}`, pageWidth - 18, 84, { align: 'right' });
   }
 
-  // Items table
-  const isTTC = devis.is_ttc;
+  // Items table — PU HT + per-line TVA (is_ttc legacy OR explicit line rates)
+  const showTvaColumn = devisPdfShowsTvaBreakdown(devis.items, devis.is_ttc);
   /** Lignes enregistrées en PU HT (avant remise) ; TVA/remise via computeDevisLine */
   const linePricesAreUnitHt = false;
 
@@ -762,12 +771,12 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       `${prixUnitDisplay} TND`,
       item.remise > 0 ? `${item.remise}%` : '-',
       `${line.unitAfterRemiseHT.toFixed(3)} TND`,
-      ...(isTTC ? [`${item.tva ?? 19}%`] : []),
+      ...(showTvaColumn ? [`${resolveDevisLineTvaRate(item.tva)}%`] : []),
       `${sousTotal.toFixed(3)} TND`,
     ];
   });
 
-  const headRow = isTTC ? [...DEVIS_PDF_TABLE_HEAD_TTC] : [...DEVIS_PDF_TABLE_HEAD_HT];
+  const headRow = showTvaColumn ? [...DEVIS_PDF_TABLE_HEAD_TTC] : [...DEVIS_PDF_TABLE_HEAD_HT];
 
   const itemsTableWidth = pageWidth - DEVIS_PDF_MARGIN_X * 2;
 
@@ -786,7 +795,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       valign: 'top',
     },
     rowPageBreak: 'avoid',
-    columnStyles: getDevisPdfTableColumnStyles(isTTC, itemsTableWidth),
+    columnStyles: getDevisPdfTableColumnStyles(showTvaColumn, itemsTableWidth),
     alternateRowStyles: { fillColor: [245, 247, 250] },
     margin: { left: DEVIS_PDF_MARGIN_X, right: DEVIS_PDF_MARGIN_X, bottom: 35 },
     didParseCell: (data) => {
@@ -807,6 +816,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   // Compute detailed totals using shared helper
   const totals = computeDevisTotals(devis.items, linePricesAreUnitHt);
   const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
+  const showTvaTotals = showTvaColumn && totalTVA > 0;
 
   const tableEndY = devisTableEndY;
   const totalFinal = totalTTC + 1;
@@ -819,7 +829,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     totalsRows.push(['Remise', `-${totalRemise.toFixed(3)} TND`]);
   }
   totalsRows.push(['Net HT', `${totalNet.toFixed(3)} TND`]);
-  if (isTTC) {
+  if (showTvaTotals) {
     totalsRows.push(
       ['TVA', `${totalTVA.toFixed(3)} TND`],
       ['Total TTC', `${totalTTC.toFixed(3)} TND`],
@@ -827,7 +837,7 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   }
   totalsRows.push(
     ['Timbre fiscal', '1.000 TND'],
-    [isTTC ? 'Total TTC' : 'Total HT', `${(isTTC ? totalFinal : totalFinalHT).toFixed(3)} TND`],
+    [showTvaTotals ? 'Total TTC' : 'Total HT', `${(showTvaTotals ? totalFinal : totalFinalHT).toFixed(3)} TND`],
   );
 
   // Manual drawing of totals to guarantee right alignment

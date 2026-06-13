@@ -245,7 +245,7 @@ export const PermissionsManager = () => {
         } catch (inner) {
           throw new Error(
             `${msg || 'Edge function indisponible'}. ` +
-              "Depuis Electron, redeployez la fonction « manage-users » avec CORS pour http://127.0.0.1:8080, ou ouvrez l'app sur http://localhost:8080."
+              "Depuis Electron, redeployez la fonction « manage-users » avec CORS pour http://127.0.0.1:5173, ou ouvrez l'app sur http://localhost:5173."
           );
         }
       } else {

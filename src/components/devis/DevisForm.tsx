@@ -2,6 +2,12 @@ import { memo, useCallback, useState, useEffect, useMemo } from 'react';
 import { ProductGroupFournisseur } from '@/types';
 import { computeDevisTotals } from '@/lib/devisPricing';
 import { generateNextEntityCode } from '@/lib/entityCode';
+import {
+  applyPartyTvaPolicyToItems,
+  defaultDevisLineTvaForParty,
+  isPartyExonereDeTva,
+} from '@/lib/devisTvaPolicy';
+import { CLIENT_TVA_STATUS_OPTIONS, clientTvaStatusLabel, type ClientTvaStatus } from '@/config/sectionThemes';
 import { Plus, Trash2, Edit, X, Search, Layers, Check, AlertCircle, Upload, ChevronsUpDown, FileText, ShoppingCart, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -79,6 +85,7 @@ interface Client {
   matricule_fiscale: string | null;
   location: string | null;
   phone: string | null;
+  tva_status?: ClientTvaStatus | string | null;
 }
 
 interface DevisFormProps {
@@ -168,6 +175,8 @@ export const DevisForm = memo(({
   const [newClientPhoneLines, setNewClientPhoneLines] = useState<string[]>(['']);
   const [newClientPatenteUrl, setNewClientPatenteUrl] = useState<string | null>(null);
   const [newClientRcUrl, setNewClientRcUrl] = useState<string | null>(null);
+  const [newClientTvaStatus, setNewClientTvaStatus] = useState<ClientTvaStatus>('assujetti');
+  const partyTvaPolicyKeyRef = useRef<string | null>(null);
   const { preview: documentPreview, pdfBytesRef, openDocumentPreview, closePreview: closeDocumentPreview } =
     useClientDocumentPreview();
 
@@ -277,7 +286,7 @@ export const DevisForm = memo(({
     const load = async () => {
       const cid = getActiveCompanyId();
       const fournQuery = supabase.from('fournisseurs').select('id, nom, matricule_fiscale, location, phone, patente_url, registre_commerce_url, created_at');
-      const clientsQuery = supabase.from('clients').select('id, nom, code, matricule_fiscale, location, phone, created_at');
+      const clientsQuery = supabase.from('clients').select('id, nom, code, matricule_fiscale, location, phone, tva_status, created_at');
       const [fRes, cRes, catSettingsRes, productsCatsRes, groupCatsRes] = await Promise.all([
         (cid ? fournQuery.eq('company_id', cid) : fournQuery).order('created_at', { ascending: false }),
         (cid ? clientsQuery.eq('company_id', cid) : clientsQuery).order('created_at', { ascending: false }),
@@ -426,6 +435,39 @@ export const DevisForm = memo(({
       .slice(0, 8);
   }, [isAchat, fournisseurs, clients, thirdPartyName]);
 
+  /** Statut TVA du tiers sélectionné — fournisseur : assujetti ; client : fiche clients. */
+  const thirdPartyTvaStatus = useMemo((): ClientTvaStatus | null => {
+    const trimmed = thirdPartyName.trim();
+    if (!trimmed) return null;
+    const list = isAchat ? fournisseurs : clients;
+    const match =
+      (selectedThirdPartyId
+        ? list.find((item) => item.id.toString() === selectedThirdPartyId)
+        : undefined) ??
+      list.find((item) => item.nom.trim().toLowerCase() === trimmed.toLowerCase());
+    if (!match) return isAchat ? 'assujetti' : 'assujetti';
+    if (isAchat) return 'assujetti';
+    return ((match as Client).tva_status as ClientTvaStatus) || 'assujetti';
+  }, [isAchat, fournisseurs, clients, thirdPartyName, selectedThirdPartyId]);
+
+  const partyExonereDeTva = isPartyExonereDeTva(thirdPartyTvaStatus);
+
+  useEffect(() => {
+    if (!thirdPartyName.trim() || thirdPartyTvaStatus == null) return;
+
+    const policyKey = `${devisType}|${selectedThirdPartyId}|${thirdPartyName.trim().toLowerCase()}|${thirdPartyTvaStatus}`;
+    if (partyTvaPolicyKeyRef.current === policyKey) return;
+    partyTvaPolicyKeyRef.current = policyKey;
+
+    const defaultTva = defaultDevisLineTvaForParty(thirdPartyTvaStatus);
+    setItemTva(defaultTva);
+    setDevisItems((prev) => applyPartyTvaPolicyToItems(prev, thirdPartyTvaStatus));
+  }, [thirdPartyTvaStatus, thirdPartyName, selectedThirdPartyId, devisType, setDevisItems]);
+
+  useEffect(() => {
+    partyTvaPolicyKeyRef.current = null;
+  }, [devisType, editingDevis?.id]);
+
   const handleThirdPartySuggestionSelect = useCallback((item: Fournisseur | Client) => {
     setThirdPartyName(item.nom);
     setThirdPartyAddress(item.location || '');
@@ -467,6 +509,7 @@ export const DevisForm = memo(({
     setNewClientPhoneLines(['']);
     setNewClientPatenteUrl(null);
     setNewClientRcUrl(null);
+    setNewClientTvaStatus('assujetti');
   }, []);
 
   useEffect(() => {
@@ -497,7 +540,7 @@ export const DevisForm = memo(({
       nom: newClientName.trim(),
       code: newClientCode.trim(),
       matricule_fiscale: newClientMatricule.trim(),
-      tva_status: 'assujetti',
+      tva_status: newClientTvaStatus,
       company_id: companyId,
       phone: phoneStored,
       location: locationValue,
@@ -516,6 +559,7 @@ export const DevisForm = memo(({
       setThirdPartyAddress((data as Client).location || '');
       setThirdPartyTaxId((data as Client).matricule_fiscale || '');
       setSelectedThirdPartyId(data.id.toString());
+      partyTvaPolicyKeyRef.current = null;
       setShowNewClient(false);
       resetNewClientForm();
     }
@@ -528,6 +572,7 @@ export const DevisForm = memo(({
     newClientPhoneLines,
     newClientPatenteUrl,
     newClientRcUrl,
+    newClientTvaStatus,
     setThirdPartyName,
     setThirdPartyPhone,
     setThirdPartyAddress,
@@ -1216,10 +1261,27 @@ export const DevisForm = memo(({
               )
             }
             pricingCell={
-              <p className="text-xs text-muted-foreground leading-snug">
-                Prix unitaires <span className="font-medium text-foreground">HT</span> — choisissez le
-                taux de TVA par ligne ; la synthèse (timbre fiscal) totalise la TVA sélectionnée.
-              </p>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground leading-snug">
+                  Prix unitaires <span className="font-medium text-foreground">HT</span>
+                  {thirdPartyTvaStatus ? (
+                    <>
+                      {' '}
+                      —{' '}
+                      <span className="font-medium text-foreground">
+                        {clientTvaStatusLabel(thirdPartyTvaStatus)}
+                      </span>
+                    </>
+                  ) : null}
+                </p>
+                <p className="text-xs text-muted-foreground leading-snug">
+                  {partyExonereDeTva
+                    ? 'Aucune TVA sur ce devis (tiers exonéré).'
+                    : thirdPartyTvaStatus
+                      ? 'TVA appliquée (19 % par défaut, modifiable par ligne : 0 / 7 / 13 / 19 %).'
+                      : 'Sélectionnez un client ou fournisseur pour appliquer le régime TVA.'}
+                </p>
+              </div>
             }
           />
         </DevisZohoTopBar>
@@ -1346,6 +1408,7 @@ export const DevisForm = memo(({
             onItemRemiseChange={setItemRemise}
             itemTva={itemTva}
             onItemTvaChange={setItemTva}
+            partyExonereDeTva={partyExonereDeTva}
           />
         </DevisZohoSection>
 
@@ -1519,6 +1582,24 @@ export const DevisForm = memo(({
             <div className="space-y-2">
               <Label>Matricule Fiscale *</Label>
               <Input value={newClientMatricule} onChange={e => setNewClientMatricule(e.target.value)} placeholder="Ex: 1234567/A/B/C/000" />
+            </div>
+            <div className="space-y-2">
+              <Label>Statut TVA *</Label>
+              <Select
+                value={newClientTvaStatus}
+                onValueChange={(v) => setNewClientTvaStatus(v as ClientTvaStatus)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Statut TVA" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CLIENT_TVA_STATUS_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <PhoneLinesEditor
               idPrefix="devis-client"

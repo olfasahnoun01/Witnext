@@ -18,7 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
-    "electron:dev": "concurrently \"npm run dev\" \"wait-on http-get://127.0.0.1:8080 && cross-env NODE_ENV=development electron .\"",
+    "electron:dev": "concurrently -k -n vite,electron \"npm run dev\" \"wait-on http-get://127.0.0.1:5173/index.html && cross-env NODE_ENV=development electron .\"",
     "assets:branding": "powershell -ExecutionPolicy Bypass -File scripts/generate-app-assets.ps1",
     "icon:ico": "node scripts/generate-icon-ico.mjs",
     "electron:clean": "powershell -ExecutionPolicy Bypass -File scripts/clean-electron-build.ps1",
