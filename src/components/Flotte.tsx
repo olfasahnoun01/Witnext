@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Truck, Plus, Trash2, Loader2, Bell, CheckCircle2, Pencil, UserCheck } from 'lucide-react';
+import { Truck, Plus, Trash2, Loader2, Bell, CheckCircle2, Pencil, UserCheck, MoreHorizontal } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -28,6 +35,8 @@ import {
 import { syncVehicleReminderNotifications } from '@/services/notificationService';
 import { getActiveCompanyId } from '@/lib/activeCompany';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
+import { cn } from '@/lib/utils';
+import { FLOTTE_EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
 
 interface Vehicle {
   id: string;
@@ -457,6 +466,40 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
     setReminders((prev) => prev.filter((r) => r.id !== id));
   };
 
+  const renderVehicleActionsMenu = (v: Vehicle) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          aria-label="Actions sur le véhicule"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-44">
+        <DropdownMenuItem onClick={() => openEditDialog(v)} className="gap-2 cursor-pointer">
+          <Pencil className="h-4 w-4" />
+          Modifier
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => void handleCreateReminders(v)} className="gap-2 cursor-pointer">
+          <Bell className="h-4 w-4" />
+          Créer rappels
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="gap-2 cursor-pointer text-destructive focus:text-destructive"
+          onClick={() => void handleDelete(v.id)}
+        >
+          <Trash2 className="h-4 w-4" />
+          Supprimer
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -617,54 +660,66 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
           })}
         </div>
       ) : (
-        <div className="rounded-xl border border-border bg-card overflow-x-auto">
-          <table className="w-full text-sm">
+        <div
+          className={cn(
+            'overflow-x-auto rounded-xl border border-sky-500/30 bg-card shadow-sm',
+            FLOTTE_EXCEL_TABLE_CLASS
+          )}
+        >
+          <table>
             <thead>
-              <tr className="border-b border-border bg-muted/40">
-                <th className="px-3 py-2 text-left">Type commercial</th>
-                <th className="px-3 py-2 text-left">Matricule</th>
-                <th className="px-3 py-2 text-left">Contrat leasing</th>
-                <th className="px-3 py-2 text-left">N° contract</th>
-                <th className="px-3 py-2 text-left">Société</th>
-                <th className="px-3 py-2 text-left">Mise en circulation</th>
-                <th className="px-3 py-2 text-left">Loyer</th>
-                <th className="px-3 py-2 text-left">Échéance leasing</th>
-                <th className="px-3 py-2 text-left">Assureur</th>
-                <th className="px-3 py-2 text-left">Échéance assurance</th>
-                <th className="px-3 py-2 text-left">Vignettes</th>
-                <th className="px-3 py-2 text-left">Fin visite technique</th>
-                <th className="px-3 py-2 text-left">Contrat au nom du</th>
-                <th className="px-3 py-2 text-left">Actions</th>
+              <tr>
+                <th className="w-12">Actions</th>
+                <th>Type commercial</th>
+                <th>Matricule</th>
+                <th>Contrat leasing</th>
+                <th>N° contract</th>
+                <th>Société</th>
+                <th>Mise en circulation</th>
+                <th>Loyer</th>
+                <th>Échéance leasing</th>
+                <th>Assureur</th>
+                <th>Échéance assurance</th>
+                <th>Vignettes</th>
+                <th>Fin visite technique</th>
+                <th>Contrat au nom du</th>
               </tr>
             </thead>
             <tbody>
               {vehicles.map((v) => (
-                <tr key={v.id} className="border-b border-border/60">
-                  <td className="px-3 py-2">{v.modele || '-'}</td>
-                  <td className="px-3 py-2">{v.matricule || '-'}</td>
-                  <td className="px-3 py-2">{v.leasing_company || '-'}</td>
-                  <td className="px-3 py-2">{v.leasing_contract_number || '-'}</td>
-                  <td className="px-3 py-2">{v.company_owner || '-'}</td>
-                  <td className="px-3 py-2">{v.mise_en_circulation ? new Date(v.mise_en_circulation).toLocaleDateString('fr-FR') : '-'}</td>
-                  <td className="px-3 py-2">{v.loyer_amount != null ? `${v.loyer_amount.toLocaleString()} TND` : '-'}</td>
-                  <td className="px-3 py-2">{v.leasing_due_date ? new Date(v.leasing_due_date).toLocaleDateString('fr-FR') : '-'}</td>
-                  <td className="px-3 py-2">{v.assureur || '-'}</td>
-                  <td className="px-3 py-2">{v.assurance_due_date ? new Date(v.assurance_due_date).toLocaleDateString('fr-FR') : '-'}</td>
-                  <td className="px-3 py-2">{v.vignette_due_date ? new Date(v.vignette_due_date).toLocaleDateString('fr-FR') : '-'}</td>
-                  <td className="px-3 py-2">{v.visite_technique_end_date ? new Date(v.visite_technique_end_date).toLocaleDateString('fr-FR') : '-'}</td>
-                  <td className="px-3 py-2">{v.contract_holder_name || '-'}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" onClick={() => openEditDialog(v)} className="gap-1">
-                        <Pencil className="w-3 h-3" />
-                        Modifier
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleCreateReminders(v)}>Rappels</Button>
-                      <Button size="sm" variant="destructive" onClick={() => handleDelete(v.id)}>
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
+                <tr key={v.id}>
+                  <td>
+                    <div className="flex justify-center">{renderVehicleActionsMenu(v)}</div>
                   </td>
+                  <td className="font-medium text-foreground">{v.modele || '-'}</td>
+                  <td>
+                    <span className="inline-flex rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
+                      {v.matricule || '-'}
+                    </span>
+                  </td>
+                  <td className="text-muted-foreground">{v.leasing_company || '-'}</td>
+                  <td className="text-muted-foreground">{v.leasing_contract_number || '-'}</td>
+                  <td>{v.company_owner || '-'}</td>
+                  <td className="whitespace-nowrap text-muted-foreground">
+                    {v.mise_en_circulation ? new Date(v.mise_en_circulation).toLocaleDateString('fr-FR') : '-'}
+                  </td>
+                  <td className="whitespace-nowrap font-medium tabular-nums text-foreground">
+                    {v.loyer_amount != null ? `${v.loyer_amount.toLocaleString()} TND` : '-'}
+                  </td>
+                  <td className="whitespace-nowrap text-muted-foreground">
+                    {v.leasing_due_date ? new Date(v.leasing_due_date).toLocaleDateString('fr-FR') : '-'}
+                  </td>
+                  <td>{v.assureur || '-'}</td>
+                  <td className="whitespace-nowrap text-muted-foreground">
+                    {v.assurance_due_date ? new Date(v.assurance_due_date).toLocaleDateString('fr-FR') : '-'}
+                  </td>
+                  <td className="whitespace-nowrap text-muted-foreground">
+                    {v.vignette_due_date ? new Date(v.vignette_due_date).toLocaleDateString('fr-FR') : '-'}
+                  </td>
+                  <td className="whitespace-nowrap text-muted-foreground">
+                    {v.visite_technique_end_date ? new Date(v.visite_technique_end_date).toLocaleDateString('fr-FR') : '-'}
+                  </td>
+                  <td>{v.contract_holder_name || '-'}</td>
                 </tr>
               ))}
             </tbody>
