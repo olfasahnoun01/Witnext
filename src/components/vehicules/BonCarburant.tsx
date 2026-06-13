@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Fuel, Plus, Search, Calendar, User, Car, Banknote, ClipboardList, Loader2, Image as ImageIcon, Eye, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -97,6 +97,8 @@ export const BonCarburant = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<FuelVoucher | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [kmInitialAutoFilled, setKmInitialAutoFilled] = useState(false);
+  const [filterVehicleId, setFilterVehicleId] = useState<string>('all');
+  const [filterDriverId, setFilterDriverId] = useState<string>('all');
 
   const [form, setForm] = useState({
     numBon: '',
@@ -320,6 +322,14 @@ export const BonCarburant = () => {
     return '-';
   };
 
+  const filteredBons = useMemo(() => {
+    return bons.filter((bon) => {
+      if (filterVehicleId !== 'all' && bon.vehicule_id !== filterVehicleId) return false;
+      if (filterDriverId !== 'all' && bon.conducteur_id !== filterDriverId) return false;
+      return true;
+    });
+  }, [bons, filterVehicleId, filterDriverId]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -346,7 +356,7 @@ export const BonCarburant = () => {
             </div>
             <p className="text-sm font-medium text-muted-foreground">Total Bons</p>
           </div>
-          <p className="text-2xl font-bold text-foreground">{bons.length}</p>
+          <p className="text-2xl font-bold text-foreground">{filteredBons.length}</p>
         </div>
         <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
           <div className="flex items-center gap-4 mb-4">
@@ -356,7 +366,7 @@ export const BonCarburant = () => {
             <p className="text-sm font-medium text-muted-foreground">Montant Total</p>
           </div>
           <p className="text-2xl font-bold text-foreground">
-            {bons.reduce((acc, b) => acc + (b.montant || 0), 0).toLocaleString()} <span className="text-sm text-muted-foreground font-normal">TND</span>
+            {filteredBons.reduce((acc, b) => acc + (b.montant || 0), 0).toLocaleString()} <span className="text-sm text-muted-foreground font-normal">TND</span>
           </p>
         </div>
       </div>
@@ -367,6 +377,44 @@ export const BonCarburant = () => {
         </div>
       ) : (
         <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md">
+          <div className="flex flex-col sm:flex-row gap-3 p-4 border-b border-border bg-muted/20">
+            <div className="flex-1 space-y-1">
+              <Label htmlFor="filter-voucher-vehicle" className="text-xs text-muted-foreground">
+                Filtrer par véhicule
+              </Label>
+              <Select value={filterVehicleId} onValueChange={setFilterVehicleId}>
+                <SelectTrigger id="filter-voucher-vehicle" className="h-10 rounded-xl bg-background">
+                  <SelectValue placeholder="Tous les véhicules" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les véhicules</SelectItem>
+                  {vehicles.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {[v.constructeur, v.modele].filter(Boolean).join(' ') || v.modele} — {v.matricule}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1 space-y-1">
+              <Label htmlFor="filter-voucher-driver" className="text-xs text-muted-foreground">
+                Filtrer par chauffeur
+              </Label>
+              <Select value={filterDriverId} onValueChange={setFilterDriverId}>
+                <SelectTrigger id="filter-voucher-driver" className="h-10 rounded-xl bg-background">
+                  <SelectValue placeholder="Tous les chauffeurs" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les chauffeurs</SelectItem>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.prenom} {emp.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30 hover:bg-muted/30 border-border">
@@ -385,17 +433,21 @@ export const BonCarburant = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {bons.length === 0 ? (
+              {filteredBons.length === 0 ? (
                 <TableRow className="border-border">
                   <TableCell colSpan={12} className="h-32 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Search className="w-8 h-8 opacity-20" />
-                      <p>Aucun bon de carburant trouvé</p>
+                      <p>
+                        {bons.length === 0
+                          ? 'Aucun bon de carburant trouvé'
+                          : 'Aucun bon ne correspond aux filtres'}
+                      </p>
                     </div>
                   </TableCell>
                 </TableRow>
               ) : (
-                bons.map((bon) => {
+                filteredBons.map((bon) => {
                   const kmFinal = resolveVoucherKmFinal(bon);
                   const distance = getVoucherDistance(bon);
 

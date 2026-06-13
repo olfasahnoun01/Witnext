@@ -145,7 +145,7 @@ export const GestionDevis = ({
   const [documentStatus, setDocumentStatus] = useState<'brouillon' | 'envoyé' | 'accepté' | 'refusé' | 'confirmé' | 'reçu' | 'intégré'>('brouillon');
   const [devisItems, setDevisItems] = useState<DevisItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [isTtc, setIsTtc] = useState(true);
+  const [isTtc, setIsTtc] = useState(false);
 
   // Derived lists
   const savedDevis = useMemo(() => allDevis.filter((d) => !d.is_bc && !d.is_ba && !d.is_bl), [allDevis]);
@@ -297,7 +297,7 @@ export const GestionDevis = ({
     setNotes('');
     setDocumentStatus('brouillon');
     if (clearItems) setDevisItems([]);
-    setIsTtc(true);
+    setIsTtc(false);
     setExistingAttachments([]);
     setPendingAttachmentFiles([]);
     setImportSourceDevisIds([]);
@@ -347,7 +347,7 @@ export const GestionDevis = ({
     setThirdPartyAddress(primary.third_party_address || '');
     setThirdPartyTaxId(primary.third_party_tax_id || '');
     setThirdPartyPhone(primary.third_party_phone || '');
-    setIsTtc(primary.is_ttc);
+    setIsTtc(false);
     setDevisItems(importedItems);
     if (!notes.trim() && primary.notes) setNotes(primary.notes);
     setImportSourceDevisIds(list.map((d) => d.id));
@@ -374,7 +374,7 @@ export const GestionDevis = ({
     const saveAsBc = docType === 'bc' || sectionMode === 'bc';
     setIsSaving(true);
     try {
-      const totals = computeDevisTotals(devisItems, devisType === 'achat' ? false : isTtc);
+      const totals = computeDevisTotals(devisItems, false);
       const totalAmount = totals.totalTTC;
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -392,7 +392,7 @@ export const GestionDevis = ({
         total_amount: totalAmount,
         notes: notes || null,
         created_by: user?.id,
-        is_ttc: isTtc,
+        is_ttc: false,
         is_bc: saveAsBc,
         is_ba: false,
         status: saveAsBc ? documentStatus : 'brouillon',
@@ -437,7 +437,7 @@ export const GestionDevis = ({
       toast.error('Ajoutez au moins une ligne d\'article');
       return;
     }
-    const totals = computeDevisTotals(devisItems, devisType === 'achat' ? false : isTtc);
+    const totals = computeDevisTotals(devisItems, false);
     const totalAmount = totals.totalTTC;
     const folderKind = docType === 'bc' || editingDevis.is_bc ? 'bc' : 'devis';
 
@@ -461,7 +461,7 @@ export const GestionDevis = ({
       items: JSON.parse(JSON.stringify(devisItems)),
       total_amount: totalAmount,
       notes: notes || null,
-      is_ttc: isTtc,
+      is_ttc: false,
       is_bc: editingDevis.is_bc && !editingDevis.is_bl,
       is_bl: editingDevis.is_bl ?? false,
       is_ba: false,
@@ -537,7 +537,7 @@ export const GestionDevis = ({
         items: JSON.parse(JSON.stringify(modifiedItems)),
         total_amount: totals.totalTTC,
         notes: isMerge ? buildMergedBcNotes(sources) : primary.notes,
-        is_ttc: primary.is_ttc,
+        is_ttc: false,
         is_bc: true,
         created_by: user?.id,
         status: bcStatus,
@@ -599,7 +599,7 @@ export const GestionDevis = ({
     setNotes(d.notes || '');
     setDocumentStatus(d.status || 'brouillon');
     setDevisItems(d.items);
-    setIsTtc(d.is_ttc);
+    setIsTtc(false);
     setExistingAttachments(parseAttachmentUrls(d.attachment_urls));
     setPendingAttachmentFiles([]);
     setShowEditDialog(true);

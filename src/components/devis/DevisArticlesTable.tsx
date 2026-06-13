@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { DecimalInput } from '@/components/ui/decimal-input';
 import { devisZohoCellInputClass, devisZohoCellTextareaClass } from './DevisFormUi';
 import { DevisAnchoredDropdown } from './DevisAnchoredDropdown';
+import { DevisTvaSelect } from './DevisTvaSelect';
 
 export type DevisArticleComposerMode = 'search' | 'manual';
 
@@ -104,12 +105,7 @@ export function DevisArticlesTable({
   const composerPrixRef = useRef<HTMLInputElement>(null);
   const searchRef = composerSearchRef ?? localSearchRef;
 
-  const prixUnitHeader =
-    devisType === 'achat'
-      ? 'P. achat HT'
-      : articleMode === 'manual'
-        ? 'Prix vente HT'
-        : 'Prix unitaire HT';
+  const prixUnitHeader = devisType === 'achat' ? 'P. achat HT' : 'Prix unitaire HT';
 
   const composerPreview = computeArticleTableLineTotalHT(
     {
@@ -121,7 +117,7 @@ export function DevisArticlesTable({
       tva: itemTva,
     },
     devisType,
-    isTtc
+    false
   );
 
   const handlePickProduct = (product: Product) => {
@@ -145,7 +141,7 @@ export function DevisArticlesTable({
           {devisType === 'vente' && <col style={{ width: '12%' }} />}
           <col style={{ width: '12%' }} />
           <col style={{ width: '10%' }} />
-          {isTtc && <col style={{ width: '12%' }} />}
+          <col style={{ width: '11%' }} />
           <col style={{ width: '12%' }} />
           <col style={{ width: '5%' }} />
         </colgroup>
@@ -156,14 +152,14 @@ export function DevisArticlesTable({
             {devisType === 'vente' && <th className={cn(TH, 'text-right')}>P. achat HT</th>}
             <th className={cn(TH, 'text-right')}>{prixUnitHeader}</th>
             <th className={cn(TH, 'text-center')}>Remise %</th>
-            {isTtc && <th className={cn(TH, 'text-center')}>TVA</th>}
+            <th className={cn(TH, 'text-center')}>TVA</th>
             <th className={cn(TH, 'text-right')}>Total HT</th>
             <th className={cn(TH, 'text-center')} aria-hidden />
           </tr>
         </thead>
         <tbody>
           {items.map((item, idx) => {
-            const lineVal = computeArticleTableLineTotalHT(item, devisType, isTtc);
+            const lineVal = computeArticleTableLineTotalHT(item, devisType, false);
             const code = getDevisItemDisplayCode(item);
             const title = code ? `${code} — ${item.designation}` : item.designation;
 
@@ -231,19 +227,13 @@ export function DevisArticlesTable({
                     <span className="text-[10px] text-muted-foreground">%</span>
                   </div>
                 </td>
-                {isTtc && (
-                  <td className={TD}>
-                    <select
-                      value={String(item.tva ?? 19)}
-                      onChange={(e) => onUpdate(idx, { tva: Number(e.target.value) })}
-                      className={cn(devisZohoCellInputClass, 'text-center text-[11px]')}
-                    >
-                      <option value="7">7%</option>
-                      <option value="13">13%</option>
-                      <option value="19">19%</option>
-                    </select>
-                  </td>
-                )}
+                <td className={TD}>
+                  <DevisTvaSelect
+                    value={item.tva ?? 0}
+                    onChange={(rate) => onUpdate(idx, { tva: rate })}
+                    className="w-full h-auto py-1.5"
+                  />
+                </td>
                 <td className={cn(TD, 'text-right font-semibold tabular-nums text-xs')}>
                   {lineVal.toFixed(3)}
                 </td>
@@ -367,19 +357,13 @@ export function DevisArticlesTable({
                 <span className="text-[10px] text-muted-foreground">%</span>
               </div>
             </td>
-            {isTtc && (
-              <td className={TD_COMPOSER}>
-                <select
-                  value={String(itemTva)}
-                  onChange={(e) => onItemTvaChange(Number(e.target.value))}
-                  className={cn(devisZohoCellInputClass, 'text-center text-[11px] w-full')}
-                >
-                  <option value="7">7%</option>
-                  <option value="13">13%</option>
-                  <option value="19">19%</option>
-                </select>
-              </td>
-            )}
+            <td className={TD_COMPOSER}>
+              <DevisTvaSelect
+                value={itemTva}
+                onChange={onItemTvaChange}
+                className="w-full h-auto py-1.5"
+              />
+            </td>
             <td className={cn(TD_COMPOSER, 'text-right tabular-nums text-xs text-muted-foreground')}>
               {composerPreview > 0 ? composerPreview.toFixed(3) : '—'}
             </td>

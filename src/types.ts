@@ -109,7 +109,7 @@ export interface DevisItem {
   sku?: string;
   description?: string;
   prix_achat?: number;
-  tva?: number; // 7, 13, or 19 (default 19)
+  tva?: number; // 0, 7, 13, or 19 — 0 = no VAT on the line until user selects a rate
   product_id?: number;
   line_id?: string;
 }

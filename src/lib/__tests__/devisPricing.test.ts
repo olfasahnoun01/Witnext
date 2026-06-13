@@ -72,8 +72,14 @@ describe('computeDevisLine (HT input mode)', () => {
     expect(line.lineTTC).toBeCloseTo(35.7, 3);
   });
 
-  it('defaults to 19% VAT when tva is omitted', () => {
+  it('defaults to 0% VAT when tva is omitted', () => {
     const line = computeDevisLine(item({ prix_ttc: 100, quantity: 1, tva: undefined }), false);
+    expect(line.lineTVA).toBeCloseTo(0, 3);
+    expect(line.lineTTC).toBeCloseTo(100, 3);
+  });
+
+  it('applies VAT only when user selects a rate', () => {
+    const line = computeDevisLine(item({ prix_ttc: 100, quantity: 1, tva: 19 }), false);
     expect(line.lineTVA).toBeCloseTo(19, 3);
   });
 });

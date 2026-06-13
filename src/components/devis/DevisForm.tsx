@@ -1,6 +1,7 @@
 import { memo, useCallback, useState, useEffect, useMemo } from 'react';
 import { ProductGroupFournisseur } from '@/types';
 import { computeDevisTotals } from '@/lib/devisPricing';
+import { generateNextEntityCode } from '@/lib/entityCode';
 import { Plus, Trash2, Edit, X, Search, Layers, Check, AlertCircle, Upload, ChevronsUpDown, FileText, ShoppingCart, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,7 +44,6 @@ import {
   DevisField,
   DevisFlowBadge,
   DevisFormPageHeader,
-  DevisPricingToggle,
   DevisSegmentedGrid,
   DevisSegmentedOption,
   DevisZohoFooter,
@@ -75,6 +75,7 @@ interface Fournisseur {
 interface Client {
   id: number;
   nom: string;
+  code?: string | null;
   matricule_fiscale: string | null;
   location: string | null;
   phone: string | null;
@@ -157,6 +158,16 @@ export const DevisForm = memo(({
   const [newFournisseurPhoneLines, setNewFournisseurPhoneLines] = useState<string[]>(['']);
   const [newFournisseurPatenteUrl, setNewFournisseurPatenteUrl] = useState<string | null>(null);
   const [newFournisseurRneUrl, setNewFournisseurRneUrl] = useState<string | null>(null);
+
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientCode, setNewClientCode] = useState('');
+  const [newClientMatricule, setNewClientMatricule] = useState('');
+  const [newClientGovernorate, setNewClientGovernorate] = useState('');
+  const [newClientCity, setNewClientCity] = useState('');
+  const [newClientPhoneLines, setNewClientPhoneLines] = useState<string[]>(['']);
+  const [newClientPatenteUrl, setNewClientPatenteUrl] = useState<string | null>(null);
+  const [newClientRcUrl, setNewClientRcUrl] = useState<string | null>(null);
   const { preview: documentPreview, pdfBytesRef, openDocumentPreview, closePreview: closeDocumentPreview } =
     useClientDocumentPreview();
 
@@ -181,7 +192,7 @@ export const DevisForm = memo(({
   const [itemQuantity, setItemQuantity] = useState<number>(1);
   const [itemDescription, setItemDescription] = useState('');
   const [itemPrixAchat, setItemPrixAchat] = useState<number>(0);
-  const [itemTva, setItemTva] = useState<number>(19);
+  const [itemTva, setItemTva] = useState<number>(0);
 
   /** Remplit prix d'achat HT depuis l'inventaire (fournisseurs du groupe). */
   const loadPrixAchatFromInventoryProduct = useCallback(
@@ -266,7 +277,7 @@ export const DevisForm = memo(({
     const load = async () => {
       const cid = getActiveCompanyId();
       const fournQuery = supabase.from('fournisseurs').select('id, nom, matricule_fiscale, location, phone, patente_url, registre_commerce_url, created_at');
-      const clientsQuery = supabase.from('clients').select('id, nom, matricule_fiscale, location, phone, created_at');
+      const clientsQuery = supabase.from('clients').select('id, nom, code, matricule_fiscale, location, phone, created_at');
       const [fRes, cRes, catSettingsRes, productsCatsRes, groupCatsRes] = await Promise.all([
         (cid ? fournQuery.eq('company_id', cid) : fournQuery).order('created_at', { ascending: false }),
         (cid ? clientsQuery.eq('company_id', cid) : clientsQuery).order('created_at', { ascending: false }),
@@ -367,7 +378,7 @@ export const DevisForm = memo(({
     setItemQuantity(1);
     setItemDescription('');
     setItemPrixAchat(0);
-    setItemTva(19);
+    setItemTva(0);
     setProductSearch('');
     setSearchResults([]);
   }, []);
@@ -440,6 +451,89 @@ export const DevisForm = memo(({
     setNewFournisseurPatenteUrl(null);
     setNewFournisseurRneUrl(null);
   }, []);
+
+  const newClientCities = useMemo(() => {
+    return newClientGovernorate
+      ? TUNISIA_LOCATIONS.find(r => r.governorate === newClientGovernorate)?.cities || []
+      : [];
+  }, [newClientGovernorate]);
+
+  const resetNewClientForm = useCallback(() => {
+    setNewClientName('');
+    setNewClientMatricule('');
+    setNewClientGovernorate('');
+    setNewClientCity('');
+    setNewClientCode('');
+    setNewClientPhoneLines(['']);
+    setNewClientPatenteUrl(null);
+    setNewClientRcUrl(null);
+  }, []);
+
+  useEffect(() => {
+    if (!showNewClient) return;
+    const codes = clients.map((c) => c.code).filter(Boolean) as string[];
+    setNewClientCode(generateNextEntityCode(codes));
+  }, [showNewClient, clients]);
+
+  const createClient = useCallback(async () => {
+    if (!newClientName.trim()) { toast.error('Nom requis'); return; }
+    if (!newClientMatricule.trim()) { toast.error('Matricule fiscal requis'); return; }
+    const phoneStored = serializePhoneList(newClientPhoneLines);
+    if (!phoneStored) { toast.error('Au moins un numéro de téléphone est requis'); return; }
+    if (!newClientCode.trim()) { toast.error('Code client requis'); return; }
+    if (!newClientGovernorate || !newClientCity) {
+      toast.error('Gouvernorat et ville requis');
+      return;
+    }
+
+    const locationValue = `${newClientCity}, ${newClientGovernorate}`;
+    const companyId = getActiveCompanyId();
+    if (!companyId) {
+      toast.error('Aucune société active');
+      return;
+    }
+
+    const { data, error } = await supabase.from('clients').insert({
+      nom: newClientName.trim(),
+      code: newClientCode.trim(),
+      matricule_fiscale: newClientMatricule.trim(),
+      tva_status: 'assujetti',
+      company_id: companyId,
+      phone: phoneStored,
+      location: locationValue,
+      patente_url: newClientPatenteUrl,
+      registre_commerce_url: newClientRcUrl,
+    }).select().single();
+
+    if (error) {
+      toast.error('Erreur création client');
+      console.error(error);
+    } else if (data) {
+      toast.success('Client créé');
+      setClients((prev) => [data as Client, ...prev]);
+      setThirdPartyName(data.nom);
+      setThirdPartyPhone(formatPhonesDisplay((data as Client).phone) || '');
+      setThirdPartyAddress((data as Client).location || '');
+      setThirdPartyTaxId((data as Client).matricule_fiscale || '');
+      setSelectedThirdPartyId(data.id.toString());
+      setShowNewClient(false);
+      resetNewClientForm();
+    }
+  }, [
+    newClientName,
+    newClientMatricule,
+    newClientCode,
+    newClientGovernorate,
+    newClientCity,
+    newClientPhoneLines,
+    newClientPatenteUrl,
+    newClientRcUrl,
+    setThirdPartyName,
+    setThirdPartyPhone,
+    setThirdPartyAddress,
+    setThirdPartyTaxId,
+    resetNewClientForm,
+  ]);
 
   const createFournisseur = useCallback(async () => {
     if (!newFournisseurName.trim()) { toast.error('Nom requis'); return; }
@@ -546,7 +640,7 @@ export const DevisForm = memo(({
     setItemQuantity(1);
     setItemDescription('');
     setItemPrixAchat(0);
-    setItemTva(19);
+    setItemTva(0);
     setProductSearch('');
     setSearchResults([]);
     setSelectedProduct(null);
@@ -1032,22 +1126,8 @@ export const DevisForm = memo(({
     return productGroups.filter(g => g.name.toLowerCase().includes(q));
   }, [productGroups, groupSearch]);
 
-  // Lignes devis: `prix_ttc` = PU HT avant remise ; remise % et TVA s'appliquent sur ce PU vente HT uniquement
-  /** Saisie libre client : tableau 100 % HT — la TVA est calculée uniquement dans la synthèse (timbre fiscal). */
-  const isVenteManualMode = devisType === 'vente' && articleMode === 'manual';
-  /** Achat/fournisseur: unit prices are always HT; TTC toggle applies to vente catalogue only. */
-  const articleTableIsTtc = isVenteManualMode ? false : isTtc;
-  const pricingIsTtc = devisType === 'achat' ? false : isVenteManualMode ? false : isTtc;
-  const devisTotals = useMemo(
-    () => computeDevisTotals(devisItems, pricingIsTtc),
-    [devisItems, pricingIsTtc]
-  );
-
-  useEffect(() => {
-    if (isVenteManualMode && isTtc) {
-      setIsTtc(false);
-    }
-  }, [isVenteManualMode, isTtc, setIsTtc]);
+  // Lignes devis: prix unitaire HT ; TVA appliquée uniquement si l'utilisateur choisit un taux > 0 %
+  const devisTotals = useMemo(() => computeDevisTotals(devisItems, false), [devisItems]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyLabel = isAchat ? 'Fournisseur' : 'Client';
 
@@ -1136,14 +1216,10 @@ export const DevisForm = memo(({
               )
             }
             pricingCell={
-              isVenteManualMode ? (
-                <p className="text-xs text-muted-foreground leading-snug">
-                  Tableau en <span className="font-medium text-foreground">prix HT</span> — la TVA est
-                  appliquée dans la synthèse (timbre fiscal).
-                </p>
-              ) : (
-                <DevisPricingToggle isTtc={isTtc} onChange={setIsTtc} embedded />
-              )
+              <p className="text-xs text-muted-foreground leading-snug">
+                Prix unitaires <span className="font-medium text-foreground">HT</span> — choisissez le
+                taux de TVA par ligne ; la synthèse (timbre fiscal) totalise la TVA sélectionnée.
+              </p>
             }
           />
         </DevisZohoTopBar>
@@ -1168,8 +1244,9 @@ export const DevisForm = memo(({
             docType={docType}
             documentStatus={documentStatus}
             onDocumentStatusChange={(v) => setDocumentStatus(v)}
-            showNewFournisseur={isAchat}
-            onNewFournisseur={() => setShowNewFournisseur(true)}
+            showNewParty
+            onNewParty={() => (isAchat ? setShowNewFournisseur(true) : setShowNewClient(true))}
+            newPartyTitle={isAchat ? 'Nouveau fournisseur' : 'Nouveau client'}
           />
         </DevisZohoSection>
 
@@ -1195,9 +1272,6 @@ export const DevisForm = memo(({
                   onSelect={(v) => {
                     achatPriceRequestRef.current += 1;
                     setArticleMode(v);
-                    if (v === 'manual' && devisType === 'vente') {
-                      setIsTtc(false);
-                    }
                     setSelectedProduct(null);
                     setItemDesignation('');
                     setItemFournisseur('');
@@ -1217,9 +1291,6 @@ export const DevisForm = memo(({
                   onSelect={(v) => {
                     achatPriceRequestRef.current += 1;
                     setArticleMode(v);
-                    if (v === 'manual' && devisType === 'vente') {
-                      setIsTtc(false);
-                    }
                     setSelectedProduct(null);
                     setItemDesignation('');
                     setItemFournisseur('');
@@ -1246,7 +1317,7 @@ export const DevisForm = memo(({
         >
           <DevisArticlesTable
             items={devisItems}
-            isTtc={articleTableIsTtc}
+            isTtc={false}
             devisType={devisType}
             articleMode={articleMode}
             composerSearchRef={composerSearchRef}
@@ -1423,6 +1494,102 @@ export const DevisForm = memo(({
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowNewFournisseur(false); resetNewFournisseurForm(); }}>Annuler</Button>
             <Button onClick={createFournisseur}>Ajouter</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Client Dialog */}
+      <Dialog open={showNewClient} onOpenChange={(open) => {
+        setShowNewClient(open);
+        if (!open) resetNewClientForm();
+      }}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Nouveau Client</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nom (Société) *</Label>
+              <Input value={newClientName} onChange={e => setNewClientName(e.target.value)} placeholder="Nom du client" />
+            </div>
+            <div className="space-y-2">
+              <Label>Code client *</Label>
+              <Input value={newClientCode} onChange={e => setNewClientCode(e.target.value)} placeholder="Ex: CLI-001" />
+            </div>
+            <div className="space-y-2">
+              <Label>Matricule Fiscale *</Label>
+              <Input value={newClientMatricule} onChange={e => setNewClientMatricule(e.target.value)} placeholder="Ex: 1234567/A/B/C/000" />
+            </div>
+            <PhoneLinesEditor
+              idPrefix="devis-client"
+              label="Téléphone(s)"
+              required
+              lines={newClientPhoneLines}
+              onChange={setNewClientPhoneLines}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Gouvernorat *</Label>
+                <Select value={newClientGovernorate} onValueChange={val => { setNewClientGovernorate(val); setNewClientCity(''); }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Région" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {TUNISIA_LOCATIONS.map(r => (
+                      <SelectItem key={r.governorate} value={r.governorate}>{r.governorate}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Ville *</Label>
+                <Select value={newClientCity} onValueChange={setNewClientCity} disabled={!newClientGovernorate}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={newClientGovernorate ? 'Ville' : 'Choisir région'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {newClientCities.map(city => (
+                      <SelectItem key={city} value={city}>{city}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-3 pt-2 border-t border-dashed">
+              <Label className="text-sm font-semibold">Documents (PDF, JPG, PNG) — optionnel</Label>
+              {newClientCode.trim() ? (
+                <div className="space-y-3">
+                  <DocumentUploader
+                    bucket="client-documents"
+                    entityCode={`CLI_${newClientCode.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`}
+                    documentType="patente"
+                    currentUrl={newClientPatenteUrl}
+                    onUploadSuccess={(url) => setNewClientPatenteUrl(url)}
+                    onRemove={() => setNewClientPatenteUrl(null)}
+                    onConsult={(url) => void openDocumentPreview(url, `Patente — ${newClientName.trim() || newClientCode}`)}
+                  />
+                  <DocumentUploader
+                    bucket="client-documents"
+                    entityCode={`CLI_${newClientCode.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`}
+                    documentType="rc"
+                    titleOverride="RNE (Registre national des entreprises)"
+                    currentUrl={newClientRcUrl}
+                    onUploadSuccess={(url) => setNewClientRcUrl(url)}
+                    onRemove={() => setNewClientRcUrl(null)}
+                    onConsult={(url) => void openDocumentPreview(url, `RNE — ${newClientName.trim() || newClientCode}`)}
+                  />
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-100 flex items-start gap-2 text-amber-800 text-xs">
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <p>Saisissez le code client pour activer l&apos;envoi Patente et RNE.</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowNewClient(false); resetNewClientForm(); }}>Annuler</Button>
+            <Button onClick={() => void createClient()}>Ajouter</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

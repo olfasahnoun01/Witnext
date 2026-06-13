@@ -3,6 +3,15 @@ import { DevisItem } from '@/types';
 /** Timbre fiscal forfaitaire (DT) appliqué sur facture/devis. */
 export const TIMBRE_FISCAL_DT = 1.0;
 
+/** TVA selectable per line — 0 % means no VAT on that line until the user picks a rate. */
+export const DEVIS_TVA_OPTIONS = [0, 7, 13, 19] as const;
+
+/** Explicit line TVA only — never default to 19 %. */
+export function resolveDevisLineTvaRate(tva?: number | null): number {
+  if (tva == null || !Number.isFinite(Number(tva))) return 0;
+  return Number(tva);
+}
+
 /** Arrondi au millime (3 décimales) — norme fiscale tunisienne. */
 export function round3(n: number): number {
   return Math.round((n + Number.EPSILON) * 1000) / 1000;
@@ -42,9 +51,9 @@ export function computeArticleTableLineTotalHT(
   isSortantTTC: boolean
 ): number {
   const remiseFactor = item.remise > 0 ? 1 - item.remise / 100 : 1;
-  const tvaRate = (item.tva ?? 19) / 100;
+  const tvaRate = resolveDevisLineTvaRate(item.tva) / 100;
   let unitHt = item.prix_ttc;
-  if (devisType === 'vente' && isSortantTTC) {
+  if (devisType === 'vente' && isSortantTTC && tvaRate > 0) {
     unitHt = item.prix_ttc / (1 + tvaRate);
   }
   return round3(unitHt * remiseFactor * item.quantity);
@@ -54,7 +63,7 @@ export function computeDevisLine(
   item: DevisItem,
   isSortantTTC: boolean
 ): DevisLinePricing {
-  const tvaRate = (item.tva ?? 19) / 100;
+  const tvaRate = resolveDevisLineTvaRate(item.tva) / 100;
   const remiseFactor = item.remise > 0 ? (1 - item.remise / 100) : 1;
 
   let unitHT: number;

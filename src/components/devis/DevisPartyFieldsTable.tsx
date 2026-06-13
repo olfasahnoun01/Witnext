@@ -44,8 +44,9 @@ export interface DevisPartyFieldsTableProps {
   onDocumentStatusChange: (
     v: 'brouillon' | 'envoyé' | 'accepté' | 'refusé' | 'confirmé' | 'reçu' | 'intégré'
   ) => void;
-  showNewFournisseur?: boolean;
-  onNewFournisseur?: () => void;
+  showNewParty?: boolean;
+  onNewParty?: () => void;
+  newPartyTitle?: string;
 }
 
 export function DevisPartyFieldsTable({
@@ -67,8 +68,9 @@ export function DevisPartyFieldsTable({
   docType,
   documentStatus,
   onDocumentStatusChange,
-  showNewFournisseur,
-  onNewFournisseur,
+  showNewParty,
+  onNewParty,
+  newPartyTitle = 'Nouveau',
 }: DevisPartyFieldsTableProps) {
   const partyInputRef = useRef<HTMLInputElement>(null);
   const showStatus = docType === 'bc';
@@ -81,7 +83,7 @@ export function DevisPartyFieldsTable({
           <col style={{ width: showStatus ? '18%' : '22%' }} />
           <col style={{ width: showStatus ? '16%' : '18%' }} />
           {showStatus && <col style={{ width: '18%' }} />}
-          {showNewFournisseur && <col style={{ width: '10%' }} />}
+          {showNewParty && <col style={{ width: '10%' }} />}
         </colgroup>
         <thead>
           <tr>
@@ -91,7 +93,7 @@ export function DevisPartyFieldsTable({
             {showStatus && (
               <th className={cn(devisFormTableThClass, 'text-left')}>Statut</th>
             )}
-            {showNewFournisseur && (
+            {showNewParty && (
               <th className={cn(devisFormTableThClass, 'text-center')} aria-hidden />
             )}
           </tr>
@@ -162,15 +164,15 @@ export function DevisPartyFieldsTable({
                 </Select>
               </td>
             )}
-            {showNewFournisseur && (
+            {showNewParty && (
               <td className={cn(devisFormTableTdClass, 'text-center align-middle')}>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={onNewFournisseur}
+                  onClick={onNewParty}
                   className="h-8 w-full text-[11px] px-1.5"
-                  title="Nouveau fournisseur"
+                  title={newPartyTitle}
                 >
                   <UserPlus className="w-3.5 h-3.5 shrink-0" />
                 </Button>
