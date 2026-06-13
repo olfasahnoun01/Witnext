@@ -48,7 +48,7 @@ export function DevisAnchoredDropdown({
     <div
       role="listbox"
       className={cn(
-        'fixed z-[250] overflow-y-auto rounded-md border-2 border-border bg-popover shadow-lg',
+        'fixed z-[250] overflow-y-auto rounded-md border-2 border-border bg-popover shadow-lg pointer-events-auto',
         className
       )}
       style={{ top: pos.top, left: pos.left, width: pos.width }}

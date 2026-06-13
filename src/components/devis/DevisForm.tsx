@@ -1033,12 +1033,21 @@ export const DevisForm = memo(({
   }, [productGroups, groupSearch]);
 
   // Lignes devis: `prix_ttc` = PU HT avant remise ; remise % et TVA s'appliquent sur ce PU vente HT uniquement
-  /** Achat/fournisseur: unit prices are always HT; TTC toggle applies to vente only. */
-  const pricingIsTtc = devisType === 'achat' ? false : isTtc;
+  /** Saisie libre client : tableau 100 % HT — la TVA est calculée uniquement dans la synthèse (timbre fiscal). */
+  const isVenteManualMode = devisType === 'vente' && articleMode === 'manual';
+  /** Achat/fournisseur: unit prices are always HT; TTC toggle applies to vente catalogue only. */
+  const articleTableIsTtc = isVenteManualMode ? false : isTtc;
+  const pricingIsTtc = devisType === 'achat' ? false : isVenteManualMode ? false : isTtc;
   const devisTotals = useMemo(
     () => computeDevisTotals(devisItems, pricingIsTtc),
     [devisItems, pricingIsTtc]
   );
+
+  useEffect(() => {
+    if (isVenteManualMode && isTtc) {
+      setIsTtc(false);
+    }
+  }, [isVenteManualMode, isTtc, setIsTtc]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyLabel = isAchat ? 'Fournisseur' : 'Client';
 
@@ -1126,7 +1135,16 @@ export const DevisForm = memo(({
                 <DevisFlowBadge devisType={devisType} docType={docType} />
               )
             }
-            pricingCell={<DevisPricingToggle isTtc={isTtc} onChange={setIsTtc} embedded />}
+            pricingCell={
+              isVenteManualMode ? (
+                <p className="text-xs text-muted-foreground leading-snug">
+                  Tableau en <span className="font-medium text-foreground">prix HT</span> — la TVA est
+                  appliquée dans la synthèse (timbre fiscal).
+                </p>
+              ) : (
+                <DevisPricingToggle isTtc={isTtc} onChange={setIsTtc} embedded />
+              )
+            }
           />
         </DevisZohoTopBar>
 
@@ -1177,6 +1195,9 @@ export const DevisForm = memo(({
                   onSelect={(v) => {
                     achatPriceRequestRef.current += 1;
                     setArticleMode(v);
+                    if (v === 'manual' && devisType === 'vente') {
+                      setIsTtc(false);
+                    }
                     setSelectedProduct(null);
                     setItemDesignation('');
                     setItemFournisseur('');
@@ -1196,6 +1217,9 @@ export const DevisForm = memo(({
                   onSelect={(v) => {
                     achatPriceRequestRef.current += 1;
                     setArticleMode(v);
+                    if (v === 'manual' && devisType === 'vente') {
+                      setIsTtc(false);
+                    }
                     setSelectedProduct(null);
                     setItemDesignation('');
                     setItemFournisseur('');
@@ -1222,7 +1246,7 @@ export const DevisForm = memo(({
         >
           <DevisArticlesTable
             items={devisItems}
-            isTtc={isTtc}
+            isTtc={articleTableIsTtc}
             devisType={devisType}
             articleMode={articleMode}
             composerSearchRef={composerSearchRef}

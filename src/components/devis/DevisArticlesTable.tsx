@@ -104,7 +104,12 @@ export function DevisArticlesTable({
   const composerPrixRef = useRef<HTMLInputElement>(null);
   const searchRef = composerSearchRef ?? localSearchRef;
 
-  const prixUnitHeader = devisType === 'achat' ? 'P. achat HT' : 'Prix unitaire HT';
+  const prixUnitHeader =
+    devisType === 'achat'
+      ? 'P. achat HT'
+      : articleMode === 'manual'
+        ? 'Prix vente HT'
+        : 'Prix unitaire HT';
 
   const composerPreview = computeArticleTableLineTotalHT(
     {
@@ -345,7 +350,9 @@ export function DevisArticlesTable({
                 value={itemPrixTtc}
                 onValueChange={onItemPrixTtcChange}
                 className={cn(devisZohoCellInputClass, 'text-right text-xs w-full h-auto py-1.5')}
-                placeholder="0.000"
+                placeholder={
+                  devisType === 'vente' && articleMode === 'manual' ? 'Prix vente HT…' : '0.000'
+                }
                 aria-label={prixUnitHeader}
               />
             </td>

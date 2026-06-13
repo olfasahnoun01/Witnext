@@ -32,13 +32,15 @@ export function FluxPartyAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
 
-  const suggestions = useMemo(() => {
-    const q = value.trim().toLowerCase();
-    const list = q ? parties.filter((p) => p.nom.toLowerCase().includes(q)) : parties;
-    return list.slice(0, MAX_SUGGESTIONS);
-  }, [parties, value]);
+  const query = value.trim();
 
-  const showDropdown = focused && !loading && suggestions.length > 0;
+  const suggestions = useMemo(() => {
+    if (!query) return [];
+    const q = query.toLowerCase();
+    return parties.filter((p) => p.nom.toLowerCase().includes(q)).slice(0, MAX_SUGGESTIONS);
+  }, [parties, query]);
+
+  const showDropdown = focused && !loading && query.length > 0 && suggestions.length > 0;
 
   const handleSelect = (party: FluxPartyOption) => {
     onSelectParty(party);
@@ -76,7 +78,10 @@ export function FluxPartyAutocomplete({
             }}
             onFocus={() => setFocused(true)}
             onBlur={() => {
-              window.setTimeout(() => setFocused(false), 150);
+              window.setTimeout(() => setFocused(false), 200);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setFocused(false);
             }}
           />
           <DevisAnchoredDropdown
