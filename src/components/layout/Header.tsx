@@ -7,6 +7,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { OnlineUsersIndicator } from '@/components/OnlineUsersIndicator';
 import { NotificationCenter } from '@/components/notifications/NotificationCenter';
 import { CompanySwitcher } from '@/components/layout/CompanySwitcher';
+import { TeamChat } from '@/components/TeamChat';
 import { supabase } from '@/integrations/supabase/client';
 
 interface HeaderProps {
@@ -65,15 +66,12 @@ export const Header = ({ title, onToggle, sidebarOpen, onNavigateTab }: HeaderPr
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          {/* Company switcher (multi-company) */}
+        <div className="flex items-center gap-2 sm:gap-4">
           <CompanySwitcher />
 
-          {/* Online Users */}
-          <OnlineUsersIndicator 
-            onlineUsers={onlineUsers} 
-            currentUserId={user?.id}
-          />
+          <OnlineUsersIndicator onlineUsers={onlineUsers} currentUserId={user?.id} />
+
+          <TeamChat />
 
           <NotificationCenter onNavigate={onNavigateTab} />
 

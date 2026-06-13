@@ -54,7 +54,6 @@ const FluxSuiviHub = lazy(() =>
 );
 const PermissionsManager = lazy(() => import('@/components/PermissionsManager').then(m => ({ default: m.PermissionsManager })));
 const RDV = lazy(() => import('@/components/commercial/RDV').then(m => ({ default: m.RDV })));
-const TeamChat = lazy(() => import('@/components/TeamChat').then(m => ({ default: m.TeamChat })));
 const FacturesVente = lazy(() => import('@/components/commercial/FacturesVente').then(m => ({ default: m.FacturesVente })));
 const FinanceModule = lazy(() => import('@/modules/finance/FinanceModule').then(m => ({ default: m.FinanceModule })));
 
@@ -318,10 +317,6 @@ const IndexContent = () => {
             {renderContent()}
           </main>
         </div>
-
-        <Suspense fallback={null}>
-          <TeamChat />
-        </Suspense>
       </div>
     </AppLayoutProvider>
   );

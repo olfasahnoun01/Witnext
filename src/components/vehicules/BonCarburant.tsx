@@ -43,6 +43,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { getActiveCompanyId } from '@/lib/activeCompany';
 import { getFuelVoucherStatusDisplay, fuelVoucherStatusBadgeClass } from '@/lib/fuelVoucherStatus';
+import { useListPagination } from '@/hooks/useListPagination';
+import { ListPagination } from '@/components/shared/ListPagination';
 import {
   computeFuelVoucherDistance,
   fetchLastApprovedKmFinal,
@@ -330,6 +332,17 @@ export const BonCarburant = () => {
     });
   }, [bons, filterVehicleId, filterDriverId]);
 
+  const listResetKey = `${filterVehicleId}|${filterDriverId}`;
+  const {
+    slice: bonsPage,
+    page,
+    totalPages,
+    total,
+    from,
+    to,
+    setPage,
+  } = useListPagination(filteredBons, listResetKey);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -447,7 +460,7 @@ export const BonCarburant = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredBons.map((bon) => {
+                bonsPage.map((bon) => {
                   const kmFinal = resolveVoucherKmFinal(bon);
                   const distance = getVoucherDistance(bon);
 
@@ -544,6 +557,14 @@ export const BonCarburant = () => {
               )}
             </TableBody>
           </Table>
+          <ListPagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            from={from}
+            to={to}
+            onPageChange={setPage}
+          />
         </div>
       )}
 
