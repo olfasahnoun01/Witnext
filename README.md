@@ -60,15 +60,18 @@ In Supabase Dashboard → **Authentication** → **URL Configuration**:
 
 ### Edge function CORS (web origins)
 
-Browser calls to edge functions from Vercel require allowed origins. Set a Supabase secret with your web URL(s):
+Browser calls to edge functions from Vercel require allowed origins. From the project root (Supabase CLI is installed as a dev dependency — use `npm run`, not bare `supabase`):
 
 ```sh
-supabase secrets set WEB_APP_ORIGINS=https://your-app.vercel.app
-supabase functions deploy manage-users
-supabase functions deploy sync-woocommerce-gallery
+npm run supabase:login
+npm run supabase:link
+npm run supabase:secrets:web
+npm run supabase:deploy-functions
 ```
 
-Add preview deployment URLs to `WEB_APP_ORIGINS` (comma-separated) when needed.
+Or with npx: `npx supabase login`, etc.
+
+To use a different URL, run `npx supabase secrets set WEB_APP_ORIGINS=https://your-url.vercel.app` before deploy.
 
 Migrations live in `supabase/migrations/`. After changing edge functions, redeploy:
 
