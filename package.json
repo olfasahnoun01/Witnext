@@ -13,7 +13,7 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run build:web",
-    "build:web": "cross-env VITE_APP_TARGET=web vite build",
+    "build:web": "npm run assets:branding && cross-env VITE_APP_TARGET=web vite build",
     "build:electron": "cross-env VITE_APP_TARGET=electron vite build",
     "build:dev": "cross-env VITE_APP_TARGET=web vite build --mode development",
     "lint": "eslint .",
