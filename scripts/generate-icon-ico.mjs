@@ -1,5 +1,5 @@
 /**
- * Builds multi-size build/icon.ico from the same PNG used in the app UI (logo-icon-512).
+ * Builds build/icon.ico from square 512px export of witnext-brand-logo-icon.png.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,7 +8,7 @@ import pngToIco from 'png-to-ico';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
-const pngPath = path.join(root, 'src', 'assets', 'logo-icon-512.png');
+const pngPath = path.join(root, 'build', 'branding', 'app-icon-512.png');
 
 if (!fs.existsSync(pngPath)) {
   console.error(`Missing ${pngPath}. Run: npm run assets:branding`);

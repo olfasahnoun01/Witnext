@@ -1,5 +1,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="Witnext">
-  <rect width="512" height="512" fill="#FFFFFF"/>
   <path
     d="M128 336 L192 176 L256 264 L320 176 L384 336"
     stroke="#0A1628"

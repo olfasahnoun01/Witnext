@@ -73,9 +73,9 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
       >
         <div className="flex flex-col h-full">
           {/* Logo Section */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border/50">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <WitnextLogoBanner variant="app" showWordmark />
+          <div className="flex items-center justify-between px-4 py-4 border-b border-sidebar-border/50">
+            <div className="flex min-w-0 flex-1 items-center justify-center lg:justify-start">
+              <WitnextLogoBanner variant="app" />
             </div>
             <button 
               onClick={onToggle}
