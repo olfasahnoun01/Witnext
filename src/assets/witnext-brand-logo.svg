@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 720" fill="none" role="img" aria-label="Witnext">
+  <rect width="640" height="720" fill="#FFFFFF"/>
+  <!-- W pathway mark -->
+  <path
+    d="M160 420 L240 220 L320 340 L400 220 L480 420"
+    stroke="#0A1628"
+    stroke-width="44"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M468 228 L508 188 L548 228"
+    stroke="#00C9A7"
+    stroke-width="36"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <!-- Wordmark -->
+  <text x="320" y="560" text-anchor="middle" font-family="Segoe UI, Inter, system-ui, sans-serif" font-size="72" font-weight="600">
+    <tspan fill="#0A1628">Wit</tspan><tspan fill="#00C9A7">next</tspan>
+  </text>
+</svg>

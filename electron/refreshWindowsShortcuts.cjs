@@ -2,7 +2,7 @@ const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const PRODUCT_NAME = 'Alpha';
+const PRODUCT_NAME = 'Witnext';
 
 /** Legacy product / shortcut names from older installers. */
 const LEGACY_NAMES = [

@@ -191,14 +191,14 @@ export const Settings = () => {
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div className="space-y-2 text-muted-foreground">
-            <p><strong className="text-foreground">Application:</strong> Alpha</p>
+            <p><strong className="text-foreground">Application:</strong> Witnext</p>
             <p><strong className="text-foreground">Version:</strong> {APP_VERSION}</p>
             <p><strong className="text-foreground">Dernière mise à jour:</strong> {BUILD_DATE_FORMATTED}</p>
           </div>
           <div className="space-y-2 text-muted-foreground">
             <p><strong className="text-foreground">Technologies:</strong> React, TypeScript, PostgreSQL</p>
             <p><strong className="text-foreground">Mode:</strong> Application Cloud Haute Disponibilité</p>
-            <p>© 2026 Grosafe Équipement</p>
+            <p>© 2026 Witnext</p>
           </div>
         </div>
       </div>

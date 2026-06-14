@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Mail, Lock, LogIn, AlertCircle, RefreshCw } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlphaLogoBanner } from '@/components/AlphaLogoBanner';
+import { WitnextLogoBanner } from '@/components/WitnextLogoBanner';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -93,7 +93,7 @@ export default function Auth() {
         
         toast({
           title: `Bienvenue, ${userName} ! 👋`,
-          description: 'Connexion réussie. Ravi de vous revoir sur Alpha.',
+          description: 'Connexion réussie. Ravi de vous revoir sur Witnext.',
         });
       }
     } catch (error: any) {
@@ -109,21 +109,18 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(168_100%_39%/0.08),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,hsl(222_47%_11%/0.04),transparent_50%)]" />
       {/* Theme Toggle - Top Right */}
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
       
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md relative z-10">
         {/* Logo */}
-        <div className="flex flex-col items-center mb-6">
-          <div className="mb-3 flex justify-center">
-            <AlphaLogoBanner variant="auth" />
-          </div>
-          <p className="text-muted-foreground text-sm mt-1">
-            Système de gestion d&apos;entreprise
-          </p>
+        <div className="flex flex-col items-center mb-8">
+          <WitnextLogoBanner variant="auth" />
         </div>
 
         {/* Session Expired Alert */}
@@ -149,9 +146,9 @@ export default function Auth() {
         )}
 
         {/* Auth Card */}
-        <div className="bg-card rounded-2xl border border-border shadow-xl p-8 transition-all">
+        <div className="bg-card rounded-2xl border border-border shadow-xl p-8 transition-all ring-1 ring-primary/5">
           <div className="flex items-center justify-center gap-2 mb-6 text-center">
-            <LogIn className="w-5 h-5 text-primary" />
+            <LogIn className="w-5 h-5 text-accent" />
             <h2 className="text-xl font-bold tracking-tight text-foreground">
               Connexion
             </h2>
@@ -191,7 +188,7 @@ export default function Auth() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full h-11 font-semibold" disabled={isLoading}>
+            <Button type="submit" className="w-full h-11 font-semibold bg-accent text-accent-foreground hover:bg-accent/90" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -210,7 +207,7 @@ export default function Auth() {
         {/* Footer */}
         <div className="text-center space-y-2 mt-6">
           <p className="text-sm text-muted-foreground">
-            © 2026 Alpha. Tous droits réservés.
+            © 2026 Witnext. Tous droits réservés.
           </p>
           <div className="pt-2 border-t border-border/50">
             <p className="text-xs text-muted-foreground font-medium">

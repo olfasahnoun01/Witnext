@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="Witnext">
+  <rect width="512" height="512" fill="#FFFFFF"/>
+  <path
+    d="M128 336 L192 176 L256 264 L320 176 L384 336"
+    stroke="#0A1628"
+    stroke-width="40"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M374 184 L406 152 L438 184"
+    stroke="#00C9A7"
+    stroke-width="32"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

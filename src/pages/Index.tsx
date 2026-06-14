@@ -308,7 +308,7 @@ const IndexContent = () => {
 
         <div className={cn('transition-all duration-300', sidebarOpen ? 'lg:ml-72' : 'lg:ml-0')}>
           <Header
-            title={SUBSECTION_LABELS[activeTab] || 'Alpha'}
+            title={SUBSECTION_LABELS[activeTab] || 'Witnext'}
             onToggle={() => setSidebarOpen(!sidebarOpen)}
             sidebarOpen={sidebarOpen}
             onNavigateTab={handleTabChange}

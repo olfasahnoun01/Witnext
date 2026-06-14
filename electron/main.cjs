@@ -34,7 +34,7 @@ function focusMainWindow() {
   mainWindow.webContents.focus();
 }
 
-/** Same icon as embedded in Alpha.exe (build/icon.ico) for taskbar consistency. */
+/** Same icon as embedded in Witnext.exe (build/icon.ico) for taskbar consistency. */
 function getAppIconPath() {
   if (process.platform === 'win32' && app.isPackaged) {
     const resourceIco = path.join(process.resourcesPath, 'icon.ico');
@@ -109,7 +109,7 @@ function createWindow() {
       sandbox: true,
       preload: path.join(__dirname, 'preload.cjs')
     },
-    title: "Alpha",
+    title: "Witnext",
     icon: getAppIconPath(),
   });
 

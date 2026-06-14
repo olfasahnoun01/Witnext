@@ -1,7 +1,7 @@
 {
   "extends": null,
   "appId": "com.grosafe.hub",
-  "productName": "Alpha",
+  "productName": "Witnext",
   "directories": {
     "output": "dist-electron"
   },

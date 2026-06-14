@@ -7,7 +7,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AlphaLogoBanner } from '@/components/AlphaLogoBanner';
+import { WitnextLogoBanner } from '@/components/WitnextLogoBanner';
 import { BIG_SECTIONS, isSubsectionVisibleForCompany } from '@/config/navigation';
 import { getSectionTheme } from '@/config/sectionThemes';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -74,8 +74,8 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
         <div className="flex flex-col h-full">
           {/* Logo Section */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border/50">
-            <div className="flex items-center gap-3">
-              <AlphaLogoBanner variant="app" />
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <WitnextLogoBanner variant="app" showWordmark />
             </div>
             <button 
               onClick={onToggle}

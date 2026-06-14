@@ -2,8 +2,8 @@
   "name": "vite_react_shadcn_ts",
   "private": true,
   "version": "5.2.6",
-  "description": "Alpha - systeme de gestion d'entreprise (ERP)",
-  "author": "Alpha",
+  "description": "Witnext - systeme de gestion d'entreprise (ERP)",
+  "author": "Witnext",
   "repository": {
     "type": "git",
     "url": "https://github.com/olfasahnoun01/remix-of-grosafe-inventory-hub-de9c3b04.git"
@@ -33,7 +33,7 @@
     "import:fiches:apply": "node scripts/import-fiches-techniques.mjs --apply",
     "supabase:login": "supabase login",
     "supabase:link": "supabase link --project-ref rnujsdxbkndvppjqjkdu",
-    "supabase:secrets:web": "supabase secrets set WEB_APP_ORIGINS=https://alpha.vercel.app",
+    "supabase:secrets:web": "supabase secrets set WEB_APP_ORIGINS=https://witnext.vercel.app",
     "supabase:deploy-functions": "supabase functions deploy manage-users && supabase functions deploy sync-woocommerce-gallery"
   },
   "dependencies": {
@@ -122,7 +122,7 @@
   },
   "build": {
     "appId": "com.grosafe.hub",
-    "productName": "Alpha",
+    "productName": "Witnext",
     "publish": [
       {
         "provider": "github",
@@ -153,10 +153,10 @@
       "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Alpha",
+      "shortcutName": "Witnext",
       "include": "build/installer/installer.nsh"
     },
-    "copyright": "Copyright © 2026 Alpha",
+    "copyright": "Copyright © 2026 Witnext",
     "npmRebuild": false
   }
 }
