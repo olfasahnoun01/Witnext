@@ -1,36 +1,6 @@
 // @ts-nocheck
 import { createClient } from 'npm:@supabase/supabase-js@2'
-
-/** Local dev / Electron origins. Deployed project URL comes from SUPABASE_URL at runtime. */
-const STATIC_ALLOWED_ORIGINS = [
-  'http://localhost:8080',
-  'http://localhost:5173',
-  'http://127.0.0.1:8080',
-  'http://127.0.0.1:5173',
-]
-
-function isAllowedOrigin(origin: string): boolean {
-  const projectUrl = Deno.env.get('SUPABASE_URL') || ''
-  return (
-    (!!projectUrl && origin === projectUrl) ||
-    STATIC_ALLOWED_ORIGINS.includes(origin) ||
-    origin.startsWith('http://localhost:') ||
-    origin.startsWith('http://127.0.0.1:')
-  )
-}
-
-function getCorsHeaders(origin: string | null): Record<string, string> {
-  const allowedOrigin = origin && isAllowedOrigin(origin) ? origin : (origin ?? '*')
-
-  return {
-    'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers':
-      'authorization, x-client-info, apikey, content-type, x-supabase-client-platform',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Max-Age': '86400',
-    Vary: 'Origin',
-  }
-}
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 function normalizeStoreUrl(raw: string): string {
   return raw.replace(/\/+$/, '')
@@ -99,7 +69,11 @@ function categoryNameForProduct(
 
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get('Origin')
-  const corsHeaders = getCorsHeaders(origin)
+  const corsHeaders = getCorsHeaders(origin, {
+    extraHeaders:
+      'authorization, x-client-info, apikey, content-type, x-supabase-client-platform',
+    maxAge: 86400,
+  })
 
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders })

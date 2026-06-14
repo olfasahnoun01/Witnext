@@ -1,30 +1,6 @@
 // @ts-nocheck
 import { createClient } from 'npm:@supabase/supabase-js@2'
-
-/** Local dev / Electron origins. Deployed project URL comes from SUPABASE_URL at runtime. */
-const STATIC_ALLOWED_ORIGINS = [
-  'http://localhost:8080',
-  'http://localhost:5173',
-  /* Electron dev (electron/main.cjs loads 127.0.0.1, not "localhost") */
-  'http://127.0.0.1:8080',
-  'http://127.0.0.1:5173',
-];
-
-function getCorsHeaders(origin: string | null): Record<string, string> {
-  const projectUrl = Deno.env.get('SUPABASE_URL') || ''
-  const allowedOrigin = origin && (
-    (projectUrl && origin === projectUrl) ||
-    STATIC_ALLOWED_ORIGINS.some(allowed => origin === allowed) ||
-    origin.startsWith('http://localhost') ||
-    origin.startsWith('http://127.0.0.1:')
-  ) ? origin : (projectUrl || '*');
-  
-  return {
-    'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-}
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 // Map database/auth errors to user-friendly messages
 function mapErrorToUserMessage(error: any): string {

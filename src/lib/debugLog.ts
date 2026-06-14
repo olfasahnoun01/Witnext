@@ -1,5 +1,5 @@
 /** Optional NDJSON ingest (local debug tooling only). Off by default — avoids console noise. */
-const DEBUG_INGEST_ENABLED = import.meta.env.VITE_DEBUG_INGEST === 'true';
+const DEBUG_INGEST_ENABLED = import.meta.env.DEV && import.meta.env.VITE_DEBUG_INGEST === 'true';
 
 export function debugLog(
   location: string,
