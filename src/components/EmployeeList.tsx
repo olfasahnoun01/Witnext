@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { getActiveCompanyId } from '@/lib/activeCompany';
+import { MIN_PASSWORD_LENGTH, validatePasswordLength } from '@/lib/passwordPolicy';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import {
   Select,
@@ -95,6 +96,10 @@ export const EmployeeList = () => {
     const isChauffeur = form.poste === 'Chauffeur' || form.poste === 'Operateur';
     if (isChauffeur && (!form.email || !form.password)) {
       toast.error('L\'email et le mot de passe sont requis pour un Chauffeur');
+      return;
+    }
+    if (isChauffeur && !validatePasswordLength(form.password)) {
+      toast.error(`Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères`);
       return;
     }
 
@@ -404,6 +409,7 @@ export const EmployeeList = () => {
                     placeholder="••••••••"
                     value={form.password}
                     onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                    minLength={MIN_PASSWORD_LENGTH}
                   />
                 </div>
               </div>

@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { getCorsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders, isAllowedOrigin } from '../_shared/cors.ts'
 
 function normalizeStoreUrl(raw: string): string {
   return raw.replace(/\/+$/, '')
@@ -86,6 +86,13 @@ Deno.serve(async (req: Request) => {
     })
   }
 
+  if (origin && !isAllowedOrigin(origin)) {
+    return new Response(JSON.stringify({ error: 'Origin not allowed' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
   try {
     const storeUrl = Deno.env.get('WOOCOMMERCE_URL')
     const consumerKey = Deno.env.get('WOOCOMMERCE_CONSUMER_KEY')
@@ -107,7 +114,7 @@ Deno.serve(async (req: Request) => {
 
     const authHeader = req.headers.get('Authorization')
     const token = authHeader?.replace('Bearer ', '')
-    if (!token) {
+    if (!token || token === supabaseAnonKey) {
       return new Response(JSON.stringify({ error: 'Non authentifié' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

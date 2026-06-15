@@ -47,7 +47,7 @@ function validateEmail(email: string): boolean {
 }
 
 function validatePassword(password: string): boolean {
-  return !!password && password.length >= 6 && password.length <= 128;
+  return !!password && password.length >= 12 && password.length <= 128;
 }
 
 /** Only admin or moderator may list or mutate users via this Edge Function. */
@@ -196,6 +196,13 @@ Deno.serve(async (req: Request) => {
       }
 
       case 'create': {
+        if (!requesterIsAdmin) {
+          return new Response(
+            JSON.stringify({ error: 'Seuls les administrateurs peuvent créer un compte' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
         const { email, password, full_name, position, role } = params
         console.log('Starting user creation for:', email)
 
@@ -207,7 +214,7 @@ Deno.serve(async (req: Request) => {
         }
 
         if (!password || !validatePassword(password)) {
-          return new Response(JSON.stringify({ error: 'Le mot de passe doit contenir entre 6 et 128 caractères' }), {
+          return new Response(JSON.stringify({ error: 'Le mot de passe doit contenir entre 12 et 128 caractères' }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
@@ -278,8 +285,14 @@ Deno.serve(async (req: Request) => {
 
         const updateData: any = {}
         if (password) {
+          if (!requesterIsAdmin) {
+            return new Response(
+              JSON.stringify({ error: 'Seuls les administrateurs peuvent réinitialiser un mot de passe' }),
+              { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
           if (!validatePassword(password)) {
-            return new Response(JSON.stringify({ error: 'Le mot de passe doit contenir entre 6 et 128 caractères' }), {
+            return new Response(JSON.stringify({ error: 'Le mot de passe doit contenir entre 12 et 128 caractères' }), {
               status: 200,
               headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             })

@@ -214,26 +214,26 @@ export const Maintenance = () => {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-2xl rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl bg-card">
-          <DialogHeader className="p-10 bg-primary text-primary-foreground relative">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full -mr-24 -mt-24" />
-            <DialogTitle className="text-3xl font-black tracking-tight flex items-center gap-4 relative">
-              <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md">
-                <Wrench className="w-8 h-8" />
+        <DialogContent className="flex max-h-[min(90dvh,calc(100vh-2rem))] w-[calc(100vw-2rem)] max-w-2xl flex-col overflow-hidden rounded-2xl border-none bg-card p-0 shadow-2xl sm:rounded-[2rem]">
+          <DialogHeader className="relative shrink-0 bg-primary p-6 text-primary-foreground sm:p-10">
+            <div className="absolute top-0 right-0 -mr-24 -mt-24 hidden h-48 w-48 rounded-full bg-white/5 sm:block" />
+            <DialogTitle className="relative flex items-center gap-3 text-xl font-black tracking-tight sm:gap-4 sm:text-3xl">
+              <div className="rounded-2xl bg-white/10 p-2 backdrop-blur-md sm:p-3">
+                <Wrench className="h-6 w-6 sm:h-8 sm:w-8" />
               </div>
-              Nouvelle Intervention
+              <span className="leading-tight">Nouvelle Intervention</span>
             </DialogTitle>
           </DialogHeader>
 
-          <div className="p-10 grid gap-8">
-            <div className="grid grid-cols-2 gap-6">
+          <div className="grid flex-1 gap-6 overflow-y-auto overscroll-contain p-6 sm:gap-8 sm:p-10">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div className="space-y-3">
                 <Label htmlFor="vehicule" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">Sélection du Véhicule *</Label>
                 <Select
                   value={form.vehiculeId}
                   onValueChange={(v) => setForm({ ...form, vehiculeId: v })}
                 >
-                  <SelectTrigger className="rounded-2xl border-border bg-background h-14 font-semibold">
+                  <SelectTrigger className="h-11 rounded-2xl border-border bg-background font-semibold sm:h-14">
                     <SelectValue placeholder="Sélectionner un véhicule" />
                   </SelectTrigger>
                   <SelectContent className="rounded-2xl border-border bg-card">
@@ -255,7 +255,7 @@ export const Maintenance = () => {
                   value={form.type}
                   onValueChange={(v: any) => setForm({ ...form, type: v })}
                 >
-                  <SelectTrigger className="rounded-2xl border-border bg-background h-14 font-semibold">
+                  <SelectTrigger className="h-11 rounded-2xl border-border bg-background font-semibold sm:h-14">
                     <SelectValue placeholder="Type" />
                   </SelectTrigger>
                   <SelectContent className="rounded-2xl border-border bg-card">
@@ -274,11 +274,11 @@ export const Maintenance = () => {
                 placeholder="Ex: Vidange moteur + filtres"
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="rounded-2xl border-border bg-background h-14 font-bold"
+                className="h-11 rounded-2xl border-border bg-background font-bold sm:h-14"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div className="space-y-3">
                 <Label htmlFor="dateDebut" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">Date de début</Label>
                 <div className="relative">
@@ -288,7 +288,7 @@ export const Maintenance = () => {
                     type="date"
                     value={form.dateDebut}
                     onChange={(e) => setForm({ ...form, dateDebut: e.target.value })}
-                    className="pl-12 rounded-2xl border-border bg-background h-14 font-semibold"
+                    className="h-11 rounded-2xl border-border bg-background pl-12 font-semibold sm:h-14"
                   />
                 </div>
               </div>
@@ -302,7 +302,7 @@ export const Maintenance = () => {
                     placeholder="0.00"
                     value={form.coutEstime}
                     onChange={(e) => setForm({ ...form, coutEstime: e.target.value })}
-                    className="pl-12 rounded-2xl border-border bg-background h-14 font-semibold text-xl"
+                    className="h-11 rounded-2xl border-border bg-background pl-12 text-lg font-semibold sm:h-14 sm:text-xl"
                   />
                 </div>
               </div>
@@ -315,16 +315,16 @@ export const Maintenance = () => {
                 placeholder="Détails, pièces à changer, garage..."
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                className="w-full min-h-[120px] p-5 rounded-3xl border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none text-sm font-medium"
+                className="min-h-[100px] w-full resize-none rounded-3xl border border-border bg-background p-4 text-sm font-medium transition-all focus:border-primary focus:ring-2 focus:ring-primary/20 sm:min-h-[120px] sm:p-5"
               />
             </div>
           </div>
 
-          <DialogFooter className="p-10 bg-muted/30 flex flex-row justify-end gap-4 border-t border-border">
-            <Button variant="ghost" onClick={() => setIsDialogOpen(false)} className="rounded-2xl h-14 px-8 font-bold text-muted-foreground hover:bg-muted/50">
+          <DialogFooter className="shrink-0 flex-col gap-3 border-t border-border bg-muted/30 p-6 sm:flex-row sm:justify-end sm:gap-4 sm:p-10">
+            <Button variant="ghost" onClick={() => setIsDialogOpen(false)} className="h-11 w-full rounded-2xl px-8 font-bold text-muted-foreground hover:bg-muted/50 sm:h-14 sm:w-auto">
               Annuler
             </Button>
-            <Button onClick={handleSubmit} className="rounded-2xl h-14 px-10 bg-primary hover:bg-primary/90 text-primary-foreground font-black shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95">
+            <Button onClick={handleSubmit} className="h-11 w-full rounded-2xl bg-primary px-10 font-black text-primary-foreground shadow-xl shadow-primary/20 transition-all hover:scale-105 hover:bg-primary/90 active:scale-95 sm:h-14 sm:w-auto">
               Lancer l'Intervention
             </Button>
           </DialogFooter>

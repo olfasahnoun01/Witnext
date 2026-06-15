@@ -3,6 +3,10 @@ project_id = "rnujsdxbkndvppjqjkdu"
 [functions.manage-users]
 verify_jwt = true
 
+[functions.setup-admin]
+# Bootstrap only — requires SETUP_ADMIN_ENABLED=true and X-Setup-Token header.
+verify_jwt = false
+
 [functions.sync-woocommerce-gallery]
 # JWT checked inside the function so OPTIONS preflight succeeds from the browser.
 verify_jwt = false

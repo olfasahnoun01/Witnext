@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { clearSupabaseBrowserSession } from '@/lib/supabaseAuthStorage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Mail, Lock, LogIn, AlertCircle, RefreshCw } from 'lucide-react';
@@ -175,15 +176,13 @@ export default function Auth() {
               <Label htmlFor="password" className="text-sm font-medium">Mot de passe</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10 h-11"
-                  required
-                  minLength={6}
+                  autoComplete="current-password"
                 />
               </div>
             </div>

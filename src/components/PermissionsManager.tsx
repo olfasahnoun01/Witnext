@@ -35,6 +35,7 @@ import { useToast } from '@/hooks/use-toast';
 import { BIG_SECTIONS } from '@/config/navigation';
 import { posteHasAllFinanceCompanies } from '@/lib/userPositions';
 import { formatError } from '@/lib/formatError';
+import { MIN_PASSWORD_LENGTH, validatePasswordLength } from '@/lib/passwordPolicy';
 
 function allCompanyIdSet(list: CompanyRow[]): Set<string> {
   return new Set(list.map((c) => c.id));
@@ -514,6 +515,15 @@ export const PermissionsManager = () => {
       let targetUserId = editingUser?.id ?? null;
 
       if (editingUser) {
+        if (password && !validatePasswordLength(password)) {
+          toast({
+            variant: 'destructive',
+            title: 'Erreur',
+            description: `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères`,
+          });
+          setSubmitting(false);
+          return;
+        }
         const response = await supabase.functions.invoke('manage-users', {
           body: {
             action: 'update',
@@ -530,6 +540,15 @@ export const PermissionsManager = () => {
       } else {
         if (!password) {
           toast({ variant: 'destructive', title: 'Erreur', description: 'Le mot de passe est requis' });
+          setSubmitting(false);
+          return;
+        }
+        if (!validatePasswordLength(password)) {
+          toast({
+            variant: 'destructive',
+            title: 'Erreur',
+            description: `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères`,
+          });
           setSubmitting(false);
           return;
         }
@@ -1083,6 +1102,7 @@ export const PermissionsManager = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required={!editingUser}
+                    minLength={MIN_PASSWORD_LENGTH}
                   />
                 </div>
                 <div className="space-y-2">

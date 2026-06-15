@@ -126,19 +126,23 @@ const IndexContent = () => {
     }
   }, [reloadPermissions, reloadCompany]);
 
-  // Prefetch likely next tabs after idle
+  // Prefetch likely next tabs after idle (requestIdleCallback is missing on iOS Safari)
   useEffect(() => {
     const prefetch = prefetchMap[activeTab];
-    if (prefetch) {
-      const id = requestIdleCallback ? requestIdleCallback(prefetch) : setTimeout(prefetch, 1000);
-      return () => {
-        if (typeof id === 'number' && 'cancelIdleCallback' in window) {
-          cancelIdleCallback(id);
-        } else {
-          clearTimeout(id as any);
-        }
-      };
-    }
+    if (!prefetch) return;
+
+    const useIdleCallback = typeof window.requestIdleCallback === 'function';
+    const id = useIdleCallback
+      ? window.requestIdleCallback(prefetch)
+      : window.setTimeout(prefetch, 1000);
+
+    return () => {
+      if (useIdleCallback && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(id);
+      } else {
+        clearTimeout(id);
+      }
+    };
   }, [activeTab]);
 
   const handleTabChange = useCallback((tab: string) => {

@@ -73,11 +73,31 @@ Or with npx: `npx supabase login`, etc.
 
 To use a different URL, run `npx supabase secrets set WEB_APP_ORIGINS=https://your-url.vercel.app` before deploy.
 
-Migrations live in `supabase/migrations/`. After changing edge functions, redeploy:
+Migrations live in `supabase/migrations/`. Apply new migrations to production:
 
 ```sh
+npx supabase db push
+```
+
+After changing edge functions, redeploy:
+
+```sh
+npm run supabase:deploy-functions
+# or individually:
 supabase functions deploy manage-users
+supabase functions deploy setup-admin
 supabase functions deploy sync-woocommerce-gallery
+```
+
+### First admin bootstrap (`setup-admin`)
+
+The `setup-admin` edge function is **disabled by default**. To create the first admin only:
+
+```sh
+npx supabase secrets set SETUP_ADMIN_ENABLED=true SETUP_ADMIN_TOKEN=<long-random-token>
+supabase functions deploy setup-admin
+# POST once with header X-Setup-Token: <token>, then immediately:
+npx supabase secrets set SETUP_ADMIN_ENABLED=false
 ```
 
 ### Storage and RLS

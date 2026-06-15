@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { formatError } from '@/lib/formatError';
+import { MIN_PASSWORD_LENGTH, validatePasswordLength } from '@/lib/passwordPolicy';
 import {
   Select,
   SelectContent,
@@ -145,6 +146,14 @@ export const UserManagement = () => {
             variant: 'destructive',
             title: 'Erreur',
             description: 'Le mot de passe est requis'
+          });
+          return;
+        }
+        if (!validatePasswordLength(password)) {
+          toast({
+            variant: 'destructive',
+            title: 'Erreur',
+            description: `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères`,
           });
           return;
         }
@@ -374,7 +383,7 @@ export const UserManagement = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required={!editingUser}
-                  minLength={6}
+                  minLength={MIN_PASSWORD_LENGTH}
                   placeholder="••••••••"
                 />
               </div>
