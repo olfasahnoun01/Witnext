@@ -610,6 +610,7 @@ export const Fournisseurs = memo(() => {
               </DialogContent>
             </Dialog>
           </div>
+          </div>
         </CardHeader>
         <CardContent>
           {/* Filters */}

@@ -674,6 +674,7 @@ export const Clients = memo(() => {
               </DialogContent>
             </Dialog>
           </div>
+          </div>
         </CardHeader>
         <CardContent>
           {/* Filters */}
