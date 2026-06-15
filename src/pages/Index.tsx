@@ -54,6 +54,9 @@ const FluxSuiviHub = lazy(() =>
 );
 const PermissionsManager = lazy(() => import('@/components/PermissionsManager').then(m => ({ default: m.PermissionsManager })));
 const RDV = lazy(() => import('@/components/commercial/RDV').then(m => ({ default: m.RDV })));
+const SuiviPartiesHub = lazy(() =>
+  import('@/components/commercial/SuiviPartiesHub').then((m) => ({ default: m.SuiviPartiesHub }))
+);
 const FacturesVente = lazy(() => import('@/components/commercial/FacturesVente').then(m => ({ default: m.FacturesVente })));
 const FinanceModule = lazy(() => import('@/modules/finance/FinanceModule').then(m => ({ default: m.FinanceModule })));
 
@@ -240,6 +243,11 @@ const IndexContent = () => {
         {activeTab === 'flux-suivi' && (
           <Suspense fallback={<ComponentLoader />}>
             <FluxSuiviHub />
+          </Suspense>
+        )}
+        {activeTab === 'suivi-parties' && (
+          <Suspense fallback={<ComponentLoader />}>
+            <SuiviPartiesHub />
           </Suspense>
         )}
         {(activeTab === 'flux-suivi-magasin' || activeTab === 'suivi-clients' || activeTab === 'suivi-fournisseurs') && (

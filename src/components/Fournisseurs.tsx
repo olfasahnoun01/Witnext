@@ -34,7 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Search, Building2, Phone, MapPin, FileText, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Eye } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Building2, Phone, MapPin, FileText, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Eye, Download } from 'lucide-react';
 import { DocumentUploader } from './shared/DocumentUploader';
 import { ClientDocumentPreviewDialog } from './shared/ClientDocumentPreviewDialog';
 import { PhoneLinesEditor } from './shared/PhoneLinesEditor';
@@ -47,6 +47,7 @@ import { SPECIALITES } from '@/constants/fournisseurs';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useAuth } from '@/hooks/useAuth';
+import { exportExcelTable } from '@/lib/exportExcel';
 
 interface Fournisseur {
   id: number;
@@ -348,6 +349,29 @@ export const Fournisseurs = memo(() => {
 
   const totalPages = Math.ceil(filteredFournisseurs.length / ITEMS_PER_PAGE);
 
+  const handleExportExcel = useCallback(async () => {
+    try {
+      await exportExcelTable({
+        filename: `fournisseurs-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        sheetName: 'Fournisseurs',
+        headerColor: 'FF1E3A5F',
+        headers: ['Code', 'Nom', 'Matricule', 'Spécialité', 'Téléphone', 'Localisation'],
+        rows: filteredFournisseurs.map((f) => [
+          f.code ?? '',
+          f.nom,
+          f.matricule_fiscale ?? '',
+          f.specialite ?? '',
+          formatPhonesDisplay(f.phone),
+          f.location ?? '',
+        ]),
+      });
+      toast.success('Liste fournisseurs exportée');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erreur lors de l\'export Excel');
+    }
+  }, [filteredFournisseurs]);
+
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
@@ -405,7 +429,12 @@ export const Fournisseurs = memo(() => {
               <Building2 className="w-5 h-5" />
               Liste des Fournisseurs
             </CardTitle>
-            <Dialog open={dialogOpen} onOpenChange={(open) => {
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" className="gap-2" onClick={() => void handleExportExcel()}>
+                <Download className="w-4 h-4" />
+                Exporter Excel
+              </Button>
+              <Dialog open={dialogOpen} onOpenChange={(open) => {
               setDialogOpen(open);
               if (!open) resetForm();
             }}>

@@ -959,6 +959,59 @@ export type Database = {
           },
         ]
       }
+      parties_suivi: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          devis_date: string | null
+          devis_number: string | null
+          dernier_contact_date: string | null
+          id: number
+          party_type: string
+          reponse: string | null
+          societe: string
+          telephone: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          devis_date?: string | null
+          devis_number?: string | null
+          dernier_contact_date?: string | null
+          id?: number
+          party_type: string
+          reponse?: string | null
+          societe: string
+          telephone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          devis_date?: string | null
+          devis_number?: string | null
+          dernier_contact_date?: string | null
+          id?: number
+          party_type?: string
+          reponse?: string | null
+          societe?: string
+          telephone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parties_suivi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fournisseurs: {
         Row: {
           code: string | null

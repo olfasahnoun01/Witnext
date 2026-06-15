@@ -347,7 +347,7 @@ export const GestionDevis = ({
     setThirdPartyAddress(primary.third_party_address || '');
     setThirdPartyTaxId(primary.third_party_tax_id || '');
     setThirdPartyPhone(primary.third_party_phone || '');
-    setIsTtc(false);
+    setIsTtc(primary.is_ttc ?? false);
     setDevisItems(importedItems);
     if (!notes.trim() && primary.notes) setNotes(primary.notes);
     setImportSourceDevisIds(list.map((d) => d.id));
@@ -374,7 +374,7 @@ export const GestionDevis = ({
     const saveAsBc = docType === 'bc' || sectionMode === 'bc';
     setIsSaving(true);
     try {
-      const totals = computeDevisTotals(devisItems, false);
+      const totals = computeDevisTotals(devisItems, isTtc);
       const totalAmount = totals.totalTTC;
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -392,7 +392,7 @@ export const GestionDevis = ({
         total_amount: totalAmount,
         notes: notes || null,
         created_by: user?.id,
-        is_ttc: false,
+        is_ttc: isTtc,
         is_bc: saveAsBc,
         is_ba: false,
         status: saveAsBc ? documentStatus : 'brouillon',
@@ -437,7 +437,7 @@ export const GestionDevis = ({
       toast.error('Ajoutez au moins une ligne d\'article');
       return;
     }
-    const totals = computeDevisTotals(devisItems, false);
+    const totals = computeDevisTotals(devisItems, isTtc);
     const totalAmount = totals.totalTTC;
     const folderKind = docType === 'bc' || editingDevis.is_bc ? 'bc' : 'devis';
 
@@ -461,7 +461,7 @@ export const GestionDevis = ({
       items: JSON.parse(JSON.stringify(devisItems)),
       total_amount: totalAmount,
       notes: notes || null,
-      is_ttc: false,
+      is_ttc: isTtc,
       is_bc: editingDevis.is_bc && !editingDevis.is_bl,
       is_bl: editingDevis.is_bl ?? false,
       is_ba: false,
@@ -517,10 +517,12 @@ export const GestionDevis = ({
     const primary = sources[0];
     const isMerge = sources.length > 1;
 
+    const primaryIsTtc = primary.is_ttc ?? false;
+
     try {
       const bcNumber = generateNextNumber(primary.type, 'bc');
       const { data: { user } } = await supabase.auth.getUser();
-      const totals = computeDevisTotals(modifiedItems, false);
+      const totals = computeDevisTotals(modifiedItems, primaryIsTtc);
       const mergedAttachments = sources.flatMap((d) => parseAttachmentUrls(d.attachment_urls));
 
       const { data: insertedBc, error } = await supabase.from('devis').insert({
@@ -537,7 +539,7 @@ export const GestionDevis = ({
         items: JSON.parse(JSON.stringify(modifiedItems)),
         total_amount: totals.totalTTC,
         notes: isMerge ? buildMergedBcNotes(sources) : primary.notes,
-        is_ttc: false,
+        is_ttc: primaryIsTtc,
         is_bc: true,
         created_by: user?.id,
         status: bcStatus,
@@ -599,7 +601,7 @@ export const GestionDevis = ({
     setNotes(d.notes || '');
     setDocumentStatus(d.status || 'brouillon');
     setDevisItems(d.items);
-    setIsTtc(false);
+    setIsTtc(d.is_ttc ?? false);
     setExistingAttachments(parseAttachmentUrls(d.attachment_urls));
     setPendingAttachmentFiles([]);
     setShowEditDialog(true);

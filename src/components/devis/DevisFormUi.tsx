@@ -383,6 +383,7 @@ export function DevisZohoSection({
 
 export function DevisZohoTotalsPanel({
   totals,
+  showTva = true,
 }: {
   totals: {
     totalHT: number;
@@ -393,6 +394,7 @@ export function DevisZohoTotalsPanel({
     totalFinal: number;
     totalFinalHT: number;
   };
+  showTva?: boolean;
 }) {
   const rows: { label: string; value: string; bold?: boolean; accent?: boolean }[] = [
     { label: 'Sous-total', value: `${totals.totalHT.toFixed(3)} TND` },
@@ -401,8 +403,10 @@ export function DevisZohoTotalsPanel({
     rows.push({ label: 'Remise', value: `-${totals.totalRemise.toFixed(3)} TND` });
   }
   rows.push({ label: 'Net HT', value: `${totals.totalNet.toFixed(3)} TND` });
-  rows.push({ label: 'TVA', value: `${totals.totalTVA.toFixed(3)} TND` });
-  rows.push({ label: 'Montant TTC', value: `${totals.totalTTC.toFixed(3)} TND` });
+  if (showTva) {
+    rows.push({ label: 'TVA', value: `${totals.totalTVA.toFixed(3)} TND` });
+    rows.push({ label: 'Montant TTC', value: `${totals.totalTTC.toFixed(3)} TND` });
+  }
   rows.push({ label: 'Timbre fiscal', value: '1.000 TND' });
 
   return (

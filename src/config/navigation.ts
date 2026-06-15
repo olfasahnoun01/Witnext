@@ -30,6 +30,7 @@ import {
   PackageCheck,
   TrendingUp,
   TableProperties,
+  UserCheck,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -78,6 +79,7 @@ export const BIG_SECTIONS: BigSection[] = [
     icon: Briefcase,
     subsections: [
       { id: 'flux-suivi', label: 'Suivi des flux', icon: GitBranch },
+      { id: 'suivi-parties', label: 'Suivi client / fournisseur', icon: UserCheck },
       { id: 'gallery', label: 'Galerie commerciale', icon: ImageIcon },
       { id: 'rdv', label: 'Rendez-vous', icon: CalendarClock },
     ],

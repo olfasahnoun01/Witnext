@@ -13,7 +13,13 @@ export function defaultDevisLineTvaForParty(
   return isPartyExonereDeTva(status) ? 0 : 19;
 }
 
-/** Aligne les lignes existantes sur le statut TVA du client / fournisseur. */
+/** Mode TTC par défaut : assujetti → TTC, exonéré → HT. */
+export function defaultDevisPricingModeIsTtc(
+  status: ClientTvaStatus | string | null | undefined
+): boolean {
+  return !isPartyExonereDeTva(status);
+}
+
 export function applyPartyTvaPolicyToItems(
   items: DevisItem[],
   status: ClientTvaStatus | string | null | undefined

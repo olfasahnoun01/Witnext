@@ -1,7 +1,7 @@
 import { useCallback, useRef, type ReactNode } from 'react';
 import { Plus, Search, Trash2 } from 'lucide-react';
 import type { DevisItem, Product } from '@/types';
-import { computeArticleTableLineTotalHT } from '@/lib/devisPricing';
+import { computeArticleTableLineTotalHT, computeDevisLine } from '@/lib/devisPricing';
 import { getDevisItemDisplayCode } from '@/lib/devisItemPdf';
 import { cn } from '@/lib/utils';
 import { DecimalInput } from '@/components/ui/decimal-input';
@@ -107,20 +107,31 @@ export function DevisArticlesTable({
   const composerPrixRef = useRef<HTMLInputElement>(null);
   const searchRef = composerSearchRef ?? localSearchRef;
 
-  const prixUnitHeader = devisType === 'achat' ? 'P. achat HT' : 'Prix unitaire HT';
+  const prixUnitHeader =
+    devisType === 'achat'
+      ? isTtc
+        ? 'P. achat TTC'
+        : 'P. achat HT'
+      : isTtc
+        ? 'Prix unitaire TTC'
+        : 'Prix unitaire HT';
 
-  const composerPreview = computeArticleTableLineTotalHT(
-    {
-      designation: '',
-      fournisseur: '',
-      prix_ttc: itemPrixTtc,
-      remise: itemRemise,
-      quantity: itemQuantity,
-      tva: itemTva,
-    },
-    devisType,
-    false
-  );
+  const showTvaColumn = isTtc && !partyExonereDeTva;
+  const totalHeader = isTtc ? 'Total TTC' : 'Total HT';
+
+  const lineTotal = (item: DevisItem) =>
+    isTtc
+      ? computeDevisLine(item, true).lineTTC
+      : computeArticleTableLineTotalHT(item, devisType, false);
+
+  const composerPreview = lineTotal({
+    designation: '',
+    fournisseur: '',
+    prix_ttc: itemPrixTtc,
+    remise: itemRemise,
+    quantity: itemQuantity,
+    tva: itemTva,
+  });
 
   const handlePickProduct = (product: Product) => {
     onSelectProduct(product);
@@ -143,7 +154,7 @@ export function DevisArticlesTable({
           {devisType === 'vente' && <col style={{ width: '12%' }} />}
           <col style={{ width: '12%' }} />
           <col style={{ width: '10%' }} />
-          <col style={{ width: '11%' }} />
+          {showTvaColumn && <col style={{ width: '11%' }} />}
           <col style={{ width: '12%' }} />
           <col style={{ width: '5%' }} />
         </colgroup>
@@ -154,14 +165,14 @@ export function DevisArticlesTable({
             {devisType === 'vente' && <th className={cn(TH, 'text-right')}>P. achat HT</th>}
             <th className={cn(TH, 'text-right')}>{prixUnitHeader}</th>
             <th className={cn(TH, 'text-center')}>Remise %</th>
-            <th className={cn(TH, 'text-center')}>TVA</th>
-            <th className={cn(TH, 'text-right')}>Total HT</th>
+            {showTvaColumn && <th className={cn(TH, 'text-center')}>TVA</th>}
+            <th className={cn(TH, 'text-right')}>{totalHeader}</th>
             <th className={cn(TH, 'text-center')} aria-hidden />
           </tr>
         </thead>
         <tbody>
           {items.map((item, idx) => {
-            const lineVal = computeArticleTableLineTotalHT(item, devisType, false);
+            const lineVal = lineTotal(item);
             const code = getDevisItemDisplayCode(item);
             const title = code ? `${code} — ${item.designation}` : item.designation;
 
@@ -229,14 +240,16 @@ export function DevisArticlesTable({
                     <span className="text-[10px] text-muted-foreground">%</span>
                   </div>
                 </td>
-                <td className={TD}>
-                  <DevisTvaSelect
-                    value={partyExonereDeTva ? 0 : (item.tva ?? 0)}
-                    onChange={(rate) => onUpdate(idx, { tva: rate })}
-                    disabled={partyExonereDeTva}
-                    className="w-full h-auto py-1.5"
-                  />
-                </td>
+                {showTvaColumn && (
+                  <td className={TD}>
+                    <DevisTvaSelect
+                      value={partyExonereDeTva ? 0 : (item.tva ?? 0)}
+                      onChange={(rate) => onUpdate(idx, { tva: rate })}
+                      disabled={partyExonereDeTva}
+                      className="w-full h-auto py-1.5"
+                    />
+                  </td>
+                )}
                 <td className={cn(TD, 'text-right font-semibold tabular-nums text-xs')}>
                   {lineVal.toFixed(3)}
                 </td>
@@ -344,7 +357,11 @@ export function DevisArticlesTable({
                 onValueChange={onItemPrixTtcChange}
                 className={cn(devisZohoCellInputClass, 'text-right text-xs w-full h-auto py-1.5')}
                 placeholder={
-                  devisType === 'vente' && articleMode === 'manual' ? 'Prix vente HT…' : '0.000'
+                  devisType === 'vente' && articleMode === 'manual'
+                    ? isTtc
+                      ? 'Prix vente TTC…'
+                      : 'Prix vente HT…'
+                    : '0.000'
                 }
                 aria-label={prixUnitHeader}
               />
@@ -360,14 +377,16 @@ export function DevisArticlesTable({
                 <span className="text-[10px] text-muted-foreground">%</span>
               </div>
             </td>
-            <td className={TD_COMPOSER}>
-              <DevisTvaSelect
-                value={partyExonereDeTva ? 0 : itemTva}
-                onChange={onItemTvaChange}
-                disabled={partyExonereDeTva}
-                className="w-full h-auto py-1.5"
-              />
-            </td>
+            {showTvaColumn && (
+              <td className={TD_COMPOSER}>
+                <DevisTvaSelect
+                  value={partyExonereDeTva ? 0 : itemTva}
+                  onChange={onItemTvaChange}
+                  disabled={partyExonereDeTva}
+                  className="w-full h-auto py-1.5"
+                />
+              </td>
+            )}
             <td className={cn(TD_COMPOSER, 'text-right tabular-nums text-xs text-muted-foreground')}>
               {composerPreview > 0 ? composerPreview.toFixed(3) : '—'}
             </td>

@@ -157,6 +157,22 @@ export const usePermissions = () => {
       if (sectionId === 'commercial' && COMMERCIAL_SUBSECTIONS.has(subsectionId)) {
         return hasLegacyCommercialAccess(perms, subsectionId);
       }
+      if (subsectionId === 'suivi-parties') {
+        if (hasLegacyCommercialAccess(perms)) return true;
+        const crossSections = ['ventes', 'achats'] as const;
+        if (
+          crossSections.some((sec) =>
+            perms.some((p) => p.section_key === sec && (!p.subsection_key || p.subsection_key === ''))
+          )
+        ) {
+          return true;
+        }
+        return perms.some(
+          (p) =>
+            p.section_key === 'commercial' &&
+            (p.subsection_key === 'suivi-parties' || !p.subsection_key || p.subsection_key === '')
+        );
+      }
       if (FLUX_ALIASES.has(subsectionId)) {
         return hasFluxSuiviAccess(perms);
       }

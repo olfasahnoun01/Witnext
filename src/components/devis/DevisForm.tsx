@@ -5,6 +5,7 @@ import { generateNextEntityCode } from '@/lib/entityCode';
 import {
   applyPartyTvaPolicyToItems,
   defaultDevisLineTvaForParty,
+  defaultDevisPricingModeIsTtc,
   isPartyExonereDeTva,
 } from '@/lib/devisTvaPolicy';
 import { CLIENT_TVA_STATUS_OPTIONS, clientTvaStatusLabel, type ClientTvaStatus } from '@/config/sectionThemes';
@@ -50,6 +51,7 @@ import {
   DevisField,
   DevisFlowBadge,
   DevisFormPageHeader,
+  DevisPricingToggle,
   DevisSegmentedGrid,
   DevisSegmentedOption,
   DevisZohoFooter,
@@ -452,6 +454,22 @@ export const DevisForm = memo(({
 
   const partyExonereDeTva = isPartyExonereDeTva(thirdPartyTvaStatus);
 
+  const handlePricingModeChange = useCallback(
+    (nextTtc: boolean) => {
+      if (partyExonereDeTva && nextTtc) return;
+      setIsTtc(nextTtc);
+      if (!nextTtc) {
+        setItemTva(0);
+        setDevisItems((prev) => prev.map((item) => ({ ...item, tva: 0 })));
+        return;
+      }
+      const defaultTva = defaultDevisLineTvaForParty(thirdPartyTvaStatus);
+      setItemTva(defaultTva);
+      setDevisItems((prev) => applyPartyTvaPolicyToItems(prev, thirdPartyTvaStatus));
+    },
+    [partyExonereDeTva, thirdPartyTvaStatus, setIsTtc, setDevisItems]
+  );
+
   useEffect(() => {
     if (!thirdPartyName.trim() || thirdPartyTvaStatus == null) return;
 
@@ -462,7 +480,14 @@ export const DevisForm = memo(({
     const defaultTva = defaultDevisLineTvaForParty(thirdPartyTvaStatus);
     setItemTva(defaultTva);
     setDevisItems((prev) => applyPartyTvaPolicyToItems(prev, thirdPartyTvaStatus));
-  }, [thirdPartyTvaStatus, thirdPartyName, selectedThirdPartyId, devisType, setDevisItems]);
+    setIsTtc(defaultDevisPricingModeIsTtc(thirdPartyTvaStatus));
+  }, [thirdPartyTvaStatus, thirdPartyName, selectedThirdPartyId, devisType, setDevisItems, setIsTtc]);
+
+  useEffect(() => {
+    if (partyExonereDeTva && isTtc) {
+      setIsTtc(false);
+    }
+  }, [partyExonereDeTva, isTtc, setIsTtc]);
 
   useEffect(() => {
     partyTvaPolicyKeyRef.current = null;
@@ -1172,7 +1197,7 @@ export const DevisForm = memo(({
   }, [productGroups, groupSearch]);
 
   // Lignes devis: prix unitaire HT ; TVA appliquée uniquement si l'utilisateur choisit un taux > 0 %
-  const devisTotals = useMemo(() => computeDevisTotals(devisItems, false), [devisItems]);
+  const devisTotals = useMemo(() => computeDevisTotals(devisItems, isTtc), [devisItems, isTtc]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyLabel = isAchat ? 'Fournisseur' : 'Client';
 
@@ -1261,27 +1286,31 @@ export const DevisForm = memo(({
               )
             }
             pricingCell={
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground leading-snug">
-                  Prix unitaires <span className="font-medium text-foreground">HT</span>
-                  {thirdPartyTvaStatus ? (
-                    <>
-                      {' '}
-                      —{' '}
-                      <span className="font-medium text-foreground">
-                        {clientTvaStatusLabel(thirdPartyTvaStatus)}
-                      </span>
-                    </>
-                  ) : null}
-                </p>
-                <p className="text-xs text-muted-foreground leading-snug">
-                  {partyExonereDeTva
-                    ? 'Aucune TVA sur ce devis (tiers exonéré).'
-                    : thirdPartyTvaStatus
-                      ? 'TVA appliquée (19 % par défaut, modifiable par ligne : 0 / 7 / 13 / 19 %).'
-                      : 'Sélectionnez un client ou fournisseur pour appliquer le régime TVA.'}
-                </p>
-              </div>
+              partyExonereDeTva ? (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground leading-snug">
+                    Prix unitaires <span className="font-medium text-foreground">HT</span>
+                    {thirdPartyTvaStatus ? (
+                      <>
+                        {' '}
+                        —{' '}
+                        <span className="font-medium text-foreground">
+                          {clientTvaStatusLabel(thirdPartyTvaStatus)}
+                        </span>
+                      </>
+                    ) : null}
+                  </p>
+                  <p className="text-xs text-muted-foreground leading-snug">
+                    Aucune TVA sur ce devis (tiers exonéré).
+                  </p>
+                </div>
+              ) : (
+                <DevisPricingToggle
+                  isTtc={isTtc}
+                  onChange={handlePricingModeChange}
+                  embedded
+                />
+              )
             }
           />
         </DevisZohoTopBar>
@@ -1379,7 +1408,7 @@ export const DevisForm = memo(({
         >
           <DevisArticlesTable
             items={devisItems}
-            isTtc={false}
+            isTtc={isTtc}
             devisType={devisType}
             articleMode={articleMode}
             composerSearchRef={composerSearchRef}
@@ -1438,7 +1467,7 @@ export const DevisForm = memo(({
               />
             )}
           </div>
-          <DevisZohoTotalsPanel totals={devisTotals} />
+          <DevisZohoTotalsPanel totals={devisTotals} showTva={isTtc && !partyExonereDeTva} />
         </div>
 
         <DevisZohoFooter

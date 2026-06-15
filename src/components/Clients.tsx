@@ -50,6 +50,7 @@ import { getActiveCompanyId } from '@/lib/activeCompany';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { CLIENT_TVA_STATUS_OPTIONS, clientTvaStatusLabel, type ClientTvaStatus } from '@/config/sectionThemes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { exportExcelTable } from '@/lib/exportExcel';
 
 interface Client {
   id: number;
@@ -386,6 +387,30 @@ export const Clients = memo(() => {
 
   const totalPages = Math.ceil(filteredClients.length / ITEMS_PER_PAGE);
 
+  const handleExportExcel = useCallback(async () => {
+    try {
+      await exportExcelTable({
+        filename: `clients-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        sheetName: 'Clients',
+        headerColor: 'FF047857',
+        headers: ['Code', 'Nom', 'Matricule', 'Statut TVA', 'Téléphone', 'Email', 'Localisation'],
+        rows: filteredClients.map((c) => [
+          c.code ?? '',
+          c.nom,
+          c.matricule_fiscale ?? '',
+          clientTvaStatusLabel(c.tva_status),
+          formatPhonesDisplay(c.phone),
+          c.email ?? '',
+          c.location ?? '',
+        ]),
+      });
+      toast.success('Liste clients exportée');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erreur lors de l\'export Excel');
+    }
+  }, [filteredClients]);
+
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
@@ -438,7 +463,12 @@ export const Clients = memo(() => {
               <Users className="w-5 h-5" />
               Liste des Clients
             </CardTitle>
-            <Dialog open={dialogOpen} onOpenChange={(open) => {
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" className="gap-2" onClick={() => void handleExportExcel()}>
+                <Download className="w-4 h-4" />
+                Exporter Excel
+              </Button>
+              <Dialog open={dialogOpen} onOpenChange={(open) => {
               setDialogOpen(open);
               if (!open) resetForm();
             }}>

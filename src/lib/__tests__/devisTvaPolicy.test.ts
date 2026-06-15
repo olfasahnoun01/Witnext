@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   applyPartyTvaPolicyToItems,
   defaultDevisLineTvaForParty,
+  defaultDevisPricingModeIsTtc,
   isPartyExonereDeTva,
 } from '../devisTvaPolicy';
 import type { DevisItem } from '@/types';
@@ -32,6 +33,11 @@ describe('devisTvaPolicy', () => {
     const items = [line({ tva: 19 }), line({ tva: 7 })];
     const next = applyPartyTvaPolicyToItems(items, 'exonere');
     expect(next.every((i) => i.tva === 0)).toBe(true);
+  });
+
+  it('defaults pricing mode to HT for exonere and TTC for assujetti', () => {
+    expect(defaultDevisPricingModeIsTtc('exonere')).toBe(false);
+    expect(defaultDevisPricingModeIsTtc('assujetti')).toBe(true);
   });
 
   it('sets 19% on assujetti lines without TVA, keeps explicit rates', () => {

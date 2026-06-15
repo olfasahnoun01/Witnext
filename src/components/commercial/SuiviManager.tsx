@@ -1,49 +1,70 @@
-import { useState, useMemo, useCallback } from 'react';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Plus, 
-  Search, 
-  Calendar, 
-  User, 
-  FileText,
-  History,
-  MoreHorizontal,
-  ChevronRight,
-  UserCheck,
-  Building2
-} from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogTrigger 
-} from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Plus, Search, Pencil, Trash2, FileText } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
+import { ensureSupabaseSessionReady, supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
+import { notifySessionInvalid } from '@/lib/sessionResume';
+import { getActiveCompanyId } from '@/lib/activeCompany';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
+import { formatError } from '@/lib/formatError';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
-interface SuiviEntry {
-  id: string;
-  date: string;
-  numOffre: string;
-  entityName: string; // Client or Fournisseur name
-  charge: string;
-  visAVis: string;
-  notes: string;
+interface SuiviRow {
+  id: number;
+  devis_date: string | null;
+  devis_number: string | null;
+  societe: string;
+  telephone: string | null;
+  reponse: string | null;
+  dernier_contact_date: string | null;
+}
+
+interface SuiviFormState {
+  devis_date: string;
+  devis_number: string;
+  societe: string;
+  telephone: string;
+  reponse: string;
+  dernier_contact_date: string;
+}
+
+const EMPTY_FORM: SuiviFormState = {
+  devis_date: '',
+  devis_number: '',
+  societe: '',
+  telephone: '',
+  reponse: '',
+  dernier_contact_date: '',
+};
+
+function formatDisplayDate(value: string | null): string {
+  if (!value) return '—';
+  try {
+    return format(new Date(value), 'dd/MM/yyyy', { locale: fr });
+  } catch {
+    return value;
+  }
 }
 
 interface SuiviManagerProps {
@@ -51,302 +72,340 @@ interface SuiviManagerProps {
 }
 
 export const SuiviManager = ({ type }: SuiviManagerProps) => {
-  const { user, isAdmin } = useAuth();
+  const [rows, setRows] = useState<SuiviRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
-  
-  // Dummy data
-  const [entries, setEntries] = useState<SuiviEntry[]>([]);
-
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [formData, setFormData] = useState<Partial<SuiviEntry>>({
-    date: new Date().toISOString().split('T')[0]
-  });
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState<SuiviFormState>(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
 
-  const handleAddSuivi = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newEntry: SuiviEntry = {
-      id: Math.random().toString(36).substr(2, 9),
-      date: formData.date || new Date().toISOString().split('T')[0],
-      numOffre: formData.numOffre || '',
-      entityName: formData.entityName || '',
-      charge: user?.email || 'Unknown',
-      visAVis: formData.visAVis || '',
-      notes: formData.notes || ''
-    };
+  const resetDialog = useCallback(() => {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+  }, []);
 
-    setEntries([newEntry, ...entries]);
-    setDialogOpen(false);
-    setFormData({ date: new Date().toISOString().split('T')[0] });
-    toast.success('Suivi ajouté avec succès');
+  const loadSuivi = useCallback(async () => {
+    setLoading(true);
+    try {
+      const ready = await ensureSupabaseSessionReady();
+      if (!ready) {
+        notifySessionInvalid();
+        return;
+      }
+      const companyId = getActiveCompanyId();
+      const { data, error } = await supabaseQueryWithAuthRetry(() => {
+        let q = supabase
+          .from('parties_suivi')
+          .select('id, devis_date, devis_number, societe, telephone, reponse, dernier_contact_date')
+          .eq('party_type', type);
+        if (companyId) q = q.eq('company_id', companyId);
+        return q.order('created_at', { ascending: false });
+      });
+      if (error) throw error;
+      setRows((data ?? []) as SuiviRow[]);
+    } catch (err) {
+      console.error(err);
+      toast.error(`Erreur chargement suivi : ${formatError(err)}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [type]);
+
+  useCompanyChangeReload(loadSuivi);
+  useSessionResumeReload(loadSuivi);
+
+  useEffect(() => {
+    void loadSuivi();
+  }, [loadSuivi]);
+
+  const filteredRows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((row) =>
+      [row.societe, row.devis_number, row.telephone, row.reponse]
+        .filter(Boolean)
+        .some((val) => String(val).toLowerCase().includes(q))
+    );
+  }, [rows, searchQuery]);
+
+  const openCreate = () => {
+    resetDialog();
+    setDialogOpen(true);
   };
 
-  const filteredEntries = useMemo(() => {
-    return entries.filter(entry => 
-      Object.values(entry).some(val => 
-        val.toString().toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    );
-  }, [entries, searchQuery]);
-
-  // Group by entity for admin view
-  const groupedByEntity = useMemo(() => {
-    const groups: Record<string, SuiviEntry[]> = {};
-    entries.forEach(entry => {
-      if (!groups[entry.entityName]) groups[entry.entityName] = [];
-      groups[entry.entityName].push(entry);
+  const openEdit = (row: SuiviRow) => {
+    setEditingId(row.id);
+    setForm({
+      devis_date: row.devis_date ?? '',
+      devis_number: row.devis_number ?? '',
+      societe: row.societe,
+      telephone: row.telephone ?? '',
+      reponse: row.reponse ?? '',
+      dernier_contact_date: row.dernier_contact_date ?? '',
     });
-    return groups;
-  }, [entries]);
+    setDialogOpen(true);
+  };
 
-  const entityList = Object.keys(groupedByEntity);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.societe.trim()) {
+      toast.error('La société est obligatoire');
+      return;
+    }
+    const companyId = getActiveCompanyId();
+    if (!companyId) {
+      toast.error('Société active introuvable');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const ready = await ensureSupabaseSessionReady();
+      if (!ready) {
+        notifySessionInvalid();
+        return;
+      }
+      const { data: { user } } = await supabase.auth.getUser();
+      const payload = {
+        company_id: companyId,
+        party_type: type,
+        devis_date: form.devis_date || null,
+        devis_number: form.devis_number.trim() || null,
+        societe: form.societe.trim(),
+        telephone: form.telephone.trim() || null,
+        reponse: form.reponse.trim() || null,
+        dernier_contact_date: form.dernier_contact_date || null,
+        ...(editingId ? {} : { created_by: user?.id ?? null }),
+      };
+
+      if (editingId) {
+        const { error } = await supabase.from('parties_suivi').update(payload).eq('id', editingId);
+        if (error) throw error;
+        toast.success('Ligne mise à jour');
+      } else {
+        const { error } = await supabase.from('parties_suivi').insert(payload);
+        if (error) throw error;
+        toast.success('Ligne ajoutée');
+      }
+
+      setDialogOpen(false);
+      resetDialog();
+      await loadSuivi();
+    } catch (err) {
+      console.error(err);
+      toast.error(formatError(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Supprimer cette ligne de suivi ?')) return;
+    try {
+      const { error } = await supabase.from('parties_suivi').delete().eq('id', id);
+      if (error) throw error;
+      toast.success('Ligne supprimée');
+      await loadSuivi();
+    } catch (err) {
+      console.error(err);
+      toast.error(formatError(err));
+    }
+  };
+
+  const partyLabel = type === 'client' ? 'client' : 'fournisseur';
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Suivi {type === 'client' ? 'Clients' : 'Fournisseurs'}
-          </h1>
-          <p className="text-muted-foreground">
-            Historique des interactions et suivi des offres {type === 'client' ? 'commerciales' : 'fournisseurs'}.
-          </p>
-        </div>
-        
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2 shadow-lg transition-all duration-300">
+    <Card>
+      <CardHeader className="border-b bg-muted/20 pb-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <FileText className="w-5 h-5 text-primary" />
+            Suivi {type === 'client' ? 'clients' : 'fournisseurs'}
+          </CardTitle>
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher…"
+                className="pl-9 h-9 text-sm"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <Button className="gap-2 shrink-0" onClick={openCreate}>
               <Plus className="w-4 h-4" />
-              Nouveau Suivi
+              Ajouter une ligne
             </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-bold">Ajouter un Suivi</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleAddSuivi} className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="entityName">{type === 'client' ? 'Client' : 'Fournisseur'}</Label>
-                <Input 
-                  id="entityName" 
-                  placeholder={type === 'client' ? "Nom du client" : "Nom du fournisseur"} 
-                  value={formData.entityName || ''}
-                  onChange={e => setFormData({...formData, entityName: e.target.value})}
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="date">Date</Label>
-                  <Input 
-                    id="date" 
-                    type="date" 
-                    value={formData.date || ''}
-                    onChange={e => setFormData({...formData, date: e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="numOffre">N° Offre</Label>
-                  <Input 
-                    id="numOffre" 
-                    placeholder="Ex: OFF-001" 
-                    value={formData.numOffre || ''}
-                    onChange={e => setFormData({...formData, numOffre: e.target.value})}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="visAVis">Vis à vis</Label>
-                <Input 
-                  id="visAVis" 
-                  placeholder="Personne contactée" 
-                  value={formData.visAVis || ''}
-                  onChange={e => setFormData({...formData, visAVis: e.target.value})}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notes / Actions</Label>
-                <Textarea 
-                  id="notes" 
-                  placeholder="Détails de l'échange..." 
-                  className="min-h-[100px]"
-                  value={formData.notes || ''}
-                  onChange={e => setFormData({...formData, notes: e.target.value})}
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
-                <Button type="submit">Enregistrer</Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {isAdmin && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {/* Sidebar for Admin Selection */}
-          <Card className="md:col-span-1 h-fit">
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <History className="w-4 h-4" />
-                Séléction {type === 'client' ? 'Client' : 'Fournisseur'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-2 space-y-1">
-              {entityList.map(entity => (
-                <button
-                  key={entity}
-                  onClick={() => setSelectedEntity(entity === selectedEntity ? null : entity)}
-                  className={cn(
-                    "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all",
-                    selectedEntity === entity 
-                      ? "bg-primary text-primary-foreground shadow-md" 
-                      : "hover:bg-muted"
-                  )}
-                >
-                  <span className="truncate">{entity}</span>
-                  <Badge variant={selectedEntity === entity ? "secondary" : "outline"} className="ml-2">
-                    {groupedByEntity[entity].length}
-                  </Badge>
-                </button>
-              ))}
-              {entityList.length === 0 && (
-                <p className="text-xs text-muted-foreground p-3 italic">Aucune donnée</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Main Content Area */}
-          <Card className="md:col-span-3 overflow-hidden">
-            <CardHeader className="border-b bg-muted/20 pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  {selectedEntity ? (
-                    <>
-                      <UserCheck className="w-5 h-5 text-primary" />
-                      Historique : {selectedEntity}
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="w-5 h-5 text-primary" />
-                      Tous les Suivis
-                    </>
-                  )}
-                </CardTitle>
-                <div className="relative w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input 
-                    placeholder="Filtrer..." 
-                    className="pl-9 h-8 text-xs"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="font-bold">Date</TableHead>
-                      <TableHead className="font-bold">N° Offre</TableHead>
-                      {!selectedEntity && <TableHead className="font-bold">{type === 'client' ? 'Client' : 'Fournisseur'}</TableHead>}
-                      <TableHead className="font-bold">Chargé</TableHead>
-                      <TableHead className="font-bold">Vis à vis</TableHead>
-                      <TableHead className="font-bold">Notes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(selectedEntity ? groupedByEntity[selectedEntity] : filteredEntries).map((entry) => (
-                      <TableRow key={entry.id} className="group hover:bg-muted/30 transition-colors">
-                        <TableCell className="text-xs whitespace-nowrap">{entry.date}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="font-mono text-[10px]">{entry.numOffre}</Badge>
-                        </TableCell>
-                        {!selectedEntity && (
-                          <TableCell className="font-medium">{entry.entityName}</TableCell>
-                        )}
-                        <TableCell className="text-xs text-muted-foreground">{entry.charge}</TableCell>
-                        <TableCell className="text-xs font-semibold">{entry.visAVis}</TableCell>
-                        <TableCell className="text-xs italic text-muted-foreground max-w-[250px] truncate" title={entry.notes}>
-                          {entry.notes}
-                        </TableCell>
-
-                      </TableRow>
-                    ))}
-                    {(!selectedEntity && filteredEntries.length === 0) && (
-                      <TableRow>
-                        <TableCell colSpan={6} className="h-32 text-center text-muted-foreground italic">
-                          Aucun suivi trouvé.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+          </div>
         </div>
-      )}
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date devis</TableHead>
+                <TableHead>N° Devis</TableHead>
+                <TableHead>Société</TableHead>
+                <TableHead>Téléphone</TableHead>
+                <TableHead>Réponse</TableHead>
+                <TableHead>Date dernier contact</TableHead>
+                <TableHead className="w-[90px] text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                    Chargement…
+                  </TableCell>
+                </TableRow>
+              ) : filteredRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground italic">
+                    Aucune ligne — saisissez le suivi manuellement pour chaque {partyLabel}.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredRows.map((row) => (
+                  <TableRow key={row.id} className="hover:bg-muted/30">
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {formatDisplayDate(row.devis_date)}
+                    </TableCell>
+                    <TableCell className="text-sm font-mono">{row.devis_number || '—'}</TableCell>
+                    <TableCell className="text-sm font-medium">{row.societe}</TableCell>
+                    <TableCell className="text-sm">{row.telephone || '—'}</TableCell>
+                    <TableCell className="text-sm max-w-[220px]">
+                      <span className="line-clamp-2" title={row.reponse ?? undefined}>
+                        {row.reponse || '—'}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {formatDisplayDate(row.dernier_contact_date)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openEdit(row)}
+                          aria-label="Modifier"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => void handleDelete(row.id)}
+                          aria-label="Supprimer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
 
-      {!isAdmin && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <FileText className="w-5 h-5 text-primary" />
-                Mes Suivis Récents
-              </CardTitle>
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Rechercher..." 
-                  className="pl-9 h-8 text-xs"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) resetDialog();
+        }}
+      >
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingId ? 'Modifier la ligne' : 'Nouvelle ligne de suivi'}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="societe">Société *</Label>
+              <Input
+                id="societe"
+                value={form.societe}
+                onChange={(e) => setForm({ ...form, societe: e.target.value })}
+                placeholder={`Nom du ${partyLabel}`}
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="devis_date">Date devis</Label>
+                <Input
+                  id="devis_date"
+                  type="date"
+                  value={form.devis_date}
+                  onChange={(e) => setForm({ ...form, devis_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="devis_number">N° Devis</Label>
+                <Input
+                  id="devis_number"
+                  value={form.devis_number}
+                  onChange={(e) => setForm({ ...form, devis_number: e.target.value })}
+                  placeholder="Ex: DEV-01"
                 />
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="font-bold">Date</TableHead>
-                    <TableHead className="font-bold">N° Offre</TableHead>
-                    <TableHead className="font-bold">{type === 'client' ? 'Client' : 'Fournisseur'}</TableHead>
-                    <TableHead className="font-bold">Chargé</TableHead>
-                    <TableHead className="font-bold">Vis à vis</TableHead>
-                    <TableHead className="font-bold">Notes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredEntries.map((entry) => (
-                    <TableRow key={entry.id}>
-                      <TableCell className="text-xs">{entry.date}</TableCell>
-                      <TableCell className="font-mono text-xs">{entry.numOffre}</TableCell>
-                      <TableCell className="font-medium">{entry.entityName}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{entry.charge}</TableCell>
-                      <TableCell className="text-xs">{entry.visAVis}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground italic">{entry.notes}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <div className="space-y-2">
+              <Label htmlFor="telephone">Téléphone</Label>
+              <Input
+                id="telephone"
+                value={form.telephone}
+                onChange={(e) => setForm({ ...form, telephone: e.target.value })}
+                placeholder="+216 …"
+              />
             </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+            <div className="space-y-2">
+              <Label htmlFor="reponse">Réponse</Label>
+              <Textarea
+                id="reponse"
+                value={form.reponse}
+                onChange={(e) => setForm({ ...form, reponse: e.target.value })}
+                placeholder="Réponse du client / fournisseur (texte libre)"
+                className="min-h-[80px]"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dernier_contact_date">Date dernier contact</Label>
+              <Input
+                id="dernier_contact_date"
+                type="date"
+                value={form.dernier_contact_date}
+                onChange={(e) => setForm({ ...form, dernier_contact_date: e.target.value })}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setDialogOpen(false);
+                  resetDialog();
+                }}
+              >
+                Annuler
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? 'Enregistrement…' : editingId ? 'Mettre à jour' : 'Ajouter'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </Card>
   );
 };
