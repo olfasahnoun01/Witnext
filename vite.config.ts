@@ -2,34 +2,39 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
+const HCAPTCHA_SCRIPT = "https://js.hcaptcha.com";
+const HCAPTCHA_FRAME = "https://hcaptcha.com https://*.hcaptcha.com";
+const HCAPTCHA_CONNECT = "https://hcaptcha.com https://*.hcaptcha.com";
+
 function buildConnectSrc(mode: string, isElectronTarget: boolean): string {
   const supabaseConnect = "https://*.supabase.co wss://*.supabase.co";
+  const hcaptchaConnect = HCAPTCHA_CONNECT;
 
   if (mode === "development") {
-    return `'self' ${supabaseConnect} ws://localhost:5173 ws://127.0.0.1:5173 http://localhost:5173 http://127.0.0.1:5173 http://127.0.0.1:7501`;
+    return `'self' ${supabaseConnect} ${hcaptchaConnect} ws://localhost:5173 ws://127.0.0.1:5173 http://localhost:5173 http://127.0.0.1:5173 http://127.0.0.1:7501`;
   }
 
   if (isElectronTarget) {
-    return `'self' ${supabaseConnect}`;
+    return `'self' ${supabaseConnect} ${hcaptchaConnect}`;
   }
 
-  return `'self' ${supabaseConnect} https://*.vercel.app`;
+  return `'self' ${supabaseConnect} ${hcaptchaConnect} https://*.vercel.app`;
 }
 
 function buildContentSecurityPolicy(mode: string, isElectronTarget: boolean): string {
   const scriptSrc =
     mode === "development"
-      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-      : "script-src 'self' 'unsafe-inline'";
+      ? `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${HCAPTCHA_SCRIPT}`
+      : `script-src 'self' 'unsafe-inline' ${HCAPTCHA_SCRIPT}`;
 
   return [
     "default-src 'self'",
     scriptSrc,
     "worker-src 'self' blob:",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com ${HCAPTCHA_FRAME}`,
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https://*.supabase.co https:",
-    "frame-src 'self' blob: data:",
+    `frame-src 'self' blob: data: ${HCAPTCHA_FRAME}`,
     `connect-src ${buildConnectSrc(mode, isElectronTarget)}`,
   ].join("; ");
 }

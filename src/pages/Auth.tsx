@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import HCaptcha from '@hcaptcha/react-hcaptcha';
 import { supabase, supabaseProjectUrl } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { clearSupabaseBrowserSession } from '@/lib/supabaseAuthStorage';
@@ -13,15 +14,29 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { WitnextLogoBanner } from '@/components/WitnextLogoBanner';
 
+const isWebTarget = import.meta.env.VITE_APP_TARGET !== 'electron';
+const hcaptchaSiteKey = import.meta.env.VITE_HCAPTCHA_SITE_KEY?.trim() ?? '';
+/** Web login sends captcha to Supabase when the site key is configured. */
+const captchaConfigured = isWebTarget && hcaptchaSiteKey.length > 0;
+/** Supabase captcha is enabled server-side — site key must be set for web. */
+const captchaConfigMissing = isWebTarget && hcaptchaSiteKey.length === 0;
+
 export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showSessionExpiredAlert, setShowSessionExpiredAlert] = useState(false);
+  const captchaRef = useRef<HCaptcha>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
   const { session, isLoading: authLoading } = useAuth();
+
+  const resetCaptcha = useCallback(() => {
+    setCaptchaToken(null);
+    captchaRef.current?.resetCaptcha();
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -30,7 +45,6 @@ export default function Auth() {
     }
   }, [location.search]);
 
-  // Navigate only after AuthProvider has synced session (avoids empty home screen)
   useEffect(() => {
     if (authLoading) return;
     if (session?.user) {
@@ -39,27 +53,47 @@ export default function Auth() {
     }
   }, [authLoading, session, navigate]);
 
-  // Function to clear browser cache and reload
   const handleClearCache = () => {
     clearSupabaseBrowserSession(supabaseProjectUrl);
     sessionStorage.clear();
-    
-    // Remove the expired param and reload
     window.location.href = '/auth';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (captchaConfigMissing) {
+      toast({
+        variant: 'destructive',
+        title: 'Captcha non configuré',
+        description:
+          'Ajoutez VITE_HCAPTCHA_SITE_KEY dans .env.local, puis redémarrez npm run dev.',
+      });
+      return;
+    }
+
+    if (captchaConfigured && !captchaToken) {
+      toast({
+        variant: 'destructive',
+        title: 'Vérification requise',
+        description: 'Veuillez compléter le captcha avant de vous connecter.',
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
+        options: captchaConfigured ? { captchaToken: captchaToken! } : undefined,
       });
 
       if (error) {
-        console.error("Auth error:", error);
+        console.error('Auth error:', error);
+        resetCaptcha();
+
         if (error.message.includes('Invalid login credentials')) {
           toast({
             variant: 'destructive',
@@ -72,6 +106,12 @@ export default function Auth() {
             title: 'Email non confirmé',
             description: 'Veuillez vérifier vos e-mails ou contacter l\'administrateur.',
           });
+        } else if (error.message.toLowerCase().includes('captcha')) {
+          toast({
+            variant: 'destructive',
+            title: 'Vérification échouée',
+            description: 'Le captcha a expiré ou est invalide. Veuillez réessayer.',
+          });
         } else {
           toast({
             variant: 'destructive',
@@ -82,7 +122,6 @@ export default function Auth() {
         return;
       }
 
-      // Fetch user profile for personalized welcome message
       if (data.user) {
         const { data: profileData } = await supabase
           .from('profiles')
@@ -91,18 +130,19 @@ export default function Auth() {
           .maybeSingle();
 
         const userName = profileData?.full_name || data.user.email?.split('@')[0] || 'utilisateur';
-        
+
         toast({
           title: `Bienvenue, ${userName} ! 👋`,
           description: 'Connexion réussie. Ravi de vous revoir sur Witnext.',
         });
       }
-    } catch (error: any) {
-      console.error("Auth Exception:", error);
+    } catch (error: unknown) {
+      console.error('Auth Exception:', error);
+      resetCaptcha();
       toast({
         variant: 'destructive',
         title: 'Erreur',
-        description: error.message || 'Une erreur est survenue',
+        description: error instanceof Error ? error.message : 'Une erreur est survenue',
       });
     } finally {
       setIsLoading(false);
@@ -113,18 +153,28 @@ export default function Auth() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(168_100%_39%/0.08),transparent_55%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,hsl(222_47%_11%/0.04),transparent_50%)]" />
-      {/* Theme Toggle - Top Right */}
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
-      
+
       <div className="w-full max-w-md relative z-10">
-        {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <WitnextLogoBanner variant="auth" />
         </div>
 
-        {/* Session Expired Alert */}
+        {captchaConfigMissing && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Configuration captcha manquante</AlertTitle>
+            <AlertDescription>
+              Supabase exige un captcha à la connexion. Ajoutez{' '}
+              <code className="text-xs">VITE_HCAPTCHA_SITE_KEY</code> dans{' '}
+              <code className="text-xs">.env.local</code> (clé publique hCaptcha), puis redémarrez{' '}
+              <code className="text-xs">npm run dev</code>.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {showSessionExpiredAlert && (
           <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
@@ -133,9 +183,9 @@ export default function Auth() {
               <p className="mb-3">
                 Votre session a expiré ou est devenue invalide. Veuillez vous reconnecter.
               </p>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleClearCache}
                 className="gap-2"
               >
@@ -146,7 +196,6 @@ export default function Auth() {
           </Alert>
         )}
 
-        {/* Auth Card */}
         <div className="bg-card rounded-2xl border border-border shadow-xl p-8 transition-all ring-1 ring-primary/5">
           <div className="flex items-center justify-center gap-2 mb-6 text-center">
             <LogIn className="w-5 h-5 text-accent" />
@@ -168,26 +217,46 @@ export default function Auth() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10 h-11"
                   required
+                  autoComplete="username"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="password" className="text-sm font-medium">Mot de passe</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <PasswordInput
-                  id="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 h-11"
-                  autoComplete="current-password"
-                />
-              </div>
+              <PasswordInput
+                id="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="h-11"
+                leftIcon={<Lock className="h-4 w-4" />}
+                required
+                autoComplete="current-password"
+              />
             </div>
 
-            <Button type="submit" className="w-full h-11 font-semibold bg-accent text-accent-foreground hover:bg-accent/90" disabled={isLoading}>
+            {captchaConfigured && (
+              <div className="flex justify-center overflow-hidden rounded-lg">
+                <HCaptcha
+                  ref={captchaRef}
+                  sitekey={hcaptchaSiteKey}
+                  onVerify={(token) => setCaptchaToken(token)}
+                  onExpire={resetCaptcha}
+                  onError={resetCaptcha}
+                />
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full h-11 font-semibold bg-accent text-accent-foreground hover:bg-accent/90"
+              disabled={
+                isLoading ||
+                captchaConfigMissing ||
+                (captchaConfigured && !captchaToken)
+              }
+            >
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -203,7 +272,6 @@ export default function Auth() {
           </form>
         </div>
 
-        {/* Footer */}
         <div className="text-center space-y-2 mt-6">
           <p className="text-sm text-muted-foreground">
             © 2026 Witnext. Tous droits réservés.
