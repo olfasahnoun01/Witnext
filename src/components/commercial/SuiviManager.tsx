@@ -18,8 +18,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Plus, Search, Pencil, Trash2, FileText } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, FileText, Download, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { exportSuiviPartiesExcel, exportSuiviPartiesPdf } from '@/lib/exportSuiviParties';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import { ensureSupabaseSessionReady, supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
@@ -79,6 +86,7 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<SuiviFormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const resetDialog = useCallback(() => {
     setEditingId(null);
@@ -215,6 +223,31 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
 
   const partyLabel = type === 'client' ? 'client' : 'fournisseur';
 
+  const handleExport = useCallback(
+    async (format: 'excel' | 'pdf') => {
+      if (filteredRows.length === 0) {
+        toast.error('Aucune ligne à exporter');
+        return;
+      }
+      setExporting(true);
+      try {
+        if (format === 'excel') {
+          await exportSuiviPartiesExcel(type, filteredRows);
+          toast.success('Liste exportée en Excel');
+        } else {
+          await exportSuiviPartiesPdf(type, filteredRows);
+          toast.success('Liste exportée en PDF');
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error(format === 'excel' ? 'Erreur export Excel' : 'Erreur export PDF');
+      } finally {
+        setExporting(false);
+      }
+    },
+    [filteredRows, type]
+  );
+
   return (
     <Card>
       <CardHeader className="border-b bg-muted/20 pb-4">
@@ -233,6 +266,33 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2 shrink-0" disabled={exporting || loading}>
+                  <Download className="w-4 h-4" />
+                  Exporter
+                  <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  className="gap-2 cursor-pointer"
+                  onClick={() => void handleExport('excel')}
+                  disabled={exporting}
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="gap-2 cursor-pointer"
+                  onClick={() => void handleExport('pdf')}
+                  disabled={exporting}
+                >
+                  <FileText className="w-4 h-4" />
+                  PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button className="gap-2 shrink-0" onClick={openCreate}>
               <Plus className="w-4 h-4" />
               Ajouter une ligne
