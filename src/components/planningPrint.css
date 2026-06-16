@@ -1,0 +1,35 @@
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  body.print-target-schedule .planning-section[data-section='schedule'],
+  body.print-target-schedule .planning-section[data-section='schedule'] *,
+  body.print-target-summary .planning-section[data-section='summary'],
+  body.print-target-summary .planning-section[data-section='summary'] *,
+  body.print-target-salary .planning-section[data-section='salary'],
+  body.print-target-salary .planning-section[data-section='salary'] * {
+    visibility: visible;
+  }
+
+  body.print-target-schedule .planning-section[data-section='schedule'],
+  body.print-target-summary .planning-section[data-section='summary'],
+  body.print-target-salary .planning-section[data-section='salary'] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    overflow: visible;
+    box-shadow: none;
+    border: 1px solid #ccc;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}

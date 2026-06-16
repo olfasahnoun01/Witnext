@@ -27,6 +27,7 @@ import {
 import { toast } from 'sonner';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import './planningPrint.css';
 
 // ── Types ──────────────────────────────────────────────────────────────
 interface EmployeeRow {
@@ -36,6 +37,8 @@ interface EmployeeRow {
 }
 
 type PeriodType = 'weekly' | 'monthly' | 'custom';
+type PlanningSection = 'schedule' | 'summary' | 'salary';
+type PlanningPdfSection = PlanningSection | 'all';
 
 // Shift code → display / style
 const SHIFT_MAP: Record<string, { label: string; bg: string; text: string }> = {
@@ -473,130 +476,174 @@ export const Planning = () => {
     toast.success('تم إعادة تعيين الجدول');
   }, []);
 
-  // PDF Export
-  const exportPDF = useCallback(() => {
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    const pageWidth = doc.internal.pageSize.getWidth();
+  // PDF Export (per section or all)
+  const exportSectionPDF = useCallback(
+    (section: PlanningPdfSection) => {
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const periodSuffix = `${formatDD_MM(startDate)}_${formatDD_MM(endDate)}`;
 
-    const addHeader = (title: string) => {
-      // Center
-      doc.setFontSize(16);
-      doc.setFont("helvetica", "bold");
-      doc.text(companyName || 'Entreprise', pageWidth / 2, 15, { align: 'center' });
-      
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "normal");
-      doc.text(title, pageWidth / 2, 22, { align: 'center' });
-      
-      // RTL Layout for Headers
-      doc.setFontSize(10);
-      
-      // Right side (Site)
-      const rightTextX = pageWidth - 14;
-      doc.text(`Site : ${siteName || '-'}`, rightTextX, 22, { align: 'right' });
-      
-      // Left side (Period and Date)
-      doc.text(`Période : ${formatDD_MM(startDate)} - ${formatDD_MM(endDate)}`, 14, 15, { align: 'left' });
-      doc.text(`Date d'exportation : ${new Date().toLocaleString('fr-FR')}`, 14, 22, { align: 'left' });
+      const addHeader = (title: string) => {
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text(companyName || 'Entreprise', pageWidth / 2, 15, { align: 'center' });
+
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        doc.text(title, pageWidth / 2, 22, { align: 'center' });
+
+        doc.setFontSize(10);
+        const rightTextX = pageWidth - 14;
+        doc.text(`Site : ${siteName || '-'}`, rightTextX, 22, { align: 'right' });
+        doc.text(`Période : ${formatDD_MM(startDate)} - ${formatDD_MM(endDate)}`, 14, 15, {
+          align: 'left',
+        });
+        doc.text(`Date d'exportation : ${new Date().toLocaleString('fr-FR')}`, 14, 22, {
+          align: 'left',
+        });
+      };
+
+      const addSchedulePage = () => {
+        addHeader('Planning / Calendrier');
+        const dateHeaders = dates.map((d) => formatDD_MM(d));
+        const scheduleHead = [['#', 'Employé(e)', ...dateHeaders].reverse()];
+        const scheduleBody = employees.map((emp, i) =>
+          [
+            String(i + 1),
+            emp.name || `Employé(e) ${i + 1}`,
+            ...dates.map((d) => emp.shifts[dateKey(d)] || ''),
+          ].reverse()
+        );
+        const empColIndex = dates.length;
+
+        autoTable(doc, {
+          head: scheduleHead,
+          body: scheduleBody,
+          startY: 30,
+          styles: { fontSize: 7, cellPadding: 1.5, halign: 'center' },
+          headStyles: { fillColor: [30, 58, 95], fontSize: 6 },
+          columnStyles: { [empColIndex]: { halign: 'right' } },
+          didParseCell(data) {
+            const isShiftColumn = data.column.index < dates.length;
+            if (data.section === 'body' && isShiftColumn) {
+              const val = String(data.cell.raw);
+              if (val === 'R') {
+                data.cell.styles.fillColor = [254, 202, 202];
+                data.cell.styles.textColor = [185, 28, 28];
+              } else if (val === 'J') {
+                data.cell.styles.fillColor = [187, 247, 208];
+                data.cell.styles.textColor = [21, 128, 61];
+              } else if (val === 'N') {
+                data.cell.styles.fillColor = [191, 219, 254];
+                data.cell.styles.textColor = [29, 78, 216];
+              } else if (val === 'J-P1') {
+                data.cell.styles.fillColor = [255, 237, 213];
+                data.cell.styles.textColor = [194, 65, 12];
+              } else if (val === 'J-P2') {
+                data.cell.styles.fillColor = [243, 232, 255];
+                data.cell.styles.textColor = [126, 34, 206];
+              } else if (val === 'N-P1') {
+                data.cell.styles.fillColor = [224, 231, 255];
+                data.cell.styles.textColor = [67, 56, 202];
+              } else if (val === 'N-P2') {
+                data.cell.styles.fillColor = [252, 231, 243];
+                data.cell.styles.textColor = [190, 24, 93];
+              }
+            }
+          },
+        });
+      };
+
+      const addSummaryPage = () => {
+        if (section === 'all') doc.addPage();
+        addHeader('Résumé / Récapitulatif');
+        const summaryHead = [
+          ['#', 'Employé(e)', 'J', 'N', 'J-P1', 'J-P2', 'N-P1', 'N-P2', 'R', 'Total Travail'].reverse(),
+        ];
+        const summaryBody = employees.map((emp, i) => {
+          const s = summaries[i];
+          return [
+            String(i + 1),
+            emp.name || `Employé(e) ${i + 1}`,
+            String(s.totalJ),
+            String(s.totalN),
+            String(s.totalJP1),
+            String(s.totalJP2),
+            String(s.totalNP1),
+            String(s.totalNP2),
+            String(s.totalR),
+            `${s.totalWorkDays} j`,
+          ].reverse();
+        });
+
+        autoTable(doc, {
+          head: summaryHead,
+          body: summaryBody,
+          startY: 30,
+          styles: { fontSize: 8, cellPadding: 2, halign: 'center' },
+          headStyles: { fillColor: [30, 58, 95], fontSize: 7 },
+          columnStyles: { 8: { halign: 'right' } },
+        });
+      };
+
+      const addSalaryPage = () => {
+        if (section === 'all') doc.addPage();
+        addHeader('Estimation Salaires');
+        const salaryHead = [['#', 'Employé(e)', 'Jours de travail', 'Salaire (DT)'].reverse()];
+        const salaryBody = employees.map((emp, i) => {
+          const s = summaries[i];
+          return [
+            String(i + 1),
+            emp.name || `Employé(e) ${i + 1}`,
+            String(s.totalWorkDays),
+            `${s.salary.toFixed(3)} DT`,
+          ].reverse();
+        });
+
+        autoTable(doc, {
+          head: salaryHead,
+          body: salaryBody,
+          startY: 30,
+          styles: { fontSize: 9, cellPadding: 3, halign: 'center' },
+          headStyles: { fillColor: [21, 128, 61], fontSize: 8 },
+          columnStyles: { 2: { halign: 'right' } },
+        });
+      };
+
+      if (section === 'schedule' || section === 'all') addSchedulePage();
+      if (section === 'summary' || section === 'all') addSummaryPage();
+      if (section === 'salary' || section === 'all') addSalaryPage();
+
+      const fileNames: Record<PlanningPdfSection, string> = {
+        schedule: `planning_calendrier_${periodSuffix}.pdf`,
+        summary: `planning_resume_${periodSuffix}.pdf`,
+        salary: `planning_salaires_${periodSuffix}.pdf`,
+        all: `planning_complet_${periodSuffix}.pdf`,
+      };
+
+      doc.save(fileNames[section]);
+
+      const successMessages: Record<PlanningPdfSection, string> = {
+        schedule: 'تم تصدير جدول المناوبات (PDF)',
+        summary: 'تم تصدير ملخص المناوبات (PDF)',
+        salary: 'تم تصدير جدول الرواتب (PDF)',
+        all: 'تم تصدير ملف PDF الكامل بنجاح',
+      };
+      toast.success(successMessages[section]);
+    },
+    [companyName, siteName, startDate, endDate, dates, employees, summaries]
+  );
+
+  const handlePrintSection = useCallback((section: PlanningSection) => {
+    const bodyClass = `print-target-${section}`;
+    document.body.classList.add(bodyClass);
+    const cleanup = () => {
+      document.body.classList.remove(bodyClass);
+      window.removeEventListener('afterprint', cleanup);
     };
-
-    // --- Page 1: Schedule ---
-    addHeader('Planning / Calendrier');
-
-    const dateHeaders = dates.map((d) => formatDD_MM(d));
-    // RTL: Reverse the columns
-    const scheduleHead = [['#', 'Employé(e)', ...dateHeaders].reverse()];
-
-    const scheduleBody = employees.map((emp, i) => {
-      return [
-        String(i + 1),
-        emp.name || `Employé(e) ${i + 1}`,
-        ...dates.map((d) => emp.shifts[dateKey(d)] || ''),
-      ].reverse();
-    });
-
-    const empColIndex = dates.length; // because length is dates + 2, and 'Employé' is at index length - 2
-
-    autoTable(doc, {
-      head: scheduleHead,
-      body: scheduleBody,
-      startY: 30,
-      styles: { fontSize: 7, cellPadding: 1.5, halign: 'center' },
-      headStyles: { fillColor: [30, 58, 95], fontSize: 6 },
-      columnStyles: { [empColIndex]: { halign: 'right' } }, // Right align employee names for RTL
-      didParseCell(data) {
-        const isShiftColumn = data.column.index < dates.length;
-        if (data.section === 'body' && isShiftColumn) {
-          const val = String(data.cell.raw);
-          if (val === 'R') { data.cell.styles.fillColor = [254, 202, 202]; data.cell.styles.textColor = [185, 28, 28]; }
-          else if (val === 'J') { data.cell.styles.fillColor = [187, 247, 208]; data.cell.styles.textColor = [21, 128, 61]; }
-          else if (val === 'N') { data.cell.styles.fillColor = [191, 219, 254]; data.cell.styles.textColor = [29, 78, 216]; }
-          else if (val === 'J-P1') { data.cell.styles.fillColor = [255, 237, 213]; data.cell.styles.textColor = [194, 65, 12]; }
-          else if (val === 'J-P2') { data.cell.styles.fillColor = [243, 232, 255]; data.cell.styles.textColor = [126, 34, 206]; }
-          else if (val === 'N-P1') { data.cell.styles.fillColor = [224, 231, 255]; data.cell.styles.textColor = [67, 56, 202]; }
-          else if (val === 'N-P2') { data.cell.styles.fillColor = [252, 231, 243]; data.cell.styles.textColor = [190, 24, 93]; }
-        }
-      },
-    });
-
-    // --- Page 2: Summary ---
-    doc.addPage();
-    addHeader('Résumé / Récapitulatif');
-
-    // RTL: Reverse the columns
-    const summaryHead = [['#', 'Employé(e)', 'J', 'N', 'J-P1', 'J-P2', 'N-P1', 'N-P2', 'R', 'Total Travail'].reverse()];
-    const summaryBody = employees.map((emp, i) => {
-      const s = summaries[i];
-      return [
-        String(i + 1),
-        emp.name || `Employé(e) ${i + 1}`,
-        String(s.totalJ),
-        String(s.totalN),
-        String(s.totalJP1),
-        String(s.totalJP2),
-        String(s.totalNP1),
-        String(s.totalNP2),
-        String(s.totalR),
-        `${s.totalWorkDays} j`,
-      ].reverse();
-    });
-
-    autoTable(doc, {
-      head: summaryHead,
-      body: summaryBody,
-      startY: 30,
-      styles: { fontSize: 8, cellPadding: 2, halign: 'center' },
-      headStyles: { fillColor: [30, 58, 95], fontSize: 7 },
-      columnStyles: { 8: { halign: 'right' } }, // Employee name index
-    });
-
-    // --- Page 3: Salaries ---
-    doc.addPage();
-    addHeader('Estimation Salaires');
-
-    const salaryHead = [['#', 'Employé(e)', 'Jours de travail', 'Salaire (DT)'].reverse()];
-    const salaryBody = employees.map((emp, i) => {
-      const s = summaries[i];
-      return [
-        String(i + 1),
-        emp.name || `Employé(e) ${i + 1}`,
-        String(s.totalWorkDays),
-        `${s.salary.toFixed(3)} DT`,
-      ].reverse();
-    });
-
-    autoTable(doc, {
-      head: salaryHead,
-      body: salaryBody,
-      startY: 30,
-      styles: { fontSize: 9, cellPadding: 3, halign: 'center' },
-      headStyles: { fillColor: [21, 128, 61], fontSize: 8 },
-      columnStyles: { 2: { halign: 'right' } },
-    });
-
-    doc.save(`planning_${formatDD_MM(startDate)}_${formatDD_MM(endDate)}.pdf`);
-    toast.success('تم تصدير ملف PDF بنجاح');
-  }, [companyName, siteName, startDate, endDate, dates, employees, summaries]);
+    window.addEventListener('afterprint', cleanup);
+    window.print();
+  }, []);
 
   // Period label for display
   const periodLabel = useMemo(() => {
@@ -611,10 +658,33 @@ export const Planning = () => {
   }, [periodType, startDate, endDate]);
 
   // ── Render ─────────────────────────────────────────────────────────
+  const renderSectionActions = (section: PlanningSection) => (
+    <div className="no-print flex items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => handlePrintSection(section)}
+        className="gap-1.5 rounded-xl"
+      >
+        <Printer className="w-4 h-4" />
+        طباعة
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => exportSectionPDF(section)}
+        className="gap-1.5 rounded-xl"
+      >
+        <FileDown className="w-4 h-4" />
+        PDF
+      </Button>
+    </div>
+  );
+
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl" style={{ fontFamily: "'Inter', 'Noto Sans Arabic', system-ui, sans-serif" }}>
       {/* ── Header ─────────────────────────────────────── */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="no-print flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-primary/10">
             <CalendarDays className="w-6 h-6 text-primary" />
@@ -649,9 +719,9 @@ export const Planning = () => {
                 <RotateCcw className="w-4 h-4" />
                 إعادة تعيين
               </Button>
-              <Button size="sm" onClick={exportPDF} className="gap-2 rounded-xl">
+              <Button size="sm" onClick={() => exportSectionPDF('all')} className="gap-2 rounded-xl">
                 <FileDown className="w-4 h-4" />
-                تصدير PDF
+                تصدير PDF الكامل
               </Button>
             </>
           )}
@@ -659,7 +729,7 @@ export const Planning = () => {
       </div>
 
       {/* ── Setup Form ─────────────────────────────────── */}
-      <div className="p-5 rounded-2xl bg-card border border-border shadow-sm space-y-5">
+      <div className="no-print p-5 rounded-2xl bg-card border border-border shadow-sm space-y-5">
         <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
           <Building2 className="w-4 h-4 text-primary" />
           معلومات الشركة والفترة
@@ -799,7 +869,7 @@ export const Planning = () => {
 
       {/* ── Action Section ───────────────────────────── */}
       {!isGenerated && (
-        <div className="flex justify-center pt-2">
+        <div className="no-print flex justify-center pt-2">
           <Button onClick={handleGenerate} className="gap-2 rounded-xl px-8" size="lg">
             <CalendarDays className="w-5 h-5" />
             إنشاء الجدول
@@ -809,7 +879,7 @@ export const Planning = () => {
 
       {/* ── Legend ──────────────────────────────────────── */}
       {isGenerated && (
-        <div className="flex items-center justify-center gap-6 flex-wrap text-sm">
+        <div className="no-print flex items-center justify-center gap-6 flex-wrap text-sm">
           <span className="flex items-center gap-2">
             <span className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center text-xs">J</span>
             نهاري
@@ -843,7 +913,15 @@ export const Planning = () => {
 
       {/* ── Scheduling Table ───────────────────────────── */}
       {isGenerated && (
-        <div ref={tableRef} className="rounded-2xl border border-border bg-card shadow-md overflow-hidden">
+        <div
+          ref={tableRef}
+          data-section="schedule"
+          className="planning-section rounded-2xl border border-border bg-card shadow-md overflow-hidden"
+        >
+          <div className="flex items-center justify-between gap-3 p-4 border-b border-border bg-muted/30">
+            <h3 className="text-base font-semibold text-foreground">جدول المناوبات</h3>
+            {renderSectionActions('schedule')}
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse min-w-[800px]">
               <thead>
@@ -946,9 +1024,13 @@ export const Planning = () => {
 
       {/* ── Summary Table ──────────────────────────────── */}
       {isGenerated && (
-        <div className="rounded-2xl border border-border bg-card shadow-md overflow-hidden mt-6">
-          <div className="p-4 border-b border-border bg-muted/30">
+        <div
+          data-section="summary"
+          className="planning-section rounded-2xl border border-border bg-card shadow-md overflow-hidden mt-6"
+        >
+          <div className="flex items-center justify-between gap-3 p-4 border-b border-border bg-muted/30">
             <h3 className="text-base font-semibold text-foreground">ملخص المناوبات</h3>
+            {renderSectionActions('summary')}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
@@ -1031,9 +1113,13 @@ export const Planning = () => {
 
       {/* ── Salary Table ────────────────────────────────── */}
       {isGenerated && (
-        <div className="rounded-2xl border border-border bg-card shadow-md overflow-hidden mt-6">
-          <div className="p-4 border-b border-border bg-muted/30">
+        <div
+          data-section="salary"
+          className="planning-section rounded-2xl border border-border bg-card shadow-md overflow-hidden mt-6"
+        >
+          <div className="flex items-center justify-between gap-3 p-4 border-b border-border bg-muted/30">
             <h3 className="text-base font-semibold text-foreground">جدول الرواتب (Estimation Salaires)</h3>
+            {renderSectionActions('salary')}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
