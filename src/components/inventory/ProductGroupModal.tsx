@@ -296,6 +296,23 @@ export const ProductGroupModal = ({
 
         if (error) throw error;
         groupId = editingGroup.id;
+
+        const categoryChanged =
+          formData.category.trim() !== (editingGroup.category || '').trim();
+        const nameChanged = formData.name.trim() !== editingGroup.name.trim();
+
+        if (categoryChanged || nameChanged) {
+          const variantUpdates: Record<string, string> = {};
+          if (categoryChanged) variantUpdates.category = formData.category.trim();
+          if (nameChanged) variantUpdates.name = formData.name.trim();
+
+          const { error: variantError } = await supabase
+            .from('products')
+            .update(variantUpdates)
+            .eq('product_group_id', editingGroup.id);
+
+          if (variantError) throw variantError;
+        }
         
         await supabase
           .from('product_group_fournisseurs')
@@ -418,14 +435,31 @@ export const ProductGroupModal = ({
           <div className="grid gap-4 py-4 overflow-y-auto flex-1 pr-2">
             {/* Image Upload */}
             <div className="flex items-center gap-4">
-              <div 
-                className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed border-border hover:border-primary transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {formData.image ? (
-                  <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <Package className="w-8 h-8 text-muted-foreground" />
+              <div className="relative w-20 h-20 shrink-0">
+                <div
+                  className="w-full h-full rounded-xl bg-muted flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed border-border hover:border-primary transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {formData.image ? (
+                    <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <Package className="w-8 h-8 text-muted-foreground" />
+                  )}
+                </div>
+                {formData.image && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFormData((prev) => ({ ...prev, image: null }));
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="absolute -top-1.5 -right-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow hover:bg-destructive/90"
+                    title="Supprimer l'image"
+                    aria-label="Supprimer l'image"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                 )}
               </div>
               <input

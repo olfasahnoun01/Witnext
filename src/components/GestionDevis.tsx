@@ -374,7 +374,7 @@ export const GestionDevis = ({
     const saveAsBc = docType === 'bc' || sectionMode === 'bc';
     setIsSaving(true);
     try {
-      const totals = computeDevisTotals(devisItems, isTtc);
+      const totals = computeDevisTotals(devisItems, false);
       const totalAmount = totals.totalTTC;
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -437,7 +437,7 @@ export const GestionDevis = ({
       toast.error('Ajoutez au moins une ligne d\'article');
       return;
     }
-    const totals = computeDevisTotals(devisItems, isTtc);
+    const totals = computeDevisTotals(devisItems, false);
     const totalAmount = totals.totalTTC;
     const folderKind = docType === 'bc' || editingDevis.is_bc ? 'bc' : 'devis';
 
@@ -522,7 +522,7 @@ export const GestionDevis = ({
     try {
       const bcNumber = generateNextNumber(primary.type, 'bc');
       const { data: { user } } = await supabase.auth.getUser();
-      const totals = computeDevisTotals(modifiedItems, primaryIsTtc);
+      const totals = computeDevisTotals(modifiedItems, false);
       const mergedAttachments = sources.flatMap((d) => parseAttachmentUrls(d.attachment_urls));
 
       const { data: insertedBc, error } = await supabase.from('devis').insert({

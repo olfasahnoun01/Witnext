@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { ArrowLeft, Plus, RefreshCw, Search, X, Check, ChevronsUpDown } from 'lucide-react';
+import { ArrowLeft, Plus, RefreshCw, Search, X, Check, ChevronsUpDown, FolderInput } from 'lucide-react';
 import { ProductGroup } from '@/types';
-import { getProductGroupsByCategory, deleteProductGroup } from '@/services/productGroupService';
+import { getProductGroupsByCategory, deleteProductGroup, moveProductGroupToCategory } from '@/services/productGroupService';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,9 +31,26 @@ import {
 } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 import { sanitizeSearchInput } from '@/lib/sanitize';
+import { fetchInventoryCategoryNames } from '@/lib/inventoryCategoryNames';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface ProductGroupViewProps {
   category: string;
@@ -51,6 +68,10 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
   const [selectedGroup, setSelectedGroup] = useState<ProductGroup | null>(null);
   const [isProductGroupModalOpen, setIsProductGroupModalOpen] = useState(false);
   const [editingProductGroup, setEditingProductGroup] = useState<ProductGroup | null>(null);
+  const [movingGroup, setMovingGroup] = useState<ProductGroup | null>(null);
+  const [moveTargetCategory, setMoveTargetCategory] = useState('');
+  const [moveCategories, setMoveCategories] = useState<string[]>([]);
+  const [isMoving, setIsMoving] = useState(false);
   
   // Supplier filter state
   const [fournisseurs, setFournisseurs] = useState<string[]>([]);
@@ -176,6 +197,45 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
     setEditingProductGroup(group);
     setIsProductGroupModalOpen(true);
   }, []);
+
+  const handleOpenMoveGroup = useCallback(async (group: ProductGroup) => {
+    setMovingGroup(group);
+    setMoveTargetCategory('');
+    try {
+      const cats = await fetchInventoryCategoryNames();
+      setMoveCategories(cats.filter((c) => c !== group.category));
+    } catch {
+      setMoveCategories([]);
+    }
+  }, []);
+
+  const handleConfirmMoveGroup = useCallback(async () => {
+    if (!movingGroup || !moveTargetCategory.trim()) {
+      toast.error('Sélectionnez une catégorie de destination');
+      return;
+    }
+    if (moveTargetCategory.trim() === movingGroup.category) {
+      toast.error('Le produit est déjà dans cette catégorie');
+      return;
+    }
+
+    setIsMoving(true);
+    try {
+      const result = await moveProductGroupToCategory(movingGroup.id, moveTargetCategory.trim());
+      if (!result.success) {
+        toast.error(result.error || 'Impossible de déplacer le produit');
+        return;
+      }
+      toast.success(
+        `« ${movingGroup.name} » déplacé vers « ${moveTargetCategory.trim()} » (${movingGroup.variant_count || 0} variante(s))`
+      );
+      setMovingGroup(null);
+      setMoveTargetCategory('');
+      await fetchGroups();
+    } finally {
+      setIsMoving(false);
+    }
+  }, [movingGroup, moveTargetCategory, fetchGroups]);
 
   const handleBackFromVariants = useCallback(() => {
     setSelectedGroup(null);
@@ -449,8 +509,10 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
                 onClick={() => handleGroupClick(group)}
                 onEdit={handleEditGroup}
                 onDelete={handleDeleteGroup}
+                onMove={handleOpenMoveGroup}
                 canEdit={isModerator}
                 canDelete={isModerator}
+                canMove={isModerator}
               />
             ))}
           </div>
@@ -507,6 +569,62 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
         defaultCategory={category}
         editingGroup={editingProductGroup}
       />
+
+      <Dialog
+        open={Boolean(movingGroup)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMovingGroup(null);
+            setMoveTargetCategory('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderInput className="h-5 w-5" />
+              Déplacer le produit
+            </DialogTitle>
+            <DialogDescription>
+              {movingGroup
+                ? `Déplacer « ${movingGroup.name} » et ses ${movingGroup.variant_count || 0} variante(s) vers une autre catégorie.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label>Catégorie actuelle</Label>
+            <p className="text-sm text-muted-foreground">{movingGroup?.category || '—'}</p>
+            <Label htmlFor="move-target-category">Nouvelle catégorie</Label>
+            <Select value={moveTargetCategory} onValueChange={setMoveTargetCategory}>
+              <SelectTrigger id="move-target-category" className="w-full">
+                <SelectValue placeholder="Choisir une catégorie" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[280px]">
+                {moveCategories.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setMovingGroup(null);
+                setMoveTargetCategory('');
+              }}
+            >
+              Annuler
+            </Button>
+            <Button type="button" onClick={() => void handleConfirmMoveGroup()} disabled={isMoving}>
+              {isMoving ? 'Déplacement…' : 'Déplacer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

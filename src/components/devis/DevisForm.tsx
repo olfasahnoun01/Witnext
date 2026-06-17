@@ -458,16 +458,8 @@ export const DevisForm = memo(({
     (nextTtc: boolean) => {
       if (partyExonereDeTva && nextTtc) return;
       setIsTtc(nextTtc);
-      if (!nextTtc) {
-        setItemTva(0);
-        setDevisItems((prev) => prev.map((item) => ({ ...item, tva: 0 })));
-        return;
-      }
-      const defaultTva = defaultDevisLineTvaForParty(thirdPartyTvaStatus);
-      setItemTva(defaultTva);
-      setDevisItems((prev) => applyPartyTvaPolicyToItems(prev, thirdPartyTvaStatus));
     },
-    [partyExonereDeTva, thirdPartyTvaStatus, setIsTtc, setDevisItems]
+    [partyExonereDeTva, setIsTtc]
   );
 
   useEffect(() => {
@@ -1197,7 +1189,7 @@ export const DevisForm = memo(({
   }, [productGroups, groupSearch]);
 
   // Lignes devis: prix unitaire HT ; TVA appliquée uniquement si l'utilisateur choisit un taux > 0 %
-  const devisTotals = useMemo(() => computeDevisTotals(devisItems, isTtc), [devisItems, isTtc]);
+  const devisTotals = useMemo(() => computeDevisTotals(devisItems, false), [devisItems]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyLabel = isAchat ? 'Fournisseur' : 'Client';
 

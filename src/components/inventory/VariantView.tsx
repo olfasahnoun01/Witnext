@@ -538,12 +538,31 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
               <>
                 {/* Image Upload */}
                 <div className="flex items-center gap-4">
-                  <div className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed border-border hover:border-primary transition-colors"
-                    onClick={() => fileInputRef.current?.click()}>
-                    {formData.image ? (
-                      <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <Upload className="w-8 h-8 text-muted-foreground" />
+                  <div className="relative w-20 h-20 shrink-0">
+                    <div
+                      className="w-full h-full rounded-xl bg-muted flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed border-border hover:border-primary transition-colors"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {formData.image ? (
+                        <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <Upload className="w-8 h-8 text-muted-foreground" />
+                      )}
+                    </div>
+                    {formData.image && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFormData((prev) => ({ ...prev, image: null }));
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                        className="absolute -top-1.5 -right-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow hover:bg-destructive/90"
+                        title="Supprimer l'image"
+                        aria-label="Supprimer l'image"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
                     )}
                   </div>
                   <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />

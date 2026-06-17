@@ -271,6 +271,45 @@ export const updateProductGroup = async (id: number, updates: Partial<ProductGro
   }
 };
 
+/** Move a product group and all its variants to another category. */
+export const moveProductGroupToCategory = async (
+  groupId: number,
+  newCategory: string
+): Promise<{ success: boolean; error?: string }> => {
+  const trimmed = newCategory.trim();
+  if (!trimmed) {
+    return { success: false, error: 'Catégorie requise' };
+  }
+
+  try {
+    const { error: groupError } = await supabase
+      .from('product_groups')
+      .update({ category: trimmed, updated_at: new Date().toISOString() })
+      .eq('id', groupId);
+
+    if (groupError) {
+      if (groupError.code === '23505') {
+        return { success: false, error: 'Ce produit existe déjà dans cette catégorie' };
+      }
+      return { success: false, error: groupError.message };
+    }
+
+    const { error: variantsError } = await supabase
+      .from('products')
+      .update({ category: trimmed })
+      .eq('product_group_id', groupId);
+
+    if (variantsError) {
+      return { success: false, error: variantsError.message };
+    }
+
+    return { success: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Erreur inconnue';
+    return { success: false, error: message };
+  }
+};
+
 // Delete a product group (variants will have product_group_id set to NULL)
 export const deleteProductGroup = async (id: number): Promise<void> => {
   const { error } = await supabase

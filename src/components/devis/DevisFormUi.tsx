@@ -157,7 +157,9 @@ export function DevisPricingToggle({
       <div>
         <p className="text-sm font-medium">Mode de tarification</p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          {isTtc ? 'Prix unitaires TTC (TVA 19 % incluse dans le calcul)' : 'Prix unitaires hors taxes'}
+          {isTtc
+            ? 'Afficher TVA, montant TTC et timbre dans la synthèse'
+            : 'Prix unitaires et totaux du tableau en hors taxes'}
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
@@ -406,8 +408,11 @@ export function DevisZohoTotalsPanel({
   if (showTva) {
     rows.push({ label: 'TVA', value: `${totals.totalTVA.toFixed(3)} TND` });
     rows.push({ label: 'Montant TTC', value: `${totals.totalTTC.toFixed(3)} TND` });
+    rows.push({ label: 'Timbre fiscal', value: '1.000 TND' });
   }
-  rows.push({ label: 'Timbre fiscal', value: '1.000 TND' });
+
+  const finalLabel = showTva ? 'À payer (TTC + timbre)' : 'Net HT';
+  const finalValue = showTva ? totals.totalFinal : totals.totalNet;
 
   return (
     <div className="w-full max-w-sm ml-auto rounded-lg border bg-muted/20 p-4 space-y-2">
@@ -420,9 +425,9 @@ export function DevisZohoTotalsPanel({
         </div>
       ))}
       <div className="flex justify-between gap-4 pt-3 mt-1 border-t border-border/80">
-        <span className="text-sm font-semibold text-foreground">À payer (TTC + timbre)</span>
+        <span className="text-sm font-semibold text-foreground">{finalLabel}</span>
         <span className="text-lg font-bold text-primary tabular-nums">
-          {totals.totalFinal.toFixed(3)} TND
+          {finalValue.toFixed(3)} TND
         </span>
       </div>
     </div>

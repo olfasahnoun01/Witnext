@@ -1,7 +1,7 @@
 import { useCallback, useRef, type ReactNode } from 'react';
 import { Plus, Search, Trash2 } from 'lucide-react';
 import type { DevisItem, Product } from '@/types';
-import { computeArticleTableLineTotalHT, computeDevisLine } from '@/lib/devisPricing';
+import { computeArticleTableLineTotalHT } from '@/lib/devisPricing';
 import { getDevisItemDisplayCode } from '@/lib/devisItemPdf';
 import { cn } from '@/lib/utils';
 import { DecimalInput } from '@/components/ui/decimal-input';
@@ -108,21 +108,13 @@ export function DevisArticlesTable({
   const searchRef = composerSearchRef ?? localSearchRef;
 
   const prixUnitHeader =
-    devisType === 'achat'
-      ? isTtc
-        ? 'P. achat TTC'
-        : 'P. achat HT'
-      : isTtc
-        ? 'Prix unitaire TTC'
-        : 'Prix unitaire HT';
+    devisType === 'achat' ? 'P. achat HT' : 'Prix unitaire HT';
 
   const showTvaColumn = isTtc && !partyExonereDeTva;
-  const totalHeader = isTtc ? 'Total TTC' : 'Total HT';
+  const totalHeader = 'Total HT';
 
   const lineTotal = (item: DevisItem) =>
-    isTtc
-      ? computeDevisLine(item, true).lineTTC
-      : computeArticleTableLineTotalHT(item, devisType, false);
+    computeArticleTableLineTotalHT(item, devisType, false);
 
   const composerPreview = lineTotal({
     designation: '',
@@ -358,9 +350,7 @@ export function DevisArticlesTable({
                 className={cn(devisZohoCellInputClass, 'text-right text-xs w-full h-auto py-1.5')}
                 placeholder={
                   devisType === 'vente' && articleMode === 'manual'
-                    ? isTtc
-                      ? 'Prix vente TTC…'
-                      : 'Prix vente HT…'
+                    ? 'Prix vente HT…'
                     : '0.000'
                 }
                 aria-label={prixUnitHeader}

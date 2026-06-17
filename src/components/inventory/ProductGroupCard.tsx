@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Package, Palette, Ruler, Trash2, Pencil, AlertTriangle } from 'lucide-react';
+import { Package, Palette, Ruler, Trash2, Pencil, AlertTriangle, FolderInput } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,8 +10,10 @@ interface ProductGroupCardProps {
   onClick: () => void;
   onEdit?: (group: ProductGroup) => void;
   onDelete?: (group: ProductGroup) => void;
+  onMove?: (group: ProductGroup) => void;
   canEdit?: boolean;
   canDelete?: boolean;
+  canMove?: boolean;
 }
 
 const getStockStatus = (group: ProductGroup): StockStatus => {
@@ -33,7 +35,7 @@ const statusStyles: Record<StockStatus, { bg: string; text: string; label: strin
   out_of_stock: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', label: 'Rupture' }
 };
 
-export const ProductGroupCard = memo(({ group, onClick, onEdit, onDelete, canEdit, canDelete }: ProductGroupCardProps) => {
+export const ProductGroupCard = memo(({ group, onClick, onEdit, onDelete, onMove, canEdit, canDelete, canMove }: ProductGroupCardProps) => {
   const status = getStockStatus(group);
   const style = statusStyles[status];
   const noSupplier = hasNoSupplier(group);
@@ -46,6 +48,11 @@ export const ProductGroupCard = memo(({ group, onClick, onEdit, onDelete, canEdi
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onDelete?.(group);
+  };
+
+  const handleMoveClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onMove?.(group);
   };
   
   return (
@@ -74,8 +81,20 @@ export const ProductGroupCard = memo(({ group, onClick, onEdit, onDelete, canEdi
               <h3 className="font-semibold text-foreground truncate flex-1 min-w-0" title={group.name}>
                 {group.name}
               </h3>
-              {(canEdit || canDelete) && (
+              {(canEdit || canDelete || canMove) && (
                 <div className="flex shrink-0 items-center gap-0.5">
+                  {canMove && onMove && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleMoveClick}
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent"
+                      title="Déplacer vers une autre catégorie"
+                    >
+                      <FolderInput className="w-4 h-4" />
+                    </Button>
+                  )}
                   {canEdit && onEdit && (
                     <Button
                       type="button"
