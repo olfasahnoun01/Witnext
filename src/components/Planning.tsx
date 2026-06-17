@@ -33,6 +33,7 @@ import {
   saveJsPdfWithPicker,
 } from '@/lib/saveFilePicker';
 import './planningPrint.css';
+import { printPlanningSection } from './planningPrint';
 
 // ── Types ──────────────────────────────────────────────────────────────
 interface EmployeeRow {
@@ -729,30 +730,18 @@ export const Planning = () => {
   useEffect(() => {
     if (!printJob) return;
 
-    const bodyClass = `print-target-${printJob.section}`;
-    document.body.classList.add(bodyClass);
-
-    const cleanup = () => {
-      document.body.classList.remove(bodyClass);
-      window.removeEventListener('afterprint', cleanup);
+    const timer = window.setTimeout(() => {
+      printPlanningSection(printJob.section);
       setPrintJob(null);
-    };
+    }, 80);
 
-    window.addEventListener('afterprint', cleanup);
-    const timer = window.setTimeout(() => window.print(), 80);
-
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener('afterprint', cleanup);
-      document.body.classList.remove(bodyClass);
-    };
+    return () => window.clearTimeout(timer);
   }, [printJob]);
 
   const handlePrintSection = useCallback((section: PlanningSection) => {
     setPrintJob({ section, at: new Date() });
   }, []);
-
-  // Period label for display
+  
   const periodLabel = useMemo(() => {
     const months = [
       'جانفي', 'فيفري', 'مارس', 'أفريل', 'ماي', 'جوان',

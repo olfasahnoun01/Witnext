@@ -12,6 +12,11 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
+declare module '*.css?inline' {
+  const css: string;
+  export default css;
+}
+
 interface Window {
   electronAPI?: {
     onUpdateMessage: (callback: (message: string) => void) => void;

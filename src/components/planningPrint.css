@@ -1,4 +1,4 @@
-/* Hidden on screen — shown only when printing the matching section */
+/* Screen: header hidden inside the main app (shown only in print iframe) */
 .planning-document-header {
   display: none;
 }
@@ -48,49 +48,46 @@
   border-radius: 4px;
 }
 
+.planning-section {
+  font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+  color: #0f172a;
+  background: #fff;
+}
+
 @media print {
   @page {
     size: A4 landscape;
-    margin: 10mm;
+    margin: 0;
   }
 
-  body * {
-    visibility: hidden;
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
   }
 
-  body.print-target-schedule .planning-section[data-section='schedule'],
-  body.print-target-schedule .planning-section[data-section='schedule'] *,
-  body.print-target-summary .planning-section[data-section='summary'],
-  body.print-target-summary .planning-section[data-section='summary'] *,
-  body.print-target-salary .planning-section[data-section='salary'],
-  body.print-target-salary .planning-section[data-section='salary'] * {
-    visibility: visible;
+  body {
+    padding: 10mm;
   }
 
-  body.print-target-schedule .planning-section[data-section='schedule'],
-  body.print-target-summary .planning-section[data-section='summary'],
-  body.print-target-salary .planning-section[data-section='salary'] {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    overflow: visible;
+  .planning-document-header,
+  .planning-document-header--active {
+    display: block !important;
+    margin-bottom: 8px;
+  }
+
+  .planning-section {
     box-shadow: none;
     border: 1px solid #ccc;
     border-radius: 0;
-  }
-
-  .planning-document-header--active {
-    display: block !important;
-    visibility: visible !important;
-    margin-bottom: 8px;
+    overflow: visible;
   }
 
   .no-print {
     display: none !important;
   }
 
-  /* Cleaner table cells when printing (no input chrome) */
   .planning-section input {
     border: none !important;
     background: transparent !important;
@@ -98,5 +95,16 @@
     padding: 0 !important;
     text-align: center;
     font-weight: 700;
+    color: inherit;
+  }
+
+  .planning-section table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .planning-section th,
+  .planning-section td {
+    border: 1px solid #cbd5e1;
   }
 }
