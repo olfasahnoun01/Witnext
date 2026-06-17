@@ -2,9 +2,10 @@
  * Copy legacy flat storage paths to `{companyId}/…` for company-scoped RLS.
  *
  * Usage:
- *   node scripts/migrate-storage-company-prefix.mjs                    # dry-run
- *   node scripts/migrate-storage-company-prefix.mjs --apply            # copy objects
- *   node scripts/migrate-storage-company-prefix.mjs --company-id <uuid> # default company
+ *   node scripts/migrate-storage-company-prefix.mjs                         # dry-run (defaults to grosafe)
+ *   node scripts/migrate-storage-company-prefix.mjs --apply                   # copy objects
+ *   node scripts/migrate-storage-company-prefix.mjs --company grosafe       # shorthand (see scripts/company-ids.json)
+ *   node scripts/migrate-storage-company-prefix.mjs --company-id <uuid>     # explicit UUID
  *
  * Env (.env.local / .env):
  *   VITE_SUPABASE_URL
@@ -18,6 +19,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
+const COMPANY_IDS_PATH = path.join(__dirname, 'company-ids.json');
 
 const BUCKETS = [
   'client-documents',
@@ -29,6 +31,13 @@ const BUCKETS = [
 ];
 
 const UUID_PREFIX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\//i;
+const COMPANY_CODE_ALIASES = {
+  grosafe: 'grosafe',
+  granisafe: 'granisafe',
+  safe_team: 'safe_team',
+  safeteam: 'safe_team',
+  'safe-team': 'safe_team',
+};
 
 function loadEnvFile(name) {
   const p = path.join(ROOT, name);
@@ -48,31 +57,60 @@ function loadEnvFile(name) {
   }
 }
 
+function loadKnownCompanyIds() {
+  if (!fs.existsSync(COMPANY_IDS_PATH)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(COMPANY_IDS_PATH, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function argValue(flag) {
+  const idx = process.argv.indexOf(flag);
+  return idx >= 0 ? process.argv[idx + 1] : null;
+}
+
 loadEnvFile('.env.local');
 loadEnvFile('.env');
 loadEnvFile('supabase/.env.local');
 loadEnvFile('supabase/.env');
 
 const APPLY = process.argv.includes('--apply');
-const companyArgIdx = process.argv.indexOf('--company-id');
-const CLI_COMPANY_ID = companyArgIdx >= 0 ? process.argv[companyArgIdx + 1] : null;
+const CLI_COMPANY_ID = argValue('--company-id');
+const CLI_COMPANY_CODE = argValue('--company');
+const KNOWN_COMPANY_IDS = loadKnownCompanyIds();
 
 const url = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
 if (!url || !serviceKey) {
   console.error('Storage migration requires credentials in `.env.local` (or `supabase/.env.local`).\n');
-  if (!url) {
-    console.error('  Missing VITE_SUPABASE_URL');
-  }
+  if (!url) console.error('  Missing VITE_SUPABASE_URL');
   if (!serviceKey) {
     console.error('  Missing SUPABASE_SERVICE_ROLE_KEY');
     console.error('    → Supabase Dashboard → Project Settings → API → service_role');
-    console.error('    → Add to .env.local (never commit this file):');
-    console.error('      SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...');
   }
   console.error('\nSee .env.example for the full template.');
   process.exit(1);
+}
+
+function resolveDefaultCompanyIdFromCli() {
+  if (CLI_COMPANY_ID) return CLI_COMPANY_ID.trim();
+  if (CLI_COMPANY_CODE) {
+    const code = COMPANY_CODE_ALIASES[CLI_COMPANY_CODE.toLowerCase().replace(/\s+/g, '_')];
+    if (!code) {
+      console.error(`Unknown --company "${CLI_COMPANY_CODE}". Use: grosafe, granisafe, safe_team`);
+      process.exit(1);
+    }
+    const id = KNOWN_COMPANY_IDS[code];
+    if (!id) {
+      console.error(`No UUID for "${code}" in scripts/company-ids.json`);
+      process.exit(1);
+    }
+    return id;
+  }
+  return KNOWN_COMPANY_IDS.grosafe ?? null;
 }
 
 console.log(`Connecting to ${url.replace(/^https?:\/\//, '').split(/\/.*$/, '')}…`);
@@ -85,7 +123,7 @@ async function listAllObjects(bucket, prefix = '') {
   const limit = 1000;
   while (true) {
     const { data, error } = await supabase.storage.from(bucket).list(prefix, { limit, offset });
-    if (error) throw new Error(`[${bucket}] list ${prefix}: ${error.message}`);
+    if (error) throw new Error(`[${bucket}] list ${prefix || '/'}: ${error.message}`);
     if (!data?.length) break;
     for (const item of data) {
       const fullPath = prefix ? `${prefix}/${item.name}` : item.name;
@@ -101,13 +139,26 @@ async function listAllObjects(bucket, prefix = '') {
   return out;
 }
 
+function normCode(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
 async function loadCompanyMaps() {
-  const { data: companies, error: cErr } = await supabase.from('companies').select('id');
+  const { data: companies, error: cErr } = await supabase.from('companies').select('id, code, name');
   if (cErr) throw new Error(cErr.message);
-  const companyIds = (companies || []).map((c) => c.id);
+
+  const byId = new Map();
+  const byCode = new Map();
+  for (const c of companies || []) {
+    byId.set(c.id, c);
+    byCode.set(c.code, c.id);
+  }
+
   const defaultCompanyId =
-    CLI_COMPANY_ID ||
-    (companyIds.length === 1 ? companyIds[0] : null);
+    resolveDefaultCompanyIdFromCli() ||
+    (companies?.length === 1 ? companies[0].id : KNOWN_COMPANY_IDS.grosafe ?? null);
 
   const employeeCompany = new Map();
   const { data: employees } = await supabase.from('hr_employees').select('id, company_id');
@@ -115,24 +166,51 @@ async function loadCompanyMaps() {
     if (e.id && e.company_id) employeeCompany.set(e.id, e.company_id);
   }
 
-  const reportCompany = new Map();
-  const { data: reports } = await supabase.from('rh_security_reports').select('id, company_name');
-  void reports;
+  const entityCompany = new Map();
+  const [{ data: clients }, { data: fournisseurs }] = await Promise.all([
+    supabase.from('clients').select('code, company_id'),
+    supabase.from('fournisseurs').select('code, company_id'),
+  ]);
+  for (const row of clients || []) {
+    if (row.code && row.company_id) entityCompany.set(normCode(row.code), row.company_id);
+  }
+  for (const row of fournisseurs || []) {
+    if (row.code && row.company_id) entityCompany.set(normCode(row.code), row.company_id);
+  }
 
-  return { companyIds, defaultCompanyId, employeeCompany, reportCompany };
+  return {
+    companies: companies || [],
+    byId,
+    byCode,
+    defaultCompanyId,
+    employeeCompany,
+    entityCompany,
+  };
+}
+
+function companyLabel(maps, id) {
+  const row = maps.byId.get(id);
+  return row ? `${row.name} (${row.code})` : id;
+}
+
+function resolveFromClientDocumentPath(objectPath, maps) {
+  const base = objectPath.split('/').pop() || objectPath;
+  const match = base.match(/^(?:patente|rc)_(.+)\.[^.]+$/i);
+  if (!match) return null;
+  return maps.entityCompany.get(normCode(match[1])) ?? null;
 }
 
 function resolveTargetCompany(bucket, objectPath, maps) {
-  const { defaultCompanyId, employeeCompany } = maps;
   if (bucket === 'hr-contracts') {
-    const employeeId = objectPath.split('/')[0];
-    if (employeeCompany.has(employeeId)) return employeeCompany.get(employeeId);
+    const first = objectPath.split('/')[0];
+    if (maps.employeeCompany.has(first)) return maps.employeeCompany.get(first);
+    if (UUID_PREFIX.test(`${first}/`)) return first;
   }
-  if (bucket === 'rh-report-files') {
-    const reportId = objectPath.split('/')[0];
-    if (maps.reportCompany?.has(reportId)) return maps.reportCompany.get(reportId);
+  if (bucket === 'client-documents') {
+    const fromEntity = resolveFromClientDocumentPath(objectPath, maps);
+    if (fromEntity) return fromEntity;
   }
-  return defaultCompanyId;
+  return maps.defaultCompanyId;
 }
 
 async function migrateBucket(bucket, maps) {
@@ -161,7 +239,8 @@ async function migrateBucket(bucket, maps) {
       skipped++;
       continue;
     }
-    console.log(`[${bucket}] ${oldPath} -> ${newPath}`);
+    const label = companyLabel(maps, companyId);
+    console.log(`[${bucket}] ${oldPath} -> ${newPath}  (${label})`);
     if (APPLY) {
       const { data: blob, error: dlErr } = await supabase.storage.from(bucket).download(oldPath);
       if (dlErr) {
@@ -184,13 +263,20 @@ async function migrateBucket(bucket, maps) {
 
 async function main() {
   const maps = await loadCompanyMaps();
-  if (!maps.defaultCompanyId && maps.companyIds.length !== 1) {
-    console.warn(
-      'Multiple companies found; pass --company-id <uuid> for paths that cannot be inferred from hr_employees.'
-    );
+
+  console.log('Companies in database:');
+  for (const c of maps.companies) {
+    console.log(`  ${c.code.padEnd(12)} ${c.id}  ${c.name}`);
   }
 
-  console.log(APPLY ? 'APPLY mode' : 'DRY-RUN mode');
+  if (!maps.defaultCompanyId) {
+    console.error('\nNo default company. Pass --company grosafe|granisafe|safe_team or --company-id <uuid>.');
+    process.exit(1);
+  }
+
+  console.log(`\nDefault company for unmappable paths: ${companyLabel(maps, maps.defaultCompanyId)}`);
+  console.log(APPLY ? 'APPLY mode\n' : 'DRY-RUN mode\n');
+
   let totalMigrated = 0;
   let totalSkipped = 0;
 
@@ -204,9 +290,10 @@ async function main() {
     }
   }
 
-  console.log(`Done. migrated=${totalMigrated} skipped=${totalSkipped}`);
+  console.log(`\nDone. migrated=${totalMigrated} skipped=${totalSkipped}`);
   if (!APPLY && totalMigrated > 0) {
     console.log('Re-run with --apply to copy objects.');
+    console.log('Per-company override: --company granisafe | --company safe_team');
   }
 }
 
