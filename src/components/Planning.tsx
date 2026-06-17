@@ -29,6 +29,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
   buildCompanyPlanningJsonFileName,
+  buildCompanyPlanningPdfFileName,
   saveJsPdfWithPicker,
 } from '@/lib/saveFilePicker';
 import './planningPrint.css';
@@ -619,10 +620,10 @@ export const Planning = () => {
       if (section === 'salary' || section === 'all') addSalaryPage();
 
       const fileNames: Record<PlanningPdfSection, string> = {
-        schedule: `planning_calendrier_${periodSuffix}.pdf`,
-        summary: `planning_resume_${periodSuffix}.pdf`,
-        salary: `planning_salaires_${periodSuffix}.pdf`,
-        all: `planning_complet_${periodSuffix}.pdf`,
+        schedule: buildCompanyPlanningPdfFileName(companyName, 'schedule', periodSuffix),
+        summary: buildCompanyPlanningPdfFileName(companyName, 'summary', periodSuffix),
+        salary: buildCompanyPlanningPdfFileName(companyName, 'salary', periodSuffix),
+        all: buildCompanyPlanningPdfFileName(companyName, 'all', periodSuffix),
       };
 
       const result = await saveJsPdfWithPicker(doc, fileNames[section]);

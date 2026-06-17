@@ -13,6 +13,25 @@ export function buildCompanyPlanningJsonFileName(companyName: string): string {
   return `${sanitizeFileName(companyName, 'planning')}_planning.json`;
 }
 
+export type PlanningPdfKind = 'schedule' | 'summary' | 'salary' | 'all';
+
+const PLANNING_PDF_KIND_LABEL: Record<PlanningPdfKind, string> = {
+  schedule: 'calendrier',
+  summary: 'resume',
+  salary: 'salaires',
+  all: 'complet',
+};
+
+export function buildCompanyPlanningPdfFileName(
+  companyName: string,
+  kind: PlanningPdfKind,
+  periodSuffix: string
+): string {
+  const company = sanitizeFileName(companyName, 'planning');
+  const label = PLANNING_PDF_KIND_LABEL[kind];
+  return `${company}_planning_${label}_${periodSuffix}.pdf`;
+}
+
 export interface SaveBlobOptions {
   blob: Blob;
   suggestedName: string;
