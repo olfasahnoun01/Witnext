@@ -27,6 +27,10 @@ import {
 import { toast } from 'sonner';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import {
+  buildCompanyPlanningJsonFileName,
+  saveJsPdfWithPicker,
+} from '@/lib/saveFilePicker';
 import './planningPrint.css';
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -227,7 +231,7 @@ export const Planning = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `planning_${referenceDate}.json`;
+    a.download = buildCompanyPlanningJsonFileName(companyName);
     a.click();
     URL.revokeObjectURL(url);
     toast.success('تم تصدير البيانات (JSON)');
@@ -478,7 +482,7 @@ export const Planning = () => {
 
   // PDF Export (per section or all)
   const exportSectionPDF = useCallback(
-    (section: PlanningPdfSection) => {
+    async (section: PlanningPdfSection) => {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
       const periodSuffix = `${formatDD_MM(startDate)}_${formatDD_MM(endDate)}`;
@@ -621,7 +625,8 @@ export const Planning = () => {
         all: `planning_complet_${periodSuffix}.pdf`,
       };
 
-      doc.save(fileNames[section]);
+      const result = await saveJsPdfWithPicker(doc, fileNames[section]);
+      if (result === 'cancelled') return;
 
       const successMessages: Record<PlanningPdfSection, string> = {
         schedule: 'تم تصدير جدول المناوبات (PDF)',
