@@ -1,3 +1,53 @@
+/* Hidden on screen — shown only when printing the matching section */
+.planning-document-header {
+  display: none;
+}
+
+.planning-document-header__banner {
+  background: #1e3a5f;
+  color: #fff;
+  text-align: center;
+  padding: 14px 16px;
+}
+
+.planning-document-header__company {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.planning-document-header__title {
+  margin: 6px 0 0;
+  font-size: 1rem;
+  font-weight: 500;
+  opacity: 0.95;
+}
+
+.planning-document-header__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 16px;
+  font-size: 11pt;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-top: none;
+  color: #0f172a;
+}
+
+.planning-document-header__generated {
+  flex: 1 1 100%;
+  text-align: center;
+  font-size: 12pt;
+  padding: 4px 8px;
+  background: #fff;
+  border: 1px solid #94a3b8;
+  border-radius: 4px;
+}
+
 @media print {
   @page {
     size: A4 landscape;
@@ -27,9 +77,26 @@
     overflow: visible;
     box-shadow: none;
     border: 1px solid #ccc;
+    border-radius: 0;
+  }
+
+  .planning-document-header--active {
+    display: block !important;
+    visibility: visible !important;
+    margin-bottom: 8px;
   }
 
   .no-print {
     display: none !important;
+  }
+
+  /* Cleaner table cells when printing (no input chrome) */
+  .planning-section input {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    text-align: center;
+    font-weight: 700;
   }
 }

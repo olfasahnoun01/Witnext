@@ -75,6 +75,76 @@ function formatDD_MM(d: Date): string {
   return `${dd}/${mm}`;
 }
 
+function formatPlanningGeneratedDate(d: Date): string {
+  return d.toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+function formatPlanningGeneratedTime(d: Date): string {
+  return d.toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+const PLANNING_PDF_TABLE_START_Y = 56;
+
+function drawPlanningPdfHeader(
+  doc: jsPDF,
+  opts: {
+    companyName: string;
+    siteName: string;
+    sectionTitle: string;
+    periodLabel: string;
+    generatedAt: Date;
+  }
+): void {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 14;
+  const bannerY = 8;
+  const bannerH = 26;
+
+  doc.setFillColor(30, 58, 95);
+  doc.rect(margin, bannerY, pageWidth - margin * 2, bannerH, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.text(opts.companyName || 'Entreprise', pageWidth / 2, bannerY + 11, { align: 'center' });
+
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'normal');
+  doc.text(opts.sectionTitle, pageWidth / 2, bannerY + 21, { align: 'center' });
+
+  const genDate = formatPlanningGeneratedDate(opts.generatedAt);
+  const genTime = formatPlanningGeneratedTime(opts.generatedAt);
+  const stampY = bannerY + bannerH + 5;
+
+  doc.setFillColor(241, 245, 249);
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.3);
+  doc.rect(margin, stampY, pageWidth - margin * 2, 11, 'FD');
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Généré le ${genDate}  à  ${genTime}`, pageWidth / 2, stampY + 7.5, { align: 'center' });
+
+  const metaY = stampY + 16;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text(`Site : ${opts.siteName || '—'}`, margin, metaY);
+  doc.text(`Période : ${opts.periodLabel}`, pageWidth - margin, metaY, { align: 'right' });
+
+  doc.setDrawColor(30, 58, 95);
+  doc.setLineWidth(0.6);
+  doc.line(margin, metaY + 4, pageWidth - margin, metaY + 4);
+}
+
 function dateKey(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
@@ -158,8 +228,32 @@ function mapLegacyRowsToEmployees(
   });
 }
 
+function formatPlanningGeneratedAt(date: Date): { date: string; time: string; combined: string } {
+  const dateStr = date.toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+  const timeStr = date.toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  return {
+    date: dateStr,
+    time: timeStr,
+    combined: `${dateStr} à ${timeStr}`,
+  };
+}
+
+const PLANNING_SECTION_DOC_TITLES: Record<PlanningSection, string> = {
+  schedule: 'Planning / Calendrier',
+  summary: 'Résumé / Récapitulatif',
+  salary: 'Estimation Salaires',
+};
+
 // Arabic day full names
-const AR_DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+const AR_DAYS = ['الأحد', 'الإثnين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
 // ── Component ──────────────────────────────────────────────────────────
 export const Planning = () => {
@@ -184,6 +278,7 @@ export const Planning = () => {
 
   // Generated state
   const [isGenerated, setIsGenerated] = useState(false);
+  const [printJob, setPrintJob] = useState<{ section: PlanningSection; at: Date } | null>(null);
 
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -485,26 +580,17 @@ export const Planning = () => {
   const exportSectionPDF = useCallback(
     async (section: PlanningPdfSection) => {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-      const pageWidth = doc.internal.pageSize.getWidth();
       const periodSuffix = `${formatDD_MM(startDate)}_${formatDD_MM(endDate)}`;
+      const periodLabelStr = `${formatDD_MM(startDate)} - ${formatDD_MM(endDate)}`;
+      const generatedAt = new Date();
 
       const addHeader = (title: string) => {
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.text(companyName || 'Entreprise', pageWidth / 2, 15, { align: 'center' });
-
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'normal');
-        doc.text(title, pageWidth / 2, 22, { align: 'center' });
-
-        doc.setFontSize(10);
-        const rightTextX = pageWidth - 14;
-        doc.text(`Site : ${siteName || '-'}`, rightTextX, 22, { align: 'right' });
-        doc.text(`Période : ${formatDD_MM(startDate)} - ${formatDD_MM(endDate)}`, 14, 15, {
-          align: 'left',
-        });
-        doc.text(`Date d'exportation : ${new Date().toLocaleString('fr-FR')}`, 14, 22, {
-          align: 'left',
+        drawPlanningPdfHeader(doc, {
+          companyName,
+          siteName,
+          sectionTitle: title,
+          periodLabel: periodLabelStr,
+          generatedAt,
         });
       };
 
@@ -524,7 +610,7 @@ export const Planning = () => {
         autoTable(doc, {
           head: scheduleHead,
           body: scheduleBody,
-          startY: 30,
+          startY: PLANNING_PDF_TABLE_START_Y,
           styles: { fontSize: 7, cellPadding: 1.5, halign: 'center' },
           headStyles: { fillColor: [30, 58, 95], fontSize: 6 },
           columnStyles: { [empColIndex]: { halign: 'right' } },
@@ -584,7 +670,7 @@ export const Planning = () => {
         autoTable(doc, {
           head: summaryHead,
           body: summaryBody,
-          startY: 30,
+          startY: PLANNING_PDF_TABLE_START_Y,
           styles: { fontSize: 8, cellPadding: 2, halign: 'center' },
           headStyles: { fillColor: [30, 58, 95], fontSize: 7 },
           columnStyles: { 8: { halign: 'right' } },
@@ -608,7 +694,7 @@ export const Planning = () => {
         autoTable(doc, {
           head: salaryHead,
           body: salaryBody,
-          startY: 30,
+          startY: PLANNING_PDF_TABLE_START_Y,
           styles: { fontSize: 9, cellPadding: 3, halign: 'center' },
           headStyles: { fillColor: [21, 128, 61], fontSize: 8 },
           columnStyles: { 2: { halign: 'right' } },
@@ -640,15 +726,30 @@ export const Planning = () => {
     [companyName, siteName, startDate, endDate, dates, employees, summaries]
   );
 
-  const handlePrintSection = useCallback((section: PlanningSection) => {
-    const bodyClass = `print-target-${section}`;
+  useEffect(() => {
+    if (!printJob) return;
+
+    const bodyClass = `print-target-${printJob.section}`;
     document.body.classList.add(bodyClass);
+
     const cleanup = () => {
       document.body.classList.remove(bodyClass);
       window.removeEventListener('afterprint', cleanup);
+      setPrintJob(null);
     };
+
     window.addEventListener('afterprint', cleanup);
-    window.print();
+    const timer = window.setTimeout(() => window.print(), 80);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('afterprint', cleanup);
+      document.body.classList.remove(bodyClass);
+    };
+  }, [printJob]);
+
+  const handlePrintSection = useCallback((section: PlanningSection) => {
+    setPrintJob({ section, at: new Date() });
   }, []);
 
   // Period label for display
@@ -664,6 +765,39 @@ export const Planning = () => {
   }, [periodType, startDate, endDate]);
 
   // ── Render ─────────────────────────────────────────────────────────
+  const renderPlanningDocumentHeader = (
+    section: PlanningSection,
+    sectionTitleFr: string
+  ) => {
+    const isPrinting = printJob?.section === section;
+    const generatedAt = isPrinting ? printJob.at : new Date();
+    const periodStr = `${formatDD_MM(startDate)} - ${formatDD_MM(endDate)}`;
+
+    return (
+      <div
+        className={`planning-document-header ${isPrinting ? 'planning-document-header--active' : ''}`}
+        aria-hidden={!isPrinting}
+      >
+        <div className="planning-document-header__banner">
+          <p className="planning-document-header__company">{companyName || 'Entreprise'}</p>
+          <p className="planning-document-header__title">{sectionTitleFr}</p>
+        </div>
+        <div className="planning-document-header__meta">
+          <span className="planning-document-header__generated">
+            Généré le <strong>{formatPlanningGeneratedDate(generatedAt)}</strong> à{' '}
+            <strong>{formatPlanningGeneratedTime(generatedAt)}</strong>
+          </span>
+          <span>
+            <strong>Site :</strong> {siteName || '—'}
+          </span>
+          <span>
+            <strong>Période :</strong> {periodStr}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
   const renderSectionActions = (section: PlanningSection) => (
     <div className="no-print flex items-center gap-2">
       <Button
@@ -924,7 +1058,8 @@ export const Planning = () => {
           data-section="schedule"
           className="planning-section rounded-2xl border border-border bg-card shadow-md overflow-hidden"
         >
-          <div className="flex items-center justify-between gap-3 p-4 border-b border-border bg-muted/30">
+          {renderPlanningDocumentHeader('schedule', 'Planning / Calendrier')}
+          <div className="no-print flex items-center justify-between gap-3 p-4 border-b border-border bg-muted/30">
             <h3 className="text-base font-semibold text-foreground">جدول المناوبات</h3>
             {renderSectionActions('schedule')}
           </div>
@@ -1016,7 +1151,7 @@ export const Planning = () => {
           </div>
 
           {/* Table footer info */}
-          <div className="flex items-center justify-between px-4 py-3 bg-muted/30 border-t border-border text-xs text-muted-foreground">
+          <div className="no-print flex items-center justify-between px-4 py-3 bg-muted/30 border-t border-border text-xs text-muted-foreground">
             <span>
               {companyName && `${companyName}`}
               {siteName && ` • ${siteName}`}
@@ -1034,7 +1169,8 @@ export const Planning = () => {
           data-section="summary"
           className="planning-section rounded-2xl border border-border bg-card shadow-md overflow-hidden mt-6"
         >
-          <div className="flex items-center justify-between gap-3 p-4 border-b border-border bg-muted/30">
+          {renderPlanningDocumentHeader('summary', 'Résumé / Récapitulatif')}
+          <div className="no-print flex items-center justify-between gap-3 p-4 border-b border-border bg-muted/30">
             <h3 className="text-base font-semibold text-foreground">ملخص المناوبات</h3>
             {renderSectionActions('summary')}
           </div>
@@ -1123,7 +1259,8 @@ export const Planning = () => {
           data-section="salary"
           className="planning-section rounded-2xl border border-border bg-card shadow-md overflow-hidden mt-6"
         >
-          <div className="flex items-center justify-between gap-3 p-4 border-b border-border bg-muted/30">
+          {renderPlanningDocumentHeader('salary', 'Estimation Salaires')}
+          <div className="no-print flex items-center justify-between gap-3 p-4 border-b border-border bg-muted/30">
             <h3 className="text-base font-semibold text-foreground">جدول الرواتب (Estimation Salaires)</h3>
             {renderSectionActions('salary')}
           </div>
