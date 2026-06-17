@@ -50,18 +50,32 @@ function loadEnvFile(name) {
 
 loadEnvFile('.env.local');
 loadEnvFile('.env');
+loadEnvFile('supabase/.env.local');
+loadEnvFile('supabase/.env');
 
 const APPLY = process.argv.includes('--apply');
 const companyArgIdx = process.argv.indexOf('--company-id');
 const CLI_COMPANY_ID = companyArgIdx >= 0 ? process.argv[companyArgIdx + 1] : null;
 
-const url = process.env.VITE_SUPABASE_URL?.trim();
+const url = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
 if (!url || !serviceKey) {
-  console.error('Missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  console.error('Storage migration requires credentials in `.env.local` (or `supabase/.env.local`).\n');
+  if (!url) {
+    console.error('  Missing VITE_SUPABASE_URL');
+  }
+  if (!serviceKey) {
+    console.error('  Missing SUPABASE_SERVICE_ROLE_KEY');
+    console.error('    → Supabase Dashboard → Project Settings → API → service_role');
+    console.error('    → Add to .env.local (never commit this file):');
+    console.error('      SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...');
+  }
+  console.error('\nSee .env.example for the full template.');
   process.exit(1);
 }
+
+console.log(`Connecting to ${url.replace(/^https?:\/\//, '').split(/\/.*$/, '')}…`);
 
 const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
 
@@ -122,7 +136,9 @@ function resolveTargetCompany(bucket, objectPath, maps) {
 }
 
 async function migrateBucket(bucket, maps) {
+  process.stdout.write(`[${bucket}] listing… `);
   const paths = await listAllObjects(bucket);
+  console.log(`${paths.length} object(s)`);
   const legacy = paths.filter((p) => !UUID_PREFIX.test(p));
   if (!legacy.length) {
     console.log(`[${bucket}] no legacy paths`);
