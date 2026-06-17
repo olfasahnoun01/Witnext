@@ -12,34 +12,34 @@ interface OnlineUser {
 }
 
 interface UsePresenceOptions {
-  heartbeatInterval?: number; // in ms, default 30s
+  /** Heartbeat interval in ms (default 2 min). */
+  heartbeatInterval?: number;
 }
 
 const sameUserId = (a: string, b: string) => a.replace(/-/g, '').toLowerCase() === b.replace(/-/g, '').toLowerCase();
 
 export const usePresence = (options: UsePresenceOptions = {}) => {
-  const { heartbeatInterval = 30000 } = options;
+  const { heartbeatInterval = 120_000 } = options;
   const { user, isAdmin, isModerator } = useAuth();
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
+  const pollRef = useRef<number | null>(null);
   const presenceWriteOkRef = useRef(false);
-  /** Ignore stale fetch results when multiple fetchOnlineUsers overlap (poll + realtime + post-upsert). */
+  const realtimeOkRef = useRef(false);
+  const fetchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Ignore stale fetch results when multiple fetchOnlineUsers overlap. */
   const fetchSeqRef = useRef(0);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [hasPermission, setHasPermission] = useState(true);
 
-  // Determine user role string
   const userRole = isAdmin ? 'admin' : isModerator ? 'moderator' : 'user';
 
-  // Update presence in database - errors are silently handled
   const updatePresence = useCallback(async (isOnline: boolean) => {
     if (!user || !hasPermission) return;
 
     try {
-      // Verify session is still valid
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      // Use atomic upsert to avoid 409 Conflict errors
       const meta = user.user_metadata as Record<string, unknown> | undefined;
       const fromMeta = meta?.full_name;
       const fullName =
@@ -58,8 +58,7 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
 
       if (error) {
         presenceWriteOkRef.current = false;
-        // Circuit breaker: if we get a permission error or foreign key violation (stale session), stop trying
-        if ((error as any).status === 403 || error.code === '42501' || error.code === '23503') {
+        if ((error as { status?: number }).status === 403 || error.code === '42501' || error.code === '23503') {
           console.log(`Presence feature silenced: ${error.code === '23503' ? 'Session identity mismatch (migration effect)' : 'Insufficient permissions'}. Please re-login to restore status indicators.`);
           setHasPermission(false);
           return;
@@ -73,7 +72,6 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
     }
   }, [user, userRole, hasPermission]);
 
-  // Fetch online users (all authenticated users)
   const fetchOnlineUsers = useCallback(async () => {
     if (!user || !hasPermission) return;
 
@@ -87,7 +85,7 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
 
       const { data, error } = await supabase
         .from('user_presence')
-        .select('*')
+        .select('user_id, email, full_name, role, last_seen, is_online')
         .eq('is_online', true)
         .gte('last_seen', recentCutoff)
         .order('last_seen', { ascending: false });
@@ -95,15 +93,12 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
       if (seq !== fetchSeqRef.current) return;
 
       if (error) {
-        // Do not disable heartbeats on read errors (RLS misconfig / transient); upsert path owns circuit-breaker.
         console.warn('Fetching online users failed:', error.message);
         return;
       }
 
       let rows = (data || []) as OnlineUser[];
 
-      // If the roster SELECT misses you (race before upsert, RLS timing, or silent upsert issues), still show
-      // yourself while the tab is visible so "Utilisateurs connectés" is not stuck at 0.
       if (
         typeof document !== 'undefined' &&
         document.visibilityState === 'visible' &&
@@ -184,30 +179,46 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
   const updatePresenceRef = useRef(updatePresence);
   updatePresenceRef.current = updatePresence;
 
-  // Wrap upsert so staff refresh the roster as soon as their row is written (avoids racing fetch before upsert).
-  const updatePresenceAndRefreshStaffList = useCallback(async (isOnline: boolean) => {
-    await updatePresenceRef.current(isOnline);
-    if (isOnline) {
+  const scheduleFetchOnlineUsers = useCallback(() => {
+    if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
+    fetchDebounceRef.current = setTimeout(() => {
       void fetchOnlineUsersRef.current();
+    }, 800);
+  }, []);
+
+  const startPollFallback = useCallback(() => {
+    if (pollRef.current != null) return;
+    pollRef.current = window.setInterval(() => {
+      if (!realtimeOkRef.current) {
+        void fetchOnlineUsersRef.current();
+      }
+    }, 60_000);
+  }, []);
+
+  const stopPollFallback = useCallback(() => {
+    if (pollRef.current != null) {
+      window.clearInterval(pollRef.current);
+      pollRef.current = null;
     }
   }, []);
 
-  // Set up heartbeat
+  // Heartbeat: upsert only (no roster refetch on every tick).
   useEffect(() => {
     if (!user || !hasPermission) return;
 
-    void updatePresenceAndRefreshStaffList(true);
+    void updatePresenceRef.current(true);
+    void fetchOnlineUsersRef.current();
 
     heartbeatRef.current = setInterval(() => {
-      void updatePresenceAndRefreshStaffList(true);
+      void updatePresenceRef.current(true);
     }, heartbeatInterval);
 
-    // Handle visibility change
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         void updatePresenceRef.current(false);
       } else {
-        void updatePresenceAndRefreshStaffList(true);
+        void updatePresenceRef.current(true);
+        scheduleFetchOnlineUsers();
       }
     };
 
@@ -218,23 +229,13 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         clearInterval(heartbeatRef.current);
         heartbeatRef.current = null;
       }
-      // Do not call updatePresence(false) here: this effect re-runs when userRole flips after
-      // roles load (user → admin). Cleanup would mark you offline right before fetchOnlineUsers,
-      // so "Utilisateurs connectés" stays empty until the next poll.
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [user, heartbeatInterval, updatePresenceAndRefreshStaffList, hasPermission]);
+  }, [user, heartbeatInterval, hasPermission, scheduleFetchOnlineUsers]);
 
-  // Subscribe to presence changes (all authenticated users), with polling fallback
+  // Realtime roster updates; poll only when Realtime is unavailable.
   useEffect(() => {
     if (!user || !hasPermission) return;
-
-    void fetchOnlineUsers();
-
-    const pollMs = 20000;
-    const pollId = window.setInterval(() => {
-      void fetchOnlineUsers();
-    }, pollMs);
 
     const channel = supabase
       .channel('presence-changes')
@@ -246,23 +247,31 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
           table: 'user_presence'
         },
         () => {
-          void fetchOnlineUsers();
+          scheduleFetchOnlineUsers();
         }
       )
       .subscribe((status, err) => {
         if (err) {
           console.warn('[presence] Realtime subscribe error:', err);
         }
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          void fetchOnlineUsers();
+        realtimeOkRef.current = status === 'SUBSCRIBED';
+        if (realtimeOkRef.current) {
+          stopPollFallback();
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          startPollFallback();
+          scheduleFetchOnlineUsers();
         }
       });
 
+    startPollFallback();
+
     return () => {
-      window.clearInterval(pollId);
+      stopPollFallback();
+      if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
       supabase.removeChannel(channel);
+      realtimeOkRef.current = false;
     };
-  }, [user, fetchOnlineUsers, hasPermission]);
+  }, [user, hasPermission, scheduleFetchOnlineUsers, startPollFallback, stopPollFallback]);
 
   return {
     onlineUsers,

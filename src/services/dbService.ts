@@ -412,8 +412,17 @@ const sanitizeFolderName = (name: string): string => {
   return name.replace(/[\/\\:*?"<>|]/g, '_').trim() || '_unnamed';
 };
 
-// Export/Import Database - exports ALL data and storage files as ZIP
-export const exportDatabase = async (onProgress?: (message: string) => void): Promise<Blob | null> => {
+// Export/Import Database - exports data as ZIP; storage files optional (high egress).
+export type ExportDatabaseOptions = {
+  /** When false (default), only JSON metadata is exported — no Storage downloads. */
+  includeStorage?: boolean;
+};
+
+export const exportDatabase = async (
+  onProgress?: (message: string) => void,
+  options: ExportDatabaseOptions = {},
+): Promise<Blob | null> => {
+  const { includeStorage = false } = options;
   try {
     onProgress?.('Récupération des données...');
     
@@ -517,8 +526,8 @@ export const exportDatabase = async (onProgress?: (message: string) => void): Pr
       console.warn('Could not list storage files:', err);
     }
 
-    // Download and organize files into article-named folders
-    if (allStoragePaths.length > 0) {
+    // Download storage files only when explicitly requested (avoids multi-GB Supabase egress).
+    if (includeStorage && allStoragePaths.length > 0) {
       const storageFolder = zip.folder('fiches-techniques');
       let downloadedCount = 0;
 

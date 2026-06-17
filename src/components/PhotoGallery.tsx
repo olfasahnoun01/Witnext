@@ -51,6 +51,7 @@ import {
   ExternalLink,
   Download,
   Receipt,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -63,6 +64,12 @@ import {
 } from '@/components/ui/pagination';
 
 const ITEMS_PER_PAGE = 20;
+
+/** WooCommerce import pulls full catalog + images — disabled to limit Storage egress. Set true to re-enable. */
+const GALLERY_WOOCOMMERCE_IMPORT_ENABLED = false;
+
+const GALLERY_ITEM_COLUMNS =
+  'id, name, category, description, photos, fiches_techniques, devis_fichiers, prix_vente_ttc, prix_achat_ttc, created_at';
 
 function parseUrlArray(raw: unknown): string[] {
   if (raw == null) return [];
@@ -143,6 +150,7 @@ export const PhotoGallery = () => {
   const [uploadingDevis, setUploadingDevis] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [importingFromSite, setImportingFromSite] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const ficheInputRef = useRef<HTMLInputElement>(null);
@@ -151,7 +159,7 @@ export const PhotoGallery = () => {
   const fetchCategories = useCallback(async () => {
     const { data } = await supabase
       .from('gallery_categories')
-      .select('*')
+      .select('id, name')
       .order('name');
     if (data) setDbCategories(data);
   }, []);
@@ -168,7 +176,7 @@ export const PhotoGallery = () => {
   const fetchItems = useCallback(async () => {
     const { data, error } = await supabase
       .from('gallery_items')
-      .select('*')
+      .select(GALLERY_ITEM_COLUMNS)
       .order('created_at', { ascending: false });
 
     if (!error && data) {
@@ -193,22 +201,21 @@ export const PhotoGallery = () => {
     setLoading(false);
   }, []);
 
+  const handleRefreshGallery = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([fetchItems(), fetchCategories(), fetchInventoryCategories()]);
+      toast({ title: 'Galerie actualisée' });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchItems, fetchCategories, fetchInventoryCategories, toast]);
+
+  // Load once on mount — no realtime (avoids refetch loops and repeated Storage image loads).
   useEffect(() => {
-    fetchItems();
-    fetchCategories();
+    void fetchItems();
+    void fetchCategories();
     void fetchInventoryCategories();
-
-    const channel = supabase
-      .channel('gallery-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'gallery_items' }, () => {
-        fetchItems();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'gallery_categories' }, () => {
-        fetchCategories();
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
   }, [fetchItems, fetchCategories, fetchInventoryCategories]);
 
   /** Liste déroulante formulaire / filtres : catégories inventaire + galerie (sans « Général »). */
@@ -681,6 +688,20 @@ export const PhotoGallery = () => {
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
+              onClick={() => void handleRefreshGallery()}
+              disabled={refreshing}
+              title="Recharger la galerie depuis la base (sans sync automatique)"
+            >
+              {refreshing ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4 mr-2" />
+              )}
+              Actualiser
+            </Button>
+            {GALLERY_WOOCOMMERCE_IMPORT_ENABLED && (
+            <Button
+              variant="outline"
               onClick={() => void handleImportFromWebsite()}
               disabled={importingFromSite}
             >
@@ -691,6 +712,7 @@ export const PhotoGallery = () => {
               )}
               Importer depuis le site
             </Button>
+            )}
             <Button variant="outline" onClick={() => setShowCategoryModal(true)}>
               <Tag className="w-4 h-4 mr-2" />
               Catégories
@@ -1057,7 +1079,7 @@ export const PhotoGallery = () => {
               >
                 {formPhotos.map((url, i) => (
                   <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-border">
-                    <img src={url} alt="" className="w-full h-full object-cover" />
+                    <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                     <button
                       onClick={() => removePhoto(i)}
                       className="absolute top-1 right-1 p-1 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/80"
@@ -1122,6 +1144,8 @@ export const PhotoGallery = () => {
                       src={quickViewItem.photos[quickViewPhotoIndex]}
                       alt={quickViewItem.name}
                       className="max-w-full max-h-[50vh] object-contain"
+                      loading="lazy"
+                      decoding="async"
                     />
                   </div>
                   {quickViewItem.photos.length > 1 && (
@@ -1160,7 +1184,7 @@ export const PhotoGallery = () => {
                             i === quickViewPhotoIndex ? 'border-primary ring-2 ring-primary/30' : 'border-transparent opacity-70 hover:opacity-100'
                           )}
                         >
-                          <img src={photo} alt="" className="w-full h-full object-cover" />
+                          <img src={photo} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                         </button>
                       ))}
                     </div>

@@ -67,29 +67,59 @@ function uniqueDownloadPaths(path: string): string[] {
   return expandStorageDownloadPaths(path, getActiveCompanyId());
 }
 
+const PREVIEW_CACHE_MAX = 24;
+const previewBlobCache = new Map<string, Blob>();
+
+function cacheKey(bucket: string, path: string): string {
+  return `${bucket}:${path}`;
+}
+
+function cachePreviewBlob(bucket: string, path: string, blob: Blob): void {
+  const key = cacheKey(bucket, path);
+  if (previewBlobCache.has(key)) previewBlobCache.delete(key);
+  previewBlobCache.set(key, blob);
+  while (previewBlobCache.size > PREVIEW_CACHE_MAX) {
+    const oldest = previewBlobCache.keys().next().value;
+    if (oldest) previewBlobCache.delete(oldest);
+    else break;
+  }
+}
+
+async function downloadBlobForCandidate(bucket: string, candidate: string): Promise<Blob | null> {
+  const key = cacheKey(bucket, candidate);
+  const cached = previewBlobCache.get(key);
+  if (cached && cached.size > 0) return cached;
+
+  const { data, error } = await supabase.storage.from(bucket).download(candidate);
+  if (!error && data && data.size > 0) {
+    cachePreviewBlob(bucket, candidate, data);
+    return data;
+  }
+
+  const { data: signed, error: signError } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(candidate, 3600);
+  if (signError || !signed?.signedUrl) return null;
+
+  try {
+    const response = await fetch(signed.signedUrl);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    if (blob.size > 0) {
+      cachePreviewBlob(bucket, candidate, blob);
+      return blob;
+    }
+  } catch {
+    /* try next candidate */
+  }
+  return null;
+}
+
 async function downloadBlobFromBucket(bucket: string, path: string): Promise<Blob | null> {
   for (const candidate of uniqueDownloadPaths(path)) {
-    const { data, error } = await supabase.storage.from(bucket).download(candidate);
-    if (!error && data && data.size > 0) {
-      return data;
-    }
+    const blob = await downloadBlobForCandidate(bucket, candidate);
+    if (blob) return blob;
   }
-
-  for (const candidate of uniqueDownloadPaths(path)) {
-    const { data: signed, error: signError } = await supabase.storage
-      .from(bucket)
-      .createSignedUrl(candidate, 3600);
-    if (signError || !signed?.signedUrl) continue;
-    try {
-      const response = await fetch(signed.signedUrl);
-      if (!response.ok) continue;
-      const blob = await response.blob();
-      if (blob.size > 0) return blob;
-    } catch {
-      /* try next candidate */
-    }
-  }
-
   return null;
 }
 
@@ -132,10 +162,10 @@ async function downloadStorageDocument(
   if (!blob) {
     try {
       await supabase.auth.refreshSession();
+      blob = await tryDownload();
     } catch {
-      /* continue with current client auth */
+      /* session refresh failed */
     }
-    blob = await tryDownload();
   }
 
   if (!blob) {

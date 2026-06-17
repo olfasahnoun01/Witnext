@@ -3,7 +3,6 @@ import {
   Download, 
   Upload, 
   Database,
-  CheckCircle2,
   Cloud
 } from 'lucide-react';
 import { exportDatabase, importDatabase } from '@/services/dbService';
@@ -11,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_VERSION, BUILD_DATE_FORMATTED } from '@/lib/version';
-import { supabase } from '@/integrations/supabase/client';
 
 
 export const Settings = () => {
@@ -22,13 +20,26 @@ export const Settings = () => {
   const [isImporting, setIsImporting] = useState(false);
 
 
-  const handleExport = async () => {
+  const handleExport = async (includeStorage: boolean) => {
     if (!isAdmin) return;
+
+    if (includeStorage) {
+      const confirmed = window.confirm(
+        'Export COMPLET avec fichiers stockés (fiches techniques, etc.) ?\n\n' +
+          'Cela télécharge tous les fichiers depuis Supabase Storage et consomme beaucoup de bande passante (egress).\n\n' +
+          'Préférez « Exporter données (JSON) » pour une sauvegarde légère sans fichiers.'
+      );
+      if (!confirmed) return;
+    }
+
     setIsExporting(true);
     try {
-      const blob = await exportDatabase((msg) => {
-        console.log('Export:', msg);
-      });
+      const blob = await exportDatabase(
+        (msg) => {
+          console.log('Export:', msg);
+        },
+        { includeStorage },
+      );
       if (!blob) {
         toast({
           variant: "destructive",
@@ -48,8 +59,10 @@ export const Settings = () => {
       URL.revokeObjectURL(url);
 
       toast({
-        title: "Sauvegarde réussie",
-        description: "La base de données a été exportée avec succès (ZIP)"
+        title: includeStorage ? 'Sauvegarde complète réussie' : 'Sauvegarde données réussie',
+        description: includeStorage
+          ? 'Export ZIP avec fichiers stockés'
+          : 'Export JSON uniquement (sans fichiers Storage — faible egress)',
       });
     } finally {
       setIsExporting(false);
@@ -123,21 +136,33 @@ export const Settings = () => {
               <div className="flex-1">
                 <h3 className="font-semibold text-foreground">Exporter (Sauvegarde)</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Téléchargez une copie de toutes vos données pour les conserver en sécurité.
+                  Exportez vos données en ZIP. Par défaut : métadonnées JSON seulement (recommandé, faible egress).
+                  L&apos;export avec fichiers télécharge tout le Storage Supabase.
                   {!isAdmin && (
                     <span className="block mt-2 text-amber-700 dark:text-amber-400">
                       Réservé aux administrateurs.
                     </span>
                   )}
                 </p>
-                <Button 
-                  onClick={handleExport} 
-                  disabled={isExporting || !isAdmin}
-                  className="mt-4 bg-success hover:bg-success/90"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  {isExporting ? 'Exportation...' : 'Exporter Base de Données'}
-                </Button>
+                <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                  <Button
+                    onClick={() => void handleExport(false)}
+                    disabled={isExporting || !isAdmin}
+                    className="bg-success hover:bg-success/90"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    {isExporting ? 'Exportation...' : 'Exporter données (JSON)'}
+                  </Button>
+                  <Button
+                    onClick={() => void handleExport(true)}
+                    disabled={isExporting || !isAdmin}
+                    variant="outline"
+                    className="border-amber-500/50 text-amber-800 dark:text-amber-300"
+                  >
+                    <Cloud className="w-4 h-4 mr-2" />
+                    Export + fichiers Storage
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
