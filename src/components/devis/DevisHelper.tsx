@@ -3,6 +3,7 @@ import { Upload, File as FileIcon, X, Check, Loader2, Link as LinkIcon, AlertCir
 import { extractDevisItemsFromPdf } from '@/utils/pdfParser';
 import { extractItemsFromImage } from '@/utils/ocrParser';
 import { supabase } from '@/integrations/supabase/client';
+import { buildCompanyStoragePath } from '@/lib/storagePaths';
 import { toast } from 'sonner';
 import { ProductGroupModal } from '@/components/inventory/ProductGroupModal';
 import { Button } from '@/components/ui/button';
@@ -214,7 +215,7 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
 
     const fileExt = 'pdf';
     const fileName = `${Math.random()}.${fileExt}`;
-    const filePath = `fiches/${fileName}`;
+    const filePath = buildCompanyStoragePath(`fiches/${fileName}`);
 
     toast.loading('Téléversement...', { id: `upload-${item.id}` });
 

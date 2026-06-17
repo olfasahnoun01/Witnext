@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { buildCompanyStoragePath } from '@/lib/storagePaths';
 import type { RhSecurityReportForm, RhSecurityReportRecord, RhReportSection, RhVehicleInfo } from '@/lib/rhReportTypes';
 
 const BUCKET = 'rh-report-files';
@@ -39,7 +40,7 @@ export async function uploadRhAttachments(files: File[], reportId: string): Prom
   const paths: string[] = [];
   for (const file of files) {
     const safe = file.name.replace(/[^\w.\-]+/g, '_');
-    const path = `${reportId}/${Date.now()}-${safe}`;
+    const path = buildCompanyStoragePath(`${reportId}/${Date.now()}-${safe}`);
     const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: false });
     if (error) {
       console.warn('[RH] upload:', error.message);

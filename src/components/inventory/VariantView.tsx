@@ -4,6 +4,7 @@ import { ProductGroup, Product, StockStatus } from '@/types';
 import { getVariantsByGroupId, createVariant } from '@/services/productGroupService';
 import { updateProduct, deleteProduct, applyProductQuantityChange } from '@/services/dbService';
 import { supabase } from '@/integrations/supabase/client';
+import { buildCompanyStoragePath } from '@/lib/storagePaths';
 import { EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -178,7 +179,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   }, []);
 
   const uploadBlobToStorage = useCallback(async (blob: Blob, fileName: string): Promise<string> => {
-    const filePath = `fiches/${fileName}`;
+    const filePath = buildCompanyStoragePath(`fiches/${fileName}`);
     const { error: uploadError } = await supabase.storage.from('fiches-techniques').upload(filePath, blob, {
       upsert: true
     });

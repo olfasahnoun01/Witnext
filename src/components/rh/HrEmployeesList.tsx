@@ -17,6 +17,7 @@ import { getActiveCompanyId } from '@/lib/activeCompany';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { HrEmployee, formatHrMoney } from '@/lib/hrTypes';
 import { validateUploadFile } from '@/lib/uploadValidation';
+import { buildCompanyStoragePath } from '@/lib/storagePaths';
 import {
   Select,
   SelectContent,
@@ -112,7 +113,7 @@ export const HrEmployeesList = () => {
       return null;
     }
     const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const path = `${employeeId}/${Date.now()}-${safe}`;
+    const path = buildCompanyStoragePath(`${employeeId}/${Date.now()}-${safe}`);
     const { error } = await supabase.storage.from('hr-contracts').upload(path, file, { upsert: true });
     if (error) {
       toast.error('Erreur upload contrat');

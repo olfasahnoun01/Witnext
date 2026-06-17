@@ -1,4 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
+import { expandStorageDownloadPaths } from '@/lib/storagePaths';
+import { getActiveCompanyId } from '@/lib/activeCompany';
 
 const STORAGE_BUCKETS = ['client-documents', 'product-documents', 'fiches-techniques'] as const;
 
@@ -62,15 +64,7 @@ export function parseSupabaseStorageObjectUrl(url: string): { bucket: string; pa
 }
 
 function uniqueDownloadPaths(path: string): string[] {
-  const normalized = path.replace(/^\/+/, '');
-  let decoded = normalized;
-  try {
-    decoded = decodeURIComponent(normalized);
-  } catch {
-    /* keep normalized */
-  }
-  const base = normalized.split('/').pop() || normalized;
-  return [...new Set([normalized, decoded, base].filter(Boolean))];
+  return expandStorageDownloadPaths(path, getActiveCompanyId());
 }
 
 async function downloadBlobFromBucket(bucket: string, path: string): Promise<Blob | null> {

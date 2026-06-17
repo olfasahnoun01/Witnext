@@ -17,20 +17,24 @@ export function getWebAppOrigins(): string[] {
 
 export function isAllowedOrigin(origin: string): boolean {
   const projectUrl = Deno.env.get('SUPABASE_URL') || '';
-  return (
-    (!!projectUrl && origin === projectUrl) ||
-    STATIC_ALLOWED_ORIGINS.includes(origin) ||
-    getWebAppOrigins().includes(origin) ||
-    origin.startsWith('http://localhost:') ||
-    origin.startsWith('http://127.0.0.1:')
-  );
+  const isProd = (Deno.env.get('DENO_ENV') || Deno.env.get('ENVIRONMENT') || '').toLowerCase() === 'production';
+
+  if (!!projectUrl && origin === projectUrl) return true;
+  if (getWebAppOrigins().includes(origin)) return true;
+
+  if (!isProd) {
+    if (STATIC_ALLOWED_ORIGINS.includes(origin)) return true;
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) return true;
+  }
+
+  return false;
 }
 
 export function getCorsHeaders(
   origin: string | null,
   options?: { extraHeaders?: string; maxAge?: number }
 ): Record<string, string> {
-  const allowedOrigin = origin && isAllowedOrigin(origin) ? origin : Deno.env.get('SUPABASE_URL') || '*';
+  const allowedOrigin = origin && isAllowedOrigin(origin) ? origin : getWebAppOrigins()[0] || Deno.env.get('SUPABASE_URL') || '';
 
   const headers: Record<string, string> = {
     'Access-Control-Allow-Origin': allowedOrigin,

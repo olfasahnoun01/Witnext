@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchInventoryCategoryNames } from '@/lib/inventoryCategoryNames';
+import { buildCompanyStoragePath } from '@/lib/storagePaths';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -388,7 +389,7 @@ export const PhotoGallery = () => {
         continue;
       }
       const safe = file.name.replace(/[^\w.\-]+/g, '_');
-      const path = `gallery/${Date.now()}-${Math.random().toString(36).slice(2)}-${safe}`;
+      const path = buildCompanyStoragePath(`gallery/${Date.now()}-${Math.random().toString(36).slice(2)}-${safe}`);
       const { error } = await supabase.storage.from('fiches-techniques').upload(path, file, { upsert: true });
       if (!error) {
         const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(path);
@@ -422,7 +423,7 @@ export const PhotoGallery = () => {
         continue;
       }
       const safe = file.name.replace(/[^\w.\-]+/g, '_');
-      const path = `gallery/devis/${Date.now()}-${Math.random().toString(36).slice(2)}-${safe}`;
+      const path = buildCompanyStoragePath(`gallery/devis/${Date.now()}-${Math.random().toString(36).slice(2)}-${safe}`);
       const { error } = await supabase.storage.from('fiches-techniques').upload(path, file, { upsert: true });
       if (!error) {
         const { data: urlData } = supabase.storage.from('fiches-techniques').getPublicUrl(path);
@@ -453,7 +454,7 @@ export const PhotoGallery = () => {
         continue;
       }
       const ext = file.name.split('.').pop();
-      const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const path = buildCompanyStoragePath(`${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`);
 
       const { error } = await supabase.storage
         .from('gallery-photos')
@@ -1043,7 +1044,7 @@ export const PhotoGallery = () => {
                   const newUrls: string[] = [];
                   for (const file of imageFiles) {
                     const ext = file.name.split('.').pop();
-                    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+                    const path = buildCompanyStoragePath(`${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`);
                     const { error } = await supabase.storage.from('gallery-photos').upload(path, file, { upsert: true });
                     if (!error) {
                       const { data: urlData } = supabase.storage.from('gallery-photos').getPublicUrl(path);

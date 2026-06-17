@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { MultiFournisseurInput } from '@/components/inventory/MultiFournisseurInput';
 import { createVariant } from '@/services/productGroupService';
 import { getActiveCompanyId } from '@/lib/activeCompany';
+import { buildCompanyStoragePath } from '@/lib/storagePaths';
 import { SPECIALITES } from '@/constants/fournisseurs';
 import { TUNISIA_LOCATIONS } from '@/constants/tunisia';
 import {
@@ -891,7 +892,7 @@ export const DevisForm = memo(({
               }
               for (const { blob, ext } of blobs) {
                 const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-                const filePath = `fiches/${fileName}`;
+                const filePath = buildCompanyStoragePath(`fiches/${fileName}`);
                 const { error: uploadError } = await supabase.storage
                   .from('fiches-techniques')
                   .upload(filePath, blob, { contentType: 'image/jpeg' });
@@ -1101,7 +1102,7 @@ export const DevisForm = memo(({
 
               for (const { blob, ext } of blobs) {
                 const fileName = `fiche_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-                const filePath = `fiches/${fileName}`;
+                const filePath = buildCompanyStoragePath(`fiches/${fileName}`);
                 const { error: uploadError } = await supabase.storage
                   .from('fiches-techniques')
                   .upload(filePath, blob, { contentType: 'image/jpeg' });

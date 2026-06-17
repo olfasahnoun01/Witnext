@@ -1,4 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
+import { buildCompanyStoragePath } from '@/lib/storagePaths';
+import { getActiveCompanyId } from '@/lib/activeCompany';
 import { MAX_UPLOAD_BYTES, resolveUploadMimeType } from '@/lib/uploadValidation';
 
 export const COMMERCIAL_ATTACHMENTS_BUCKET = 'commercial-attachments';
@@ -39,17 +41,20 @@ function safeFileName(name: string): string {
 
 export async function uploadCommercialAttachments(
   files: File[],
-  folder: string
+  folder: string,
+  companyId?: string | null
 ): Promise<CommercialAttachmentRecord[]> {
   const uploaded: CommercialAttachmentRecord[] = [];
   const stamp = Date.now();
+  const cid = companyId ?? getActiveCompanyId();
+  const scopedFolder = buildCompanyStoragePath(folder.replace(/^\/+/, ''), cid);
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const check = validateCommercialAttachmentFile(file);
     if (!check.ok) throw new Error(check.message);
 
-    const path = `${folder}/${stamp}_${i}_${safeFileName(file.name)}`;
+    const path = `${scopedFolder}/${stamp}_${i}_${safeFileName(file.name)}`;
     const { error } = await supabase.storage.from(COMMERCIAL_ATTACHMENTS_BUCKET).upload(path, file, {
       upsert: false,
       contentType: resolveUploadMimeType(file),

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Upload, FileUp, Loader2, FileText, CheckCircle2, Trash2, Eye, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
-import { loadStorageDocumentPdf, parseSupabaseStorageObjectUrl } from '@/lib/clientDocumentStorage';
+import { buildCompanyStoragePath } from '@/lib/storagePaths';
 import {
   LEGAL_DOCUMENT_ACCEPT,
   LEGAL_DOCUMENT_MIME_TYPES,
@@ -86,7 +86,8 @@ export const DocumentUploader = ({
       }
 
       const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
-      const fileName = `${documentType}_${entityCode.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${fileExt}`;
+      const baseName = `${documentType}_${entityCode.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${fileExt}`;
+      const fileName = buildCompanyStoragePath(baseName);
       const contentType = resolveUploadMimeType(file);
 
       const { error: uploadError } = await supabase.storage

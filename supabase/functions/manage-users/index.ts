@@ -344,6 +344,12 @@ Deno.serve(async (req: Request) => {
         }
 
         if ('role' in params && params.role != null && params.role !== '') {
+          if (!requesterIsAdmin) {
+            return new Response(
+              JSON.stringify({ error: 'Seuls les administrateurs peuvent modifier les rôles' }),
+              { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
           const adminRoleDenied = forbidAdminRoleIfNotRequesterAdmin(role, requesterIsAdmin, corsHeaders)
           if (adminRoleDenied) return adminRoleDenied
 

@@ -31,6 +31,8 @@
     "electron:build:dir": "npm run build:electron && node scripts/run-electron-builder.mjs --publish never --dir",
     "import:fiches": "node scripts/import-fiches-techniques.mjs",
     "import:fiches:apply": "node scripts/import-fiches-techniques.mjs --apply",
+    "migrate:storage-prefix": "node scripts/migrate-storage-company-prefix.mjs",
+    "migrate:storage-prefix:apply": "node scripts/migrate-storage-company-prefix.mjs --apply",
     "supabase:login": "supabase login",
     "supabase:link": "supabase link --project-ref rnujsdxbkndvppjqjkdu",
     "supabase:secrets:web": "supabase secrets set WEB_APP_ORIGINS=https://witnext.vercel.app",

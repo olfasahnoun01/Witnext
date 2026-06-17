@@ -25,7 +25,9 @@ function buildContentSecurityPolicy(mode: string, isElectronTarget: boolean): st
   const scriptSrc =
     mode === "development"
       ? `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${HCAPTCHA_SCRIPT}`
-      : `script-src 'self' 'unsafe-inline' ${HCAPTCHA_SCRIPT}`;
+      : `script-src 'self' ${HCAPTCHA_SCRIPT}`;
+
+  const imgSrc = "img-src 'self' data: blob: https://*.supabase.co";
 
   return [
     "default-src 'self'",
@@ -33,7 +35,7 @@ function buildContentSecurityPolicy(mode: string, isElectronTarget: boolean): st
     "worker-src 'self' blob:",
     `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com ${HCAPTCHA_FRAME}`,
     "font-src 'self' data: https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https://*.supabase.co https:",
+    imgSrc,
     `frame-src 'self' blob: data: ${HCAPTCHA_FRAME}`,
     `connect-src ${buildConnectSrc(mode, isElectronTarget)}`,
   ].join("; ");

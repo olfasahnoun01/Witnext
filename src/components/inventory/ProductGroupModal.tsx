@@ -20,6 +20,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
+import { buildCompanyStoragePath } from '@/lib/storagePaths';
 import { toast } from 'sonner';
 import { ProductGroup, ProductGroupFournisseur } from '@/types';
 import { compressImage, formatBytes, getBase64Size } from '@/lib/imageCompression';
@@ -376,7 +377,7 @@ export const ProductGroupModal = ({
           if (v.fiche_technique_file && result.id) {
             const timestamp = Date.now();
             const safeName = v.fiche_technique_file.name.replace(/[^a-zA-Z0-9.]/g, '_');
-            const filePath = `fiches/fiche_var_${result.id}_${timestamp}_${safeName}`;
+            const filePath = buildCompanyStoragePath(`fiches/fiche_var_${result.id}_${timestamp}_${safeName}`);
             
             const { error: uploadError } = await supabase.storage
               .from('fiches-techniques')
