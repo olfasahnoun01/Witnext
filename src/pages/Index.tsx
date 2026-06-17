@@ -1,4 +1,6 @@
 import { useState, useCallback, lazy, Suspense, useTransition, useEffect } from 'react';
+import { lazyWithRetry } from '@/lib/lazyWithRetry';
+import { readStoredActiveTab, writeStoredActiveTab } from '@/lib/appNavigationStorage';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { Loader2 } from 'lucide-react';
@@ -32,7 +34,9 @@ const Clients = lazy(() => import('@/components/Clients').then(m => ({ default: 
 const GestionDevis = lazy(() => import('@/components/GestionDevis').then(m => ({ default: m.GestionDevis })));
 const PhotoGallery = lazy(() => import('@/components/PhotoGallery').then(m => ({ default: m.PhotoGallery })));
 const UnifiedDocumentList = lazy(() => import('@/components/devis/UnifiedDocumentList').then(m => ({ default: m.UnifiedDocumentList })));
-const PurchaseRequestManager = lazy(() => import('@/components/devis/PurchaseRequestManager').then(m => ({ default: m.PurchaseRequestManager })));
+const PurchaseRequestManager = lazyWithRetry(() =>
+  import('@/components/devis/PurchaseRequestManager').then((m) => ({ default: m.PurchaseRequestManager }))
+);
 const WarehouseDocumentManager = lazy(() => import('@/components/inventory/WarehouseDocumentManager').then(m => ({ default: m.WarehouseDocumentManager })));
 
 const Planning = lazy(() => import('@/components/Planning').then(m => ({ default: m.Planning })));
@@ -66,6 +70,8 @@ const prefetchMap: Record<string, () => void> = {
   inventory: () => { import('@/components/Transactions'); import('@/components/Fournisseurs'); },
   fournisseurs: () => { import('@/components/SupplierComparison'); },
   transactions: () => { import('@/components/Reports'); },
+  'demande-achat': () => { import('@/components/devis/PurchaseRequestManager'); },
+  'demande-achat-magasin': () => { import('@/components/devis/PurchaseRequestManager'); },
 };
 
 const ComponentLoader = () => (
@@ -109,7 +115,7 @@ const IndexContent = () => {
     loadError: companyLoadError,
     reload: reloadCompany,
   } = useAppCompany();
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => readStoredActiveTab('dashboard'));
   const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
   const [bootstrapRetrying, setBootstrapRetrying] = useState(false);
   const [, startTransition] = useTransition();
@@ -146,6 +152,7 @@ const IndexContent = () => {
   }, [activeTab]);
 
   const handleTabChange = useCallback((tab: string) => {
+    writeStoredActiveTab(tab);
     startTransition(() => {
       setActiveTab(tab);
     });

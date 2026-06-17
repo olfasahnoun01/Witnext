@@ -34,6 +34,7 @@ import { notifySessionInvalid } from '@/lib/sessionResume';
 import { getActiveCompanyId } from '@/lib/activeCompany';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { formatError } from '@/lib/formatError';
+import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -249,12 +250,29 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
   );
 
   return (
-    <Card>
-      <CardHeader className="border-b bg-muted/20 pb-4">
+    <Card className="overflow-hidden border-2 shadow-sm">
+      <CardHeader
+        className={cn(
+          'border-b pb-4',
+          type === 'client'
+            ? 'bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-transparent'
+            : 'bg-gradient-to-r from-orange-500/15 via-orange-500/5 to-transparent'
+        )}
+      >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <CardTitle className="text-lg flex items-center gap-2">
-            <FileText className="w-5 h-5 text-primary" />
-            Suivi {type === 'client' ? 'clients' : 'fournisseurs'}
+            <FileText className={cn('w-5 h-5', type === 'client' ? 'text-emerald-600' : 'text-orange-600')} />
+            <span>Suivi {type === 'client' ? 'clients' : 'fournisseurs'}</span>
+            <span
+              className={cn(
+                'text-xs font-semibold px-2.5 py-1 rounded-full border',
+                type === 'client'
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200'
+                  : 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950/40 dark:text-orange-200'
+              )}
+            >
+              {type === 'client' ? 'Clients' : 'Fournisseurs'}
+            </span>
           </CardTitle>
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
             <div className="relative w-full sm:w-64">
@@ -304,14 +322,14 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Date devis</TableHead>
-                <TableHead>N° Devis</TableHead>
-                <TableHead>Société</TableHead>
-                <TableHead>Téléphone</TableHead>
-                <TableHead>Réponse</TableHead>
-                <TableHead>Date dernier contact</TableHead>
-                <TableHead className="w-[90px] text-right">Actions</TableHead>
+              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableHead className="font-semibold">Date devis</TableHead>
+                <TableHead className="font-semibold">N° Devis</TableHead>
+                <TableHead className="font-semibold">Société</TableHead>
+                <TableHead className="font-semibold">Téléphone</TableHead>
+                <TableHead className="font-semibold min-w-[360px] w-[40%]">Réponse / Description</TableHead>
+                <TableHead className="font-semibold">Date dernier contact</TableHead>
+                <TableHead className="w-[90px] text-right font-semibold">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -328,20 +346,29 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredRows.map((row) => (
-                  <TableRow key={row.id} className="hover:bg-muted/30">
-                    <TableCell className="text-sm whitespace-nowrap">
+                filteredRows.map((row, index) => (
+                  <TableRow
+                    key={row.id}
+                    className={cn(
+                      'align-top hover:bg-muted/40',
+                      index % 2 === 0 ? 'bg-background' : 'bg-muted/15'
+                    )}
+                  >
+                    <TableCell className="text-sm whitespace-nowrap py-3">
                       {formatDisplayDate(row.devis_date)}
                     </TableCell>
-                    <TableCell className="text-sm font-mono">{row.devis_number || '—'}</TableCell>
-                    <TableCell className="text-sm font-medium">{row.societe}</TableCell>
-                    <TableCell className="text-sm">{row.telephone || '—'}</TableCell>
-                    <TableCell className="text-sm max-w-[220px]">
-                      <span className="line-clamp-2" title={row.reponse ?? undefined}>
+                    <TableCell className="text-sm font-mono py-3">{row.devis_number || '—'}</TableCell>
+                    <TableCell className="text-sm font-semibold py-3">{row.societe}</TableCell>
+                    <TableCell className="text-sm py-3">{row.telephone || '—'}</TableCell>
+                    <TableCell className="py-3 min-w-[360px]">
+                      <div
+                        className="text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground max-h-40 overflow-y-auto rounded-md border border-border/60 bg-muted/20 px-3 py-2"
+                        title={row.reponse ?? undefined}
+                      >
                         {row.reponse || '—'}
-                      </span>
+                      </div>
                     </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
+                    <TableCell className="text-sm whitespace-nowrap py-3">
                       {formatDisplayDate(row.dernier_contact_date)}
                     </TableCell>
                     <TableCell className="text-right">
@@ -430,13 +457,13 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="reponse">Réponse</Label>
+              <Label htmlFor="reponse">Réponse / Description</Label>
               <Textarea
                 id="reponse"
                 value={form.reponse}
                 onChange={(e) => setForm({ ...form, reponse: e.target.value })}
-                placeholder="Réponse du client / fournisseur (texte libre)"
-                className="min-h-[80px]"
+                placeholder="Réponse du client / fournisseur — texte libre, description complète"
+                className="min-h-[180px] text-base leading-relaxed resize-y"
               />
             </div>
             <div className="space-y-2">

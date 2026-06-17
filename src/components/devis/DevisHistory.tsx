@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus, Truck, MoreHorizontal, Printer, GitMerge } from 'lucide-react';
+import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus, Truck, MoreHorizontal, Printer, GitMerge, CheckCircle2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CommercialAttachmentBadges } from '@/components/shared/CommercialAttachmentBadges';
 import { EchantillonModal } from './EchantillonModal';
@@ -55,6 +55,7 @@ interface DevisHistoryProps {
   onConvertMultipleToBC?: (list: Devis[]) => void;
   /** Crée un BC Fournisseur (documents v2) à partir d'un devis vente */
   onConvertToBCFournisseur?: (d: Devis) => void;
+  onConfirmDevis?: (d: Devis) => void;
   onAdd: () => void;
   defaultTypeFilter?: 'all' | 'achat' | 'vente';
 }
@@ -83,7 +84,7 @@ const toDevisPDFData = (d: Devis): DevisPDFData => ({
   is_ba: d.is_ba,
 });
 
-export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBC, onConvertMultipleToBC, onConvertToBCFournisseur, onAdd, defaultTypeFilter }: DevisHistoryProps) => {
+export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminOrMod, onEdit, onDelete, onConvertToBC, onConvertMultipleToBC, onConvertToBCFournisseur, onConfirmDevis, onAdd, defaultTypeFilter }: DevisHistoryProps) => {
   const [deleteConfirm, setDeleteConfirm] = useState<Devis | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState('');
@@ -291,7 +292,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     const canDelete = isAdminOrMod || (currentUserId && d.created_by === currentUserId);
     const showBc = !!onConvertToBC && d.type === 'vente';
     const showBcFournisseur = !!onConvertToBCFournisseur && d.type === 'vente';
-    const showOtherActions = showBc || showBcFournisseur || canModify || canDelete;
+    const showConfirm = !!onConfirmDevis && !isDevisConfirmed(d.status);
+    const showOtherActions = showBc || showBcFournisseur || showConfirm || canModify || canDelete;
 
     return (
       <DropdownMenu>
@@ -325,7 +327,15 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
               BC Fournisseur
             </DropdownMenuItem>
           )}
-          {(showBc || showBcFournisseur) && (canModify || canDelete) && <DropdownMenuSeparator />}
+          {showConfirm && (
+            <DropdownMenuItem onClick={() => onConfirmDevis!(d)}>
+              <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" />
+              Confirmer le devis
+            </DropdownMenuItem>
+          )}
+          {(showBc || showBcFournisseur || showConfirm) && (canModify || canDelete) && (
+            <DropdownMenuSeparator />
+          )}
           {canModify && (
             <DropdownMenuItem onClick={() => onEdit(d)}>
               <Edit className="mr-2 h-4 w-4" />

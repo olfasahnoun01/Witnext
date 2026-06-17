@@ -8,6 +8,12 @@ import { buildProfilesMap, collectUserIdsForProfiles } from '@/lib/documentListA
 import { useAuth } from '@/hooks/useAuth';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import { getActiveCompanyId } from '@/lib/activeCompany';
+import { readStoredDevisSection, writeStoredDevisSection } from '@/lib/appNavigationStorage';
+import {
+  clearDevisDraft,
+  loadDevisDraft,
+  saveDevisDraft,
+} from '@/lib/devisDraftStorage';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { notifySessionInvalid } from '@/lib/sessionResume';
 import { debugLog } from '@/lib/debugLog';
@@ -34,6 +40,16 @@ import { notifyDossierCreated } from '@/modules/flux/services/dossierNotificatio
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const parseDevisRow = (
   d: any,
@@ -112,9 +128,10 @@ export const GestionDevis = ({
 }: GestionDevisProps) => {
   const { isAdmin, isModerator, user } = useAuth();
   const canEdit = true;
-  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'bl' | 'helper'>(
-    initialSection === 'ba' ? 'form' : initialSection
-  );
+  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'bl' | 'helper'>(() => {
+    const fallback = initialSection === 'ba' ? 'form' : initialSection;
+    return readStoredDevisSection(sectionMode, defaultDevisType, fallback);
+  });
   const [allDevis, setAllDevis] = useState<Devis[]>([]);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingDevis, setEditingDevis] = useState<Devis | null>(null);
@@ -124,6 +141,9 @@ export const GestionDevis = ({
   const [pendingAttachmentFiles, setPendingAttachmentFiles] = useState<File[]>([]);
   const [importSourceDevisIds, setImportSourceDevisIds] = useState<number[]>([]);
   const [devisForSupplierBC, setDevisForSupplierBC] = useState<Devis | null>(null);
+  const [bcPromptDevis, setBcPromptDevis] = useState<Devis | null>(null);
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+  const draftHydratedRef = useRef(false);
   const [docType, setDocType] = useState<'devis' | 'bc' | 'ba'>(() => {
     if (sectionMode === 'bc') return 'bc';
     if ((initialDocType as unknown) === 'ba') return 'ba';
@@ -149,6 +169,95 @@ export const GestionDevis = ({
 
   // Derived lists
   const savedDevis = useMemo(() => allDevis.filter((d) => !d.is_bc && !d.is_ba && !d.is_bl), [allDevis]);
+  useEffect(() => {
+    writeStoredDevisSection(sectionMode, devisType, activeSection);
+  }, [activeSection, sectionMode, devisType]);
+
+  useEffect(() => {
+    if (draftHydratedRef.current || editingDevis || showEditDialog) return;
+    if (docType !== 'devis' || activeSection !== 'form') return;
+
+    const companyId = getActiveCompanyId();
+    const draft = loadDevisDraft(companyId, devisType, docType);
+    if (!draft) {
+      draftHydratedRef.current = true;
+      return;
+    }
+
+    setDevisType(draft.devisType);
+    setDevisNumber(draft.devisNumber);
+    setDevisDate(draft.devisDate);
+    setThirdPartyName(draft.thirdPartyName);
+    setThirdPartyAddress(draft.thirdPartyAddress);
+    setThirdPartyTaxId(draft.thirdPartyTaxId);
+    setThirdPartyPhone(draft.thirdPartyPhone);
+    setNotes(draft.notes);
+    setDocumentStatus(draft.documentStatus as typeof documentStatus);
+    setDevisItems(draft.devisItems);
+    setIsTtc(draft.isTtc);
+    setDraftSavedAt(draft.savedAt);
+    draftHydratedRef.current = true;
+    toast.info('Brouillon de devis restauré automatiquement');
+  }, [
+    editingDevis,
+    showEditDialog,
+    docType,
+    activeSection,
+    devisType,
+  ]);
+
+  useEffect(() => {
+    if (editingDevis || showEditDialog || docType !== 'devis' || activeSection !== 'form') return;
+    if (!draftHydratedRef.current && devisItems.length === 0 && !thirdPartyName.trim()) return;
+
+    const companyId = getActiveCompanyId();
+    const timer = window.setTimeout(() => {
+      const hasContent =
+        devisItems.length > 0 ||
+        thirdPartyName.trim() ||
+        notes.trim() ||
+        thirdPartyAddress.trim();
+      if (!hasContent) {
+        clearDevisDraft(companyId, devisType, docType);
+        setDraftSavedAt(null);
+        return;
+      }
+      saveDevisDraft(companyId, devisType, docType, {
+        devisType,
+        docType,
+        devisNumber,
+        devisDate,
+        thirdPartyName,
+        thirdPartyAddress,
+        thirdPartyTaxId,
+        thirdPartyPhone,
+        notes,
+        documentStatus,
+        devisItems,
+        isTtc,
+      });
+      setDraftSavedAt(new Date().toISOString());
+    }, 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    editingDevis,
+    showEditDialog,
+    docType,
+    activeSection,
+    devisType,
+    devisNumber,
+    devisDate,
+    thirdPartyName,
+    thirdPartyAddress,
+    thirdPartyTaxId,
+    thirdPartyPhone,
+    notes,
+    documentStatus,
+    devisItems,
+    isTtc,
+  ]);
+
   const importableDevisForBc = useMemo(
     () => savedDevis.filter((d) => d.type === devisType),
     [savedDevis, devisType]
@@ -301,7 +410,9 @@ export const GestionDevis = ({
     setExistingAttachments([]);
     setPendingAttachmentFiles([]);
     setImportSourceDevisIds([]);
-  }, []);
+    clearDevisDraft(getActiveCompanyId(), devisType, docType);
+    setDraftSavedAt(null);
+  }, [devisType, docType]);
 
   const resetForm = useCallback(() => {
     setDevisType(defaultDevisType);
@@ -509,6 +620,25 @@ export const GestionDevis = ({
   const convertToBCFournisseur = useCallback((devis: Devis) => {
     setDevisForSupplierBC(devis);
   }, []);
+
+  const confirmDevis = useCallback(async (devis: Devis) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from('devis').update({
+        status: 'confirmé',
+        updated_by: user?.id ?? null,
+      } as never).eq('id', devis.id);
+      if (error) throw error;
+      toast.success(`Devis ${devis.devis_number} confirmé`);
+      await loadAll();
+      if (devis.type === 'vente') {
+        setBcPromptDevis({ ...devis, status: 'confirmé' });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Impossible de confirmer le devis');
+    }
+  }, [loadAll]);
 
   const handleConfirmBC = useCallback(async (modifiedItems: DevisItem[], bcStatus: 'brouillon' | 'envoyé' | 'confirmé') => {
     if (devisListToConvert.length === 0) return;
@@ -812,6 +942,7 @@ export const GestionDevis = ({
           onConvertToBC={convertToBC}
           onConvertMultipleToBC={convertMultipleToBC}
           onConvertToBCFournisseur={initialDevisType === 'vente' ? convertToBCFournisseur : undefined}
+          onConfirmDevis={confirmDevis}
           onAdd={() => handleAddNew(sectionMode ?? 'devis')}
           defaultTypeFilter={initialDevisType ?? 'all'}
         />
@@ -906,6 +1037,29 @@ export const GestionDevis = ({
           loadAll();
         }}
       />
+
+      <AlertDialog open={!!bcPromptDevis} onOpenChange={(open) => !open && setBcPromptDevis(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Créer une bon de commande ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Le devis {bcPromptDevis?.devis_number} est confirmé. Voulez-vous créer un bon de commande
+              maintenant ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Plus tard</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (bcPromptDevis) convertToBC(bcPromptDevis);
+                setBcPromptDevis(null);
+              }}
+            >
+              Créer un BC
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
 
     </div>

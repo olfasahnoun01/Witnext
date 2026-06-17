@@ -5,6 +5,14 @@ import { isAuthSessionError, isJwtExpiredError, refreshSupabaseSessionIfNeeded }
 import { notifySessionResume } from '@/lib/sessionResume';
 import { setActiveCompanyId } from '@/lib/activeCompany';
 import { debugLog } from '@/lib/debugLog';
+import {
+  bumpSessionEpoch,
+  clearSessionEpoch,
+  isSessionEpochStale,
+  readGlobalSessionEpoch,
+  readTabSessionEpoch,
+  syncTabSessionEpochFromGlobal,
+} from '@/lib/sessionEpoch';
 import { toast } from '@/hooks/use-toast';
 
 interface AuthContextType {
@@ -157,7 +165,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (cancelled) return;
         if (shouldLoadRoles) await checkUserRoles(userId);
         if (cancelled || userRef.current?.id !== userId) return;
-        if (options?.announceLogin) void setupSessionTracking(userId);
+        if (options?.announceLogin) void setupSessionTracking(userId, true);
+        else void setupSessionTracking(userId, false);
         // Permissions/company/modules load from their own user-id effects — do not
         // broadcast a global resume here (tab wake / TOKEN_REFRESHED would reset forms).
       })();
@@ -283,6 +292,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const resumeAfterIdle = () => {
       if (!userRef.current) return;
+      if (isSessionEpochStale()) {
+        void handleSessionExpired('Concurrent login');
+        return;
+      }
       debugLog('useAuth.tsx:resumeAfterIdle', 'wake/resume triggered', {
         visibility: document.visibilityState,
       }, 'C');
@@ -316,23 +329,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     window.addEventListener('app:session-invalid', onSessionInvalid);
 
+    const onPageHide = (event: PageTransitionEvent) => {
+      if (event.persisted) return;
+      if (!userRef.current) return;
+      void supabase.auth.signOut({ scope: 'local' });
+    };
+    window.addEventListener('pagehide', onPageHide);
+
+    const epochCheckInterval = window.setInterval(() => {
+      if (isSessionEpochStale()) {
+        void handleSessionExpired('Concurrent login');
+      }
+    }, 5000);
+
     return () => {
       cancelled = true;
       window.clearTimeout(safetyTimer);
       subscription.unsubscribe();
       clearInterval(sessionCheckInterval);
+      clearInterval(epochCheckInterval);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('focus', resumeAfterIdle);
       window.removeEventListener('online', resumeAfterIdle);
       window.removeEventListener('pageshow', resumeAfterIdle);
       window.removeEventListener('app:session-invalid', onSessionInvalid);
+      window.removeEventListener('pagehide', onPageHide);
       removeSessionChannel();
     };
   }, []);
 
-  const setupSessionTracking = async (userId: string) => {
+  const setupSessionTracking = async (userId: string, isFreshLogin: boolean) => {
     const deviceId = getDeviceId();
     const channelName = `session_${userId}`;
+    const sessionEpoch = isFreshLogin ? bumpSessionEpoch() : readGlobalSessionEpoch() ?? bumpSessionEpoch();
+
+    if (!isFreshLogin) {
+      syncTabSessionEpochFromGlobal();
+      if (isSessionEpochStale()) {
+        await handleSessionExpired('Concurrent login');
+        return;
+      }
+    }
 
     if (sessionChannelRef.current) {
       supabase.removeChannel(sessionChannelRef.current);
@@ -350,17 +387,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     channel
       .on('broadcast', { event: 'new_login' }, (payload) => {
-        if (payload.payload?.device_id && payload.payload.device_id !== deviceId) {
+        const incomingEpoch = payload.payload?.session_epoch as string | undefined;
+        const tabEpoch = readTabSessionEpoch();
+        if (incomingEpoch && tabEpoch && incomingEpoch !== tabEpoch) {
+          console.log('Concurrent login detected, logging out...');
+          void handleSessionExpired('Concurrent login');
+          return;
+        }
+        if (payload.payload?.device_id && payload.payload.device_id !== deviceId && !incomingEpoch) {
           console.log('Concurrent login detected, logging out...');
           void handleSessionExpired('Concurrent login');
         }
       })
       .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
+        if (status === 'SUBSCRIBED' && isFreshLogin) {
           await channel.send({
             type: 'broadcast',
             event: 'new_login',
-            payload: { device_id: deviceId },
+            payload: { device_id: deviceId, session_epoch: sessionEpoch },
           });
         }
       });
@@ -406,6 +450,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    clearSessionEpoch();
     setActiveCompanyId(null);
     sessionExpiredRef.current = false;
     setUser(null);

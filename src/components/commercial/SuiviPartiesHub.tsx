@@ -18,9 +18,19 @@ export const SuiviPartiesHub = () => {
       </div>
 
       <Tabs defaultValue="clients" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2 h-11">
-          <TabsTrigger value="clients">Suivi clients</TabsTrigger>
-          <TabsTrigger value="fournisseurs">Suivi fournisseurs</TabsTrigger>
+        <TabsList className="grid w-full max-w-md grid-cols-2 h-11 p-1 bg-muted/60">
+          <TabsTrigger
+            value="clients"
+            className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm"
+          >
+            Suivi clients
+          </TabsTrigger>
+          <TabsTrigger
+            value="fournisseurs"
+            className="data-[state=active]:bg-orange-600 data-[state=active]:text-white data-[state=active]:shadow-sm"
+          >
+            Suivi fournisseurs
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="clients" className="mt-4">
           <SuiviManager type="client" />
