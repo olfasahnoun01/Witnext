@@ -136,8 +136,9 @@ export const Settings = () => {
               <div className="flex-1">
                 <h3 className="font-semibold text-foreground">Exporter (Sauvegarde)</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Exportez vos données en ZIP. Par défaut : métadonnées JSON seulement (recommandé, faible egress).
-                  L&apos;export avec fichiers télécharge tout le Storage Supabase.
+                  Export ZIP avec métadonnées JSON (inventaire, galerie, finance, RH, commercial, flotte).
+                  Sans fichiers Storage par défaut — faible egress Supabase.
+                  L&apos;export avec fichiers télécharge tout le bucket fiches-techniques.
                   {!isAdmin && (
                     <span className="block mt-2 text-amber-700 dark:text-amber-400">
                       Réservé aux administrateurs.

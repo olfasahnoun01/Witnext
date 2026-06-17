@@ -1,6 +1,14 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Product, Transaction, DashboardStats, CategoryValue } from '@/types';
 import { getActiveCompanyId } from '@/lib/activeCompany';
+import {
+  BACKUP_COMPANY_SCOPED_TABLES,
+  BACKUP_EXTENDED_IMPORT_ORDER,
+  BACKUP_EXTENDED_TABLES,
+  BACKUP_FORMAT_VERSION,
+  BACKUP_UPSERT_CONFLICT,
+  type BackupFetchMode,
+} from '@/lib/dbBackupTables';
 import JSZip from 'jszip';
 
 // Initialize database (now just a compatibility function)
@@ -368,6 +376,16 @@ const fetchAllRowsUuid = async (tableName: string, orderCol = 'created_at'): Pro
   return allRows;
 };
 
+async function fetchBackupTableRows(
+  tableName: string,
+  mode: BackupFetchMode,
+): Promise<any[]> {
+  if (mode === 'serial_id') {
+    return fetchAllRows(tableName);
+  }
+  return fetchAllRowsUuid(tableName);
+}
+
 // Helper: recursively list all files in a storage bucket
 const listAllStorageFiles = async (bucket: string, prefix = ''): Promise<string[]> => {
   const allPaths: string[] = [];
@@ -424,9 +442,8 @@ export const exportDatabase = async (
 ): Promise<Blob | null> => {
   const { includeStorage = false } = options;
   try {
-    onProgress?.('Récupération des données...');
+    onProgress?.('Récupération des données principales...');
     
-    // Fetch ALL rows from every table (handles >1000 rows)
     const [
       products, transactions, clients, fournisseurs, documents,
       orders, product_groups, product_group_fournisseurs, devis,
@@ -447,12 +464,30 @@ export const exportDatabase = async (
       fetchAllRowsUuid('team_chat_messages'),
     ]);
 
+    onProgress?.('Récupération galerie, finance, RH, commercial...');
+    const extendedPairs = await Promise.all(
+      BACKUP_EXTENDED_TABLES.map(async ({ table, mode }) => {
+        try {
+          const rows = await fetchBackupTableRows(table, mode);
+          return [table, rows] as const;
+        } catch (err) {
+          console.warn(`[backup] skip ${table}:`, err);
+          return [table, []] as const;
+        }
+      }),
+    );
+    const extendedData = Object.fromEntries(extendedPairs);
+
     const exportData = {
       _metadata: {
-        version: 5,
+        version: BACKUP_FORMAT_VERSION,
         exportDate: new Date().toISOString(),
-        application: 'Grosafe Gestion',
-        format: 'grosafe-backup'
+        application: 'Witnext',
+        format: 'witnext-backup',
+        includesStorage: includeStorage,
+        tableCount:
+          13 +
+          extendedPairs.filter(([, rows]) => rows.length > 0).length,
       },
       data: {
         clients,
@@ -468,6 +503,7 @@ export const exportDatabase = async (
         user_roles,
         user_presence,
         team_chat_messages,
+        ...extendedData,
       }
     };
 
@@ -559,11 +595,6 @@ export const exportDatabase = async (
 };
 
 // Helper function to insert data into any table
-const COMPANY_SCOPED_IMPORT_TABLES = new Set([
-  'clients', 'fournisseurs', 'product_groups', 'products',
-  'transactions', 'documents', 'orders', 'devis',
-]);
-
 const insertTableData = async (
   tableName: string,
   items: any[],
@@ -577,73 +608,50 @@ const insertTableData = async (
 
   for (const item of items) {
     try {
-      // Create a clean copy of the data
       let insertData = { ...item };
       
-      // Strip internal database ID if requested
       if (stripId) {
         delete (insertData as any).id;
       }
 
-      // Pin imported rows to the active company (restore is per-company).
-      if (importCompanyId && COMPANY_SCOPED_IMPORT_TABLES.has(tableName)) {
+      if (importCompanyId && BACKUP_COMPANY_SCOPED_TABLES.has(tableName)) {
         (insertData as any).company_id = importCompanyId;
       }
       
-      // Strip generated columns (PostgreSQL does not allow inserting into these)
       delete (insertData as any).prix_ttc;
       
-      // IMPORTANT Fix for Migration: Handle User Ownership
-      let currentUserId: string | null = null;
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        currentUserId = user?.id || null;
-      } catch (e) {
-        console.warn('Could not get current user, proceeding without ownership override');
-      }
-
-      // If we are migrating to a new project, the original user IDs (created_by, user_id) 
-      // will cause "Foreign Key Violation (23503)" because those users don't exist yet.
-      // We force these to the CURRENT user doing the import so the data is valid.
       if (currentUserId) {
         const originalUserId = (insertData as any).user_id;
 
-        // Profiles special handling: 
-        // We only import the CURRENT user's profile to avoid conflicts with non-existent auth users.
         if (tableName === 'profiles' && originalUserId && originalUserId !== currentUserId) {
           console.log('Skipping non-current user profile to prevent auth violation');
           continue;
         }
 
-        // User Roles special handling:
-        // We only import the CURRENT user's roles to avoid unique constraint violations
         if (tableName === 'user_roles' && originalUserId && originalUserId !== currentUserId) {
           console.log('Skipping non-current user role to prevent auth violation');
           continue;
         }
+
+        if (tableName === 'user_companies' && originalUserId && originalUserId !== currentUserId) {
+          continue;
+        }
         
-        // Force ownership to CURRENT user for all other tables/records to avoid FK or RLS violations
         if ('created_by' in insertData) (insertData as any).created_by = currentUserId;
-        if ('user_id' in insertData) (insertData as any).user_id = currentUserId;
+        if ('user_id' in insertData && tableName !== 'user_companies') {
+          (insertData as any).user_id = currentUserId;
+        }
         if ('updated_by' in insertData) (insertData as any).updated_by = currentUserId;
       }
-      
-      // Select the correct conflict target for each table to avoid 409 errors
-      let upsertOptions: any = {};
-      if (tableName === 'profiles') upsertOptions.onConflict = 'user_id';
-      if (tableName === 'user_roles') upsertOptions.onConflict = 'user_id,role';
-      if (tableName === 'product_groups') upsertOptions.onConflict = 'name,category';
-      if (tableName === 'product_group_fournisseurs') upsertOptions.onConflict = 'product_group_id,fournisseur_name';
-      if (tableName === 'category_settings') upsertOptions.onConflict = 'category_name';
-      if (tableName === 'user_presence') upsertOptions.onConflict = 'user_id';
-      
-      // Use upsert for EVERYTHING during import to prevent 409 Conflict errors
+
+      const conflict = BACKUP_UPSERT_CONFLICT[tableName];
+      const upsertOptions = conflict ? { onConflict: conflict } : {};
+
       const { error } = await supabase
         .from(tableName as any)
         .upsert(insertData as any, upsertOptions);
       
       if (error) {
-        // Log but don't stop the whole import
         console.error(`Error importing into ${tableName}:`, error.code, error.message);
       }
     } catch (err) {
@@ -651,6 +659,18 @@ const insertTableData = async (
     }
   }
 };
+
+async function importExtendedTables(
+  dataToImport: Record<string, unknown>,
+  onProgress?: (message: string) => void,
+): Promise<void> {
+  for (const tableName of BACKUP_EXTENDED_IMPORT_ORDER) {
+    const rows = dataToImport[tableName];
+    if (!Array.isArray(rows) || rows.length === 0) continue;
+    onProgress?.(`Import ${tableName} (${rows.length} ligne(s))...`);
+    await insertTableData(tableName, rows as any[], false);
+  }
+}
 
 export const importDatabase = async (file: Blob, onProgress?: (message: string) => void): Promise<void> => {
   try {
@@ -773,6 +793,12 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
 
     onProgress?.('Importation des transactions...');
     await insertTableData('transactions', transactions, false);
+
+    const backupVersion = Number(importData._metadata?.version ?? 5);
+    if (backupVersion >= BACKUP_FORMAT_VERSION) {
+      onProgress?.('Import modules étendus (galerie, finance, RH, commercial)...');
+      await importExtendedTables(dataToImport, onProgress);
+    }
 
     // Upload storage files — rebuild original paths from data.json URLs
     if (storageFiles.length > 0) {
