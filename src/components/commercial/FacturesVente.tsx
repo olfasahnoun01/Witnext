@@ -207,9 +207,6 @@ export const FacturesVente = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Factures de Vente</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Les factures sont générées depuis la liste des bons de livraison (BL vente) : bouton « Facture ». Liste paginée (10 par page).
-          </p>
         </div>
 
         <div className="relative flex-1 md:w-72 w-full">

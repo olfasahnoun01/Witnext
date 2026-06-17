@@ -902,9 +902,6 @@ export const PermissionsManager = () => {
               <h2 className="text-xl font-semibold text-foreground">
                 Gestion des Permissions & Utilisateurs
               </h2>
-              <p className="text-sm text-muted-foreground">
-                Choisissez une catégorie pour gérer les comptes, identifiants et permissions.
-              </p>
             </div>
           </div>
           <Button onClick={() => openModal()}>

@@ -117,7 +117,6 @@ export const CartesCarburant = () => {
           </div>
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Cartes Carburants</h2>
-            <p className="text-muted-foreground">Gestion des cartes de crédit carburant des conducteurs.</p>
           </div>
         </div>
         <Button onClick={() => setIsNewCardDialogOpen(true)} className="gap-2 rounded-xl h-12 px-6 bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all">

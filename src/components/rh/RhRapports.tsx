@@ -158,9 +158,6 @@ export const RhRapports = () => {
           <FileText className="w-7 h-7 text-primary" />
           Rapports de contrôle & incidents
         </h2>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Générez un rapport au format GSS pour la société cliente. Les natures sélectionnées alimentent les statistiques RH.
-        </p>
       </div>
 
       <section className="bg-card border border-border rounded-xl p-6 space-y-4">

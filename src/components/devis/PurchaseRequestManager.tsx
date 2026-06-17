@@ -342,9 +342,6 @@ export const PurchaseRequestManager = () => {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-2xl font-bold">Demandes d'achat</h2>
-          <p className="text-sm text-muted-foreground">
-            Le responsable commercial ou l&apos;administrateur envoie la demande au responsable stock ou directement aux achats. Le responsable magasin ne peut que transférer vers les achats les demandes qui lui sont adressées.
-          </p>
         </div>
 
         <div className="flex items-center gap-3">

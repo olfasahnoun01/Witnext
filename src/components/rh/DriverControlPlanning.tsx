@@ -262,9 +262,6 @@ export function DriverControlPlanning() {
       <div className="no-print flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
         <div>
           <h2 className="text-xl font-semibold text-foreground">Planning de contrôle de jour</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Planification hebdomadaire des chauffeurs Granisafe — format imprimable FO-TEC-01
-          </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

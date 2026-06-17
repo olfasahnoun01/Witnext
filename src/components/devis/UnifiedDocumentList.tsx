@@ -57,7 +57,6 @@ import { ListPagination } from '@/components/shared/ListPagination';
 
 interface UnifiedDocumentListProps {
   title?: string;
-  description?: string;
   documentTypes?: UnifiedDocumentType[];
   metadataFilter?: { key: string; value: string };
 }
@@ -75,7 +74,6 @@ const DEFAULT_DOCUMENT_TYPES: UnifiedDocumentType[] = [
 
 export const UnifiedDocumentList = ({
   title = 'Gestion des Achats & Ventes',
-  description = 'Gérez vos devis, commandes et logistique (Moteur v2)',
   documentTypes = DEFAULT_DOCUMENT_TYPES,
   metadataFilter,
 }: UnifiedDocumentListProps) => {
@@ -290,7 +288,6 @@ export const UnifiedDocumentList = ({
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold">{title}</h2>
-          <p className="text-sm text-muted-foreground">{description}</p>
         </div>
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

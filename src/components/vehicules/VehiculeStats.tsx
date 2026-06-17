@@ -238,7 +238,6 @@ export const VehiculeStats = () => {
           </div>
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-foreground">Statistiques de la Flotte</h2>
-            <p className="text-muted-foreground">Analysez la consommation, les coûts et les performances.</p>
           </div>
         </div>
       </div>

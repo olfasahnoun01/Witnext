@@ -8,13 +8,11 @@ import { UnifiedDocumentType } from '@/types';
 interface WarehouseDocumentManagerProps {
   type: UnifiedDocumentType;
   title: string;
-  description: string;
 }
 
 export const WarehouseDocumentManager = ({
   type,
   title,
-  description
 }: WarehouseDocumentManagerProps) => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -35,7 +33,6 @@ export const WarehouseDocumentManager = ({
       <UnifiedDocumentList 
         key={refreshKey}
         title={title}
-        description={description}
         documentTypes={[type]}
       />
 

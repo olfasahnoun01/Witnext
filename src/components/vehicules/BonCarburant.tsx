@@ -352,7 +352,6 @@ export const BonCarburant = () => {
           </div>
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-foreground">Bons de Carburants</h2>
-            <p className="text-muted-foreground">Gérez et suivez vos bons de consommation de carburant.</p>
           </div>
         </div>
         <Button onClick={openNewDialog} className="gap-2 rounded-xl h-11 px-6 shadow-lg shadow-primary/20 transition-all hover:shadow-xl hover:-translate-y-0.5 bg-primary text-primary-foreground border-none">

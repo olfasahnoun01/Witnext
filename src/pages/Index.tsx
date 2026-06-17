@@ -208,21 +208,18 @@ const IndexContent = () => {
           <WarehouseDocumentManager 
             type="BE" 
             title="Bons d'Entrée" 
-            description="Gérez les réceptions de stock et entrées manuelles." 
           />
         )}
         {activeTab === 'bs-magasin' && (
           <WarehouseDocumentManager 
             type="BS" 
             title="Bons de Sortie" 
-            description="Gérez les sorties de stock manuelles." 
           />
         )}
         {activeTab === 'bl-magasin' && (
           <WarehouseDocumentManager 
             type="BL_CLIENT" 
             title="Bons de Livraison (Magasin)" 
-            description="Gérez les livraisons créées directement depuis le magasin." 
           />
         )}
         {activeTab === 'comparison' && <SupplierComparison />}
@@ -271,7 +268,6 @@ const IndexContent = () => {
           <Suspense fallback={<ComponentLoader />}>
             <UnifiedDocumentList
               title="Réception fournisseurs"
-              description="BC fournisseur en attente de réception — saisir les quantités reçues et valider les bons d'entrée."
               documentTypes={['BC_FOURNISSEUR']}
             />
           </Suspense>

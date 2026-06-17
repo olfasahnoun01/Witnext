@@ -257,7 +257,6 @@ export const ChargesVehicule = () => {
           </div>
           <div>
             <h2 className="text-2xl font-bold text-foreground">Charges Annuelles & Leasing</h2>
-            <p className="text-muted-foreground">Suivi des assurances, vignettes, visites et financements.</p>
           </div>
         </div>
         <Button onClick={handleOpenDialog} className="gap-2 rounded-2xl h-14 px-8 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95">

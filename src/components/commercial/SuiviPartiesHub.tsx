@@ -11,9 +11,6 @@ export const SuiviPartiesHub = () => {
         </div>
         <div>
           <h2 className="text-xl font-bold text-foreground">Suivi client / fournisseur</h2>
-          <p className="text-sm text-muted-foreground">
-            Saisie manuelle du suivi par client et fournisseur (devis, réponses, contacts).
-          </p>
         </div>
       </div>
 

@@ -820,9 +820,6 @@ export const Planning = () => {
           </div>
           <div>
             <h2 className="text-xl font-bold text-foreground">التخطيط</h2>
-            <p className="text-sm text-muted-foreground">
-              جدول مناوبات الموظفين
-            </p>
           </div>
         </div>
 

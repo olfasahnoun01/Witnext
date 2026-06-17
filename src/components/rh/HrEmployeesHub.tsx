@@ -13,9 +13,6 @@ export const HrEmployeesHub = () => {
         </div>
         <div>
           <h2 className="text-xl font-bold text-foreground">Employées</h2>
-          <p className="text-sm text-muted-foreground">
-            Registre du personnel, congés et suivi des salaires (sans compte de connexion).
-          </p>
         </div>
       </div>
 

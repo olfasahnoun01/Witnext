@@ -128,6 +128,7 @@ export const GestionDevis = ({
 }: GestionDevisProps) => {
   const { isAdmin, isModerator, user } = useAuth();
   const canEdit = true;
+  const defaultDevisType = initialDevisType ?? 'vente';
   const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'bl' | 'helper'>(() => {
     const fallback = initialSection === 'ba' ? 'form' : initialSection;
     return readStoredDevisSection(sectionMode, defaultDevisType, fallback);
@@ -152,7 +153,6 @@ export const GestionDevis = ({
   const devisNumberRef = useRef('');
 
   // Form state
-  const defaultDevisType = initialDevisType ?? 'vente';
   const [devisType, setDevisType] = useState<'achat' | 'vente'>(defaultDevisType);
   const [devisNumber, setDevisNumber] = useState('');
   const pageMode = sectionMode ?? (initialSection === 'bc' ? 'bc' : 'devis');

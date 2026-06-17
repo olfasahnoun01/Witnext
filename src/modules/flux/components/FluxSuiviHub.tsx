@@ -73,9 +73,6 @@ export function FluxSuiviHub() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Suivi des flux</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Devis → BC → achats → stock → livraison → facturation — tout le parcours en un seul endroit.
-          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button

@@ -162,7 +162,6 @@ export const SalesPipeline = () => {
             <TrendingUp className="w-5 h-5 text-primary" />
             Pipeline de Suivi des Commandes
           </h2>
-          <p className="text-xs text-muted-foreground">Visualisez l'état d'avancement réel de chaque commande client</p>
         </div>
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

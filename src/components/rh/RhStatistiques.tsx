@@ -212,10 +212,6 @@ export const RhStatistiques = () => {
           <BarChart3 className="w-7 h-7 text-primary" />
           Statistiques RH
         </h2>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Comparez les exports JSON du Planning (2 périodes minimum) pour calculer effectifs,
-          taux d&apos;affectation, assiduité et recrutement.
-        </p>
       </div>
 
       <Tabs defaultValue="planning" className="w-full">

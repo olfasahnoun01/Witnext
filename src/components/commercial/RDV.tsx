@@ -358,7 +358,6 @@ export const RDV = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Rendez-vous Commerciaux</h1>
-          <p className="text-muted-foreground">Gérez et suivez vos rendez-vous clients dans un format structuré.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center bg-muted p-1 rounded-lg">

@@ -128,7 +128,6 @@ export const Maintenance = () => {
           </div>
           <div>
             <h2 className="text-2xl font-black text-foreground tracking-tight">Maintenances</h2>
-            <p className="text-muted-foreground font-medium">Suivi des entretiens et réparations de la flotte.</p>
           </div>
         </div>
         <Button onClick={() => setIsDialogOpen(true)} className="gap-2 rounded-2xl h-14 px-8 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95">
