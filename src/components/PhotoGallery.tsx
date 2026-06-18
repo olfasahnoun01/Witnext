@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchInventoryCategoryNames } from '@/lib/inventoryCategoryNames';
 import { buildCompanyStoragePath } from '@/lib/storagePaths';
+import { GalleryPhotoImage } from '@/components/GalleryPhotoImage';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -468,10 +469,7 @@ export const PhotoGallery = () => {
         .upload(path, file, { upsert: true });
 
       if (!error) {
-        const { data: urlData } = supabase.storage
-          .from('gallery-photos')
-          .getPublicUrl(path);
-        newUrls.push(urlData.publicUrl);
+        newUrls.push(path);
       }
     }
 
@@ -749,7 +747,7 @@ export const PhotoGallery = () => {
                 onClick={() => openQuickView(item)}
               >
                 {item.photos.length > 0 ? (
-                  <img
+                  <GalleryPhotoImage
                     src={item.photos[0]}
                     alt={item.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -1069,8 +1067,7 @@ export const PhotoGallery = () => {
                     const path = buildCompanyStoragePath(`${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`);
                     const { error } = await supabase.storage.from('gallery-photos').upload(path, file, { upsert: true });
                     if (!error) {
-                      const { data: urlData } = supabase.storage.from('gallery-photos').getPublicUrl(path);
-                      newUrls.push(urlData.publicUrl);
+                      newUrls.push(path);
                     }
                   }
                   setFormPhotos(prev => [...prev, ...newUrls]);
@@ -1079,7 +1076,7 @@ export const PhotoGallery = () => {
               >
                 {formPhotos.map((url, i) => (
                   <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-border">
-                    <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                    <GalleryPhotoImage src={url} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                     <button
                       onClick={() => removePhoto(i)}
                       className="absolute top-1 right-1 p-1 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/80"
@@ -1140,9 +1137,10 @@ export const PhotoGallery = () => {
               {quickViewItem.photos.length > 0 ? (
                 <div className="relative rounded-xl overflow-hidden border border-border bg-muted">
                   <div className="flex items-center justify-center min-h-[220px] max-h-[50vh]">
-                    <img
+                    <GalleryPhotoImage
                       src={quickViewItem.photos[quickViewPhotoIndex]}
                       alt={quickViewItem.name}
+                      variant="full"
                       className="max-w-full max-h-[50vh] object-contain"
                       loading="lazy"
                       decoding="async"
@@ -1184,7 +1182,7 @@ export const PhotoGallery = () => {
                             i === quickViewPhotoIndex ? 'border-primary ring-2 ring-primary/30' : 'border-transparent opacity-70 hover:opacity-100'
                           )}
                         >
-                          <img src={photo} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                          <GalleryPhotoImage src={photo} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                         </button>
                       ))}
                     </div>
