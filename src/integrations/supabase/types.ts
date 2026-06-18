@@ -973,6 +973,7 @@ export type Database = {
           societe: string
           telephone: string | null
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           company_id: string
@@ -987,6 +988,7 @@ export type Database = {
           societe: string
           telephone?: string | null
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           company_id?: string
@@ -1001,6 +1003,7 @@ export type Database = {
           societe?: string
           telephone?: string | null
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {

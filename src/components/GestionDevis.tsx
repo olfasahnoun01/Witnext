@@ -20,6 +20,7 @@ import { debugLog } from '@/lib/debugLog';
 import { computeDevisTotals } from '@/lib/devisPricing';
 import { parseAttachmentUrls, uploadCommercialAttachments, type CommercialAttachmentRecord } from '@/lib/commercialAttachments';
 import { buildMergedBcNotes, mergeDevisItemsFromSources, validateDevisMergeForBc } from '@/lib/mergeCommercialDocuments';
+import { ensureSuiviClientFromConfirmedDevis } from '@/lib/partiesSuivi';
 import {
   ensureSupabaseSessionReady,
   isAuthSessionError,
@@ -629,7 +630,14 @@ export const GestionDevis = ({
         updated_by: user?.id ?? null,
       } as never).eq('id', devis.id);
       if (error) throw error;
-      toast.success(`Devis ${devis.devis_number} confirmé`);
+
+      const suiviResult = await ensureSuiviClientFromConfirmedDevis(devis, user?.id ?? null);
+      if (suiviResult === 'created') {
+        toast.success(`Devis ${devis.devis_number} confirmé — suivi client créé pour ${devis.third_party_name}`);
+      } else {
+        toast.success(`Devis ${devis.devis_number} confirmé`);
+      }
+
       await loadAll();
       if (devis.type === 'vente') {
         setBcPromptDevis({ ...devis, status: 'confirmé' });

@@ -36,7 +36,7 @@ import { notifySessionInvalid } from '@/lib/sessionResume';
 import { getActiveCompanyId } from '@/lib/activeCompany';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { formatError } from '@/lib/formatError';
-import { buildProfilesMap, collectUserIdsForProfiles } from '@/lib/documentListAudit';
+import { buildProfilesMap, collectUserIdsForProfiles, formatModifieePar, attachProfileNames } from '@/lib/documentListAudit';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -50,7 +50,9 @@ interface SuiviRow {
   reponse: string | null;
   dernier_contact_date: string | null;
   created_by: string | null;
+  updated_by: string | null;
   suivi_par_name: string | null;
+  modifier_name: string | null;
 }
 
 interface SuiviFormState {
@@ -111,14 +113,14 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
       const { data, error } = await supabaseQueryWithAuthRetry(() => {
         let q = supabase
           .from('parties_suivi')
-          .select('id, devis_date, devis_number, societe, telephone, reponse, dernier_contact_date, created_by')
+          .select('id, devis_date, devis_number, societe, telephone, reponse, dernier_contact_date, created_by, updated_by')
           .eq('party_type', type);
         if (companyId) q = q.eq('company_id', companyId);
         return q.order('created_at', { ascending: false });
       });
       if (error) throw error;
 
-      const rawRows = (data ?? []) as Array<Omit<SuiviRow, 'suivi_par_name'>>;
+      const rawRows = (data ?? []) as Array<Omit<SuiviRow, 'suivi_par_name' | 'modifier_name'>>;
       const userIds = collectUserIdsForProfiles(rawRows);
       let profilesMap: Record<string, string> = {};
       if (userIds.length > 0) {
@@ -131,10 +133,13 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
       }
 
       setRows(
-        rawRows.map((row) => ({
-          ...row,
-          suivi_par_name: row.created_by ? profilesMap[row.created_by] ?? null : null,
-        }))
+        rawRows.map((row) => {
+          const withNames = attachProfileNames(row, profilesMap);
+          return {
+            ...withNames,
+            suivi_par_name: withNames.creator_name,
+          };
+        })
       );
     } catch (err) {
       console.error(err);
@@ -155,7 +160,7 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((row) =>
-      [row.societe, row.devis_number, row.telephone, row.reponse, row.suivi_par_name]
+      [row.societe, row.devis_number, row.telephone, row.reponse, row.suivi_par_name, row.modifier_name]
         .filter(Boolean)
         .some((val) => String(val).toLowerCase().includes(q))
     );
@@ -212,7 +217,13 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
       };
 
       if (editingId) {
-        const { error } = await supabase.from('parties_suivi').update(payload).eq('id', editingId);
+        const { error } = await supabase
+          .from('parties_suivi')
+          .update({
+            ...payload,
+            updated_by: user?.id ?? null,
+          })
+          .eq('id', editingId);
         if (error) throw error;
         toast.success('Ligne mise à jour');
       } else {
@@ -353,19 +364,20 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
                 <TableHead className="font-semibold min-w-[360px] w-[40%]">Réponse / Description</TableHead>
                 <TableHead className="font-semibold">Date dernier contact</TableHead>
                 <TableHead className="font-semibold min-w-[140px]">Suivi par</TableHead>
+                <TableHead className="font-semibold min-w-[140px]">Modifié par</TableHead>
                 <TableHead className="w-[90px] text-right font-semibold">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                     Chargement…
                   </TableCell>
                 </TableRow>
               ) : filteredRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground italic">
+                  <TableCell colSpan={9} className="h-24 text-center text-muted-foreground italic">
                     Aucune ligne — saisissez le suivi manuellement pour chaque {partyLabel}.
                   </TableCell>
                 </TableRow>
@@ -399,6 +411,15 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
                       <span className="inline-flex items-center rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-xs font-medium">
                         {row.suivi_par_name ? `Suivi par : ${row.suivi_par_name}` : '—'}
                       </span>
+                    </TableCell>
+                    <TableCell className="text-sm py-3">
+                      {formatModifieePar(row) !== '-' ? (
+                        <span className="inline-flex items-center rounded-md border border-amber-200/80 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                          {formatModifieePar(row)}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
                     </TableCell>
                     <TableCell className="text-right py-3">
                       <DropdownMenu>
