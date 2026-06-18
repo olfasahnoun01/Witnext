@@ -40,31 +40,30 @@ const DEVIS_PDF_TABLE_HEAD_HT = [
 const DEVIS_PDF_HEAD_STYLES = {
   fillColor: [30, 58, 95] as [number, number, number],
   textColor: 255,
-  fontSize: 7.5,
+  fontSize: 8,
   fontStyle: 'bold' as const,
+  halign: 'center' as const,
   cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 },
   minCellHeight: 6,
   overflow: 'linebreak' as const,
   valign: 'middle' as const,
 };
 
-/** Relative column weights (must sum to 100). */
-const DEVIS_PDF_COL_WEIGHTS_TTC = [4, 8, 14, 17, 6, 10, 6, 10, 8, 17] as const;
-const DEVIS_PDF_COL_WEIGHTS_HT = [4, 9, 17, 23, 7, 11, 7, 11, 11] as const;
+/** Relative column weights (must sum to 100). Code + Mnt HT narrower; Désignation wider. */
+const DEVIS_PDF_COL_WEIGHTS_TTC = [4, 5, 22, 17, 6, 10, 6, 10, 8, 12] as const;
+const DEVIS_PDF_COL_WEIGHTS_HT = [4, 5, 24, 23, 7, 11, 7, 11, 8] as const;
 
 function weightsToColumnStyles(
   weights: readonly number[],
-  availableWidth: number,
-  alignments: Array<'left' | 'center' | 'right'>
+  availableWidth: number
 ): Record<number, object> {
   const totalWeight = weights.reduce((s, w) => s + w, 0);
   const styles: Record<number, object> = {};
   weights.forEach((weight, index) => {
-    const halign = alignments[index] ?? 'left';
     styles[index] = {
       cellWidth: (availableWidth * weight) / totalWeight,
-      valign: halign === 'left' ? 'top' : 'middle',
-      halign,
+      valign: 'middle',
+      halign: 'center',
     };
   });
   return styles;
@@ -89,33 +88,10 @@ export function devisPdfShowsTvaBreakdown(
   return items.some((item) => resolveDevisLineTvaRate(item.tva) > 0);
 }
 
-/** Column widths + alignment (header follows same halign as body). */
+/** Column widths — all cells centered in the PDF table. */
 function getDevisPdfTableColumnStyles(showTvaColumn: boolean, availableWidth: number): Record<number, object> {
-  if (showTvaColumn) {
-    return weightsToColumnStyles(DEVIS_PDF_COL_WEIGHTS_TTC, availableWidth, [
-      'center', // #
-      'left', // Code
-      'left', // Désignation
-      'left', // Description
-      'center', // Qté
-      'right', // PU HT
-      'center', // Rem.%
-      'right', // Net HT
-      'center', // TVA %
-      'right', // Mnt HT
-    ]);
-  }
-  return weightsToColumnStyles(DEVIS_PDF_COL_WEIGHTS_HT, availableWidth, [
-    'center',
-    'left',
-    'left',
-    'left',
-    'center',
-    'right',
-    'center',
-    'right',
-    'right',
-  ]);
+  const weights = showTvaColumn ? DEVIS_PDF_COL_WEIGHTS_TTC : DEVIS_PDF_COL_WEIGHTS_HT;
+  return weightsToColumnStyles(weights, availableWidth);
 }
 
 interface PdfLogoAsset {
@@ -817,10 +793,12 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     tableWidth: itemsTableWidth,
     headStyles: DEVIS_PDF_HEAD_STYLES,
     styles: {
-      fontSize: 7.5,
+      fontSize: 8,
+      fontStyle: 'bold',
       cellPadding: { top: 2, right: 2, bottom: 2, left: 2 },
       overflow: 'linebreak',
-      valign: 'top',
+      valign: 'middle',
+      halign: 'center',
       lineColor: [210, 210, 210],
       lineWidth: 0.1,
     },
@@ -831,20 +809,16 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     didParseCell: (data) => {
       if (data.section === 'head') {
         data.cell.styles.overflow = 'linebreak';
-        data.cell.styles.fontSize = 7.5;
+        data.cell.styles.fontSize = 8;
         data.cell.styles.fontStyle = 'bold';
         data.cell.styles.valign = 'middle';
+        data.cell.styles.halign = 'center';
       }
       if (data.section === 'body') {
-        const numericRight = showTvaColumn ? [5, 7, 9] : [5, 7, 8];
-        const numericCenter = showTvaColumn ? [0, 4, 6, 8] : [0, 4, 6];
-        if (numericRight.includes(data.column.index)) {
-          data.cell.styles.halign = 'right';
-          data.cell.styles.valign = 'middle';
-        } else if (numericCenter.includes(data.column.index)) {
-          data.cell.styles.halign = 'center';
-          data.cell.styles.valign = 'middle';
-        }
+        data.cell.styles.halign = 'center';
+        data.cell.styles.valign = 'middle';
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fontSize = 8;
       }
     },
     didDrawPage: (data) => {
