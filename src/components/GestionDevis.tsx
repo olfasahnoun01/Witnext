@@ -146,6 +146,7 @@ export const GestionDevis = ({
   const [bcPromptDevis, setBcPromptDevis] = useState<Devis | null>(null);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const draftHydratedRef = useRef(false);
+  const currentDraftRef = useRef<any>(null);
   const [docType, setDocType] = useState<'devis' | 'bc' | 'ba'>(() => {
     if (sectionMode === 'bc') return 'bc';
     if ((initialDocType as unknown) === 'ba') return 'ba';
@@ -207,23 +208,18 @@ export const GestionDevis = ({
     devisType,
   ]);
 
+  // Update ref whenever form state changes
   useEffect(() => {
-    if (editingDevis || showEditDialog || docType !== 'devis' || activeSection !== 'form') return;
-    if (!draftHydratedRef.current && devisItems.length === 0 && !thirdPartyName.trim()) return;
-
-    const companyId = getActiveCompanyId();
-    const timer = window.setTimeout(() => {
-      const hasContent =
-        devisItems.length > 0 ||
-        thirdPartyName.trim() ||
-        notes.trim() ||
-        thirdPartyAddress.trim();
-      if (!hasContent) {
-        clearDevisDraft(companyId, devisType, docType);
-        setDraftSavedAt(null);
-        return;
-      }
-      saveDevisDraft(companyId, devisType, docType, {
+    const hasContent =
+      devisItems.length > 0 ||
+      thirdPartyName.trim() ||
+      notes.trim() ||
+      thirdPartyAddress.trim();
+      
+    if (!hasContent) {
+      currentDraftRef.current = null;
+    } else {
+      currentDraftRef.current = {
         devisType,
         docType,
         devisNumber,
@@ -236,7 +232,47 @@ export const GestionDevis = ({
         documentStatus,
         devisItems,
         isTtc,
-      });
+      };
+    }
+  }, [
+    devisType, docType, devisNumber, devisDate, thirdPartyName, 
+    thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, 
+    documentStatus, devisItems, isTtc
+  ]);
+
+  // Handle synchronous save on unmount or beforeunload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (editingDevis || showEditDialog || docType !== 'devis' || activeSection !== 'form') return;
+      const companyId = getActiveCompanyId();
+      if (currentDraftRef.current) {
+        saveDevisDraft(companyId, devisType, docType, currentDraftRef.current);
+      } else {
+        clearDevisDraft(companyId, devisType, docType);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      handleBeforeUnload();
+    };
+  }, [editingDevis, showEditDialog, docType, activeSection, devisType]);
+
+  // Existing debounce save
+  useEffect(() => {
+    if (editingDevis || showEditDialog || docType !== 'devis' || activeSection !== 'form') return;
+    if (!draftHydratedRef.current && devisItems.length === 0 && !thirdPartyName.trim()) return;
+
+    const companyId = getActiveCompanyId();
+    const timer = window.setTimeout(() => {
+      if (!currentDraftRef.current) {
+        clearDevisDraft(companyId, devisType, docType);
+        setDraftSavedAt(null);
+        return;
+      }
+      saveDevisDraft(companyId, devisType, docType, currentDraftRef.current);
       setDraftSavedAt(new Date().toISOString());
     }, 1200);
 

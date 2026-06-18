@@ -63,6 +63,8 @@ interface Client {
   email: string | null;
   patente_url?: string | null;
   registre_commerce_url?: string | null;
+  nature_activite?: string | null;
+  attestation_exoneration_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -105,6 +107,8 @@ export const Clients = memo(() => {
   const [exactLocation, setExactLocation] = useState('');
   const [patenteUrl, setPatenteUrl] = useState<string | null>(null);
   const [rcUrl, setRcUrl] = useState<string | null>(null);
+  const [natureActivite, setNatureActivite] = useState('');
+  const [attestationExonerationUrl, setAttestationExonerationUrl] = useState<string | null>(null);
   const [tvaStatus, setTvaStatus] = useState<ClientTvaStatus>('assujetti');
   
   // Filter state
@@ -175,12 +179,14 @@ export const Clients = memo(() => {
     setExactLocation('');
     setPatenteUrl(null);
     setRcUrl(null);
+    setNatureActivite('');
+    setAttestationExonerationUrl(null);
     setTvaStatus('assujetti');
     setEditingClient(null);
   }, []);
 
   const persistClientDocument = useCallback(async (
-    field: 'patente_url' | 'registre_commerce_url',
+    field: 'patente_url' | 'registre_commerce_url' | 'attestation_exoneration_url',
     url: string | null,
   ) => {
     if (!editingClient) return;
@@ -252,7 +258,9 @@ export const Clients = memo(() => {
       email: email.trim(),
       location: locationValue,
       patente_url: patenteUrl,
-      registre_commerce_url: rcUrl
+      registre_commerce_url: rcUrl,
+      nature_activite: natureActivite.trim() || null,
+      attestation_exoneration_url: attestationExonerationUrl
     };
 
     if (editingClient) {
@@ -291,7 +299,7 @@ export const Clients = memo(() => {
         loadClients();
       }
     }
-  }, [nom, code, tvaStatus, existingClientCodes, selectedCity, selectedGovernorate, exactLocation, matriculeFiscale, phoneLines, email, patenteUrl, rcUrl, editingClient, resetForm, loadClients]);
+  }, [nom, code, tvaStatus, existingClientCodes, selectedCity, selectedGovernorate, exactLocation, matriculeFiscale, phoneLines, email, patenteUrl, rcUrl, natureActivite, attestationExonerationUrl, editingClient, resetForm, loadClients]);
 
   const handleEdit = useCallback((client: Client) => {
     setEditingClient(client);
@@ -304,6 +312,8 @@ export const Clients = memo(() => {
     setEmail(client.email || '');
     setPatenteUrl(client.patente_url);
     setRcUrl(client.registre_commerce_url);
+    setNatureActivite(client.nature_activite || '');
+    setAttestationExonerationUrl(client.attestation_exoneration_url || null);
     
     // Parse location back to exact address, city, and governorate
     if (client.location) {
@@ -486,13 +496,22 @@ export const Clients = memo(() => {
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="nom">Nom Client *</Label>
+                    <Label htmlFor="nom">Nom (Société) *</Label>
                     <Input
                       id="nom"
                       value={nom}
                       onChange={(e) => setNom(e.target.value)}
-                      placeholder="Nom du client ou société"
+                      placeholder="Ex: GROSAFE SARL"
                       required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="natureActivite">Nature d'activité</Label>
+                    <Input
+                      id="natureActivite"
+                      value={natureActivite}
+                      onChange={(e) => setNatureActivite(e.target.value)}
+                      placeholder="Ex: Import/Export, BTP..."
                     />
                   </div>
                   <div className="space-y-2">
@@ -648,6 +667,24 @@ export const Clients = memo(() => {
                           }}
                           onConsult={(url) => void openDocumentPreview(url, `RNE — ${nom.trim() || code}`)}
                         />
+                        {tvaStatus === 'exonere' && (
+                          <DocumentUploader
+                            bucket="client-documents"
+                            entityCode={code}
+                            documentType="attestation_exoneration"
+                            titleOverride="Attestation d'exonération"
+                            currentUrl={attestationExonerationUrl}
+                            onUploadSuccess={(url) => {
+                              setAttestationExonerationUrl(url);
+                              void persistClientDocument('attestation_exoneration_url', url);
+                            }}
+                            onRemove={() => {
+                              setAttestationExonerationUrl(null);
+                              void persistClientDocument('attestation_exoneration_url', null);
+                            }}
+                            onConsult={(url) => void openDocumentPreview(url, `Attestation exonération — ${nom.trim() || code}`)}
+                          />
+                        )}
                       </div>
                     ) : (
                       <div className="p-3 rounded-lg bg-muted/50 border flex items-start gap-2 text-muted-foreground text-xs">

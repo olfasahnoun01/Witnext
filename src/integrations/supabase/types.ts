@@ -489,6 +489,7 @@ export type Database = {
       }
       clients: {
         Row: {
+          attestation_exoneration_url: string | null
           code: string | null
           company_id: string
           created_at: string
@@ -496,6 +497,7 @@ export type Database = {
           id: number
           location: string | null
           matricule_fiscale: string | null
+          nature_activite: string | null
           nom: string
           patente_url: string | null
           phone: string | null
@@ -504,6 +506,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attestation_exoneration_url?: string | null
           code?: string | null
           company_id?: string
           created_at?: string
@@ -511,6 +514,7 @@ export type Database = {
           id?: number
           location?: string | null
           matricule_fiscale?: string | null
+          nature_activite?: string | null
           nom: string
           patente_url?: string | null
           phone?: string | null
@@ -519,6 +523,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attestation_exoneration_url?: string | null
           code?: string | null
           company_id?: string
           created_at?: string
@@ -526,6 +531,7 @@ export type Database = {
           id?: number
           location?: string | null
           matricule_fiscale?: string | null
+          nature_activite?: string | null
           nom?: string
           patente_url?: string | null
           phone?: string | null
