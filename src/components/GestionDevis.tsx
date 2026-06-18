@@ -893,18 +893,24 @@ export const GestionDevis = ({
     <div className="space-y-3 animate-fade-in">
       {/* Section tabs — compact bar to maximize form/list area */}
       <div className={cn('inline-flex flex-wrap items-center gap-0.5 p-0.5 rounded-lg max-w-full', tabBarClass)}>
-        <button
-          type="button"
-          title={formTabTitle}
+        <Button
+          variant={activeSection === 'form' ? 'default' : 'ghost'}
           onClick={() => {
-            if (!editingDevis) handleAddNew(sectionMode ?? 'devis');
-            else setActiveSection('form');
+            if (activeSection !== 'form') {
+              setActiveSection('form');
+            } else if (!editingDevis) {
+              if (window.confirm("Créer un nouveau devis et effacer le brouillon actuel ?")) {
+                handleAddNew(sectionMode ?? 'devis');
+              }
+            } else {
+              setActiveSection('form');
+            }
           }}
-          className={sectionTabClass(activeSection === 'form')}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap shrink-0 ${activeSection === 'form' ? tabActiveClass : 'text-muted-foreground hover:text-foreground hover:bg-background/60'}`}
         >
           <Plus className="w-3.5 h-3.5 shrink-0" />
           {formTabLabel}
-        </button>
+        </Button>
         <button
           type="button"
           title="Liste des devis"

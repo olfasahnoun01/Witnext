@@ -176,8 +176,12 @@ export const DevisForm = memo(({
   const [newClientGovernorate, setNewClientGovernorate] = useState('');
   const [newClientCity, setNewClientCity] = useState('');
   const [newClientPhoneLines, setNewClientPhoneLines] = useState<string[]>(['']);
+  const [newClientEmail, setNewClientEmail] = useState('');
+  const [newClientNatureActivite, setNewClientNatureActivite] = useState('');
+  const [newClientExactLocation, setNewClientExactLocation] = useState('');
   const [newClientPatenteUrl, setNewClientPatenteUrl] = useState<string | null>(null);
   const [newClientRcUrl, setNewClientRcUrl] = useState<string | null>(null);
+  const [newClientAttestationUrl, setNewClientAttestationUrl] = useState<string | null>(null);
   const [newClientTvaStatus, setNewClientTvaStatus] = useState<ClientTvaStatus>('assujetti');
   const partyTvaPolicyKeyRef = useRef<string | null>(null);
   const { preview: documentPreview, pdfBytesRef, openDocumentPreview, closePreview: closeDocumentPreview } =
@@ -525,8 +529,12 @@ export const DevisForm = memo(({
     setNewClientCity('');
     setNewClientCode('');
     setNewClientPhoneLines(['']);
+    setNewClientEmail('');
+    setNewClientNatureActivite('');
+    setNewClientExactLocation('');
     setNewClientPatenteUrl(null);
     setNewClientRcUrl(null);
+    setNewClientAttestationUrl(null);
     setNewClientTvaStatus('assujetti');
   }, []);
 
@@ -547,7 +555,8 @@ export const DevisForm = memo(({
       return;
     }
 
-    const locationValue = `${newClientCity}, ${newClientGovernorate}`;
+    const locationParts = [newClientExactLocation.trim(), newClientCity, newClientGovernorate].filter(Boolean);
+    const locationValue = locationParts.length > 0 ? locationParts.join(', ') : null;
     const companyId = getActiveCompanyId();
     if (!companyId) {
       toast.error('Aucune société active');
@@ -561,9 +570,12 @@ export const DevisForm = memo(({
       tva_status: newClientTvaStatus,
       company_id: companyId,
       phone: phoneStored,
+      email: newClientEmail.trim() || null,
+      nature_activite: newClientNatureActivite.trim() || null,
       location: locationValue,
       patente_url: newClientPatenteUrl,
       registre_commerce_url: newClientRcUrl,
+      attestation_exoneration_url: newClientAttestationUrl,
     }).select().single();
 
     if (error) {
@@ -588,8 +600,12 @@ export const DevisForm = memo(({
     newClientGovernorate,
     newClientCity,
     newClientPhoneLines,
+    newClientEmail,
+    newClientNatureActivite,
+    newClientExactLocation,
     newClientPatenteUrl,
     newClientRcUrl,
+    newClientAttestationUrl,
     newClientTvaStatus,
     setThirdPartyName,
     setThirdPartyPhone,
@@ -1598,6 +1614,10 @@ export const DevisForm = memo(({
               <Input value={newClientName} onChange={e => setNewClientName(e.target.value)} placeholder="Nom du client" />
             </div>
             <div className="space-y-2">
+              <Label>Nature d'activité</Label>
+              <Input value={newClientNatureActivite} onChange={e => setNewClientNatureActivite(e.target.value)} placeholder="Ex: Import/Export, BTP..." />
+            </div>
+            <div className="space-y-2">
               <Label>Code client *</Label>
               <Input value={newClientCode} onChange={e => setNewClientCode(e.target.value)} placeholder="Ex: CLI-001" />
             </div>
@@ -1630,6 +1650,10 @@ export const DevisForm = memo(({
               lines={newClientPhoneLines}
               onChange={setNewClientPhoneLines}
             />
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input type="email" value={newClientEmail} onChange={e => setNewClientEmail(e.target.value)} placeholder="Ex: contact@societe.tn" />
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Gouvernorat *</Label>
@@ -1658,6 +1682,10 @@ export const DevisForm = memo(({
                 </Select>
               </div>
             </div>
+            <div className="space-y-2">
+              <Label>Adresse Exacte *</Label>
+              <Input value={newClientExactLocation} onChange={e => setNewClientExactLocation(e.target.value)} placeholder="Ex: Rue Ibn Khaldoun..." />
+            </div>
             <div className="space-y-3 pt-2 border-t border-dashed">
               <Label className="text-sm font-semibold">Documents (PDF, JPG, PNG) — optionnel</Label>
               {newClientCode.trim() ? (
@@ -1681,6 +1709,18 @@ export const DevisForm = memo(({
                     onRemove={() => setNewClientRcUrl(null)}
                     onConsult={(url) => void openDocumentPreview(url, `RNE — ${newClientName.trim() || newClientCode}`)}
                   />
+                  {newClientTvaStatus === 'exonere' && (
+                    <DocumentUploader
+                      bucket="client-documents"
+                      entityCode={`CLI_${newClientCode.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`}
+                      documentType="attestation_exoneration"
+                      titleOverride="Attestation d'exonération"
+                      currentUrl={newClientAttestationUrl}
+                      onUploadSuccess={(url) => setNewClientAttestationUrl(url)}
+                      onRemove={() => setNewClientAttestationUrl(null)}
+                      onConsult={(url) => void openDocumentPreview(url, `Attestation exonération — ${newClientName.trim() || newClientCode}`)}
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="p-3 rounded-lg bg-amber-50 border border-amber-100 flex items-start gap-2 text-amber-800 text-xs">
