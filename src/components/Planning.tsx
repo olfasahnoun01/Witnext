@@ -561,6 +561,26 @@ export const Planning = () => {
     toast.success('تم إنشاء جدول التخطيط بنجاح');
   }, [employeeCount]);
 
+  // Add Employee row dynamically
+  const handleAddEmployee = useCallback(() => {
+    setEmployees((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), name: '', shifts: {} },
+    ]);
+    setEmployeeCount((prev) => (prev === '' ? 1 : prev + 1));
+    toast.success('تم إضافة موظف جديد');
+  }, []);
+
+  // Remove Employee row dynamically
+  const handleRemoveEmployee = useCallback((id: string) => {
+    setEmployees((prev) => {
+      const filtered = prev.filter((emp) => emp.id !== id);
+      setEmployeeCount(filtered.length);
+      return filtered;
+    });
+    toast.success('تم حذف الموظف بنجاح');
+  }, []);
+
   // Reset
   const handleReset = useCallback(() => {
     setIsGenerated(false);
@@ -1047,7 +1067,18 @@ export const Planning = () => {
           {renderPlanningDocumentHeader('schedule', 'Planning / Calendrier')}
           <div className="no-print flex items-center justify-between gap-3 p-4 border-b border-border bg-muted/30">
             <h3 className="text-base font-semibold text-foreground">جدول المناوبات</h3>
-            {renderSectionActions('schedule')}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAddEmployee}
+                className="gap-1.5 rounded-xl border-primary text-primary hover:bg-primary/5"
+              >
+                <Plus className="w-4 h-4" />
+                إضافة موظف
+              </Button>
+              {renderSectionActions('schedule')}
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse min-w-[800px]">
@@ -1083,17 +1114,28 @@ export const Planning = () => {
                     >
                       {/* Employee name - sticky */}
                       <td className="sticky right-0 z-10 bg-card group-hover:bg-muted/30 backdrop-blur-sm px-3 py-1.5 border-b border-l border-border">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground text-[10px] font-bold shrink-0">
-                            {emp.name ? emp.name.charAt(0) : (empIdx + 1)}
-                          </span>
-                          <input
-                            type="text"
-                            value={emp.name}
-                            onChange={(e) => updateEmployeeName(emp.id, e.target.value)}
-                            placeholder="اسم الموظف"
-                            className="bg-transparent border-0 outline-none w-full text-sm font-medium text-foreground focus:ring-0 p-0"
-                          />
+                        <div className="flex items-center gap-2 justify-between">
+                          <div className="flex items-center gap-2 flex-1">
+                            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground text-[10px] font-bold shrink-0">
+                              {emp.name ? emp.name.charAt(0) : (empIdx + 1)}
+                            </span>
+                            <input
+                              type="text"
+                              value={emp.name}
+                              onChange={(e) => updateEmployeeName(emp.id, e.target.value)}
+                              placeholder="اسم الموظف"
+                              className="bg-transparent border-0 outline-none w-full text-sm font-medium text-foreground focus:ring-0 p-0"
+                            />
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveEmployee(emp.id)}
+                            className="no-print h-6 w-6 rounded-md opacity-0 group-hover:opacity-100 text-destructive hover:bg-destructive/10 transition-opacity shrink-0"
+                            title="حذف الموظف"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
                       </td>
 
