@@ -132,7 +132,7 @@ export const GestionDevis = ({
   const canEdit = true;
   const defaultDevisType = initialDevisType ?? 'vente';
   const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'bl' | 'helper'>(() => {
-    const fallback = initialSection === 'ba' ? 'form' : initialSection;
+    const fallback = (initialSection as string) === 'ba' ? 'form' : initialSection;
     return readStoredDevisSection(sectionMode, defaultDevisType, fallback);
   });
   const [allDevis, setAllDevis] = useState<Devis[]>([]);
@@ -316,10 +316,10 @@ export const GestionDevis = ({
     }
 
     const activeCompanyId = getActiveCompanyId();
-    const { data, error } = await supabaseQueryWithAuthRetry(() => {
-      let q = supabase.from('devis').select('*');
+    const { data, error } = await supabaseQueryWithAuthRetry(async () => {
+      let q: any = supabase.from('devis').select('*');
       if (activeCompanyId) q = q.eq('company_id' as any, activeCompanyId);
-      return q.order('created_at', { ascending: false }).limit(1000);
+      return await q.order('created_at', { ascending: false }).limit(1000);
     });
 
     if (error) {
@@ -337,15 +337,16 @@ export const GestionDevis = ({
     }
 
     debugLog('GestionDevis.tsx:loadAll', 'devis query success', {
-      rowCount: data?.length ?? 0,
+      rowCount: (data as any[])?.length ?? 0,
     }, 'C');
 
     if (data) {
-      const userIds = collectUserIdsForProfiles(data);
+      const dataArr = data as any[];
+      const userIds = collectUserIdsForProfiles(dataArr);
       let profilesMap: Record<string, string> = {};
       if (userIds.length > 0) {
-        const { data: profiles, error: profilesError } = await supabaseQueryWithAuthRetry(() =>
-          supabase
+        const { data: profiles, error: profilesError } = await supabaseQueryWithAuthRetry(async () =>
+          await supabase
             .from('profiles')
             .select('user_id, full_name, email')
             .in('user_id', userIds)
@@ -353,13 +354,13 @@ export const GestionDevis = ({
         if (profilesError) {
           console.warn('[GestionDevis] profiles load failed:', profilesError.message);
         } else if (profiles) {
-          profilesMap = buildProfilesMap(profiles);
+          profilesMap = buildProfilesMap(profiles as any[]);
         }
       }
 
       const sourceIds = [
         ...new Set(
-          data.flatMap((d) => {
+          dataArr.flatMap((d) => {
             const ids: number[] = [];
             if ((d as { source_devis_id?: number }).source_devis_id) {
               ids.push((d as { source_devis_id: number }).source_devis_id);
@@ -373,19 +374,19 @@ export const GestionDevis = ({
       let sourceDevisMap: Record<number, string> = {};
       const sourceBcMap: Record<number, string> = {};
       if (sourceIds.length > 0) {
-        data.forEach((d) => {
+        dataArr.forEach((d) => {
           if (sourceIds.includes(d.id)) {
             sourceDevisMap[d.id] = d.devis_number;
           }
         });
       }
-      data.forEach((d) => {
+      dataArr.forEach((d) => {
         if ((d as { is_bc?: boolean }).is_bc) {
           sourceBcMap[d.id] = d.devis_number;
         }
       });
 
-      setAllDevis(data.map((d) => parseDevisRow(d, profilesMap, sourceDevisMap, sourceBcMap)));
+      setAllDevis(dataArr.map((d) => parseDevisRow(d, profilesMap, sourceDevisMap, sourceBcMap)));
     }
   }, []);
 
@@ -478,7 +479,7 @@ export const GestionDevis = ({
     if (list.length > 1) {
       const check = validateDevisMergeForBc(list);
       if (!check.ok) {
-        toast.error(check.error);
+        toast.error((check as any).error);
         return;
       }
     }
@@ -662,7 +663,7 @@ export const GestionDevis = ({
   const convertMultipleToBC = useCallback((list: Devis[]) => {
     const check = validateDevisMergeForBc(list);
     if (!check.ok) {
-      toast.error(check.error);
+      toast.error((check as any).error);
       return;
     }
     setDevisListToConvert(list);
@@ -702,7 +703,7 @@ export const GestionDevis = ({
     const primaryIsTtc = primary.is_ttc ?? false;
 
     try {
-      const bcNumber = generateNextNumber(primary.type, 'bc');
+      const bcNumber = generateNextNumber(primary.type as 'achat' | 'vente', 'bc');
       const { data: { user } } = await supabase.auth.getUser();
       const totals = computeDevisTotals(modifiedItems, false);
       const mergedAttachments = sources.flatMap((d) => parseAttachmentUrls(d.attachment_urls));
@@ -713,7 +714,7 @@ export const GestionDevis = ({
         devis_date: new Date().toISOString().split('T')[0],
         source_devis_id: primary.id,
         source_devis_ids: isMerge ? sources.map((d) => d.id) : null,
-        type: primary.type,
+        type: primary.type as 'achat' | 'vente',
         third_party_name: primary.third_party_name,
         third_party_address: primary.third_party_address,
         third_party_tax_id: primary.third_party_tax_id,
@@ -769,7 +770,7 @@ export const GestionDevis = ({
 
   const startEdit = useCallback((d: Devis) => {
     setEditingDevis(d);
-    setDevisType(d.type);
+    setDevisType(d.type as 'achat' | 'vente');
     if (d.is_ba) setDocType('ba');
     else if (d.is_bc || d.is_bl) setDocType('bc');
     else setDocType('devis');
