@@ -27,9 +27,10 @@ export function resolveUploadMimeType(file: File): string {
   return file.type || mimeFromFileName(file.name) || 'application/octet-stream';
 }
 
-export type UploadValidationResult =
-  | { ok: true }
-  | { ok: false; message: string };
+export type UploadValidationResult = {
+  ok: boolean;
+  message?: string;
+};
 
 export function validateUploadFile(
   file: File,

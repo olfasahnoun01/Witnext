@@ -11,6 +11,7 @@ import {
   resolveUploadMimeType,
   validateUploadFile,
 } from '@/lib/uploadValidation';
+import { parseSupabaseStorageObjectUrl, loadStorageDocumentPdf } from '@/lib/clientDocumentStorage';
 
 interface DocumentUploaderProps {
   bucket: 'client-documents' | 'product-documents';
