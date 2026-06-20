@@ -119,4 +119,41 @@ describe('computeDevisTotals', () => {
     expect(totals.totalTVA).toBeCloseTo(53.2, 3); // 19 + 34.2
     expect(totals.totalTTC).toBeCloseTo(333.2, 3);
   });
+
+  it('calculates FODEC for BC supplier (achat) when TVA is enabled', () => {
+    const totals = computeDevisTotals(
+      [
+        item({ prix_ttc: 100, quantity: 1, tva: 19 }),
+        item({ prix_ttc: 100, quantity: 2, remise: 10, tva: 19 }),
+      ],
+      false,
+      { devisType: 'achat', docType: 'bc', isTvaEnabled: true }
+    );
+    // net HT is 280, so FODEC is 2.8
+    expect(totals.totalFodec).toBeCloseTo(2.8, 3);
+    expect(totals.totalFinal).toBeCloseTo(333.2 + TIMBRE_FISCAL_DT + 2.8, 3);
+  });
+
+  it('does not calculate FODEC if docType is not bc or devisType is not achat or tva not enabled', () => {
+    const t1 = computeDevisTotals(
+      [item({ prix_ttc: 100, quantity: 1, tva: 19 })],
+      false,
+      { devisType: 'vente', docType: 'bc', isTvaEnabled: true }
+    );
+    expect(t1.totalFodec).toBeUndefined();
+
+    const t2 = computeDevisTotals(
+      [item({ prix_ttc: 100, quantity: 1, tva: 19 })],
+      false,
+      { devisType: 'achat', docType: 'devis', isTvaEnabled: true }
+    );
+    expect(t2.totalFodec).toBeUndefined();
+
+    const t3 = computeDevisTotals(
+      [item({ prix_ttc: 100, quantity: 1, tva: 19 })],
+      false,
+      { devisType: 'achat', docType: 'bc', isTvaEnabled: false }
+    );
+    expect(t3.totalFodec).toBeUndefined();
+  });
 });

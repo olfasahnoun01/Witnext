@@ -273,7 +273,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
         window.dispatchEvent(new CustomEvent('grosafe:bl-refresh'));
         onRefresh?.();
       } else {
-        toast.error(result.error);
+        toast.error((result as { success: false; error: string }).error);
       }
     } finally {
       setBlBusyId(null);
@@ -291,7 +291,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
     const list = selectedBcList.filter((bc) => bc.type === 'vente');
     const check = validateBcMergeForBl(list);
     if (!check.ok) {
-      toast.error(check.error);
+      toast.error((check as { ok: false; error: string }).error);
       return;
     }
     const blocked = list.find((bc) => bcIdsWithBl.has(bc.id));
@@ -316,7 +316,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
         window.dispatchEvent(new CustomEvent('grosafe:bl-refresh'));
         onRefresh?.();
       } else {
-        toast.error(result.error);
+        toast.error((result as { success: false; error: string }).error);
       }
     } finally {
       setMergeBlBusy(false);
@@ -462,7 +462,11 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
         </td>
         <td className="py-3 px-4 text-sm font-medium text-foreground">
           {(() => {
-            const totals = computeDevisTotals(bc.items, false);
+            const totals = computeDevisTotals(bc.items, false, {
+              devisType: (bc.type === 'achat' || bc.type === 'entrant') ? 'achat' : 'vente',
+              docType: 'bc',
+              isTvaEnabled: bc.is_ttc
+            });
             return totals.totalFinal > 1 ? `${totals.totalFinal.toFixed(3)} TND` : '-';
           })()}
         </td>

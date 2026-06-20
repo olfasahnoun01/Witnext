@@ -16,7 +16,7 @@ import { parseSupabaseStorageObjectUrl, loadStorageDocumentPdf } from '@/lib/cli
 interface DocumentUploaderProps {
   bucket: 'client-documents' | 'product-documents';
   entityCode: string;
-  documentType: 'patente' | 'rc' | 'fiche_technique';
+  documentType: 'patente' | 'rc' | 'fiche_technique' | 'attestation_exoneration';
   titleOverride?: string;
   currentUrl?: string | null;
   onUploadSuccess: (url: string) => void;
@@ -43,7 +43,7 @@ export const DocumentUploader = ({
   const [progress, setProgress] = useState(0);
   const [consulting, setConsulting] = useState(false);
 
-  const isLegalDocument = documentType === 'patente' || documentType === 'rc';
+  const isLegalDocument = documentType === 'patente' || documentType === 'rc' || documentType === 'attestation_exoneration';
   const canRemove = isLegalDocument && !!currentUrl && !!onRemove;
   const allowedMimeTypes = isLegalDocument ? LEGAL_DOCUMENT_MIME_TYPES : FICHE_MIME_TYPES;
   const accept = isLegalDocument ? LEGAL_DOCUMENT_ACCEPT : FICHE_ACCEPT;
@@ -125,7 +125,7 @@ export const DocumentUploader = ({
 
   const handleRemove = async () => {
     if (!currentUrl || !onRemove) return;
-    const label = titleOverride || (documentType === 'patente' ? 'Patente' : 'RNE');
+    const label = titleOverride || (documentType === 'patente' ? 'Patente' : documentType === 'rc' ? 'RNE' : 'Attestation');
     if (!confirm(`Supprimer ${label} ?`)) return;
 
     setRemoving(true);

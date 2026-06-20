@@ -131,8 +131,12 @@ export const BCCreationDialog = ({
   }, []);
 
   const totals = useMemo(() => {
-    return computeDevisTotals(items, false); // All system prices are HT base
-  }, [items]);
+    return computeDevisTotals(items, false, {
+      devisType: sourceDevis.type as 'achat' | 'vente',
+      docType: 'bc',
+      isTvaEnabled: sourceDevis.is_ttc ?? false
+    });
+  }, [items, sourceDevis]);
 
   if (!sourceDevis) return null;
 
@@ -342,6 +346,12 @@ export const BCCreationDialog = ({
                 <span className="text-muted-foreground">TVA</span>
                 <span className="font-medium">{totals.totalTVA.toFixed(3)} TND</span>
               </div>
+              {totals.totalFodec !== undefined && totals.totalFodec > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">FODEC (1%)</span>
+                  <span className="font-medium">{totals.totalFodec.toFixed(3)} TND</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Timbre Fiscal</span>
                 <span className="font-medium">1.000 TND</span>

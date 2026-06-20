@@ -120,13 +120,19 @@ export interface DevisTotals {
   totalNet: number;    // net HT (after remise)
   totalTVA: number;
   totalTTC: number;
-  totalFinal: number;    // TTC + timbre
+  totalFinal: number;    // TTC + timbre (and fodec if applicable)
   totalFinalHT: number;  // net HT + timbre
+  totalFodec?: number;   // contribution FODEC if applicable
 }
 
 export function computeDevisTotals(
   items: DevisItem[],
-  isSortantTTC: boolean
+  isSortantTTC: boolean,
+  options?: {
+    devisType?: 'achat' | 'vente';
+    docType?: 'devis' | 'bc' | 'ba';
+    isTvaEnabled?: boolean;
+  }
 ): DevisTotals {
   let totalHT = 0, totalRemise = 0, totalNet = 0, totalTVA = 0, totalTTC = 0;
 
@@ -143,13 +149,18 @@ export function computeDevisTotals(
   const netRounded = round3(totalNet);
   const ttcRounded = round3(totalTTC);
 
+  // FODEC is applicable for Purchase Orders (BC fournisseur) when TVA is enabled
+  const isBcFurnitureAchat = options?.devisType === 'achat' && options?.docType === 'bc' && options?.isTvaEnabled === true;
+  const totalFodec = isBcFurnitureAchat ? round3(netRounded * 0.01) : 0;
+
   return {
     totalHT: round3(totalHT),
     totalRemise: round3(totalRemise),
     totalNet: netRounded,
     totalTVA: round3(totalTVA),
     totalTTC: ttcRounded,
-    totalFinal: round3(ttcRounded + TIMBRE_FISCAL_DT),
+    totalFinal: round3(ttcRounded + TIMBRE_FISCAL_DT + totalFodec),
     totalFinalHT: round3(netRounded + TIMBRE_FISCAL_DT),
+    totalFodec: totalFodec > 0 ? totalFodec : undefined,
   };
 }

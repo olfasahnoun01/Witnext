@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, Fragment } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Table,
   TableBody,
@@ -28,6 +29,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 import { exportSuiviPartiesExcel, exportSuiviPartiesPdf } from '@/lib/exportSuiviParties';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
@@ -95,6 +105,9 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
   const [form, setForm] = useState<SuiviFormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+  const { isAdmin } = useAuth();
 
   const resetDialog = useCallback(() => {
     setEditingId(null);
@@ -106,17 +119,17 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
     try {
       const ready = await ensureSupabaseSessionReady();
       if (!ready) {
-        notifySessionInvalid();
+        notifySessionInvalid('session expired during suivi load');
         return;
       }
       const companyId = getActiveCompanyId();
-      const { data, error } = await supabaseQueryWithAuthRetry(() => {
+      const { data, error } = await supabaseQueryWithAuthRetry(async () => {
         let q = supabase
           .from('parties_suivi')
           .select('id, devis_date, devis_number, societe, telephone, reponse, dernier_contact_date, created_by, updated_by')
           .eq('party_type', type);
         if (companyId) q = q.eq('company_id', companyId);
-        return q.order('created_at', { ascending: false });
+        return await q.order('created_at', { ascending: false });
       });
       if (error) throw error;
 
@@ -166,6 +179,16 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
     );
   }, [rows, searchQuery]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  const totalPages = Math.ceil(filteredRows.length / ITEMS_PER_PAGE);
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredRows.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredRows, currentPage]);
+
   const openCreate = () => {
     resetDialog();
     setDialogOpen(true);
@@ -200,7 +223,7 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
     try {
       const ready = await ensureSupabaseSessionReady();
       if (!ready) {
-        notifySessionInvalid();
+        notifySessionInvalid('session expired during suivi save');
         return;
       }
       const { data: { user } } = await supabase.auth.getUser();
@@ -382,7 +405,7 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredRows.map((row, index) => (
+                paginatedRows.map((row, index) => (
                   <TableRow
                     key={row.id}
                     className={cn(
@@ -413,9 +436,9 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
                       </span>
                     </TableCell>
                     <TableCell className="text-sm py-3">
-                      {formatModifieePar(row) !== '-' ? (
+                      {formatModifieePar({ ...row, updated_at: '' }) !== '-' ? (
                         <span className="inline-flex items-center rounded-md border border-amber-200/80 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-                          {formatModifieePar(row)}
+                          {formatModifieePar({ ...row, updated_at: '' })}
                         </span>
                       ) : (
                         '—'
@@ -441,13 +464,15 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
                             <Pencil className="mr-2 h-4 w-4" />
                             Modifier
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={() => void handleDelete(row.id)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Supprimer
-                          </DropdownMenuItem>
+                          {isAdmin && (
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => void handleDelete(row.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Supprimer
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -457,6 +482,62 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
             </TableBody>
           </Table>
         </div>
+        {totalPages > 1 && (
+          <div className="p-4 border-t flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Affichage {((currentPage - 1) * ITEMS_PER_PAGE) + 1} à {Math.min(currentPage * ITEMS_PER_PAGE, filteredRows.length)} sur {filteredRows.length} lignes
+            </div>
+            <Pagination className="w-auto mx-0">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setCurrentPage((p) => Math.max(1, p - 1));
+                    }}
+                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                  />
+                </PaginationItem>
+                
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                  .map((p, i, arr) => (
+                    <Fragment key={p}>
+                      {i > 0 && arr[i - 1] !== p - 1 && (
+                        <PaginationItem>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      )}
+                      <PaginationItem>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setCurrentPage(p);
+                          }}
+                          isActive={currentPage === p}
+                        >
+                          {p}
+                        </PaginationLink>
+                      </PaginationItem>
+                    </Fragment>
+                  ))}
+
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setCurrentPage((p) => Math.min(totalPages, p + 1));
+                    }}
+                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
       </CardContent>
 
       <Dialog

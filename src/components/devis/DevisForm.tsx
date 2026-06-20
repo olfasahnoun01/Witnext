@@ -1206,7 +1206,13 @@ export const DevisForm = memo(({
   }, [productGroups, groupSearch]);
 
   // Lignes devis: prix unitaire HT ; TVA appliquée uniquement si l'utilisateur choisit un taux > 0 %
-  const devisTotals = useMemo(() => computeDevisTotals(devisItems, false), [devisItems]);
+  const devisTotals = useMemo(() => {
+    return computeDevisTotals(devisItems, false, {
+      devisType,
+      docType,
+      isTvaEnabled: isTtc && !partyExonereDeTva,
+    });
+  }, [devisItems, devisType, docType, isTtc, partyExonereDeTva]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyLabel = isAchat ? 'Fournisseur' : 'Client';
 

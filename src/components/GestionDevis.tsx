@@ -524,8 +524,12 @@ export const GestionDevis = ({
     const saveAsBc = docType === 'bc' || sectionMode === 'bc';
     setIsSaving(true);
     try {
-      const totals = computeDevisTotals(devisItems, false);
-      const totalAmount = totals.totalTTC;
+      const totals = computeDevisTotals(devisItems, false, {
+        devisType,
+        docType,
+        isTvaEnabled: isTtc,
+      });
+      const totalAmount = totals.totalFodec ? (totals.totalTTC + totals.totalFodec) : totals.totalTTC;
       const { data: { user } } = await supabase.auth.getUser();
 
       const folderKind = saveAsBc ? 'bc' : 'devis';
@@ -601,8 +605,12 @@ export const GestionDevis = ({
       toast.error('Ajoutez au moins une ligne d\'article');
       return;
     }
-    const totals = computeDevisTotals(devisItems, false);
-    const totalAmount = totals.totalTTC;
+    const totals = computeDevisTotals(devisItems, false, {
+      devisType,
+      docType,
+      isTvaEnabled: isTtc,
+    });
+    const totalAmount = totals.totalFodec ? (totals.totalTTC + totals.totalFodec) : totals.totalTTC;
     const folderKind = docType === 'bc' || editingDevis.is_bc ? 'bc' : 'devis';
 
     let attachmentUrls = existingAttachments;
@@ -705,7 +713,12 @@ export const GestionDevis = ({
     try {
       const bcNumber = generateNextNumber(primary.type as 'achat' | 'vente', 'bc');
       const { data: { user } } = await supabase.auth.getUser();
-      const totals = computeDevisTotals(modifiedItems, false);
+      const totals = computeDevisTotals(modifiedItems, false, {
+        devisType: primary.type as 'achat' | 'vente',
+        docType: 'bc',
+        isTvaEnabled: primaryIsTtc
+      });
+      const totalAmount = totals.totalFodec ? (totals.totalTTC + totals.totalFodec) : totals.totalTTC;
       const mergedAttachments = sources.flatMap((d) => parseAttachmentUrls(d.attachment_urls));
 
       const { data: insertedBc, error } = await supabase.from('devis').insert({
@@ -720,7 +733,7 @@ export const GestionDevis = ({
         third_party_tax_id: primary.third_party_tax_id,
         third_party_phone: primary.third_party_phone,
         items: JSON.parse(JSON.stringify(modifiedItems)),
-        total_amount: totals.totalTTC,
+        total_amount: totalAmount,
         notes: isMerge ? buildMergedBcNotes(sources) : primary.notes,
         is_ttc: primaryIsTtc,
         is_bc: true,

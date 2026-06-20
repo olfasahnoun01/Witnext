@@ -827,13 +827,15 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   });
 
   // Compute detailed totals using shared helper
-  const totals = computeDevisTotals(devis.items, linePricesAreUnitHt);
+  const totals = computeDevisTotals(devis.items, linePricesAreUnitHt, {
+    devisType: (devis.type === 'sortant' || devis.type === 'vente' as any) ? 'vente' : 'achat',
+    docType: devis.is_bc ? 'bc' : (devis.is_ba ? 'ba' : 'devis'),
+    isTvaEnabled: showTvaColumn
+  });
   const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
   const showTvaTotals = showTvaColumn && totalTVA > 0;
 
   const tableEndY = devisTableEndY;
-  const totalFinal = totalTTC + 1;
-  const totalFinalHT = totalNet + 1;
 
   const totalsRows: (string | string[])[][] = [
     ['Total HT', `${totalHT.toFixed(3)} TND`],
@@ -847,10 +849,13 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
       ['TVA', `${totalTVA.toFixed(3)} TND`],
       ['Total TTC', `${totalTTC.toFixed(3)} TND`],
     );
+    if (totals.totalFodec !== undefined && totals.totalFodec > 0) {
+      totalsRows.push(['FODEC (1%)', `${totals.totalFodec.toFixed(3)} TND`]);
+    }
   }
   totalsRows.push(
     ['Timbre fiscal', '1.000 TND'],
-    [showTvaTotals ? 'Total TTC' : 'Total HT', `${(showTvaTotals ? totalFinal : totalFinalHT).toFixed(3)} TND`],
+    [showTvaTotals ? 'Total TTC' : 'Total HT', `${(showTvaTotals ? totals.totalFinal : totals.totalFinalHT).toFixed(3)} TND`],
   );
 
   // Manual drawing of totals to guarantee right alignment

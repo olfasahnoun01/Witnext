@@ -395,6 +395,7 @@ export function DevisZohoTotalsPanel({
     totalTTC: number;
     totalFinal: number;
     totalFinalHT: number;
+    totalFodec?: number;
   };
   showTva?: boolean;
 }) {
@@ -408,6 +409,9 @@ export function DevisZohoTotalsPanel({
   if (showTva) {
     rows.push({ label: 'TVA', value: `${totals.totalTVA.toFixed(3)} TND` });
     rows.push({ label: 'Montant TTC', value: `${totals.totalTTC.toFixed(3)} TND` });
+    if (totals.totalFodec !== undefined && totals.totalFodec > 0) {
+      rows.push({ label: 'FODEC (1%)', value: `${totals.totalFodec.toFixed(3)} TND` });
+    }
     rows.push({ label: 'Timbre fiscal', value: '1.000 TND' });
   }
 
