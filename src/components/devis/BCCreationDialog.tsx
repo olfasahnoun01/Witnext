@@ -238,8 +238,11 @@ export const BCCreationDialog = ({
                   )}
                   <TableHead className="text-right w-[110px]">Prix Vente HT</TableHead>
                   <TableHead className="text-center w-[80px]">Remise %</TableHead>
+                  {sourceDevis.type === 'achat' && sourceDevis.is_ttc && (
+                    <TableHead className="text-center w-[80px]">Fodec</TableHead>
+                  )}
                   <TableHead className="text-center w-[90px]">TVA %</TableHead>
-                  <TableHead className="text-right w-[110px]">Vente TTC</TableHead>
+                  <TableHead className="text-right w-[110px]">{sourceDevis.type === 'achat' ? 'Achat TTC' : 'Vente TTC'}</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -252,7 +255,8 @@ export const BCCreationDialog = ({
                   </TableRow>
                 ) : (
                   items.map((item, idx) => {
-                    const pricing = computeDevisLine(item, false);
+                    const isBcFurnitureAchat = sourceDevis.type === 'achat' && sourceDevis.is_ttc;
+                    const pricing = computeDevisLine(item, false, { isBcFurnitureAchat });
                     return (
                       <TableRow key={idx}>
                         <TableCell className="px-2">
@@ -297,6 +301,11 @@ export const BCCreationDialog = ({
                             className="h-8 text-center px-1"
                           />
                         </TableCell>
+                        {sourceDevis.type === 'achat' && sourceDevis.is_ttc && (
+                          <TableCell className="text-center px-1 text-xs text-muted-foreground">
+                            {pricing.lineFodec ? pricing.lineFodec.toFixed(3) : '0.000'}
+                          </TableCell>
+                        )}
                         <TableCell className="px-1">
                           <Select
                             value={(item.tva ?? 19).toString()}

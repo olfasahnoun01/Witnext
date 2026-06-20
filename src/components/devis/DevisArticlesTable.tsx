@@ -48,6 +48,7 @@ export interface DevisArticlesTableProps {
   onItemTvaChange: (value: number) => void;
   partyExonereDeTva?: boolean;
   composerSearchRef?: React.RefObject<HTMLInputElement | null>;
+  showFodecColumn?: boolean;
 }
 
 function ComposerEnterCommit({
@@ -102,6 +103,7 @@ export function DevisArticlesTable({
   onItemTvaChange,
   partyExonereDeTva = false,
   composerSearchRef,
+  showFodecColumn = false,
 }: DevisArticlesTableProps) {
   const localSearchRef = useRef<HTMLInputElement>(null);
   const composerPrixRef = useRef<HTMLInputElement>(null);
@@ -116,7 +118,7 @@ export function DevisArticlesTable({
   const lineTotal = (item: DevisItem) =>
     computeArticleTableLineTotalHT(item, devisType, false);
 
-  const composerPreview = lineTotal({
+  const composerPreviewHT = lineTotal({
     designation: '',
     fournisseur: '',
     prix_ttc: itemPrixTtc,
@@ -124,6 +126,11 @@ export function DevisArticlesTable({
     quantity: itemQuantity,
     tva: itemTva,
   });
+  const composerPreviewFodec = showFodecColumn ? composerPreviewHT * 0.01 : 0;
+  const composerPreviewBaseTva = composerPreviewHT + composerPreviewFodec;
+  // Actually composer preview here was HT, let's keep it HT to match "Total HT" column header, or update if we show total TTC?
+  // Wait, the column header is "Total HT". So composerPreview should just be HT.
+  const composerPreview = composerPreviewHT;
 
   const handlePickProduct = (product: Product) => {
     onSelectProduct(product);
@@ -146,6 +153,7 @@ export function DevisArticlesTable({
           {devisType === 'vente' && <col style={{ width: '12%' }} />}
           <col style={{ width: '12%' }} />
           <col style={{ width: '10%' }} />
+          {showFodecColumn && <col style={{ width: '9%' }} />}
           {showTvaColumn && <col style={{ width: '11%' }} />}
           <col style={{ width: '12%' }} />
           <col style={{ width: '5%' }} />
@@ -157,6 +165,7 @@ export function DevisArticlesTable({
             {devisType === 'vente' && <th className={cn(TH, 'text-right')}>P. achat HT</th>}
             <th className={cn(TH, 'text-right')}>{prixUnitHeader}</th>
             <th className={cn(TH, 'text-center')}>Remise %</th>
+            {showFodecColumn && <th className={cn(TH, 'text-center')}>Fodec</th>}
             {showTvaColumn && <th className={cn(TH, 'text-center')}>TVA</th>}
             <th className={cn(TH, 'text-right')}>{totalHeader}</th>
             <th className={cn(TH, 'text-center')} aria-hidden />
@@ -232,6 +241,11 @@ export function DevisArticlesTable({
                     <span className="text-[10px] text-muted-foreground">%</span>
                   </div>
                 </td>
+                {showFodecColumn && (
+                  <td className={cn(TD, 'text-center text-xs text-muted-foreground tabular-nums align-middle')}>
+                    {(lineVal * 0.01).toFixed(3)}
+                  </td>
+                )}
                 {showTvaColumn && (
                   <td className={TD}>
                     <DevisTvaSelect
@@ -367,6 +381,11 @@ export function DevisArticlesTable({
                 <span className="text-[10px] text-muted-foreground">%</span>
               </div>
             </td>
+            {showFodecColumn && (
+              <td className={cn(TD_COMPOSER, 'text-center text-xs text-muted-foreground tabular-nums align-middle')}>
+                {composerPreviewFodec.toFixed(3)}
+              </td>
+            )}
             {showTvaColumn && (
               <td className={TD_COMPOSER}>
                 <DevisTvaSelect

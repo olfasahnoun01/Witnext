@@ -1453,6 +1453,7 @@ export const DevisForm = memo(({
             itemTva={itemTva}
             onItemTvaChange={setItemTva}
             partyExonereDeTva={partyExonereDeTva}
+            showFodecColumn={devisType === 'achat' && docType === 'bc' && isTtc && !partyExonereDeTva}
           />
         </DevisZohoSection>
 
