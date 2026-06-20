@@ -171,7 +171,7 @@ export const GestionDevis = ({
   const [isTtc, setIsTtc] = useState(false);
 
   // Derived lists
-  const savedDevis = useMemo(() => allDevis.filter((d) => !d.is_bc && !d.is_ba && !d.is_bl), [allDevis]);
+  const savedDevis = useMemo(() => allDevis.filter((d) => d && !d.is_bc && !d.is_ba && !d.is_bl), [allDevis]);
   useEffect(() => {
     writeStoredDevisSection(sectionMode, devisType, activeSection);
   }, [activeSection, sectionMode, devisType]);
@@ -297,12 +297,12 @@ export const GestionDevis = ({
   ]);
 
   const importableDevisForBc = useMemo(
-    () => savedDevis.filter((d) => d.type === devisType),
+    () => savedDevis.filter((d) => d && d.type === devisType),
     [savedDevis, devisType]
   );
-  const bonsCommande = useMemo(() => allDevis.filter((d) => d.is_bc && !d.is_bl), [allDevis]);
-  const bonsLivraison = useMemo(() => allDevis.filter((d) => d.is_bl), [allDevis]);
-  const bonsAchat = useMemo(() => allDevis.filter(d => d.is_ba), [allDevis]);
+  const bonsCommande = useMemo(() => allDevis.filter((d) => d && d.is_bc && !d.is_bl), [allDevis]);
+  const bonsLivraison = useMemo(() => allDevis.filter((d) => d && d.is_bl), [allDevis]);
+  const bonsAchat = useMemo(() => allDevis.filter(d => d && d.is_ba), [allDevis]);
   /** Hide "Liste BC" in nav only on locked Mes Devis pages (vente/achat); keep it on dedicated Liste BC routes (sectionMode bc). */
   const hideListBcTab = Boolean(sectionMode === 'devis' && lockDevisType);
 
@@ -421,7 +421,7 @@ export const GestionDevis = ({
     if (mode === 'bc') list = bonsCommande;
     if (mode === 'ba') list = bonsAchat;
 
-    const docsOfType = list.filter(d => d.type === type);
+    const docsOfType = list.filter(d => d && d.type === type);
     let maxNum = 0;
     docsOfType.forEach(d => {
       const match = d.devis_number.match(new RegExp(`^${prefix}-(\\d+)$`));

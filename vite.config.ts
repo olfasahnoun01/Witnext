@@ -105,7 +105,7 @@ export default defineConfig(({ mode }) => {
         "@": path.resolve(__dirname, "./src"),
       },
     },
-    build: {
+    build: { sourcemap: true,
       chunkSizeWarningLimit: 1500,
       rollupOptions: {
         output: {

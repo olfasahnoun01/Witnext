@@ -131,14 +131,17 @@ export const BCCreationDialog = ({
   }, []);
 
   const totals = useMemo(() => {
+    const devis = sourceDevis || sourceDevisList?.[0];
+    if (!devis) return { totalHT: 0, totalRemise: 0, totalTVA: 0, totalFodec: 0, totalFinal: 0, timberTax: 1 };
+    
     return computeDevisTotals(items, false, {
-      devisType: sourceDevis.type as 'achat' | 'vente',
+      devisType: devis.type as 'achat' | 'vente',
       docType: 'bc',
-      isTvaEnabled: sourceDevis.is_ttc ?? false
+      isTvaEnabled: devis.is_ttc ?? false
     });
-  }, [items, sourceDevis]);
+  }, [items, sourceDevis, sourceDevisList]);
 
-  if (!sourceDevis) return null;
+  if (!sourceDevis && (!sourceDevisList || sourceDevisList.length === 0)) return null;
 
   const sourceLabel = isMerge
     ? sourceDevisList.map((d) => d.devis_number).join(', ')
