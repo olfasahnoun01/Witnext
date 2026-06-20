@@ -130,8 +130,11 @@ describe('computeDevisTotals', () => {
       { devisType: 'achat', docType: 'bc', isTvaEnabled: true }
     );
     // net HT is 280, so FODEC is 2.8
+    // Base TVA = 280 + 2.8 = 282.8
+    // TVA = 282.8 * 0.19 = 53.732
+    // TTC = 282.8 + 53.732 = 336.532
     expect(totals.totalFodec).toBeCloseTo(2.8, 3);
-    expect(totals.totalFinal).toBeCloseTo(333.2 + TIMBRE_FISCAL_DT + 2.8, 3);
+    expect(totals.totalFinal).toBeCloseTo(336.532 + TIMBRE_FISCAL_DT, 3);
   });
 
   it('does not calculate FODEC if docType is not bc or devisType is not achat or tva not enabled', () => {
