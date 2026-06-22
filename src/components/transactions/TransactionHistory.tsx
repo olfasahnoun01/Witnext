@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
+import { getActiveCompanyIdForQuery } from '@/lib/activeCompany';
 
 interface TransactionHistoryProps {
   activeTab: 'in' | 'out';
@@ -42,9 +43,18 @@ export const TransactionHistory = ({
       const from = (currentPage - 1) * ITEMS_PER_PAGE;
       const to = from + ITEMS_PER_PAGE - 1;
 
+      const companyId = getActiveCompanyIdForQuery();
+      if (!companyId) {
+        setTransactions([]);
+        setTotalTransactions(0);
+        setIsLoading(false);
+        return;
+      }
+
       let query = supabase
         .from('transactions')
         .select('*', { count: 'exact' })
+        .eq('company_id', companyId)
         .eq('type', activeTab === 'in' ? 'IN' : 'OUT')
         .order('date', { ascending: false })
         .range(from, to);

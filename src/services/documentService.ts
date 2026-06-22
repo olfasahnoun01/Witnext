@@ -600,14 +600,10 @@ export const documentService = {
   },
 
   /**
-   * Final validation of a BE: Triggers PostgreSQL automation for stock
+   * Final validation of a BE: PostgreSQL trigger applies stock (skips when linked to manual transaction).
    */
   async validateBE(beId: string) {
     try {
-      // We only update the status.
-      // The PostgreSQL trigger 'trigger_be_validation' will handle stock and movements.
-      // Conditional update on status='PENDING' makes this idempotent: a second
-      // validation affects 0 rows and cannot double-apply stock movements.
       const { data: updated, error } = await supabase
         .from('documents')
         .update({ status: 'VALIDATED' })
@@ -732,11 +728,10 @@ export const documentService = {
   },
 
   /**
-   * Final validation of a BS: Triggers stock decrement trigger
+   * Final validation of a BS: PostgreSQL trigger decrements stock (skips when linked to manual transaction).
    */
   async validateBS(bsId: string) {
     try {
-      // Conditional update keeps stock decrement idempotent (see validateBE).
       const { data: updated, error } = await supabase
         .from('documents')
         .update({ status: 'VALIDATED' })

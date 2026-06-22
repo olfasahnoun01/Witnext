@@ -223,7 +223,7 @@ const IndexContent = () => {
           />
         )}
         {activeTab === 'comparison' && <SupplierComparison />}
-        {activeTab === 'transactions' && <Transactions />}
+        {activeTab === 'transactions' && <Transactions onTabChange={handleTabChange} />}
         {activeTab === 'reports' && <Reports />}
         
         {/* Commerciale */}

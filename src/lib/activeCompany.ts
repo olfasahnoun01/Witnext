@@ -62,6 +62,20 @@ export function withCompany<T extends Record<string, unknown>>(payload: T): T & 
   return id ? { ...payload, company_id: id } : payload;
 }
 
+/** Active company id required for tenant-scoped reads/writes. */
+export function requireActiveCompanyId(): string {
+  const id = getActiveCompanyId();
+  if (!id) {
+    throw new Error('Aucune société active sélectionnée. Choisissez une société avant de continuer.');
+  }
+  return id;
+}
+
+/** Returns active company id or null — use for reads that should return empty when unset. */
+export function getActiveCompanyIdForQuery(): string | null {
+  return getActiveCompanyId();
+}
+
 /**
  * Decide which company should be active given the user's accessible companies
  * and a previously persisted choice. Pure so it can be unit-tested:

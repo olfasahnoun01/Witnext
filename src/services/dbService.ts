@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Product, Transaction, DashboardStats, CategoryValue } from '@/types';
-import { getActiveCompanyId } from '@/lib/activeCompany';
+import { getActiveCompanyId, getActiveCompanyIdForQuery, requireActiveCompanyId, withCompany } from '@/lib/activeCompany';
 import {
   BACKUP_COMPANY_SCOPED_TABLES,
   BACKUP_EXTENDED_IMPORT_ORDER,
@@ -56,14 +56,17 @@ export const getAllProducts = async (): Promise<Product[]> => {
       console.warn(`getAllProducts: stopped after ${MAX_PAGES * PAGE_SIZE} rows (safety cap).`);
       break;
     }
+    const companyId = getActiveCompanyIdForQuery();
+    if (!companyId) {
+      if (from === 0) return [];
+      break;
+    }
     let query = supabase
       .from('products')
       .select(PRODUCT_COLUMNS_LIGHT)
       .order('name')
-      .range(from, from + PAGE_SIZE - 1);
-
-    const companyId = getActiveCompanyId();
-    if (companyId) query = query.eq('company_id' as any, companyId);
+      .range(from, from + PAGE_SIZE - 1)
+      .eq('company_id' as any, companyId);
 
     const { data, error } = await query;
 
@@ -111,6 +114,7 @@ export const getProductById = async (id: number): Promise<Product | null> => {
 
 export const createProduct = async (product: Omit<Product, 'id' | 'prix_ttc'>): Promise<{ success: boolean; id?: number; error?: string }> => {
   try {
+    const companyId = requireActiveCompanyId();
     const { data, error } = await supabase
       .from('products')
       .insert({
@@ -119,13 +123,13 @@ export const createProduct = async (product: Omit<Product, 'id' | 'prix_ttc'>): 
         category: product.category,
         fournisseur: product.fournisseur || null,
         size: product.size || null,
-        quantity: product.quantity,
+        quantity: 0,
         price: product.price,
         remise: product.remise || 0,
         min_stock: product.min_stock,
         image: product.image || null,
         color: product.color || null,
-        company_id: getActiveCompanyId() || undefined,
+        company_id: companyId,
       } as any)
       .select()
       .single();
@@ -137,20 +141,23 @@ export const createProduct = async (product: Omit<Product, 'id' | 'prix_ttc'>): 
       }
       return { success: false, error: error.message };
     }
-    
-    const { error: txError } = await supabase.from('transactions').insert({
-      product_id: data.id,
-      product_name: product.name,
-      type: 'IN',
-      quantity: product.quantity,
-      note: 'Stock initial',
-      company_id: getActiveCompanyId() || undefined,
-    } as any);
 
-    if (txError) {
-      console.error('Erreur transaction initiale:', txError);
-      await supabase.from('products').delete().eq('id', data.id);
-      return { success: false, error: txError.message };
+    if (product.quantity > 0) {
+      const { error: stockError } = await supabase.rpc('create_stock_transaction', {
+        p_product_id: data.id,
+        p_product_name: product.name,
+        p_type: 'IN',
+        p_quantity: product.quantity,
+        p_date: new Date().toISOString(),
+        p_note: 'Stock initial',
+      });
+      if (stockError) {
+        return {
+          success: true,
+          id: data.id,
+          error: `Article créé, mais le stock initial n'a pas pu être enregistré: ${stockError.message}`,
+        };
+      }
     }
 
     return { success: true, id: data.id };
@@ -190,7 +197,6 @@ export const updateProduct = async (id: number, product: Partial<Product>): Prom
 };
 
 export const deleteProduct = async (id: number): Promise<void> => {
-  // Transactions are deleted automatically via CASCADE
   const { error } = await supabase
     .from('products')
     .delete()
@@ -198,21 +204,21 @@ export const deleteProduct = async (id: number): Promise<void> => {
   
   if (error) {
     console.error('Erreur lors de la suppression du produit:', error);
+    throw new Error(error.message || 'Erreur lors de la suppression du produit');
   }
 };
 
 // Transactions
 export const getAllTransactions = async (): Promise<Transaction[]> => {
-  let query = supabase
+  const companyId = getActiveCompanyIdForQuery();
+  if (!companyId) return [];
+
+  const { data, error } = await supabase
     .from('transactions')
     .select('*')
+    .eq('company_id' as any, companyId)
     .order('date', { ascending: false })
     .limit(100);
-
-  const companyId = getActiveCompanyId();
-  if (companyId) query = query.eq('company_id' as any, companyId);
-
-  const { data, error } = await query;
 
   if (error) {
     console.error('Erreur lors de la récupération des transactions:', error);
@@ -230,7 +236,9 @@ export const getAllTransactions = async (): Promise<Transaction[]> => {
   }));
 };
 
-export const createTransaction = async (tx: Omit<Transaction, 'id'>): Promise<{ success: boolean; error?: string }> => {
+export const createTransaction = async (
+  tx: Omit<Transaction, 'id'>
+): Promise<{ success: boolean; error?: string; transactionId?: number }> => {
   const dateIso =
     typeof tx.date === 'string' && tx.date.length <= 10
       ? `${tx.date}T12:00:00.000Z`
@@ -257,11 +265,11 @@ export const createTransaction = async (tx: Omit<Transaction, 'id'>): Promise<{ 
     return { success: false, error: error.message };
   }
 
-  const result = data as { success?: boolean } | null;
+  const result = data as { success?: boolean; transaction_id?: number } | null;
   if (result?.success === false) {
     return { success: false, error: 'Échec transaction stock' };
   }
-  return { success: true };
+  return { success: true, transactionId: result?.transaction_id };
 };
 
 /** Stock change via transaction ledger (avoids silent quantity-only updates). */
@@ -293,8 +301,8 @@ export const applyProductQuantityChange = async (
 
 // Dashboard Stats - uses server-side aggregation
 export const getDashboardStats = async (): Promise<DashboardStats> => {
-  const companyId = getActiveCompanyId();
-  const { data, error } = await supabase.rpc('get_dashboard_stats', companyId ? { p_company_id: companyId } : {});
+  const companyId = requireActiveCompanyId();
+  const { data, error } = await supabase.rpc('get_dashboard_stats', { p_company_id: companyId });
 
   if (error) {
     console.error('[Dashboard] get_dashboard_stats failed:', error.message, error);
@@ -315,22 +323,29 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
 };
 
 // Helper to fetch ALL rows from a table (handles Supabase 1000-row limit)
-const fetchAllRows = async (tableName: string): Promise<any[]> => {
+const fetchAllRows = async (tableName: string, scopeCompanyId?: string | null): Promise<any[]> => {
   const allRows: any[] = [];
   const pageSize = 1000;
   let from = 0;
   let hasMore = true;
+  const companyScoped = scopeCompanyId && BACKUP_COMPANY_SCOPED_TABLES.has(tableName);
 
   while (hasMore) {
-    const { data, error } = await (supabase
+    let query = supabase
       .from(tableName as any)
-      .select('*') as any)
+      .select('*')
       .order('id')
       .range(from, from + pageSize - 1);
 
+    if (companyScoped) {
+      query = query.eq('company_id', scopeCompanyId);
+    }
+
+    const { data, error } = await query;
+
     if (error) {
       console.error(`Error fetching ${tableName}:`, error);
-      break;
+      throw new Error(`Export ${tableName}: ${error.message}`);
     }
 
     if (data && data.length > 0) {
@@ -346,22 +361,33 @@ const fetchAllRows = async (tableName: string): Promise<any[]> => {
 };
 
 // Same but for tables with uuid id
-const fetchAllRowsUuid = async (tableName: string, orderCol = 'created_at'): Promise<any[]> => {
+const fetchAllRowsUuid = async (
+  tableName: string,
+  orderCol = 'created_at',
+  scopeCompanyId?: string | null,
+): Promise<any[]> => {
   const allRows: any[] = [];
   const pageSize = 1000;
   let from = 0;
   let hasMore = true;
+  const companyScoped = scopeCompanyId && BACKUP_COMPANY_SCOPED_TABLES.has(tableName);
 
   while (hasMore) {
-    const { data, error } = await (supabase
+    let query = supabase
       .from(tableName as any)
-      .select('*') as any)
+      .select('*')
       .order(orderCol)
       .range(from, from + pageSize - 1);
 
+    if (companyScoped) {
+      query = query.eq('company_id', scopeCompanyId);
+    }
+
+    const { data, error } = await query;
+
     if (error) {
       console.error(`Error fetching ${tableName}:`, error);
-      break;
+      throw new Error(`Export ${tableName}: ${error.message}`);
     }
 
     if (data && data.length > 0) {
@@ -379,11 +405,12 @@ const fetchAllRowsUuid = async (tableName: string, orderCol = 'created_at'): Pro
 async function fetchBackupTableRows(
   tableName: string,
   mode: BackupFetchMode,
+  scopeCompanyId?: string | null,
 ): Promise<any[]> {
   if (mode === 'serial_id') {
-    return fetchAllRows(tableName);
+    return fetchAllRows(tableName, scopeCompanyId);
   }
-  return fetchAllRowsUuid(tableName);
+  return fetchAllRowsUuid(tableName, 'created_at', scopeCompanyId);
 }
 
 // Helper: recursively list all files in a storage bucket
@@ -442,6 +469,7 @@ export const exportDatabase = async (
 ): Promise<Blob | null> => {
   const { includeStorage = false } = options;
   try {
+    const exportCompanyId = requireActiveCompanyId();
     onProgress?.('Récupération des données principales...');
     
     const [
@@ -449,26 +477,26 @@ export const exportDatabase = async (
       orders, product_groups, product_group_fournisseurs, devis,
       profiles, user_roles, user_presence, team_chat_messages
     ] = await Promise.all([
-      fetchAllRows('products'),
-      fetchAllRows('transactions'),
-      fetchAllRows('clients'),
-      fetchAllRows('fournisseurs'),
-      fetchAllRows('documents'),
-      fetchAllRows('orders'),
-      fetchAllRows('product_groups'),
-      fetchAllRows('product_group_fournisseurs'),
-      fetchAllRows('devis'),
-      fetchAllRowsUuid('profiles'),
-      fetchAllRowsUuid('user_roles'),
-      fetchAllRowsUuid('user_presence'),
-      fetchAllRowsUuid('team_chat_messages'),
+      fetchAllRows('products', exportCompanyId),
+      fetchAllRows('transactions', exportCompanyId),
+      fetchAllRows('clients', exportCompanyId),
+      fetchAllRows('fournisseurs', exportCompanyId),
+      fetchAllRows('documents', exportCompanyId),
+      fetchAllRows('orders', exportCompanyId),
+      fetchAllRows('product_groups', exportCompanyId),
+      fetchAllRows('product_group_fournisseurs', exportCompanyId),
+      fetchAllRows('devis', exportCompanyId),
+      fetchAllRowsUuid('profiles', 'created_at'),
+      fetchAllRowsUuid('user_roles', 'created_at'),
+      fetchAllRowsUuid('user_presence', 'created_at'),
+      fetchAllRowsUuid('team_chat_messages', 'created_at'),
     ]);
 
     onProgress?.('Récupération galerie, finance, RH, commercial...');
     const extendedPairs = await Promise.all(
       BACKUP_EXTENDED_TABLES.map(async ({ table, mode }) => {
         try {
-          const rows = await fetchBackupTableRows(table, mode);
+          const rows = await fetchBackupTableRows(table, mode, exportCompanyId);
           return [table, rows] as const;
         } catch (err) {
           console.warn(`[backup] skip ${table}:`, err);
@@ -604,7 +632,8 @@ const insertTableData = async (
 
   const { data: { user } } = await supabase.auth.getUser();
   const currentUserId = user?.id;
-  const importCompanyId = getActiveCompanyId();
+  const importCompanyId = getActiveCompanyIdForQuery();
+  const failures: string[] = [];
 
   for (const item of items) {
     try {
@@ -652,11 +681,16 @@ const insertTableData = async (
         .upsert(insertData as any, upsertOptions);
       
       if (error) {
-        console.error(`Error importing into ${tableName}:`, error.code, error.message);
+        failures.push(`${tableName}: ${error.code ?? 'error'} — ${error.message}`);
       }
     } catch (err) {
-      console.error(`Unexpected process error in ${tableName}:`, err);
+      const msg = err instanceof Error ? err.message : String(err);
+      failures.push(`${tableName}: ${msg}`);
     }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`Import partiel (${failures.length} erreur(s)): ${failures.slice(0, 5).join('; ')}`);
   }
 };
 
@@ -848,16 +882,15 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
 };
 
 export const getRecentTransactions = async (limit: number = 10): Promise<Transaction[]> => {
-  let query = supabase
+  const companyId = getActiveCompanyIdForQuery();
+  if (!companyId) return [];
+
+  const { data, error } = await supabase
     .from('transactions')
     .select('*')
+    .eq('company_id' as any, companyId)
     .order('date', { ascending: false })
     .limit(limit);
-
-  const companyId = getActiveCompanyId();
-  if (companyId) query = query.eq('company_id' as any, companyId);
-
-  const { data, error } = await query;
 
   if (error) {
     console.error('Erreur lors de la récupération des transactions:', error);

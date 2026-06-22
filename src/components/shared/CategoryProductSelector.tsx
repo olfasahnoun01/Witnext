@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
 
 const MAIN_CATEGORIES = [
   'Pantalons',
@@ -64,7 +65,9 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
   useEffect(() => {
     if (countsLoaded.current) return;
     countsLoaded.current = true;
-    getProductGroupCountsByCategory().then(setCategoryCounts).catch(console.error);
+    getProductGroupCountsByCategory()
+      .then(setCategoryCounts)
+      .catch(() => toast.error('Erreur lors du chargement des catégories'));
   }, []);
 
   // Get sorted categories with counts
@@ -102,6 +105,7 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
       groupsCache.set(category, { data: groups, ts: Date.now() });
     } catch (error) {
       console.error('Error loading product groups:', error);
+      toast.error('Erreur lors du chargement des groupes produits');
     } finally {
       if (requestId === categoryRequestIdRef.current) {
         setIsLoading(false);
@@ -132,6 +136,7 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
       onGroupSelect?.(group, variantsData);
     } catch (error) {
       console.error('Error loading variants:', error);
+      toast.error('Erreur lors du chargement des variantes');
     } finally {
       if (requestId === variantsRequestIdRef.current) {
         setIsLoading(false);

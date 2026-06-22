@@ -122,7 +122,7 @@ export const BACKUP_COMPANY_SCOPED_TABLES = new Set([
 export const BACKUP_UPSERT_CONFLICT: Record<string, string> = {
   profiles: 'user_id',
   user_roles: 'user_id,role',
-  product_groups: 'name,category',
+  product_groups: 'company_id,name,category',
   product_group_fournisseurs: 'product_group_id,fournisseur_name',
   category_settings: 'category_name',
   user_presence: 'user_id',

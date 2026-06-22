@@ -10,6 +10,7 @@ import {
   isCompanyVerifiedThisSession,
   markCompanyVerified,
 } from './lib/companyAccess';
+import { getActiveCompanyId, setActiveCompanyId } from '@/lib/activeCompany';
 import { fetchUserFinanceCompanies, readStoredCompanyId, writeStoredCompanyId } from './services/financeApi';
 import type { FinanceCompanyRow } from './types';
 
@@ -42,10 +43,24 @@ export function FinanceModule() {
         if (list.length === 1) {
           return { companyId: list[0].id, showPicker: false };
         }
+        const appCompany = getActiveCompanyId();
+        if (appCompany && list.some((c) => c.id === appCompany)) {
+          return { companyId: appCompany, showPicker: false };
+        }
         const stored = readStoredCompanyId();
         const validStored = stored && list.some((c) => c.id === stored);
         const id = validStored ? stored! : list[0].id;
         return { companyId: id, showPicker: false };
+      }
+
+      const appCompany = getActiveCompanyId();
+      if (
+        appCompany &&
+        list.some((c) => c.id === appCompany) &&
+        !forcePicker &&
+        isCompanyVerifiedThisSession(appCompany)
+      ) {
+        return { companyId: appCompany, showPicker: false };
       }
 
       const stored = readStoredCompanyId();
@@ -65,7 +80,10 @@ export function FinanceModule() {
       setCompanies(list);
       const { companyId: nextId, showPicker } = resolveInitialCompany(list);
       setCompanyId(nextId);
-      if (nextId) writeStoredCompanyId(nextId);
+      if (nextId) {
+        writeStoredCompanyId(nextId);
+        setActiveCompanyId(nextId);
+      }
       setPhase(showPicker ? 'picker' : 'app');
     } catch (e: unknown) {
       console.error(e);
@@ -89,6 +107,7 @@ export function FinanceModule() {
       markCompanyVerified(c.id);
       setCompanyId(c.id);
       writeStoredCompanyId(c.id);
+      setActiveCompanyId(c.id);
       setForcePicker(false);
       setPhase('app');
     },
@@ -104,6 +123,7 @@ export function FinanceModule() {
   const handleCompanyIdChange = useCallback((id: string) => {
     setCompanyId(id);
     writeStoredCompanyId(id);
+    setActiveCompanyId(id);
   }, []);
 
   if (authLoading || phase === 'loading') {

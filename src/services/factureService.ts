@@ -4,6 +4,7 @@ import { mergeBlItems, validateBlMergeForFacture } from '@/lib/mergeCommercialDo
 import type { BonLivraison } from '@/services/bonLivraisonService';
 import { supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
 import { computeDevisTotals } from '@/lib/devisPricing';
+import { requireActiveCompanyId } from '@/lib/activeCompany';
 
 const FACTURE_NUM_PREFIX = () => {
   const y = new Date().getFullYear();
@@ -14,10 +15,12 @@ const FACTURE_NUM_PREFIX = () => {
  * Next unique facture number for the current year (FAC-YYYY-00001).
  */
 export async function generateNextFactureNumero(): Promise<string> {
+  const companyId = requireActiveCompanyId();
   const prefix = FACTURE_NUM_PREFIX();
   const { data, error } = await supabase
     .from('factures')
     .select('numero')
+    .eq('company_id', companyId)
     .ilike('numero', `${prefix}%`);
 
   if (error) throw error;

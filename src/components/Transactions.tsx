@@ -23,10 +23,17 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { CategoryProductSelector } from './shared/CategoryProductSelector';
 import { TransactionHistory } from './transactions/TransactionHistory';
+import { writePendingWarehouseDocument } from '@/lib/appNavigationStorage';
+import { requireActiveCompanyId } from '@/lib/activeCompany';
+import { toast } from 'sonner';
 
 type TabType = 'in' | 'out';
 
-export const Transactions = memo(() => {
+interface TransactionsProps {
+  onTabChange?: (tab: string) => void;
+}
+
+export const Transactions = memo(({ onTabChange }: TransactionsProps) => {
   const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('in');
   const [products, setProducts] = useState<Product[]>([]);
@@ -96,14 +103,32 @@ export const Transactions = memo(() => {
         return;
       }
 
-      // Reset form and refresh history
-      setSelectedProductId('');
-      setGroupVariantIds([]);
-      setQuantity(1);
-      setNote('');
-      setTransactionDate(new Date());
-      setHistoryRefreshKey(k => k + 1);
-      loadProducts();
+      const docType = activeTab === 'in' ? 'BE' : 'BS';
+      const targetTab = activeTab === 'in' ? 'be-magasin' : 'bs-magasin';
+      const dateIso = transactionDate.toISOString().slice(0, 10);
+
+      writePendingWarehouseDocument({
+        companyId: requireActiveCompanyId(),
+        type: docType,
+        productId: selectedProduct.id,
+        productName: selectedProduct.name,
+        sku: selectedProduct.sku || '',
+        quantity,
+        unitPrice: selectedProduct.price || 0,
+        date: dateIso,
+        note: note || undefined,
+        transactionId: result.transactionId,
+      });
+
+      setHistoryRefreshKey((k) => k + 1);
+
+      toast.info(
+        activeTab === 'in'
+          ? "Transaction enregistrée. Créez le bon d'entrée pour finaliser."
+          : 'Transaction enregistrée. Créez le bon de sortie pour finaliser.'
+      );
+
+      onTabChange?.(targetTab);
     } finally {
       setIsSubmitting(false);
     }

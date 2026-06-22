@@ -19,6 +19,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const CHART_COLORS = ['#10b981', '#f97316', '#3b82f6', '#ec4899', '#8b5cf6', '#eab308', '#06b6d4', '#64748b', '#ef4444', '#84cc16'];
 
@@ -41,8 +42,30 @@ export const VehiculeStats = () => {
   const [employes, setEmployes] = useState<any[]>([]);
   const [bons, setBons] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const maintenances = useMemo(() => JSON.parse(localStorage.getItem('grosafe_maintenances') || '[]'), []);
-  const charges = useMemo(() => JSON.parse(localStorage.getItem('grosafe_charges_vehicules') || '[]'), []);
+  // Maintenance/charges: same localStorage keys as Maintenance.tsx / ChargesVehicule.tsx
+  const [maintenances, setMaintenances] = useState<any[]>([]);
+  const [charges, setCharges] = useState<any[]>([]);
+
+  const loadLocalVehicleData = useCallback(() => {
+    try {
+      setMaintenances(JSON.parse(localStorage.getItem('grosafe_maintenances') || '[]'));
+      setCharges(JSON.parse(localStorage.getItem('grosafe_charges_vehicules') || '[]'));
+    } catch {
+      setMaintenances([]);
+      setCharges([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadLocalVehicleData();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'grosafe_maintenances' || e.key === 'grosafe_charges_vehicules') {
+        loadLocalVehicleData();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [loadLocalVehicleData]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -58,6 +81,7 @@ export const VehiculeStats = () => {
         setBons(bonsRes.data || []);
       } catch (error) {
         console.error('Error loading stats data:', error);
+        toast.error('Erreur lors du chargement des statistiques véhicules');
       } finally {
         setIsLoading(false);
       }

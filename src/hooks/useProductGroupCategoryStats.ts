@@ -6,6 +6,7 @@ import { waitForSupabaseSession } from '@/lib/waitForSupabaseSession';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import { useAppCompany, useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { DEFAULT_INVENTORY_CATEGORIES } from '@/constants/inventoryCategories';
+import { toast } from 'sonner';
 
 export interface CategoryCount {
   category: string;
@@ -158,11 +159,12 @@ export function useProductGroupCategoryStats() {
       hasLoadedCountsRef.current = true;
     } catch (error) {
       console.error('Error fetching category counts:', error);
+      toast.error('Erreur lors du chargement des catégories');
     } finally {
       countsFetchInFlightRef.current = false;
       setIsLoading(false);
     }
-  }, []);
+  }, [companyReady]);
 
   useEffect(() => {
     if (authLoading || !user?.id) return;

@@ -57,3 +57,56 @@ export function writeStoredDevisSection(
     // ignore
   }
 }
+
+const PENDING_WAREHOUSE_DOC_KEY = 'grosafe_pending_warehouse_doc';
+
+export interface PendingWarehouseDocument {
+  companyId: string;
+  type: 'BE' | 'BS';
+  productId: number;
+  productName: string;
+  sku: string;
+  quantity: number;
+  unitPrice: number;
+  date: string;
+  note?: string;
+  transactionId?: number;
+}
+
+export function writePendingWarehouseDocument(data: PendingWarehouseDocument): void {
+  try {
+    localStorage.setItem(PENDING_WAREHOUSE_DOC_KEY, JSON.stringify(data));
+  } catch {
+    // ignore
+  }
+}
+
+export function readPendingWarehouseDocument(expectedCompanyId?: string | null): PendingWarehouseDocument | null {
+  try {
+    const raw = localStorage.getItem(PENDING_WAREHOUSE_DOC_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PendingWarehouseDocument;
+    if (
+      (parsed.type !== 'BE' && parsed.type !== 'BS') ||
+      typeof parsed.productId !== 'number' ||
+      typeof parsed.quantity !== 'number' ||
+      typeof parsed.companyId !== 'string'
+    ) {
+      return null;
+    }
+    if (expectedCompanyId && parsed.companyId !== expectedCompanyId) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function clearPendingWarehouseDocument(): void {
+  try {
+    localStorage.removeItem(PENDING_WAREHOUSE_DOC_KEY);
+  } catch {
+    // ignore
+  }
+}

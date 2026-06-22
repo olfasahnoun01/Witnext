@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { ProductGroup, Product, ProductGroupFournisseur } from '@/types';
-import { getActiveCompanyId } from '@/lib/activeCompany';
+import { getActiveCompanyIdForQuery, requireActiveCompanyId } from '@/lib/activeCompany';
 
 // Fetch product groups by category with variant aggregations
 export const getProductGroupsByCategory = async (category: string): Promise<ProductGroup[]> => {
@@ -16,8 +16,9 @@ export const getProductGroupsByCategory = async (category: string): Promise<Prod
       query = query.ilike('category', category);
     }
 
-    const companyId = getActiveCompanyId();
-    if (companyId) query = query.eq('company_id' as any, companyId);
+    const companyId = getActiveCompanyIdForQuery();
+    if (!companyId) return [];
+    query = query.eq('company_id' as any, companyId);
 
     const { data: groups, error: groupsError } = await query.order('name');
     
@@ -199,8 +200,9 @@ export const getProductGroupCountsByCategory = async (): Promise<Record<string, 
       .from('product_groups')
       .select('category');
 
-    const companyId = getActiveCompanyId();
-    if (companyId) query = query.eq('company_id' as any, companyId);
+    const companyId = getActiveCompanyIdForQuery();
+    if (!companyId) return {};
+    query = query.eq('company_id' as any, companyId);
 
     const { data, error } = await query;
 
@@ -231,7 +233,7 @@ export const createProductGroup = async (group: Omit<ProductGroup, 'id' | 'creat
         fournisseur: group.fournisseur,
         image: group.image,
         min_stock: group.min_stock,
-        company_id: getActiveCompanyId() || undefined,
+        company_id: requireActiveCompanyId(),
       } as any)
       .select()
       .single();
@@ -358,7 +360,7 @@ export const createVariant = async (groupId: number, variant: {
         min_stock: group.min_stock,
         image: group.image,
         product_group_id: groupId,
-        company_id: getActiveCompanyId() || undefined,
+        company_id: requireActiveCompanyId(),
       } as any)
       .select()
       .single();

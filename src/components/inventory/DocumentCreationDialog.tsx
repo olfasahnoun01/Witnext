@@ -24,19 +24,25 @@ import { documentService } from '@/services/documentService';
 import { toast } from 'sonner';
 import { CategoryProductSelector } from '../shared/CategoryProductSelector';
 import { downloadUnifiedDocumentPDF } from '@/utils/pdfGenerator';
+import { PendingWarehouseDocument, clearPendingWarehouseDocument, readPendingWarehouseDocument } from '@/lib/appNavigationStorage';
+import { getActiveCompanyIdForQuery } from '@/lib/activeCompany';
 
 interface DocumentCreationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   type: UnifiedDocumentType;
   onSuccess: () => void;
+  initialData?: PendingWarehouseDocument | null;
+  mandatory?: boolean;
 }
 
 export const DocumentCreationDialog = ({
   open,
   onOpenChange,
   type,
-  onSuccess
+  onSuccess,
+  initialData = null,
+  mandatory = false,
 }: DocumentCreationDialogProps) => {
   const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState('');
@@ -61,9 +67,27 @@ export const DocumentCreationDialog = ({
   useEffect(() => {
     if (open) {
       loadTiers();
-      resetForm();
+      if (initialData) {
+        setNotes(initialData.note || '');
+        setValidity('30 jours');
+        setTransportRef('');
+        setDocumentDate(initialData.date);
+        setClientId(null);
+        setFournisseurId(null);
+        setSelectedTier(null);
+        setTierSearch('');
+        setLines([{
+          product_id: initialData.productId,
+          product_name: initialData.productName,
+          sku: initialData.sku,
+          quantity: initialData.quantity,
+          unit_price: initialData.unitPrice,
+        }]);
+      } else {
+        resetForm();
+      }
     }
-  }, [open, type]);
+  }, [open, type, initialData]);
 
   const loadTiers = async () => {
     const [cRes, fRes] = await Promise.all([
@@ -146,7 +170,15 @@ export const DocumentCreationDialog = ({
           transport_ref: transportRef,
           third_party_name: selectedTier?.nom || selectedTier?.raison_sociale || '',
           third_party_address: selectedTier?.adresse || '',
-          third_party_tax_id: selectedTier?.matricule_fiscal || selectedTier?.tax_id || ''
+          third_party_tax_id: selectedTier?.matricule_fiscal || selectedTier?.tax_id || '',
+          ...(initialData
+            ? {
+                source: 'stock_transaction',
+                ...(initialData.transactionId ? { transaction_id: initialData.transactionId } : {}),
+                linked_quantity: initialData.quantity,
+                linked_product_id: initialData.productId,
+              }
+            : {}),
         },
         lines: lines.map(l => ({
           product_id: l.product_id,
@@ -157,6 +189,9 @@ export const DocumentCreationDialog = ({
 
       if (result.success) {
         toast.success("Document créé avec succès");
+        if (mandatory || initialData) {
+          clearPendingWarehouseDocument();
+        }
         if (generatePDF && result.document) {
           // Add back relation data for PDF
           const docForPDF = {
@@ -194,14 +229,36 @@ export const DocumentCreationDialog = ({
     'FACTURE': "Facture"
   };
 
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    const companyId = getActiveCompanyIdForQuery();
+    if (!nextOpen && mandatory && readPendingWarehouseDocument(companyId)) {
+      toast.error(
+        type === 'BE'
+          ? "Le bon d'entrée est obligatoire pour finaliser cette transaction."
+          : 'Le bon de sortie est obligatoire pour finaliser cette transaction.'
+      );
+      return;
+    }
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+      <DialogContent
+        className={`max-w-5xl max-h-[95vh] overflow-y-auto${mandatory ? ' [&>button]:hidden' : ''}`}
+        onInteractOutside={(e) => mandatory && e.preventDefault()}
+        onEscapeKeyDown={(e) => mandatory && e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold flex items-center gap-2">
             <FileText className="w-6 h-6 text-primary" />
             {titleMap[type] || "Nouveau Document"}
           </DialogTitle>
+          {mandatory && (
+            <p className="text-sm text-amber-600 dark:text-amber-400 pt-2">
+              Ce document est obligatoire suite à la transaction stock enregistrée.
+            </p>
+          )}
         </DialogHeader>
 
         <div className="space-y-8 py-4">
@@ -245,39 +302,36 @@ export const DocumentCreationDialog = ({
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Sélectionner {(type === 'BL_CLIENT' || type === 'BS') ? 'un Client' : 'un Fournisseur'}</Label>
-          <div className="space-y-2">
-            <Label>Sélectionner {(type === 'BL_CLIENT' || type === 'BS') ? 'un Client' : 'un Fournisseur'}</Label>
-            <Input
-              id="tierSearch"
-              placeholder={`Tapez pour rechercher ${(type === 'BL_CLIENT' || type === 'BS') ? 'client' : 'fournisseur'}`}
-              value={tierSearch}
-              onChange={(e) => {
-                const val = e.target.value;
-                setTierSearch(val);
-                const list = (type === 'BE' ? fournisseurs : clients).filter(t =>
-                  (t.nom || t.raison_sociale).toLowerCase().includes(val.toLowerCase())
-                );
-                if (list.length === 1) {
-                  if (type === 'BE') {
-                    setFournisseurId(list[0].id);
-                  } else {
-                    setClientId(list[0].id);
-                  }
-                  setSelectedTier(list[0]);
-                } else {
-                  setSelectedTier(null);
-                  if (type === 'BE') setFournisseurId(null);
-                  else setClientId(null);
-                }
-              }}
-              list="tier-options"
-            />
-            <datalist id="tier-options">
-              {(type === 'BE' ? fournisseurs : clients).map(t => (
-                <option key={t.id} value={t.nom || t.raison_sociale} />
-              ))}
-            </datalist>
-          </div>
+                  <Input
+                    id="tierSearch"
+                    placeholder={`Tapez pour rechercher ${(type === 'BL_CLIENT' || type === 'BS') ? 'client' : 'fournisseur'}`}
+                    value={tierSearch}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTierSearch(val);
+                      const list = (type === 'BE' ? fournisseurs : clients).filter(t =>
+                        (t.nom || t.raison_sociale).toLowerCase().includes(val.toLowerCase())
+                      );
+                      if (list.length === 1) {
+                        if (type === 'BE') {
+                          setFournisseurId(list[0].id);
+                        } else {
+                          setClientId(list[0].id);
+                        }
+                        setSelectedTier(list[0]);
+                      } else {
+                        setSelectedTier(null);
+                        if (type === 'BE') setFournisseurId(null);
+                        else setClientId(null);
+                      }
+                    }}
+                    list="tier-options"
+                  />
+                  <datalist id="tier-options">
+                    {(type === 'BE' ? fournisseurs : clients).map(t => (
+                      <option key={t.id} value={t.nom || t.raison_sociale} />
+                    ))}
+                  </datalist>
                 </div>
                 
                 {selectedTier && (
@@ -395,9 +449,11 @@ export const DocumentCreationDialog = ({
         </div>
 
         <DialogFooter className="gap-3 mt-4 border-t pt-6">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading} className="h-12 px-6">
-            Annuler
-          </Button>
+          {!mandatory && (
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading} className="h-12 px-6">
+              Annuler
+            </Button>
+          )}
           <Button 
             variant="secondary"
             onClick={() => handleSubmit(false)} 
