@@ -46,6 +46,7 @@ export const DocumentCreationDialog = ({
   const [clientId, setClientId] = useState<number | null>(null);
   const [fournisseurId, setFournisseurId] = useState<number | null>(null);
   const [selectedTier, setSelectedTier] = useState<any>(null);
+  const [tierSearch, setTierSearch] = useState('');
   
   const [clients, setClients] = useState<any[]>([]);
   const [fournisseurs, setFournisseurs] = useState<any[]>([]);
@@ -81,6 +82,7 @@ export const DocumentCreationDialog = ({
     setClientId(null);
     setFournisseurId(null);
     setSelectedTier(null);
+    setTierSearch('');
     setLines([]);
   };
 
@@ -243,19 +245,39 @@ export const DocumentCreationDialog = ({
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Sélectionner {(type === 'BL_CLIENT' || type === 'BS') ? 'un Client' : 'un Fournisseur'}</Label>
-                  <Select 
-                    onValueChange={(v) => (type === 'BE' ? setFournisseurId(Number(v)) : setClientId(Number(v)))} 
-                    value={(type === 'BE' ? fournisseurId : clientId)?.toString()}
-                  >
-                    <SelectTrigger className="h-12 text-lg">
-                      <SelectValue placeholder={`Sélectionner un ${(type === 'BL_CLIENT' || type === 'BS') ? 'client' : 'fournisseur'} existant...`} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(type === 'BE' ? fournisseurs : clients).map(t => (
-                        <SelectItem key={t.id} value={t.id.toString()}>{t.nom || t.raison_sociale}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+          <div className="space-y-2">
+            <Label>Sélectionner {(type === 'BL_CLIENT' || type === 'BS') ? 'un Client' : 'un Fournisseur'}</Label>
+            <Input
+              id="tierSearch"
+              placeholder={`Tapez pour rechercher ${(type === 'BL_CLIENT' || type === 'BS') ? 'client' : 'fournisseur'}`}
+              value={tierSearch}
+              onChange={(e) => {
+                const val = e.target.value;
+                setTierSearch(val);
+                const list = (type === 'BE' ? fournisseurs : clients).filter(t =>
+                  (t.nom || t.raison_sociale).toLowerCase().includes(val.toLowerCase())
+                );
+                if (list.length === 1) {
+                  if (type === 'BE') {
+                    setFournisseurId(list[0].id);
+                  } else {
+                    setClientId(list[0].id);
+                  }
+                  setSelectedTier(list[0]);
+                } else {
+                  setSelectedTier(null);
+                  if (type === 'BE') setFournisseurId(null);
+                  else setClientId(null);
+                }
+              }}
+              list="tier-options"
+            />
+            <datalist id="tier-options">
+              {(type === 'BE' ? fournisseurs : clients).map(t => (
+                <option key={t.id} value={t.nom || t.raison_sociale} />
+              ))}
+            </datalist>
+          </div>
                 </div>
                 
                 {selectedTier && (

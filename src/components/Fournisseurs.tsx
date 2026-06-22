@@ -92,6 +92,7 @@ export const Fournisseurs = memo(() => {
   // Form state
   const [nom, setNom] = useState('');
   const [code, setCode] = useState('');
+  const [emailFournisseur, setEmailFournisseur] = useState('');
   const [matriculeFiscale, setMatriculeFiscale] = useState('');
   const [specialite, setSpecialite] = useState('');
   const [phoneLines, setPhoneLines] = useState<string[]>(['']);
@@ -146,6 +147,7 @@ export const Fournisseurs = memo(() => {
   const resetForm = useCallback(() => {
     setNom('');
     setCode('');
+    setEmailFournisseur('');
     setMatriculeFiscale('');
     setSpecialite('');
     setPhoneLines(['']);
@@ -225,6 +227,7 @@ export const Fournisseurs = memo(() => {
     }
 
     const fournisseurData = {
+      email: emailFournisseur.trim() || null,
       nom: nom.trim(),
       code: code.trim() || null,
       matricule_fiscale: matriculeFiscale.trim(),
@@ -468,6 +471,14 @@ export const Fournisseurs = memo(() => {
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
                       placeholder="Code unique (ex: FRN-001)"
+                      required={!editingFournisseur}
+                    />
+                    <Label htmlFor="emailFournisseur">Email Fournisseur *</Label>
+                    <Input
+                      id="emailFournisseur"
+                      value={emailFournisseur}
+                      onChange={(e) => setEmailFournisseur(e.target.value)}
+                      placeholder="exemple@entreprise.tn"
                       required={!editingFournisseur}
                     />
                     <p className="text-xs text-muted-foreground">
