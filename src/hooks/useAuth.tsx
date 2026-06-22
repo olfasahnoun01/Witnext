@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, createContext, useContext, ReactNode } from 'react';
+// Single‑flight flag for token refresh
+let isRefreshing = false;
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { isAuthSessionError, isJwtExpiredError, refreshSupabaseSessionIfNeeded } from '@/lib/supabaseSession';
@@ -82,22 +84,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Handle session expiration with user-friendly message
   const handleSessionExpired = async (reason: string = 'Session expirée') => {
-    sessionExpiredRef.current = true;
-    setSessionExpired(true);
-    
-    // Clear local auth state
-    setActiveCompanyId(null);
-    setUser(null);
-    setSession(null);
-    setIsAdmin(false);
-    setIsModerator(false);
-    
-    // Sign out to clear any stale tokens
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
-    } catch {
-      // Ignore errors during cleanup
-    }
+      sessionExpiredRef.current = true;
+      setSessionExpired(true);
+
+      // Clear local auth state
+      setActiveCompanyId(null);
+      setUser(null);
+      setSession(null);
+      setIsAdmin(false);
+      setIsModerator(false);
+
+      // Sign out globally – this revokes the refresh token on Supabase
+      try {
+        await supabase.auth.signOut({ scope: 'global' });
+      } catch {
+        // Ignore errors during cleanup
+      }
     
     // Clear any stale session markers
     sessionStorage.removeItem('browser_session_active');
@@ -122,22 +124,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     // Helper to clear auth data on tab close
-    const clearAuthOnTabClose = () => {
-      // Remove stored tokens
-      sessionStorage.removeItem('browser_session_active');
-      // Optionally clear localStorage items used by supabase
-      try {
-        localStorage.removeItem('sb-auth-token');
-        localStorage.removeItem('sb-refresh-token');
-      } catch {}
-      // Sign out locally
-      supabase.auth.signOut({ scope: 'local' }).catch(() => {});
-      // Reset auth state
-      setUser(null);
-      setSession(null);
-      setIsAdmin(false);
-      setIsModerator(false);
-    };
+    const clearAuthOnTabClose = async () => {
+        // Remove stored tokens
+        sessionStorage.removeItem('browser_session_active');
+        // Sign out globally – revokes refresh token on the server
+        try {
+          await supabase.auth.signOut({ scope: 'global' });
+        } catch {}
+        // Reset auth state
+        setUser(null);
+        setSession(null);
+        setIsAdmin(false);
+        setIsModerator(false);
+      };
 
     // Register beforeunload listener for automatic logout
     window.addEventListener('beforeunload', clearAuthOnTabClose);
@@ -145,11 +144,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Listen for role updates broadcasted from the server
     const roleChannel = supabase.channel('role_updates');
     roleChannel
-      .on('broadcast', { event: 'role_update' }, (payload) => {
+      .on('broadcast', { event: 'role_update' }, async (payload) => {
         const updatedUserId = payload.payload?.userId as string | undefined;
         if (updatedUserId && user?.id === updatedUserId) {
           // Refresh role flags for the current user
-          void checkUserRoles(updatedUserId);
+          await checkUserRoles(updatedUserId);
+          // Also refresh the JWT so role claims are up‑to‑date
+          await supabase.auth.refreshSession();
         }
       })
       .subscribe();
@@ -248,23 +249,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         if (event === 'TOKEN_REFRESHED') {
-          debugLog('useAuth.tsx:TOKEN_REFRESHED', 'auth event', {
-            expiresAt: nextSession?.expires_at ?? null,
-            userId: nextSession?.user?.id?.slice(0, 8) ?? null,
-          }, 'D');
-          sessionExpiredRef.current = false;
-          setSessionExpired(false);
-          setSession(nextSession);
-          setUser(nextSession?.user ?? null);
-          return;
-        }
+            debugLog('useAuth.tsx:TOKEN_REFRESHED', 'auth event', {
+              expiresAt: nextSession?.expires_at ?? null,
+              userId: nextSession?.user?.id?.slice(0, 8) ?? null,
+            }, 'D');
+            sessionExpiredRef.current = false;
+            setSessionExpired(false);
+            setSession(nextSession);
+            setUser(nextSession?.user ?? null);
+            return;
+          }
 
-        if (event === 'SIGNED_OUT') {
-          if (sessionExpiredRef.current) return;
-          syncAuthSession(null);
-          finishAuthInit();
-          return;
-        }
+          if (event === 'SIGNED_OUT') {
+            if (sessionExpiredRef.current) return;
+            syncAuthSession(null);
+            finishAuthInit();
+            return;
+          }
 
         if (event === 'SIGNED_IN') {
           syncAuthSession(nextSession);
@@ -303,7 +304,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const expiresAt = currentSession.expires_at ?? 0;
       const nowSec = Math.floor(Date.now() / 1000);
       if (expiresAt - nowSec <= 120) {
+        if (isRefreshing) {
+          // Another refresh is already in progress – wait for it to finish
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          return { ok: true, refreshed: false };
+        }
+        isRefreshing = true;
         const ok = await refreshSupabaseSessionIfNeeded(0);
+        isRefreshing = false;
         if (!ok) {
           debugLog('useAuth.tsx:validate', 'refresh failed, signing out', {
             secsToExpiry: expiresAt - nowSec,
