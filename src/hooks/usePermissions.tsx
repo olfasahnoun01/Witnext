@@ -42,7 +42,7 @@ function hasFluxSuiviAccess(perms: PermissionRow[]): boolean {
 }
 
 export const usePermissions = () => {
-  const { user, session, isAdmin, isLoading: authLoading } = useAuth();
+  const { user, session, isAdmin, isModerator, isLoading: authLoading } = useAuth();
   const [perms, setPerms] = useState<PermissionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -124,7 +124,7 @@ export const usePermissions = () => {
 
   const canAccessSection = useCallback(
     (sectionId: string): boolean => {
-      if (isAdmin) return true;
+      if (isAdmin || isModerator) return true;
       // full section grant
       if (perms.some((p) => p.section_key === sectionId && (!p.subsection_key || p.subsection_key === ''))) {
         return true;
@@ -138,12 +138,12 @@ export const usePermissions = () => {
       }
       return false;
     },
-    [isAdmin, perms]
+    [isAdmin, isModerator, perms]
   );
 
   const canAccessSubsection = useCallback(
     (subsectionId: string): boolean => {
-      if (isAdmin) return true;
+      if (isAdmin || isModerator) return true;
       const sectionId = SUBSECTION_TO_SECTION[subsectionId];
       if (!sectionId) return false;
       // Full section grant
@@ -178,7 +178,7 @@ export const usePermissions = () => {
       }
       return false;
     },
-    [isAdmin, perms]
+    [isAdmin, isModerator, perms]
   );
 
   const visibleSections = BIG_SECTIONS.filter((s) => canAccessSection(s.id));
