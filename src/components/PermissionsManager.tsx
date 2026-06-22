@@ -208,6 +208,7 @@ export const PermissionsManager = () => {
   const [expandedUsers, setExpandedUsers] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [savingPermsFor, setSavingPermsFor] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<AccountTab>('users');
 
   // User CRUD modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -596,6 +597,12 @@ export const PermissionsManager = () => {
         const companySet = resolveCompanySetForUser(position, modalCompanies, companies);
         await persistPermissions(targetUserId, permSet);
         await persistUserCompanies(targetUserId, companySet);
+        // Broadcast role change to other clients
+        supabase.channel('role_updates').send({
+          type: 'broadcast',
+          event: 'role_update',
+          payload: { userId: targetUserId },
+        });
       }
 
       const createdOrUpdated: ManagedUser = editingUser

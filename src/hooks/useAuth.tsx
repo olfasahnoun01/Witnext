@@ -121,6 +121,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       sessionStorage.setItem('browser_session_active', 'true');
     }
 
+    // Helper to clear auth data on tab close
+    const clearAuthOnTabClose = () => {
+      // Remove stored tokens
+      sessionStorage.removeItem('browser_session_active');
+      // Optionally clear localStorage items used by supabase
+      try {
+        localStorage.removeItem('sb-auth-token');
+        localStorage.removeItem('sb-refresh-token');
+      } catch {}
+      // Sign out locally
+      supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      // Reset auth state
+      setUser(null);
+      setSession(null);
+      setIsAdmin(false);
+      setIsModerator(false);
+    };
+
+    // Register beforeunload listener for automatic logout
+    window.addEventListener('beforeunload', clearAuthOnTabClose);
+
+    // Listen for role updates broadcasted from the server
+    const roleChannel = supabase.channel('role_updates');
+    roleChannel
+      .on('broadcast', { event: 'role_update' }, (payload) => {
+        const updatedUserId = payload.payload?.userId as string | undefined;
+        if (updatedUserId && user?.id === updatedUserId) {
+          // Refresh role flags for the current user
+          void checkUserRoles(updatedUserId);
+        }
+      })
+      .subscribe();
+
     let cancelled = false;
     let deferredRolesUserId: string | null = null;
 
@@ -354,6 +387,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       window.removeEventListener('pageshow', resumeAfterIdle);
       window.removeEventListener('app:session-invalid', onSessionInvalid);
       window.removeEventListener('pagehide', onPageHide);
+      // Remove listeners added for logout and role updates
+      window.removeEventListener('beforeunload', clearAuthOnTabClose);
+      roleChannel.unsubscribe();
       removeSessionChannel();
     };
   }, []);
