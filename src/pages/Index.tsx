@@ -301,8 +301,8 @@ const IndexContent = () => {
         
         {/* Administration */}
         {activeTab === 'accounts' && (
-          isAdmin ? <PermissionsManager /> : <div className="p-12 text-center text-muted-foreground font-medium">Accès réservé aux administrateurs</div>
-        )}
+        canAccessSubsection('accounts') ? <PermissionsManager /> : <AccessDenied />
+      )}
         {activeTab === 'settings' && <Settings />}
 
         {activeTab === 'finance-hub' && <FinanceModule />}
