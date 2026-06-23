@@ -110,6 +110,8 @@ export interface DevisItem {
   description?: string;
   prix_achat?: number;
   tva?: number; // 0, 7, 13, or 19 — 0 = no VAT on the line until user selects a rate
+  /** Montant FODEC manuel (DT) — si absent, 1 % du HT net ligne pour BC achat. */
+  fodec?: number;
   product_id?: number;
   line_id?: string;
 }

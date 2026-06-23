@@ -1,7 +1,7 @@
 import { useCallback, useRef, type ReactNode } from 'react';
 import { Plus, Search, Trash2 } from 'lucide-react';
 import type { DevisItem, Product } from '@/types';
-import { computeArticleTableLineTotalHT } from '@/lib/devisPricing';
+import { computeArticleTableLineTotalHT, defaultLineFodec } from '@/lib/devisPricing';
 import { getDevisItemDisplayCode } from '@/lib/devisItemPdf';
 import { cn } from '@/lib/utils';
 import { DecimalInput } from '@/components/ui/decimal-input';
@@ -46,6 +46,8 @@ export interface DevisArticlesTableProps {
   onItemRemiseChange: (value: number) => void;
   itemTva: number;
   onItemTvaChange: (value: number) => void;
+  itemFodec?: number | null;
+  onItemFodecChange?: (value: number) => void;
   partyExonereDeTva?: boolean;
   composerSearchRef?: React.RefObject<HTMLInputElement | null>;
   showFodecColumn?: boolean;
@@ -101,6 +103,8 @@ export function DevisArticlesTable({
   onItemRemiseChange,
   itemTva,
   onItemTvaChange,
+  itemFodec = null,
+  onItemFodecChange,
   partyExonereDeTva = false,
   composerSearchRef,
   showFodecColumn = false,
@@ -126,8 +130,10 @@ export function DevisArticlesTable({
     quantity: itemQuantity,
     tva: itemTva,
   });
-  const composerPreviewFodec = showFodecColumn ? composerPreviewHT * 0.01 : 0;
-  const composerPreviewBaseTva = composerPreviewHT + composerPreviewFodec;
+  const composerPreviewFodec =
+    showFodecColumn
+      ? (itemFodec ?? defaultLineFodec(composerPreviewHT))
+      : 0;
   // Actually composer preview here was HT, let's keep it HT to match "Total HT" column header, or update if we show total TTC?
   // Wait, the column header is "Total HT". So composerPreview should just be HT.
   const composerPreview = composerPreviewHT;
@@ -242,8 +248,18 @@ export function DevisArticlesTable({
                   </div>
                 </td>
                 {showFodecColumn && (
-                  <td className={cn(TD, 'text-center text-xs text-muted-foreground tabular-nums align-middle')}>
-                    {(lineVal * 0.01).toFixed(3)}
+                  <td className={TD}>
+                    <DecimalInput
+                      value={
+                        typeof item.fodec === 'number'
+                          ? item.fodec
+                          : defaultLineFodec(lineVal)
+                      }
+                      onValueChange={(v) => onUpdate(idx, { fodec: v })}
+                      allowEmptyZero
+                      className={cn(devisZohoCellInputClass, 'text-center text-xs h-auto py-1.5')}
+                      aria-label={`FODEC ${title}`}
+                    />
                   </td>
                 )}
                 {showTvaColumn && (
@@ -382,8 +398,14 @@ export function DevisArticlesTable({
               </div>
             </td>
             {showFodecColumn && (
-              <td className={cn(TD_COMPOSER, 'text-center text-xs text-muted-foreground tabular-nums align-middle')}>
-                {composerPreviewFodec.toFixed(3)}
+              <td className={TD_COMPOSER}>
+                <DecimalInput
+                  value={composerPreviewFodec}
+                  onValueChange={(v) => onItemFodecChange?.(v)}
+                  allowEmptyZero
+                  className={cn(devisZohoCellInputClass, 'text-center text-xs w-full h-auto py-1.5')}
+                  aria-label="FODEC ligne"
+                />
               </td>
             )}
             {showTvaColumn && (

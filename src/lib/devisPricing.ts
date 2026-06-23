@@ -12,9 +12,28 @@ export function resolveDevisLineTvaRate(tva?: number | null): number {
   return Number(tva);
 }
 
+/** Taux FODEC par défaut sur BC fournisseur (1 % du HT net ligne). */
+export const DEVIS_FODEC_RATE = 0.01;
+
 /** Arrondi au millime (3 décimales) — norme fiscale tunisienne. */
 export function round3(n: number): number {
   return Math.round((n + Number.EPSILON) * 1000) / 1000;
+}
+
+export function defaultLineFodec(lineHT: number): number {
+  return round3(lineHT * DEVIS_FODEC_RATE);
+}
+
+function resolveLineFodec(
+  item: DevisItem,
+  lineHT: number,
+  applyFodec: boolean
+): number {
+  if (!applyFodec) return 0;
+  if (typeof item.fodec === 'number' && Number.isFinite(item.fodec)) {
+    return round3(item.fodec);
+  }
+  return defaultLineFodec(lineHT);
 }
 
 /**
@@ -67,7 +86,7 @@ export function computeDevisLine(
   const tvaRate = resolveDevisLineTvaRate(item.tva) / 100;
   const remiseFactor = item.remise > 0 ? (1 - item.remise / 100) : 1;
   const applyFodec = options?.isBcFurnitureAchat ?? false;
-  const fodecRate = applyFodec ? 0.01 : 0;
+  const fodecRate = applyFodec && typeof item.fodec !== 'number' ? DEVIS_FODEC_RATE : 0;
 
   let unitHT: number;
   let unitTTC: number;
@@ -94,7 +113,7 @@ export function computeDevisLine(
 
   // Round at the line level (millimes). VAT is computed from the rounded net HT + Fodec
   const lineHT = round3(unitAfterRemiseHT * item.quantity);
-  const lineFodec = applyFodec ? round3(lineHT * fodecRate) : 0;
+  const lineFodec = resolveLineFodec(item, lineHT, applyFodec);
   const lineTVA = round3((lineHT + lineFodec) * tvaRate);
   const lineTTC = round3(lineHT + lineFodec + lineTVA);
 

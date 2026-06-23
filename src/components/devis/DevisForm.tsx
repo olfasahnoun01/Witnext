@@ -209,6 +209,12 @@ export const DevisForm = memo(({
   const [itemDescription, setItemDescription] = useState('');
   const [itemPrixAchat, setItemPrixAchat] = useState<number>(0);
   const [itemTva, setItemTva] = useState<number>(0);
+  /** FODEC manuel (BC achat) — null = calcul auto 1 % à l'enregistrement. */
+  const [itemFodec, setItemFodec] = useState<number | null>(null);
+
+  useEffect(() => {
+    setItemFodec(null);
+  }, [itemPrixTtc, itemRemise, itemQuantity]);
 
   /** Remplit prix d'achat HT depuis l'inventaire (fournisseurs du groupe). */
   const loadPrixAchatFromInventoryProduct = useCallback(
@@ -673,6 +679,9 @@ export const DevisForm = memo(({
 
     const detailDescription = itemDescription.trim();
     const catalogSku = selectedProduct?.sku?.trim();
+    const showFodecColumn = devisType === 'achat' && docType === 'bc' && isTtc && !partyExonereDeTva;
+    const fodecExtra =
+      showFodecColumn && itemFodec !== null ? { fodec: itemFodec } : {};
 
     const newItems: DevisItem[] =
       articleMode === 'search' && selectedProduct
@@ -689,6 +698,7 @@ export const DevisForm = memo(({
               ...(catalogSku ? { sku: catalogSku } : {}),
               product_id: selectedProduct.id,
               ...(devisType === 'vente' ? { prix_achat: itemPrixAchat } : {}),
+              ...fodecExtra,
             },
           ]
         : itemDesignation
@@ -708,6 +718,7 @@ export const DevisForm = memo(({
               description: detailDescription || undefined,
               tva: itemTva,
               ...(devisType === 'vente' ? { prix_achat: itemPrixAchat } : {}),
+              ...fodecExtra,
             }));
 
     setDevisItems(prev => [...prev, ...newItems]);
@@ -720,6 +731,7 @@ export const DevisForm = memo(({
     setItemDescription('');
     setItemPrixAchat(0);
     setItemTva(0);
+    setItemFodec(null);
     setProductSearch('');
     setSearchResults([]);
     setSelectedProduct(null);
@@ -727,7 +739,7 @@ export const DevisForm = memo(({
     if (articleMode === 'search') {
       requestAnimationFrame(() => composerSearchRef.current?.focus());
     }
-  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, itemTva, devisType, articleMode, isAchat, thirdPartyName, selectedProduct, setDevisItems]);
+  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, itemTva, itemFodec, devisType, docType, isTtc, partyExonereDeTva, articleMode, isAchat, thirdPartyName, selectedProduct, setDevisItems]);
 
 
 
@@ -1452,6 +1464,8 @@ export const DevisForm = memo(({
             onItemRemiseChange={setItemRemise}
             itemTva={itemTva}
             onItemTvaChange={setItemTva}
+            itemFodec={itemFodec}
+            onItemFodecChange={setItemFodec}
             partyExonereDeTva={partyExonereDeTva}
             showFodecColumn={devisType === 'achat' && docType === 'bc' && isTtc && !partyExonereDeTva}
           />
