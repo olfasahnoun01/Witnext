@@ -7,7 +7,7 @@ import { Devis, DevisItem, BonCommande } from '@/types';
 import { buildProfilesMap, collectUserIdsForProfiles } from '@/lib/documentListAudit';
 import { useAuth } from '@/hooks/useAuth';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
-import { getActiveCompanyId } from '@/lib/activeCompany';
+import { getActiveCompanyId, requireActiveCompanyId } from '@/lib/activeCompany';
 import { readStoredDevisSection, writeStoredDevisSection } from '@/lib/appNavigationStorage';
 import {
   clearDevisDraft,
@@ -21,6 +21,7 @@ import { computeDevisTotals } from '@/lib/devisPricing';
 import { parseAttachmentUrls, uploadCommercialAttachments, type CommercialAttachmentRecord } from '@/lib/commercialAttachments';
 import { buildMergedBcNotes, mergeDevisItemsFromSources, validateDevisMergeForBc } from '@/lib/mergeCommercialDocuments';
 import { ensureSuiviFromDevis } from '@/lib/partiesSuivi';
+import { allocateDevisNumber } from '@/lib/devisNumbering';
 import {
   ensureSupabaseSessionReady,
   isAuthSessionError,
@@ -407,34 +408,35 @@ export const GestionDevis = ({
 
   useEffect(() => { devisNumberRef.current = devisNumber; }, [devisNumber]);
 
-  const generateNextNumber = useCallback((type: 'achat' | 'vente', mode: 'devis' | 'bc' | 'ba' = 'devis') => {
-    let prefix = 'DE';
-    if (mode === 'bc') {
-      prefix = type === 'achat' ? 'BCE' : 'BCS';
-    } else if (mode === 'ba') {
-      prefix = 'BA';
-    } else {
-      prefix = type === 'achat' ? 'DE' : 'DS';
-    }
-    
-    let list = savedDevis;
-    if (mode === 'bc') list = bonsCommande;
-    if (mode === 'ba') list = bonsAchat;
-
-    const docsOfType = list.filter(d => d && d.type === type);
-    let maxNum = 0;
-    docsOfType.forEach(d => {
-      const match = d.devis_number.match(new RegExp(`^${prefix}-(\\d+)$`));
-      if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10));
-    });
-    return `${prefix}-${(maxNum + 1).toString().padStart(2, '0')}`;
-  }, [savedDevis, bonsCommande, bonsAchat]);
+  const refreshDevisNumber = useCallback(
+    async (type: 'achat' | 'vente' = devisType, mode: 'devis' | 'bc' | 'ba' = docType === 'ba' ? 'ba' : docType === 'bc' ? 'bc' : 'devis') => {
+      try {
+        const num = await allocateDevisNumber(type, mode);
+        setDevisNumber(num);
+        return num;
+      } catch (err) {
+        console.error('[GestionDevis] number allocation failed:', err);
+        toast.error('Impossible de générer un numéro de document');
+        return '';
+      }
+    },
+    [devisType, docType]
+  );
 
   useEffect(() => {
     if (!editingDevis && devisItems.length === 0 && !showEditDialog && !isBCReviewOpen) {
-      setDevisNumber(generateNextNumber(devisType, docType));
+      let cancelled = false;
+      const mode = docType === 'ba' ? 'ba' : docType === 'bc' ? 'bc' : 'devis';
+      void allocateDevisNumber(devisType, mode)
+        .then((num) => {
+          if (!cancelled) setDevisNumber(num);
+        })
+        .catch((err) => console.error('[GestionDevis] allocate number:', err));
+      return () => {
+        cancelled = true;
+      };
     }
-  }, [allDevis, devisType, docType, editingDevis, devisItems.length, showEditDialog, isBCReviewOpen, generateNextNumber]);
+  }, [devisType, docType, editingDevis, devisItems.length, showEditDialog, isBCReviewOpen]);
 
   const clearFormFields = useCallback((clearItems = true) => {
     setDevisDate(new Date().toISOString().split('T')[0]);
@@ -459,13 +461,14 @@ export const GestionDevis = ({
     clearFormFields(true);
     setEditingDevis(null);
     setShowEditDialog(false);
-    setDevisNumber(generateNextNumber(defaultDevisType, 'devis'));
-  }, [clearFormFields, defaultDevisType, generateNextNumber]);
+    void refreshDevisNumber(defaultDevisType, 'devis');
+  }, [clearFormFields, defaultDevisType, refreshDevisNumber]);
 
   const clearInputsOnly = useCallback(() => {
     clearFormFields(true);
-    setDevisNumber(generateNextNumber(devisType, docType));
-  }, [clearFormFields, generateNextNumber, devisType, docType]);
+    setEditingDevis(null);
+    void refreshDevisNumber(devisType, docType === 'ba' ? 'ba' : docType === 'bc' ? 'bc' : 'devis');
+  }, [clearFormFields, refreshDevisNumber, devisType, docType]);
 
   const handleTypeChange = useCallback((type: 'achat' | 'vente') => {
     setDevisType(type);
@@ -516,7 +519,7 @@ export const GestionDevis = ({
       toast.error('Ajoutez au moins une ligne d\'article');
       return;
     }
-    const currentDevisNumber = devisNumberRef.current;
+    let currentDevisNumber = devisNumberRef.current;
     if (!currentDevisNumber) {
       toast.error('Numéro de devis manquant, veuillez patienter');
       return;
@@ -531,12 +534,13 @@ export const GestionDevis = ({
       });
       const totalAmount = totals.totalFodec ? (totals.totalTTC + totals.totalFodec) : totals.totalTTC;
       const { data: { user } } = await supabase.auth.getUser();
+      const companyId = requireActiveCompanyId();
+      const numberMode = saveAsBc ? 'bc' : 'devis';
 
-      const folderKind = saveAsBc ? 'bc' : 'devis';
-      const { data: inserted, error } = await supabase.from('devis').insert({
+      const buildInsertPayload = (devisNum: string) => ({
         type: devisType,
-        company_id: getActiveCompanyId() || undefined,
-        devis_number: currentDevisNumber,
+        company_id: companyId,
+        devis_number: devisNum,
         devis_date: devisDate,
         third_party_name: thirdPartyName || null,
         third_party_address: thirdPartyAddress || null,
@@ -555,20 +559,46 @@ export const GestionDevis = ({
           saveAsBc && importSourceDevisIds.length > 0 ? importSourceDevisIds[0] : null,
         source_devis_ids:
           saveAsBc && importSourceDevisIds.length > 1 ? importSourceDevisIds : null,
-      } as any).select('id').single();
+      });
+
+      let { data: inserted, error } = await supabase
+        .from('devis')
+        .insert(buildInsertPayload(currentDevisNumber) as any)
+        .select('*')
+        .single();
+
+      if (error?.code === '23505') {
+        const freshNumber = await allocateDevisNumber(devisType, numberMode);
+        currentDevisNumber = freshNumber;
+        devisNumberRef.current = freshNumber;
+        setDevisNumber(freshNumber);
+        ({ data: inserted, error } = await supabase
+          .from('devis')
+          .insert(buildInsertPayload(freshNumber) as any)
+          .select('*')
+          .single());
+      }
 
       if (error || !inserted) {
-        toast.error('Erreur lors de la sauvegarde');
+        const msg =
+          error?.code === '23505'
+            ? 'Ce numéro de devis existe déjà. Réessayez dans un instant.'
+            : 'Erreur lors de la sauvegarde';
+        toast.error(msg);
         console.error(error);
       } else {
         const docId = (inserted as { id: number }).id;
+        const folderKind = saveAsBc ? 'bc' : 'devis';
+        let attachmentUrls = parseAttachmentUrls((inserted as { attachment_urls?: unknown }).attachment_urls);
+
         if (pendingAttachmentFiles.length > 0) {
           const uploaded = await uploadCommercialAttachments(
             pendingAttachmentFiles,
             `${folderKind}/${docId}`
           );
-          const merged = [...existingAttachments, ...uploaded];
-          await supabase.from('devis').update({ attachment_urls: merged } as never).eq('id', docId);
+          attachmentUrls = [...attachmentUrls, ...uploaded];
+          await supabase.from('devis').update({ attachment_urls: attachmentUrls } as never).eq('id', docId);
+          (inserted as { attachment_urls: unknown }).attachment_urls = attachmentUrls;
         }
 
         if (!saveAsBc && (devisType === 'vente' || devisType === 'achat')) {
@@ -584,9 +614,16 @@ export const GestionDevis = ({
           );
         }
 
+        const created = parseDevisRow(inserted, {}, {}, {});
+        setEditingDevis(created);
+        setDevisNumber(created.devis_number);
+        setPendingAttachmentFiles([]);
+        setExistingAttachments(attachmentUrls);
+        clearDevisDraft(companyId, devisType, docType);
+        setDraftSavedAt(null);
+
         toast.success(saveAsBc ? 'Bon de commande enregistré' : 'Devis sauvegardé');
         await loadAll();
-        clearFormFields();
         if (saveAsBc) {
           setActiveSection('bc');
         }
@@ -597,7 +634,7 @@ export const GestionDevis = ({
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, hasDocumentContent, devisType, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, docType, sectionMode, documentStatus, existingAttachments, pendingAttachmentFiles, importSourceDevisIds, loadAll, clearFormFields]);
+  }, [isSaving, hasDocumentContent, devisType, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, docType, sectionMode, documentStatus, existingAttachments, pendingAttachmentFiles, importSourceDevisIds, loadAll]);
 
   const updateDevis = useCallback(async () => {
     if (!editingDevis) return;
@@ -624,7 +661,6 @@ export const GestionDevis = ({
 
     const { error } = await supabase.from('devis').update({
       type: devisType,
-      devis_number: devisNumber,
       devis_date: devisDate,
       third_party_name: thirdPartyName || null,
       third_party_address: thirdPartyAddress || null,
@@ -711,7 +747,7 @@ export const GestionDevis = ({
     const primaryIsTtc = primary.is_ttc ?? false;
 
     try {
-      const bcNumber = generateNextNumber(primary.type as 'achat' | 'vente', 'bc');
+      const bcNumber = await allocateDevisNumber(primary.type as 'achat' | 'vente', 'bc');
       const { data: { user } } = await supabase.auth.getUser();
       const totals = computeDevisTotals(modifiedItems, false, {
         devisType: primary.type as 'achat' | 'vente',
@@ -723,7 +759,7 @@ export const GestionDevis = ({
 
       const { data: insertedBc, error } = await supabase.from('devis').insert({
         devis_number: bcNumber,
-        company_id: getActiveCompanyId() || undefined,
+        company_id: requireActiveCompanyId(),
         devis_date: new Date().toISOString().split('T')[0],
         source_devis_id: primary.id,
         source_devis_ids: isMerge ? sources.map((d) => d.id) : null,
@@ -779,7 +815,7 @@ export const GestionDevis = ({
       console.error(err);
       toast.error('Erreur lors de la création');
     }
-  }, [devisListToConvert, generateNextNumber, loadAll]);
+  }, [devisListToConvert, loadAll]);
 
   const startEdit = useCallback((d: Devis) => {
     setEditingDevis(d);
@@ -809,9 +845,9 @@ export const GestionDevis = ({
     clearFormFields(true);
     setDevisType(defaultDevisType);
     setDocType(mode);
-    setDevisNumber(generateNextNumber(defaultDevisType, mode));
+    void refreshDevisNumber(defaultDevisType, mode);
     setActiveSection('form');
-  }, [clearFormFields, defaultDevisType, generateNextNumber]);
+  }, [clearFormFields, defaultDevisType, refreshDevisNumber]);
 
   const accentIsAchat = (lockDevisType ? defaultDevisType : devisType) === 'achat';
   const tabActiveClass = accentIsAchat
