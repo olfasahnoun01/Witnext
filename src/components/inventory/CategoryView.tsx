@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Product, StockStatus } from '@/types';
 import { createProduct, updateProduct, deleteProduct, applyProductQuantityChange } from '@/services/dbService';
+import { fetchProductImageRef } from '@/lib/productImageStorage';
 import { Button } from '@/components/ui/button';
 import { InventoryFilters } from './InventoryFilters';
 import { ProductTable } from './ProductTable';
@@ -236,9 +237,10 @@ export const CategoryView = ({ category, onBack }: CategoryViewProps) => {
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   // Modal handlers
-  const handleOpenModal = useCallback((product?: Product) => {
+  const handleOpenModal = useCallback(async (product?: Product) => {
     if (product) {
       setEditingProduct(product);
+      const imageRef = await fetchProductImageRef(product.id);
       setFormData({
         name: product.name,
         sku: product.sku,
@@ -249,7 +251,7 @@ export const CategoryView = ({ category, onBack }: CategoryViewProps) => {
         price: product.price,
         remise: product.remise || 0,
         min_stock: product.min_stock,
-        image: product.image || null,
+        image: imageRef,
         color: product.color || ''
       });
     } else {

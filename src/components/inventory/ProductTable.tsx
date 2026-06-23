@@ -1,8 +1,9 @@
 import { memo } from 'react';
-import { Edit2, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Edit2, Trash2 } from 'lucide-react';
 import { Product, StockStatus } from '@/types';
 import { priceTtcFromHt } from '@/lib/tva';
 import { EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
+import { LazyProductImage } from '@/components/shared/LazyProductImage';
 import {
   Table,
   TableBody,
@@ -75,18 +76,11 @@ export const ProductTable = memo(({ products, onEdit, onDelete, isLoading }: Pro
             return (
               <TableRow key={product.id}>
                 <TableCell>
-                  <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
-                    {product.image ? (
-                      <img 
-                        src={product.image} 
-                        alt={product.name} 
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <ImageIcon className="w-5 h-5 text-muted-foreground" />
-                    )}
-                  </div>
+                  <LazyProductImage
+                    productId={product.id}
+                    alt={product.name}
+                    className="w-12 h-12 rounded-lg"
+                  />
                 </TableCell>
                 <TableCell className="font-medium text-foreground">{product.name}</TableCell>
                 <TableCell className="text-muted-foreground font-mono text-xs">{product.sku}</TableCell>

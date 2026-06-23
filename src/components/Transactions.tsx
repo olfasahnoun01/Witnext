@@ -4,7 +4,6 @@ import { fr } from 'date-fns/locale';
 import { 
   ArrowDownLeft, 
   ArrowUpRight, 
-  Package,
   AlertCircle,
   CalendarIcon,
   X
@@ -25,6 +24,7 @@ import { CategoryProductSelector } from './shared/CategoryProductSelector';
 import { TransactionHistory } from './transactions/TransactionHistory';
 import { writePendingWarehouseDocument } from '@/lib/appNavigationStorage';
 import { requireActiveCompanyId } from '@/lib/activeCompany';
+import { LazyProductImage } from '@/components/shared/LazyProductImage';
 import { toast } from 'sonner';
 
 type TabType = 'in' | 'out';
@@ -179,13 +179,11 @@ export const Transactions = memo(({ onTabChange }: TransactionsProps) => {
               <label className="form-label">Produit *</label>
               {selectedProduct ? (
                 <div className="flex items-center gap-3 p-4 rounded-lg bg-muted border border-border">
-                  <div className="w-12 h-12 rounded-lg bg-background flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {selectedProduct.image ? (
-                      <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <Package className="w-6 h-6 text-muted-foreground" />
-                    )}
-                  </div>
+                  <LazyProductImage
+                    productId={selectedProduct.id}
+                    alt={selectedProduct.name}
+                    className="w-12 h-12 rounded-lg flex-shrink-0"
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-foreground truncate">{selectedProduct.name}</p>
                     <p className="text-sm text-muted-foreground">

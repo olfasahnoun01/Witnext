@@ -21,6 +21,8 @@ import {
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { buildCompanyStoragePath } from '@/lib/storagePaths';
+import { fetchProductGroupImageRef } from '@/lib/productImageStorage';
+import { LazyProductImage } from '@/components/shared/LazyProductImage';
 import { toast } from 'sonner';
 import { ProductGroup, ProductGroupFournisseur } from '@/types';
 import { compressImage, formatBytes, getBase64Size } from '@/lib/imageCompression';
@@ -117,12 +119,15 @@ export const ProductGroupModal = ({
       if (editingGroup) {
         setStep(1); // No step 2 for editing
         setVariants([]);
+        const imageRef = editingGroup.id
+          ? await fetchProductGroupImageRef(editingGroup.id)
+          : null;
         setFormData({
           name: editingGroup.name,
           category: editingGroup.category,
           base_sku: editingGroup.base_sku || '',
           min_stock: editingGroup.min_stock,
-          image: editingGroup.image,
+          image: imageRef,
           fournisseurs: [],
         });
         
@@ -442,7 +447,12 @@ export const ProductGroupModal = ({
                   onClick={() => fileInputRef.current?.click()}
                 >
                   {formData.image ? (
-                    <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                    <LazyProductImage
+                      storedRef={formData.image}
+                      alt="Preview"
+                      className="w-full h-full rounded-xl"
+                      variant="full"
+                    />
                   ) : (
                     <Package className="w-8 h-8 text-muted-foreground" />
                   )}

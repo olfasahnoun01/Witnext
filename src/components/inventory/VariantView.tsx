@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload, FileText, Ey
 import { ProductGroup, Product, StockStatus } from '@/types';
 import { getVariantsByGroupId, createVariant } from '@/services/productGroupService';
 import { updateProduct, deleteProduct, applyProductQuantityChange } from '@/services/dbService';
+import { fetchProductImageRef } from '@/lib/productImageStorage';
 import { supabase } from '@/integrations/supabase/client';
 import { buildCompanyStoragePath } from '@/lib/storagePaths';
 import { EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
@@ -23,6 +24,7 @@ import { useRealtimeData } from '@/hooks/useRealtimeData';
 import { useAuth } from '@/hooks/useAuth';
 import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { ClientDocumentPreviewDialog } from '@/components/shared/ClientDocumentPreviewDialog';
+import { LazyProductImage } from '@/components/shared/LazyProductImage';
 import {
   downloadFicheTechniquesAsPdf,
   parseFicheTechniqueUrls,
@@ -127,6 +129,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
   const handleOpenModal = useCallback(async (variant?: Product) => {
     if (variant) {
       setEditingVariant(variant);
+      const imageRef = await fetchProductImageRef(variant.id);
       setFormData({
         sku: variant.sku,
         size: variant.size || '',
@@ -134,7 +137,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         quantity: variant.quantity,
         price: variant.price,
         remise: variant.remise || 0,
-        image: variant.image || null,
+        image: imageRef,
         fiche_urls: parseFicheTechniqueUrls(variant.fiche_technique_url)
       });
     } else {
@@ -363,13 +366,12 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
             Retour
           </Button>
           <div className="flex items-center gap-4">
-            {group.image ? (
-              <img src={group.image} alt={group.name} className="w-16 h-16 rounded-lg object-cover" />
-            ) : (
-              <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
-                <Package className="w-8 h-8 text-muted-foreground" />
-              </div>
-            )}
+            <LazyProductImage
+              groupId={group.id}
+              alt={group.name}
+              className="w-16 h-16 rounded-lg"
+              variant="full"
+            />
             <div>
               <h2 className="text-2xl font-bold text-foreground">{group.name}</h2>
               <p className="text-sm text-muted-foreground">
@@ -545,7 +547,12 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                       onClick={() => fileInputRef.current?.click()}
                     >
                       {formData.image ? (
-                        <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                        <LazyProductImage
+                          storedRef={formData.image}
+                          alt="Preview"
+                          className="w-full h-full rounded-xl"
+                          variant="full"
+                        />
                       ) : (
                         <Upload className="w-8 h-8 text-muted-foreground" />
                       )}

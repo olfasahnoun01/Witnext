@@ -36,6 +36,7 @@ interface ProductModalProps {
 
 import { DocumentUploader } from '@/components/shared/DocumentUploader';
 import { ClientDocumentPreviewDialog } from '@/components/shared/ClientDocumentPreviewDialog';
+import { LazyProductImage } from '@/components/shared/LazyProductImage';
 import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { DecimalInput } from '@/components/ui/decimal-input';
 
@@ -112,7 +113,12 @@ export const ProductModal = memo(({
               onClick={() => fileInputRef.current?.click()}
             >
               {formData.image ? (
-                <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                <LazyProductImage
+                  storedRef={formData.image}
+                  alt="Preview"
+                  className="w-full h-full rounded-xl"
+                  variant="full"
+                />
               ) : (
                 <Upload className="w-8 h-8 text-muted-foreground" />
               )}

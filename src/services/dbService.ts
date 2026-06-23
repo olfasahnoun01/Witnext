@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Product, Transaction, DashboardStats, CategoryValue } from '@/types';
 import { getActiveCompanyId, getActiveCompanyIdForQuery, requireActiveCompanyId, withCompany } from '@/lib/activeCompany';
+import { persistProductImageIfInline, fetchProductImageRefsForBackup } from '@/lib/productImageStorage';
 import {
   BACKUP_COMPANY_SCOPED_TABLES,
   BACKUP_EXTENDED_IMPORT_ORDER,
@@ -9,6 +10,10 @@ import {
   BACKUP_UPSERT_CONFLICT,
   type BackupFetchMode,
 } from '@/lib/dbBackupTables';
+import {
+  PRODUCT_EXPORT_COLUMNS,
+  PRODUCT_GROUP_EXPORT_COLUMNS,
+} from '@/lib/productQueryColumns';
 import JSZip from 'jszip';
 
 // Initialize database (now just a compatibility function)
@@ -127,7 +132,7 @@ export const createProduct = async (product: Omit<Product, 'id' | 'prix_ttc'>): 
         price: product.price,
         remise: product.remise || 0,
         min_stock: product.min_stock,
-        image: product.image || null,
+        image: null,
         color: product.color || null,
         company_id: companyId,
       } as any)
@@ -140,6 +145,19 @@ export const createProduct = async (product: Omit<Product, 'id' | 'prix_ttc'>): 
         return { success: false, error: 'Ce code article existe déjà' };
       }
       return { success: false, error: error.message };
+    }
+
+    if (product.image) {
+      const imagePath = await persistProductImageIfInline(product.image, `product-${data.id}.webp`);
+      if (imagePath) {
+        const { error: imageError } = await supabase
+          .from('products')
+          .update({ image: imagePath })
+          .eq('id', data.id);
+        if (imageError) {
+          console.error('Erreur image produit:', imageError);
+        }
+      }
     }
 
     if (product.quantity > 0) {
@@ -182,7 +200,11 @@ export const updateProduct = async (id: number, product: Partial<Product>): Prom
   if (product.price !== undefined) updateData.price = product.price;
   if (product.remise !== undefined) updateData.remise = product.remise;
   if (product.min_stock !== undefined) updateData.min_stock = product.min_stock;
-  if (product.image !== undefined) updateData.image = product.image || null;
+  if (product.image !== undefined) {
+    updateData.image = product.image
+      ? await persistProductImageIfInline(product.image, `product-${id}.webp`)
+      : null;
+  }
   if (product.color !== undefined) updateData.color = product.color || null;
   
   const { error } = await supabase
@@ -322,6 +344,11 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
   };
 };
 
+const BACKUP_TABLE_COLUMNS: Record<string, string> = {
+  products: PRODUCT_EXPORT_COLUMNS,
+  product_groups: PRODUCT_GROUP_EXPORT_COLUMNS,
+};
+
 // Helper to fetch ALL rows from a table (handles Supabase 1000-row limit)
 const fetchAllRows = async (tableName: string, scopeCompanyId?: string | null): Promise<any[]> => {
   const allRows: any[] = [];
@@ -329,11 +356,12 @@ const fetchAllRows = async (tableName: string, scopeCompanyId?: string | null): 
   let from = 0;
   let hasMore = true;
   const companyScoped = scopeCompanyId && BACKUP_COMPANY_SCOPED_TABLES.has(tableName);
+  const selectColumns = BACKUP_TABLE_COLUMNS[tableName] ?? '*';
 
   while (hasMore) {
     let query = supabase
       .from(tableName as any)
-      .select('*')
+      .select(selectColumns)
       .order('id')
       .range(from, from + pageSize - 1);
 
@@ -506,6 +534,20 @@ export const exportDatabase = async (
     );
     const extendedData = Object.fromEntries(extendedPairs);
 
+    onProgress?.('Récupération des références images (chemins Storage)...');
+    const imageRefs = await fetchProductImageRefsForBackup(exportCompanyId);
+    const productImageById = new Map(imageRefs.products.map((p) => [p.id, p.image]));
+    const groupImageById = new Map(imageRefs.groups.map((g) => [g.id, g.image]));
+
+    const productsForExport = products.map((p) => ({
+      ...p,
+      image: productImageById.get(p.id) ?? null,
+    }));
+    const productGroupsForExport = product_groups.map((g) => ({
+      ...g,
+      image: groupImageById.get(g.id) ?? null,
+    }));
+
     const exportData = {
       _metadata: {
         version: BACKUP_FORMAT_VERSION,
@@ -520,8 +562,8 @@ export const exportDatabase = async (
       data: {
         clients,
         fournisseurs,
-        product_groups,
-        products,
+        product_groups: productGroupsForExport,
+        products: productsForExport,
         transactions,
         documents,
         orders,
@@ -542,7 +584,7 @@ export const exportDatabase = async (
     onProgress?.('Construction du mapping fichiers → articles...');
     
     const groupNameById = new Map<number, string>();
-    for (const g of product_groups) {
+    for (const g of productGroupsForExport) {
       groupNameById.set(g.id, g.name);
     }
 
@@ -556,7 +598,7 @@ export const exportDatabase = async (
     };
 
     // From products (variants) — map via product_group_id
-    for (const p of products) {
+    for (const p of productsForExport) {
       const groupName = p.product_group_id ? groupNameById.get(p.product_group_id) : null;
       const articleName = groupName || p.name;
       
@@ -577,7 +619,7 @@ export const exportDatabase = async (
     }
 
     // From product_groups (group images)
-    for (const g of product_groups) {
+    for (const g of productGroupsForExport) {
       if (g.image) mapUrlToArticle(g.image, g.name);
     }
 

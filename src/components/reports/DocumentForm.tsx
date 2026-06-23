@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { DecimalInput } from '@/components/ui/decimal-input';
+import { LazyProductImage } from '@/components/shared/LazyProductImage';
 
 interface Fournisseur {
   id: number;
@@ -78,13 +79,11 @@ const SelectedProductDisplay = ({ product, onClear }: { product?: Product; onCle
   
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg bg-muted border border-border">
-      <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center overflow-hidden flex-shrink-0">
-        {product.image ? (
-          <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-        ) : (
-          <Package className="w-5 h-5 text-muted-foreground" />
-        )}
-      </div>
+      <LazyProductImage
+        productId={product.id}
+        alt={product.name}
+        className="w-10 h-10 rounded-lg flex-shrink-0"
+      />
       <div className="flex-1 min-w-0">
         <p className="font-medium text-foreground text-sm truncate">{product.name}</p>
         <p className="text-xs text-muted-foreground">

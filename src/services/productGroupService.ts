@@ -1,6 +1,12 @@
 import { supabase } from '@/integrations/supabase/client';
 import { ProductGroup, Product, ProductGroupFournisseur } from '@/types';
 import { getActiveCompanyIdForQuery, requireActiveCompanyId } from '@/lib/activeCompany';
+import {
+  PRODUCT_GROUP_DETAIL_COLUMNS,
+  PRODUCT_GROUP_LIST_COLUMNS,
+  PRODUCT_VARIANT_LIST_COLUMNS,
+} from '@/lib/productQueryColumns';
+import { persistProductImageIfInline } from '@/lib/productImageStorage';
 
 // Fetch product groups by category with variant aggregations
 export const getProductGroupsByCategory = async (category: string): Promise<ProductGroup[]> => {
@@ -8,7 +14,7 @@ export const getProductGroupsByCategory = async (category: string): Promise<Prod
     // Handle "Non catégorisé" specially
     let query = supabase
       .from('product_groups')
-      .select('*');
+      .select(PRODUCT_GROUP_LIST_COLUMNS);
     
     if (category === 'Non catégorisé') {
       query = query.or('category.is.null,category.eq.Non catégorisé,category.eq.');
@@ -92,7 +98,7 @@ export const getProductGroupsByCategory = async (category: string): Promise<Prod
       category: g.category,
       base_sku: g.base_sku,
       fournisseur: g.fournisseur,
-      image: g.image,
+      image: null,
       min_stock: g.min_stock,
       created_at: g.created_at,
       updated_at: g.updated_at,
@@ -113,7 +119,7 @@ export const getProductGroupById = async (id: number): Promise<ProductGroup | nu
   try {
     const { data: group, error: groupError } = await supabase
       .from('product_groups')
-      .select('*')
+      .select(PRODUCT_GROUP_DETAIL_COLUMNS)
       .eq('id', id)
       .maybeSingle();
     
@@ -162,7 +168,7 @@ export const getVariantsByGroupId = async (groupId: number): Promise<Product[]> 
   try {
     const { data, error } = await supabase
       .from('products')
-      .select('id,name,sku,category,fournisseur,size,color,quantity,price,remise,prix_ttc,min_stock,image,product_group_id,fiche_technique_url,created_at')
+      .select(PRODUCT_VARIANT_LIST_COLUMNS)
       .eq('product_group_id', groupId)
       .order('size')
       .order('color');
@@ -181,7 +187,7 @@ export const getVariantsByGroupId = async (groupId: number): Promise<Product[]> 
       remise: Number(p.remise) || 0,
       prix_ttc: Number(p.prix_ttc) || Number(p.price),
       min_stock: p.min_stock,
-      image: p.image || null,
+      image: null,
       color: p.color || null,
       product_group_id: p.product_group_id,
       fiche_technique_url: p.fiche_technique_url || null,
@@ -224,6 +230,10 @@ export const getProductGroupCountsByCategory = async (): Promise<Record<string, 
 // Create a new product group
 export const createProductGroup = async (group: Omit<ProductGroup, 'id' | 'created_at' | 'updated_at' | 'variant_count' | 'total_stock' | 'colors' | 'sizes'>): Promise<{ success: boolean; id?: number; error?: string }> => {
   try {
+    const imagePath = group.image
+      ? await persistProductImageIfInline(group.image, `group-${group.name}.webp`)
+      : null;
+
     const { data, error } = await supabase
       .from('product_groups')
       .insert({
@@ -231,7 +241,7 @@ export const createProductGroup = async (group: Omit<ProductGroup, 'id' | 'creat
         category: group.category,
         base_sku: group.base_sku,
         fournisseur: group.fournisseur,
-        image: group.image,
+        image: imagePath,
         min_stock: group.min_stock,
         company_id: requireActiveCompanyId(),
       } as any)
@@ -259,7 +269,11 @@ export const updateProductGroup = async (id: number, updates: Partial<ProductGro
   if (updates.category !== undefined) updateData.category = updates.category;
   if (updates.base_sku !== undefined) updateData.base_sku = updates.base_sku;
   if (updates.fournisseur !== undefined) updateData.fournisseur = updates.fournisseur;
-  if (updates.image !== undefined) updateData.image = updates.image;
+  if (updates.image !== undefined) {
+    updateData.image = updates.image
+      ? await persistProductImageIfInline(updates.image, `group-${id}.webp`)
+      : null;
+  }
   if (updates.min_stock !== undefined) updateData.min_stock = updates.min_stock;
   
   const { error } = await supabase

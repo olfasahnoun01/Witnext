@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
+import { LazyProductImage } from '@/components/shared/LazyProductImage';
 
 const MAIN_CATEGORIES = [
   'Pantalons',
@@ -307,13 +308,11 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
                   onClick={() => handleGroupSelect(group)}
                   className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors text-left"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
-                    {group.image ? (
-                      <img src={group.image} alt={group.name} className="w-full h-full object-cover" loading="lazy" />
-                    ) : (
-                      <Package className="w-5 h-5 text-muted-foreground" />
-                    )}
-                  </div>
+                  <LazyProductImage
+                    groupId={group.id}
+                    alt={group.name}
+                    className="w-10 h-10 rounded-lg flex-shrink-0"
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{group.name}</p>
                     <p className="text-xs text-muted-foreground">
@@ -341,13 +340,11 @@ export const CategoryProductSelector = ({ onSelect, onGroupSelect, selectedProdu
                     selectedProductId === variant.id ? 'bg-primary/10 border-l-2 border-primary' : ''
                   }`}
                 >
-                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
-                    {variant.image ? (
-                      <img src={variant.image} alt={variant.name} className="w-full h-full object-cover" loading="lazy" />
-                    ) : (
-                      <Package className="w-5 h-5 text-muted-foreground" />
-                    )}
-                  </div>
+                  <LazyProductImage
+                    productId={variant.id}
+                    alt={variant.name}
+                    className="w-10 h-10 rounded-lg flex-shrink-0"
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{variant.name}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">

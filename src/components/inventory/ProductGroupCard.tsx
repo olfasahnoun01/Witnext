@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ProductGroup, StockStatus } from '@/types';
+import { LazyProductImage } from '@/components/shared/LazyProductImage';
 
 interface ProductGroupCardProps {
   group: ProductGroup;
@@ -63,17 +64,11 @@ export const ProductGroupCard = memo(({ group, onClick, onEdit, onDelete, onMove
       <CardContent className="p-4">
         <div className="flex gap-4">
           {/* Image */}
-          <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-muted flex items-center justify-center">
-            {group.image ? (
-              <img 
-                src={group.image} 
-                alt={group.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <Package className="w-8 h-8 text-muted-foreground" />
-            )}
-          </div>
+          <LazyProductImage
+            groupId={group.id}
+            alt={group.name}
+            className="w-20 h-20 flex-shrink-0 rounded-lg"
+          />
           
           {/* Content */}
           <div className="flex-1 min-w-0">
