@@ -161,17 +161,25 @@ Deno.serve(async (req: Request) => {
 
     switch (action) {
       case 'list': {
-        if (!requesterIsAdmin) {
-          return new Response(
-            JSON.stringify({ error: 'Seuls les administrateurs peuvent lister les comptes Auth' }),
-            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
+        const perPage = 200
+        const allAuthUsers: { id: string; email?: string; user_metadata?: Record<string, unknown>; created_at?: string }[] = []
+        let page = 1
+        let listError: { message?: string; code?: string } | null = null
+
+        while (true) {
+          const { data: pageData, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage })
+          if (error) {
+            listError = error
+            break
+          }
+          const batch = pageData?.users ?? []
+          allAuthUsers.push(...batch)
+          if (batch.length < perPage) break
+          page += 1
         }
 
-        const { data: users, error } = await supabaseAdmin.auth.admin.listUsers()
-        
-        if (error) {
-          return new Response(JSON.stringify({ error: mapErrorToUserMessage(error) }), {
+        if (listError) {
+          return new Response(JSON.stringify({ error: mapErrorToUserMessage(listError) }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
@@ -181,13 +189,22 @@ Deno.serve(async (req: Request) => {
           .from('user_roles')
           .select('user_id, role')
 
-        const usersWithRoles = users.users.map((user: any) => ({
+        const roleByUser = new Map<string, string>()
+        for (const row of roles ?? []) {
+          const uid = (row as { user_id: string }).user_id
+          const r = (row as { role: string }).role
+          const prev = roleByUser.get(uid)
+          const rank = (x: string) => (x === 'admin' ? 3 : x === 'moderator' ? 2 : 1)
+          if (!prev || rank(r) > rank(prev)) roleByUser.set(uid, r)
+        }
+
+        const usersWithRoles = allAuthUsers.map((user: any) => ({
           id: user.id,
           email: user.email,
           full_name: user.user_metadata?.full_name || '',
           position: user.user_metadata?.position || '',
           created_at: user.created_at,
-          role: roles?.find((r: any) => r.user_id === user.id)?.role || 'user'
+          role: roleByUser.get(user.id) || 'user'
         }))
 
         return new Response(JSON.stringify({ users: usersWithRoles }), {
@@ -405,6 +422,33 @@ Deno.serve(async (req: Request) => {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
+        }
+
+        const { data: targetRoles } = await supabaseAdmin
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user_id)
+
+        const targetIsAdmin = (targetRoles ?? []).some(
+          (r: { role: string }) => r.role === 'admin'
+        )
+        if (targetIsAdmin) {
+          const { count: adminCount, error: countErr } = await supabaseAdmin
+            .from('user_roles')
+            .select('id', { count: 'exact', head: true })
+            .eq('role', 'admin')
+          if (countErr) {
+            return new Response(JSON.stringify({ error: 'Impossible de vérifier les administrateurs' }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+          }
+          if ((adminCount ?? 0) <= 1) {
+            return new Response(
+              JSON.stringify({ error: 'Impossible de supprimer le dernier administrateur' }),
+              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
         }
 
         const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user_id)

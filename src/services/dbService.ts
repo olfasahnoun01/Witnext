@@ -497,6 +497,11 @@ export const exportDatabase = async (
 ): Promise<Blob | null> => {
   const { includeStorage = false } = options;
   try {
+    const { error: adminErr } = await supabase.rpc('require_admin_role');
+    if (adminErr) {
+      throw new Error('Export réservé aux administrateurs');
+    }
+
     const exportCompanyId = requireActiveCompanyId();
     onProgress?.('Récupération des données principales...');
     
@@ -676,6 +681,7 @@ const insertTableData = async (
   const currentUserId = user?.id;
   const importCompanyId = getActiveCompanyIdForQuery();
   const failures: string[] = [];
+  const TABLES_PRESERVE_USER_ID = new Set(['user_companies', 'user_section_permissions']);
 
   for (const item of items) {
     try {
@@ -703,13 +709,9 @@ const insertTableData = async (
           console.log('Skipping non-current user role to prevent auth violation');
           continue;
         }
-
-        if (tableName === 'user_companies' && originalUserId && originalUserId !== currentUserId) {
-          continue;
-        }
         
         if ('created_by' in insertData) (insertData as any).created_by = currentUserId;
-        if ('user_id' in insertData && tableName !== 'user_companies') {
+        if ('user_id' in insertData && !TABLES_PRESERVE_USER_ID.has(tableName)) {
           (insertData as any).user_id = currentUserId;
         }
         if ('updated_by' in insertData) (insertData as any).updated_by = currentUserId;
@@ -750,6 +752,11 @@ async function importExtendedTables(
 
 export const importDatabase = async (file: Blob, onProgress?: (message: string) => void): Promise<void> => {
   try {
+    const { error: adminErr } = await supabase.rpc('require_admin_role');
+    if (adminErr) {
+      throw new Error('Import réservé aux administrateurs');
+    }
+
     let importData: any;
     let storageFiles: { name: string; data: Blob }[] = [];
 

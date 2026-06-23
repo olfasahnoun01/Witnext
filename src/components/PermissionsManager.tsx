@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { BIG_SECTIONS } from '@/config/navigation';
 import { posteHasAllFinanceCompanies } from '@/lib/userPositions';
 import { formatError } from '@/lib/formatError';
@@ -174,12 +175,15 @@ function pickHigherRole(current: Role | undefined, next: Role): Role {
 
 /** Liste utilisateurs sans Edge Function (ex. CORS Electron sur 127.0.0.1). */
 async function loadUsersFromDbFallback(): Promise<ManagedUser[]> {
-  const [{ data: profiles, error: pe }, { data: roles, error: re }] = await Promise.all([
-    supabase.from('profiles').select('user_id, email, full_name, created_at').order('created_at', { ascending: true }),
-    supabase.from('user_roles').select('user_id, role'),
-  ]);
+  const [{ data: profiles, error: pe }, { data: roles, error: re }, { data: employees, error: ee }] =
+    await Promise.all([
+      supabase.from('profiles').select('user_id, email, full_name, created_at').order('created_at', { ascending: true }),
+      supabase.from('user_roles').select('user_id, role'),
+      supabase.from('employees').select('user_id, role').not('user_id', 'is', null),
+    ]);
   if (pe) throw pe;
   if (re) throw re;
+  if (ee) throw ee;
 
   const roleByUser = new Map<string, Role>();
   for (const row of roles ?? []) {
@@ -188,11 +192,18 @@ async function loadUsersFromDbFallback(): Promise<ManagedUser[]> {
     roleByUser.set(uid, pickHigherRole(roleByUser.get(uid), r));
   }
 
+  const positionByUser = new Map<string, string>();
+  for (const row of employees ?? []) {
+    const uid = (row as { user_id: string | null }).user_id;
+    const pos = (row as { role: string | null }).role;
+    if (uid && pos) positionByUser.set(uid, pos);
+  }
+
   return (profiles ?? []).map((p: { user_id: string; email: string | null; full_name: string | null; created_at: string }) => ({
     id: p.user_id,
     email: p.email ?? '',
     full_name: p.full_name ?? '',
-    position: undefined,
+    position: positionByUser.get(p.user_id),
     created_at: p.created_at,
     role: roleByUser.get(p.user_id) ?? 'user',
   }));
@@ -200,6 +211,10 @@ async function loadUsersFromDbFallback(): Promise<ManagedUser[]> {
 
 export const PermissionsManager = () => {
   const { toast } = useToast();
+  const { isAdmin, isModerator } = useAuth();
+  const canManageAccounts = isAdmin;
+  const canEditPermissions = isAdmin;
+  const canEditProfile = isAdmin || isModerator;
 
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [perms, setPerms] = useState<Record<string, Set<string>>>({});
@@ -342,23 +357,40 @@ export const PermissionsManager = () => {
     setPerms((prev) => ({ ...prev, [userId]: new Set() }));
   };
 
-  const persistPermissions = async (userId: string, set: Set<string>) => {
-    const { error: delErr } = await (supabase as any)
+  const persistPermissions = async (userId: string, desired: Set<string>) => {
+    const { data: existing, error: fetchErr } = await (supabase as any)
       .from('user_section_permissions')
-      .delete()
+      .select('id, section_key, subsection_key')
       .eq('user_id', userId);
-    if (delErr) throw delErr;
+    if (fetchErr) throw fetchErr;
 
-    const rows = Array.from(set).map((k) => {
-      const [section_key, subsection_key] = k.split(':');
-      return {
-        user_id: userId,
-        section_key,
-        subsection_key: subsection_key ?? '',
-      };
+    const existingByKey = new Map<string, string>();
+    (existing as { id: string; section_key: string; subsection_key: string }[] ?? []).forEach((row) => {
+      existingByKey.set(keyOf(row.section_key, row.subsection_key), row.id);
     });
 
-    if (rows.length > 0) {
+    const toDeleteIds = [...existingByKey.entries()]
+      .filter(([k]) => !desired.has(k))
+      .map(([, id]) => id);
+    const toInsert = [...desired].filter((k) => !existingByKey.has(k));
+
+    if (toDeleteIds.length > 0) {
+      const { error: delErr } = await (supabase as any)
+        .from('user_section_permissions')
+        .delete()
+        .in('id', toDeleteIds);
+      if (delErr) throw delErr;
+    }
+
+    if (toInsert.length > 0) {
+      const rows = toInsert.map((k) => {
+        const [section_key, subsection_key] = k.split(':');
+        return {
+          user_id: userId,
+          section_key,
+          subsection_key: subsection_key ?? '',
+        };
+      });
       const { error: insErr } = await (supabase as any)
         .from('user_section_permissions')
         .insert(rows);
@@ -366,12 +398,28 @@ export const PermissionsManager = () => {
     }
   };
 
-  const persistUserCompanies = async (userId: string, companyIds: Set<string>) => {
-    const { error: delErr } = await supabase.from('user_companies').delete().eq('user_id', userId);
-    if (delErr) throw delErr;
+  const persistUserCompanies = async (userId: string, desired: Set<string>) => {
+    const { data: existing, error: fetchErr } = await supabase
+      .from('user_companies')
+      .select('company_id')
+      .eq('user_id', userId);
+    if (fetchErr) throw fetchErr;
 
-    if (companyIds.size > 0) {
-      const rows = [...companyIds].map((company_id) => ({ user_id: userId, company_id }));
+    const existingSet = new Set((existing ?? []).map((row: { company_id: string }) => row.company_id));
+    const toRemove = [...existingSet].filter((id) => !desired.has(id));
+    const toAdd = [...desired].filter((id) => !existingSet.has(id));
+
+    if (toRemove.length > 0) {
+      const { error: delErr } = await supabase
+        .from('user_companies')
+        .delete()
+        .eq('user_id', userId)
+        .in('company_id', toRemove);
+      if (delErr) throw delErr;
+    }
+
+    if (toAdd.length > 0) {
+      const rows = toAdd.map((company_id) => ({ user_id: userId, company_id }));
       const { error: insErr } = await supabase.from('user_companies').insert(rows);
       if (insErr) throw insErr;
     }
@@ -396,6 +444,7 @@ export const PermissionsManager = () => {
   };
 
   const savePermissions = async (userId: string) => {
+    if (!canEditPermissions) return;
     setSavingPermsFor(userId);
     try {
       const userSet = perms[userId] ?? new Set();
@@ -510,12 +559,27 @@ export const PermissionsManager = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editingUser && !canManageAccounts) {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Seuls les administrateurs peuvent créer un compte' });
+      return;
+    }
+    if (editingUser && !canEditProfile) return;
+
     setSubmitting(true);
     try {
       const token = await getAuthToken();
       let targetUserId = editingUser?.id ?? null;
 
       if (editingUser) {
+        if (password && !canManageAccounts) {
+          toast({
+            variant: 'destructive',
+            title: 'Erreur',
+            description: 'Seuls les administrateurs peuvent réinitialiser un mot de passe',
+          });
+          setSubmitting(false);
+          return;
+        }
         if (password && !validatePasswordLength(password)) {
           toast({
             variant: 'destructive',
@@ -531,8 +595,7 @@ export const PermissionsManager = () => {
             user_id: editingUser.id,
             full_name: fullName,
             position,
-            role,
-            ...(password ? { password } : {}),
+            ...(canManageAccounts ? { role, ...(password ? { password } : {}) } : {}),
           },
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -592,7 +655,7 @@ export const PermissionsManager = () => {
         }
       }
 
-      if (targetUserId && role !== 'admin') {
+      if (targetUserId && role !== 'admin' && canEditPermissions) {
         const permSet = isChauffeurPoste(position) ? new Set<string>() : modalPerms;
         const companySet = resolveCompanySetForUser(position, modalCompanies, companies);
         await persistPermissions(targetUserId, permSet);
@@ -654,6 +717,7 @@ export const PermissionsManager = () => {
   };
 
   const handleDelete = async (user: ManagedUser) => {
+    if (!canManageAccounts) return;
     if (!window.confirm(`Supprimer l'utilisateur "${user.email}" ?`)) return;
     try {
       const token = await getAuthToken();
@@ -783,31 +847,36 @@ export const PermissionsManager = () => {
       <>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Permissions</p>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => grantAll(u.id)}>
-              Tout accorder
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => revokeAll(u.id)}>
-              Tout retirer
-            </Button>
-            <Button size="sm" onClick={() => savePermissions(u.id)} disabled={savingPermsFor === u.id}>
-              {savingPermsFor === u.id ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4 mr-2" />
-              )}
-              Enregistrer
-            </Button>
-          </div>
+          {canEditPermissions ? (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => grantAll(u.id)}>
+                Tout accorder
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => revokeAll(u.id)}>
+                Tout retirer
+              </Button>
+              <Button size="sm" onClick={() => savePermissions(u.id)} disabled={savingPermsFor === u.id}>
+                {savingPermsFor === u.id ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                Enregistrer
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">Lecture seule — modification réservée aux administrateurs</p>
+          )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {BIG_SECTIONS.map((section) => {
             const fullGranted = userSet.has(section.id);
             return (
               <div key={section.id} className="bg-muted/40 rounded-lg p-3">
-                <label className="flex items-center gap-2 cursor-pointer mb-2">
+                <label className={`flex items-center gap-2 mb-2 ${canEditPermissions ? 'cursor-pointer' : ''}`}>
                   <Checkbox
                     checked={fullGranted}
+                    disabled={!canEditPermissions}
                     onCheckedChange={() => toggleFullSection(u.id, section.id)}
                   />
                   <section.icon className="w-4 h-4 text-primary" />
@@ -821,11 +890,11 @@ export const PermissionsManager = () => {
                       return (
                         <label
                           key={sub.id}
-                          className="flex items-center gap-2 text-xs cursor-pointer text-muted-foreground hover:text-foreground"
+                          className={`flex items-center gap-2 text-xs text-muted-foreground ${canEditPermissions ? 'cursor-pointer hover:text-foreground' : ''}`}
                         >
                           <Checkbox
                             checked={checked}
-                            disabled={fullGranted}
+                            disabled={fullGranted || !canEditPermissions}
                             onCheckedChange={() => toggleSubsection(u.id, section.id, sub.id)}
                           />
                           <span>{sub.label}</span>
@@ -865,10 +934,11 @@ export const PermissionsManager = () => {
                 return (
                   <label
                     key={c.id}
-                    className="flex items-center gap-2 text-sm cursor-pointer rounded-md border border-border bg-background px-3 py-2 hover:bg-muted/50"
+                    className={`flex items-center gap-2 text-sm rounded-md border border-border bg-background px-3 py-2 ${canEditPermissions ? 'cursor-pointer hover:bg-muted/50' : ''}`}
                   >
                     <Checkbox
                       checked={checked}
+                      disabled={!canEditPermissions}
                       onCheckedChange={() => toggleUserCompany(u.id, c.id)}
                     />
                     <span>{c.name}</span>
@@ -909,12 +979,19 @@ export const PermissionsManager = () => {
               <h2 className="text-xl font-semibold text-foreground">
                 Gestion des Permissions & Utilisateurs
               </h2>
+              {isModerator && !isAdmin && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Mode modérateur — consultation et mise à jour des profils uniquement
+                </p>
+              )}
             </div>
           </div>
-          <Button onClick={() => openModal()}>
-            <UserPlus className="w-4 h-4 mr-2" />
-            Ajouter
-          </Button>
+          {canManageAccounts && (
+            <Button onClick={() => openModal()}>
+              <UserPlus className="w-4 h-4 mr-2" />
+              Ajouter
+            </Button>
+          )}
         </div>
 
         {!selectedCategory ? (
@@ -1020,26 +1097,30 @@ export const PermissionsManager = () => {
                             >
                               {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                             </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openModal(u);
-                              }}
-                              className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(u);
-                              }}
-                              className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {canEditProfile && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openModal(u);
+                                }}
+                                className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            )}
+                            {canManageAccounts && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(u);
+                                }}
+                                className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </CardHeader>
@@ -1099,7 +1180,12 @@ export const PermissionsManager = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Mot de passe {editingUser ? '(laisser vide)' : '*'}</Label>
+                  <Label htmlFor="password">
+                    Mot de passe {editingUser ? '(laisser vide)' : '*'}
+                    {!canManageAccounts && editingUser && (
+                      <span className="text-xs text-muted-foreground ml-1">(admin uniquement)</span>
+                    )}
+                  </Label>
                   <Input
                     id="password"
                     type="password"
@@ -1107,6 +1193,7 @@ export const PermissionsManager = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     required={!editingUser}
                     minLength={MIN_PASSWORD_LENGTH}
+                    disabled={!!editingUser && !canManageAccounts}
                   />
                 </div>
                 <div className="space-y-2">
@@ -1136,7 +1223,7 @@ export const PermissionsManager = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Rôle</Label>
-                  <Select value={role} onValueChange={(v) => setRole(v as Role)}>
+                  <Select value={role} onValueChange={(v) => setRole(v as Role)} disabled={!canManageAccounts}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="user">Utilisateur</SelectItem>
@@ -1192,7 +1279,7 @@ export const PermissionsManager = () => {
                 </div>
               )}
 
-              {role !== 'admin' && !isChauffeurPoste(position) && (
+              {canEditPermissions && role !== 'admin' && !isChauffeurPoste(position) && (
                 <div className="space-y-3 pt-4 border-t border-border">
                   <div className="flex items-center justify-between">
                     <Label className="font-semibold">Permissions d'accès</Label>
@@ -1242,7 +1329,7 @@ export const PermissionsManager = () => {
                 </div>
               )}
 
-              {role !== 'admin' && !isChauffeurPoste(position) && (
+              {canEditPermissions && role !== 'admin' && !isChauffeurPoste(position) && (
                 <div className="space-y-3 pt-4 border-t border-border">
                   <div>
                     <Label className="font-semibold flex items-center gap-2">
