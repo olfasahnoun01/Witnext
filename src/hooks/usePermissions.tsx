@@ -5,41 +5,11 @@ import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import { BIG_SECTIONS, SUBSECTION_TO_SECTION } from '@/config/navigation';
 import { ensureSupabaseSessionReady, supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
 import { formatError } from '@/lib/formatError';
-
-interface PermissionRow {
-  section_key: string;
-  subsection_key: string; // '' = full section
-}
-
-const COMMERCIAL_SUBSECTIONS = new Set(['gallery', 'rdv']);
-const FLUX_ALIASES = new Set(['flux-suivi', 'flux-suivi-magasin', 'bc-fournisseur-reception']);
-
-/** Galerie & RDV were under ventes; keep access for legacy permission rows until DB migration runs. */
-function hasLegacyCommercialAccess(perms: PermissionRow[], subsectionId?: string): boolean {
-  const fullVentes = perms.some(
-    (p) => p.section_key === 'ventes' && (!p.subsection_key || p.subsection_key === '')
-  );
-  if (fullVentes) return true;
-  if (subsectionId) {
-    return perms.some((p) => p.section_key === 'ventes' && p.subsection_key === subsectionId);
-  }
-  return perms.some(
-    (p) =>
-      p.section_key === 'ventes' &&
-      p.subsection_key &&
-      COMMERCIAL_SUBSECTIONS.has(p.subsection_key)
-  );
-}
-
-function hasFluxSuiviAccess(perms: PermissionRow[]): boolean {
-  if (perms.some((p) => p.section_key === 'commercial' && p.subsection_key === 'flux-suivi')) {
-    return true;
-  }
-  const crossSections = ['ventes', 'achats', 'magasin', 'finance'] as const;
-  return crossSections.some((sec) =>
-    perms.some((p) => p.section_key === sec && (!p.subsection_key || p.subsection_key === ''))
-  );
-}
+import {
+  canAccessSectionWith,
+  canAccessSubsectionWith,
+  type PermissionRow,
+} from '@/lib/sectionPermissions';
 
 export const usePermissions = () => {
   const { user, session, isAdmin, isModerator, isLoading: authLoading } = useAuth();
@@ -49,6 +19,13 @@ export const usePermissions = () => {
   const loadedForUserRef = useRef<string | null>(null);
   const userId = user?.id ?? null;
   const sessionReady = !authLoading && !!userId && !!session?.access_token;
+
+  const accessCtx = {
+    isAdmin,
+    isModerator,
+    perms,
+    subsectionToSection: SUBSECTION_TO_SECTION,
+  };
 
   const load = useCallback(async (opts?: { background?: boolean }) => {
     if (!userId) {
@@ -123,61 +100,12 @@ export const usePermissions = () => {
   useSessionResumeReload(() => load({ background: true }));
 
   const canAccessSection = useCallback(
-    (sectionId: string): boolean => {
-      if (isAdmin || isModerator) return true;
-      // full section grant
-      if (perms.some((p) => p.section_key === sectionId && (!p.subsection_key || p.subsection_key === ''))) {
-        return true;
-      }
-      // any sub-section grant under this section
-      if (perms.some((p) => p.section_key === sectionId && p.subsection_key)) {
-        return true;
-      }
-      if (sectionId === 'commercial') {
-        return hasLegacyCommercialAccess(perms) || hasFluxSuiviAccess(perms);
-      }
-      return false;
-    },
+    (sectionId: string): boolean => canAccessSectionWith(sectionId, accessCtx),
     [isAdmin, isModerator, perms]
   );
 
   const canAccessSubsection = useCallback(
-    (subsectionId: string): boolean => {
-      if (isAdmin || isModerator) return true;
-      const sectionId = SUBSECTION_TO_SECTION[subsectionId];
-      if (!sectionId) return false;
-      // Full section grant
-      if (perms.some((p) => p.section_key === sectionId && (!p.subsection_key || p.subsection_key === ''))) {
-        return true;
-      }
-      // Specific sub-section grant
-      if (perms.some((p) => p.section_key === sectionId && p.subsection_key === subsectionId)) {
-        return true;
-      }
-      if (sectionId === 'commercial' && COMMERCIAL_SUBSECTIONS.has(subsectionId)) {
-        return hasLegacyCommercialAccess(perms, subsectionId);
-      }
-      if (subsectionId === 'suivi-parties') {
-        if (hasLegacyCommercialAccess(perms)) return true;
-        const crossSections = ['ventes', 'achats'] as const;
-        if (
-          crossSections.some((sec) =>
-            perms.some((p) => p.section_key === sec && (!p.subsection_key || p.subsection_key === ''))
-          )
-        ) {
-          return true;
-        }
-        return perms.some(
-          (p) =>
-            p.section_key === 'commercial' &&
-            (p.subsection_key === 'suivi-parties' || !p.subsection_key || p.subsection_key === '')
-        );
-      }
-      if (FLUX_ALIASES.has(subsectionId)) {
-        return hasFluxSuiviAccess(perms);
-      }
-      return false;
-    },
+    (subsectionId: string): boolean => canAccessSubsectionWith(subsectionId, accessCtx),
     [isAdmin, isModerator, perms]
   );
 

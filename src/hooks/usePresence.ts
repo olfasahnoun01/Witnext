@@ -31,6 +31,12 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [hasPermission, setHasPermission] = useState(true);
 
+  useEffect(() => {
+    if (!isAdmin) {
+      setOnlineUsers([]);
+    }
+  }, [isAdmin]);
+
   const userRole = isAdmin ? 'admin' : isModerator ? 'moderator' : 'user';
 
   const updatePresence = useCallback(async (isOnline: boolean) => {
@@ -73,7 +79,7 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
   }, [user, userRole, hasPermission]);
 
   const fetchOnlineUsers = useCallback(async () => {
-    if (!user || !hasPermission) return;
+    if (!user || !hasPermission || !isAdmin) return;
 
     const seq = ++fetchSeqRef.current;
 
@@ -202,12 +208,14 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
     }
   }, []);
 
-  // Heartbeat: upsert only (no roster refetch on every tick).
+  // Heartbeat: all users publish presence; only admins load the roster.
   useEffect(() => {
     if (!user || !hasPermission) return;
 
     void updatePresenceRef.current(true);
-    void fetchOnlineUsersRef.current();
+    if (isAdmin) {
+      void fetchOnlineUsersRef.current();
+    }
 
     heartbeatRef.current = setInterval(() => {
       void updatePresenceRef.current(true);
@@ -218,7 +226,9 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
         void updatePresenceRef.current(false);
       } else {
         void updatePresenceRef.current(true);
-        scheduleFetchOnlineUsers();
+        if (isAdmin) {
+          scheduleFetchOnlineUsers();
+        }
       }
     };
 
@@ -231,11 +241,11 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [user, heartbeatInterval, hasPermission, scheduleFetchOnlineUsers]);
+  }, [user, heartbeatInterval, hasPermission, isAdmin, scheduleFetchOnlineUsers]);
 
-  // Realtime roster updates; poll only when Realtime is unavailable.
+  // Realtime roster updates (admins only).
   useEffect(() => {
-    if (!user || !hasPermission) return;
+    if (!user || !hasPermission || !isAdmin) return;
 
     const channel = supabase
       .channel('presence-changes')
@@ -271,7 +281,7 @@ export const usePresence = (options: UsePresenceOptions = {}) => {
       supabase.removeChannel(channel);
       realtimeOkRef.current = false;
     };
-  }, [user, hasPermission, scheduleFetchOnlineUsers, startPollFallback, stopPollFallback]);
+  }, [user, hasPermission, isAdmin, scheduleFetchOnlineUsers, startPollFallback, stopPollFallback]);
 
   return {
     onlineUsers,

@@ -102,7 +102,7 @@ const CompanyScopeDenied = ({ subsectionId }: { subsectionId: string }) => {
 };
 
 const IndexContent = () => {
-  const { isAdmin, isModerator, session } = useAuth();
+  const { isAdmin, session } = useAuth();
   const {
     canAccessSubsection,
     loading: permissionsLoading,
@@ -300,14 +300,8 @@ const IndexContent = () => {
         {activeTab === 'vehicules-charges' && <ChargesVehicule />}
         
         {/* Administration */}
-        {activeTab === 'accounts' && (
-          (isAdmin || isModerator) && canAccessSubsection('accounts') ? (
-            <PermissionsManager />
-          ) : (
-            <AccessDenied />
-          )
-        )}
-        {activeTab === 'settings' && <Settings />}
+        {activeTab === 'accounts' && (isAdmin ? <PermissionsManager /> : <AccessDenied />)}
+        {activeTab === 'settings' && (isAdmin ? <Settings /> : <AccessDenied />)}
 
         {activeTab === 'finance-hub' && <FinanceModule />}
       </Suspense>

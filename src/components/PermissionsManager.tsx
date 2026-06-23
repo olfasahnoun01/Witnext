@@ -34,6 +34,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { BIG_SECTIONS } from '@/config/navigation';
+import { ADMIN_ONLY_SECTION_ID } from '@/lib/sectionPermissions';
 import { posteHasAllFinanceCompanies } from '@/lib/userPositions';
 import { formatError } from '@/lib/formatError';
 import { MIN_PASSWORD_LENGTH, validatePasswordLength } from '@/lib/passwordPolicy';
@@ -88,8 +89,10 @@ interface Perm {
 
 const keyOf = (section: string, sub: string) => (sub ? `${section}:${sub}` : section);
 
+const GRANTABLE_SECTIONS = BIG_SECTIONS.filter((s) => s.id !== ADMIN_ONLY_SECTION_ID);
+
 const buildAllPermissionKeys = (): string[] => {
-  return BIG_SECTIONS.map((s) => s.id);
+  return GRANTABLE_SECTIONS.map((s) => s.id);
 };
 
 const POSITION_OPTIONS = [
@@ -211,10 +214,10 @@ async function loadUsersFromDbFallback(): Promise<ManagedUser[]> {
 
 export const PermissionsManager = () => {
   const { toast } = useToast();
-  const { isAdmin, isModerator } = useAuth();
+  const { isAdmin } = useAuth();
   const canManageAccounts = isAdmin;
   const canEditPermissions = isAdmin;
-  const canEditProfile = isAdmin || isModerator;
+  const canEditProfile = isAdmin;
 
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [perms, setPerms] = useState<Record<string, Set<string>>>({});
@@ -869,7 +872,7 @@ export const PermissionsManager = () => {
           )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {BIG_SECTIONS.map((section) => {
+          {GRANTABLE_SECTIONS.map((section) => {
             const fullGranted = userSet.has(section.id);
             return (
               <div key={section.id} className="bg-muted/40 rounded-lg p-3">
@@ -979,11 +982,6 @@ export const PermissionsManager = () => {
               <h2 className="text-xl font-semibold text-foreground">
                 Gestion des Permissions & Utilisateurs
               </h2>
-              {isModerator && !isAdmin && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  Mode modérateur — consultation et mise à jour des profils uniquement
-                </p>
-              )}
             </div>
           </div>
           {canManageAccounts && (
@@ -1293,7 +1291,7 @@ export const PermissionsManager = () => {
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {BIG_SECTIONS.map((section) => {
+                    {GRANTABLE_SECTIONS.map((section) => {
                       const fullGranted = modalPerms.has(section.id);
                       return (
                         <div key={section.id} className="bg-muted/40 rounded-lg p-3">

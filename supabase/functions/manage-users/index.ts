@@ -50,7 +50,7 @@ function validatePassword(password: string): boolean {
   return !!password && password.length >= 12 && password.length <= 128;
 }
 
-/** Only admin or moderator may list or mutate users via this Edge Function. */
+/** Only admins may list or mutate users via this Edge Function. */
 async function requireUserManagementRole(
   supabaseAdmin: ReturnType<typeof createClient>,
   requestingUserId: string,
@@ -69,9 +69,7 @@ async function requireUserManagementRole(
     })
   }
 
-  const allowed = (rows || []).some(
-    (r: { role: string }) => r.role === 'admin' || r.role === 'moderator'
-  )
+  const allowed = (rows || []).some((r: { role: string }) => r.role === 'admin')
   if (!allowed) {
     return new Response(JSON.stringify({ error: 'Accès refusé : droits administrateur requis' }), {
       status: 403,
