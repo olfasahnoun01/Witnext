@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { LogOut, Settings, User } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { LogOut, Settings, User, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -14,13 +14,19 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { userDisplayName, userInitials } from '@/lib/userDisplay';
 import { MyProfileDialog } from '@/components/layout/MyProfileDialog';
-import { getPathForSubsection } from '@/config/routes';
+import { getPathForSubsection, normalizePathname } from '@/config/routes';
+import { SUBSECTION_LABELS } from '@/config/navigation';
 
 export const UserAccountMenu = () => {
   const { user, signOut, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [fullName, setFullName] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
+
+  const pathname = normalizePathname(location.pathname);
+  const accountsPath = getPathForSubsection('accounts');
+  const settingsPath = getPathForSubsection('settings');
 
   const email = user?.email ?? '';
   const position =
@@ -72,7 +78,7 @@ export const UserAccountMenu = () => {
           </button>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" className="w-64">
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col gap-0.5">
               <span className="font-medium text-foreground truncate">{displayName}</span>
@@ -88,10 +94,26 @@ export const UserAccountMenu = () => {
             Mon profil
           </DropdownMenuItem>
           {isAdmin ? (
-            <DropdownMenuItem onClick={() => navigate(getPathForSubsection('settings'))}>
-              <Settings className="w-4 h-4 mr-2" />
-              Paramètres système
-            </DropdownMenuItem>
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                Administration
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => navigate(accountsPath)}
+                className={pathname === accountsPath ? 'bg-accent' : undefined}
+              >
+                <Users className="w-4 h-4 mr-2" />
+                {SUBSECTION_LABELS.accounts}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => navigate(settingsPath)}
+                className={pathname === settingsPath ? 'bg-accent' : undefined}
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                {SUBSECTION_LABELS.settings}
+              </DropdownMenuItem>
+            </>
           ) : null}
           <DropdownMenuSeparator />
           <DropdownMenuItem

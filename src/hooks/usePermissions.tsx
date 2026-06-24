@@ -109,7 +109,9 @@ export const usePermissions = () => {
     [isAdmin, isModerator, perms]
   );
 
-  const visibleSections = BIG_SECTIONS.filter((s) => canAccessSection(s.id));
+  const visibleSections = BIG_SECTIONS.filter(
+    (s) => !s.sidebarHidden && canAccessSection(s.id)
+  );
 
   const firstAllowedSubsection = (sectionId: string): string | null => {
     const section = BIG_SECTIONS.find((s) => s.id === sectionId);

@@ -70,6 +70,8 @@ export interface BigSection {
   label: string;
   icon: LucideIcon;
   subsections: SubSection[];
+  /** Hidden from the sidebar — e.g. administration lives in the user profile menu. */
+  sidebarHidden?: boolean;
 }
 
 export const BIG_SECTIONS: BigSection[] = [
@@ -162,6 +164,7 @@ export const BIG_SECTIONS: BigSection[] = [
     id: 'administration',
     label: 'Administration',
     icon: Settings,
+    sidebarHidden: true,
     subsections: [
       { id: 'accounts', label: 'Gestion des Comptes', icon: UsersIcon },
       { id: 'settings', label: 'Paramètres', icon: Settings },
