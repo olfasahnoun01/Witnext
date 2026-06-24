@@ -15,6 +15,7 @@ import {
   saveDevisDraft,
 } from '@/lib/devisDraftStorage';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
+import { useDevisFormLeaveGuard } from '@/hooks/useDevisFormLeaveGuard';
 import { notifySessionInvalid } from '@/lib/sessionResume';
 import { debugLog } from '@/lib/debugLog';
 import { computeDevisTotals, resolveFodecEnabled } from '@/lib/devisPricing';
@@ -147,6 +148,7 @@ export const GestionDevis = ({
   const [devisForSupplierBC, setDevisForSupplierBC] = useState<Devis | null>(null);
   const [bcPromptDevis, setBcPromptDevis] = useState<Devis | null>(null);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+  const [composerDirty, setComposerDirty] = useState(false);
   const draftHydratedRef = useRef(false);
   const currentDraftRef = useRef<any>(null);
   const [docType, setDocType] = useState<'devis' | 'bc' | 'ba'>(() => {
@@ -191,6 +193,52 @@ export const GestionDevis = ({
       setDraftSavedAt(null);
     }
   }, [editingDevis, showEditDialog, isDraftEligibleDoc, devisType, docType]);
+
+  const hasUnsavedFormWork = useMemo(() => {
+    if (activeSection !== 'form' || editingDevis || showEditDialog || !isDraftEligibleDoc) {
+      return false;
+    }
+    return (
+      devisItems.length > 0 ||
+      thirdPartyName.trim().length > 0 ||
+      thirdPartyAddress.trim().length > 0 ||
+      thirdPartyTaxId.trim().length > 0 ||
+      thirdPartyPhone.trim().length > 0 ||
+      notes.trim().length > 0 ||
+      composerDirty
+    );
+  }, [
+    activeSection,
+    editingDevis,
+    showEditDialog,
+    isDraftEligibleDoc,
+    devisItems.length,
+    thirdPartyName,
+    thirdPartyAddress,
+    thirdPartyTaxId,
+    thirdPartyPhone,
+    notes,
+    composerDirty,
+  ]);
+
+  const leaveGuard = useDevisFormLeaveGuard({
+    enabled: hasUnsavedFormWork,
+    onBeforeLeave: flushDraftToStorage,
+  });
+
+  const requestSectionChange = useCallback(
+    (section: 'form' | 'history' | 'bc' | 'bl' | 'helper') => {
+      if (section === activeSection) return;
+      leaveGuard.requestLeave(() => setActiveSection(section));
+    },
+    [activeSection, leaveGuard]
+  );
+
+  useEffect(() => {
+    if (activeSection !== 'form') {
+      setComposerDirty(false);
+    }
+  }, [activeSection]);
 
   const prevActiveSectionRef = useRef(activeSection);
   useEffect(() => {
@@ -298,23 +346,6 @@ export const GestionDevis = ({
     thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, 
     documentStatus, devisItems, isTtc, isFodecEnabled
   ]);
-
-  // Flush local draft when leaving the page or unmounting the create form.
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (editingDevis || showEditDialog || !isDraftEligibleDoc || activeSection !== 'form') return;
-      flushDraftToStorage();
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      if (activeSection === 'form') {
-        handleBeforeUnload();
-      }
-    };
-  }, [editingDevis, showEditDialog, docType, activeSection, devisType, isDraftEligibleDoc, flushDraftToStorage]);
 
   // Autosave local (devis + BC) — debounced while the create form is open.
   useEffect(() => {
@@ -566,16 +597,16 @@ export const GestionDevis = ({
 
   const hasDocumentContent = devisItems.length > 0;
 
-  const saveDevis = useCallback(async () => {
-    if (isSaving) return;
+  const saveDevis = useCallback(async (options?: { redirectAfterSave?: boolean }): Promise<boolean> => {
+    if (isSaving) return false;
     if (!hasDocumentContent) {
       toast.error('Ajoutez au moins une ligne d\'article');
-      return;
+      return false;
     }
     let currentDevisNumber = devisNumberRef.current;
     if (!currentDevisNumber) {
       toast.error('Numéro de devis manquant, veuillez patienter');
-      return;
+      return false;
     }
     const saveAsBc = docType === 'bc' || sectionMode === 'bc';
     setIsSaving(true);
@@ -640,6 +671,7 @@ export const GestionDevis = ({
             : 'Erreur lors de la sauvegarde';
         toast.error(msg);
         console.error(error);
+        return false;
       } else {
         const docId = (inserted as { id: number }).id;
         const folderKind = saveAsBc ? 'bc' : 'devis';
@@ -680,15 +712,19 @@ export const GestionDevis = ({
         setEditingDevis(null);
         clearFormFields(true);
         void refreshDevisNumber(devisType, saveAsBc ? 'bc' : 'devis');
-        if (saveAsBc) {
-          setActiveSection('bc');
-        } else {
-          setActiveSection('history');
+        if (options?.redirectAfterSave !== false) {
+          if (saveAsBc) {
+            setActiveSection('bc');
+          } else {
+            setActiveSection('history');
+          }
         }
+        return true;
       }
     } catch (err) {
       console.error(err);
       toast.error('Erreur lors de la sauvegarde');
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -1035,7 +1071,7 @@ export const GestionDevis = ({
         <button
           type="button"
           title="Liste des devis"
-          onClick={() => setActiveSection('history')}
+          onClick={() => requestSectionChange('history')}
           className={sectionTabClass(activeSection === 'history')}
         >
           <History className="w-3.5 h-3.5 shrink-0" />
@@ -1046,7 +1082,7 @@ export const GestionDevis = ({
           <button
             type="button"
             title="Liste des bons de commande"
-            onClick={() => setActiveSection('bc')}
+            onClick={() => requestSectionChange('bc')}
             className={sectionTabClass(activeSection === 'bc')}
           >
             <FileText className="w-3.5 h-3.5 shrink-0" />
@@ -1057,7 +1093,7 @@ export const GestionDevis = ({
         <button
           type="button"
           title="Assistant import devis (PDF)"
-          onClick={() => setActiveSection('helper')}
+          onClick={() => requestSectionChange('helper')}
           className={sectionTabClass(activeSection === 'helper')}
         >
           <Search className="w-3.5 h-3.5 shrink-0" />
@@ -1109,6 +1145,7 @@ export const GestionDevis = ({
           }
           importableDevis={isBcForm ? importableDevisForBc : []}
           onImportDevis={isBcForm ? importDevisIntoBcForm : undefined}
+          onComposerDirtyChange={setComposerDirty}
         />
       )}
 
@@ -1244,6 +1281,36 @@ export const GestionDevis = ({
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={leaveGuard.dialogOpen} onOpenChange={(open) => !open && leaveGuard.cancelLeave()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Modifications non enregistrées</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vous avez un {docType === 'bc' ? 'bon de commande' : 'devis'} en cours de saisie.
+              Enregistrez-le sur le serveur avant de quitter, ou quittez en conservant le brouillon
+              local automatique.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel onClick={leaveGuard.cancelLeave}>Rester sur le formulaire</AlertDialogCancel>
+            <Button type="button" variant="outline" onClick={leaveGuard.confirmLeave}>
+              Quitter sans enregistrer
+            </Button>
+            <AlertDialogAction
+              disabled={isSaving}
+              onClick={(e) => {
+                e.preventDefault();
+                void (async () => {
+                  const ok = await saveDevis({ redirectAfterSave: false });
+                  if (ok) leaveGuard.confirmLeave();
+                })();
+              }}
+            >
+              {isSaving ? 'Enregistrement…' : 'Enregistrer et quitter'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );

@@ -200,9 +200,14 @@ export function DevisArticlesTable({
                   )}
                   <textarea
                     value={item.description ?? ''}
-                    onChange={(e) =>
-                      onUpdate(idx, { description: e.target.value.trim() || undefined })
-                    }
+                    onChange={(e) => onUpdate(idx, { description: e.target.value || undefined })}
+                    onBlur={(e) => {
+                      const trimmed = e.target.value.trim();
+                      const current = item.description ?? '';
+                      if (trimmed !== current) {
+                        onUpdate(idx, { description: trimmed || undefined });
+                      }
+                    }}
                     rows={1}
                     className={cn(devisZohoCellTextareaClass, 'mt-1 text-xs min-h-[1.75rem]')}
                     placeholder="Détails…"

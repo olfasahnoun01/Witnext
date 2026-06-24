@@ -168,6 +168,7 @@ interface DevisFormProps {
   /** Devis disponibles pour remplir un BC (liste devis, même type). */
   importableDevis?: Devis[];
   onImportDevis?: (selected: Devis[]) => void;
+  onComposerDirtyChange?: (dirty: boolean) => void;
 }
 
 export const DevisForm = memo(({
@@ -186,6 +187,7 @@ export const DevisForm = memo(({
   onRemoveExistingAttachment,
   importableDevis = [],
   onImportDevis,
+  onComposerDirtyChange,
 }: DevisFormProps) => {
   const { sidebarOpen } = useAppLayout();
   const isAchat = devisType === 'achat';
@@ -250,6 +252,30 @@ export const DevisForm = memo(({
   const [itemTva, setItemTva] = useState<number>(0);
   /** FODEC manuel (BC achat) — null = calcul auto 1 % à l'enregistrement. */
   const [itemFodec, setItemFodec] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!onComposerDirtyChange) return;
+    const dirty =
+      itemDesignation.trim().length > 0 ||
+      itemDescription.trim().length > 0 ||
+      productSearch.trim().length > 0 ||
+      itemQuantity !== 1 ||
+      itemPrixTtc > 0 ||
+      itemRemise > 0 ||
+      itemPrixAchat > 0 ||
+      itemFournisseur.trim().length > 0;
+    onComposerDirtyChange(dirty);
+  }, [
+    onComposerDirtyChange,
+    itemDesignation,
+    itemDescription,
+    productSearch,
+    itemQuantity,
+    itemPrixTtc,
+    itemRemise,
+    itemPrixAchat,
+    itemFournisseur,
+  ]);
 
   useEffect(() => {
     setItemFodec(null);

@@ -9,6 +9,7 @@ import { ProductGroupModal } from '@/components/inventory/ProductGroupModal';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
+import { useSubsectionNavigate } from '@/hooks/useSubsectionNavigate';
 import { ClientDocumentPreviewDialog } from '@/components/shared/ClientDocumentPreviewDialog';
 import {
   AlertDialog,
@@ -38,6 +39,7 @@ interface DevisHelperProps {
 }
 
 export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
+  const { navigateToSubsection } = useSubsectionNavigate();
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
@@ -190,14 +192,14 @@ export const DevisHelper = ({ onTabChange }: DevisHelperProps) => {
   }, []);
 
   const handleViewInInventory = useCallback((item: ExtractedItem) => {
-    if (!onTabChange || !item.category) return;
+    if (!item.category) return;
     localStorage.setItem('grosafe_inventory_category', item.category);
     if (item.product_name) {
       localStorage.setItem('grosafe_inventory_search', item.product_name);
     }
-    onTabChange('inventory');
+    (onTabChange ?? navigateToSubsection)('inventory');
     toast.info(`Navigation vers ${item.category}...`);
-  }, [onTabChange]);
+  }, [onTabChange, navigateToSubsection]);
 
   const clearSession = useCallback(() => {
     setItems([]);

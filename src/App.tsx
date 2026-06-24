@@ -6,9 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import Index from "./pages/Index";
+import { AppCompanyProvider } from '@/contexts/AppCompanyContext';
+import { AppLayout } from '@/layouts/AppLayout';
 import Auth from "./pages/Auth";
-import NotFound from "./pages/NotFound";
 import { AutoUpdateNotifier } from "@/components/AutoUpdateNotifier";
 import { SessionResumeHandler } from "@/components/SessionResumeHandler";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -50,17 +50,18 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 const AppRoutes = () => {
   return (
     <Routes>
+      <Route path="/login" element={<Navigate to="/auth" replace />} />
       <Route path="/auth" element={<Auth />} />
       <Route
-        path="/"
+        path="/*"
         element={
           <ProtectedRoute>
-            <Index />
+            <AppCompanyProvider>
+              <AppLayout />
+            </AppCompanyProvider>
           </ProtectedRoute>
         }
       />
-      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 };

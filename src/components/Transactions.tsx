@@ -29,11 +29,14 @@ import { toast } from 'sonner';
 
 type TabType = 'in' | 'out';
 
+import { useSubsectionNavigate } from '@/hooks/useSubsectionNavigate';
+
 interface TransactionsProps {
   onTabChange?: (tab: string) => void;
 }
 
 export const Transactions = memo(({ onTabChange }: TransactionsProps) => {
+  const { navigateToSubsection } = useSubsectionNavigate();
   const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('in');
   const [products, setProducts] = useState<Product[]>([]);
@@ -128,7 +131,7 @@ export const Transactions = memo(({ onTabChange }: TransactionsProps) => {
           : 'Transaction enregistrée. Créez le bon de sortie pour finaliser.'
       );
 
-      onTabChange?.(targetTab);
+      (onTabChange ?? navigateToSubsection)(targetTab);
     } finally {
       setIsSubmitting(false);
     }

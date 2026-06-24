@@ -49,7 +49,7 @@ export default function Auth() {
     if (authLoading) return;
     if (session?.user) {
       setShowSessionExpiredAlert(false);
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }, [authLoading, session, navigate]);
 

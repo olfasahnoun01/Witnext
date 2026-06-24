@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { LogOut, Settings, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -13,13 +14,11 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { userDisplayName, userInitials } from '@/lib/userDisplay';
 import { MyProfileDialog } from '@/components/layout/MyProfileDialog';
+import { getPathForSubsection } from '@/config/routes';
 
-interface UserAccountMenuProps {
-  onNavigateTab?: (tabId: string) => void;
-}
-
-export const UserAccountMenu = ({ onNavigateTab }: UserAccountMenuProps) => {
+export const UserAccountMenu = () => {
   const { user, signOut, isAdmin } = useAuth();
+  const navigate = useNavigate();
   const [fullName, setFullName] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -88,8 +87,8 @@ export const UserAccountMenu = ({ onNavigateTab }: UserAccountMenuProps) => {
             <User className="w-4 h-4 mr-2" />
             Mon profil
           </DropdownMenuItem>
-          {isAdmin && onNavigateTab ? (
-            <DropdownMenuItem onClick={() => onNavigateTab('settings')}>
+          {isAdmin ? (
+            <DropdownMenuItem onClick={() => navigate(getPathForSubsection('settings'))}>
               <Settings className="w-4 h-4 mr-2" />
               Paramètres système
             </DropdownMenuItem>

@@ -7,6 +7,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import type { AppNotification } from '@/services/notificationService';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useSubsectionNavigate } from '@/hooks/useSubsectionNavigate';
 
 function iconForType(type: string): LucideIcon {
   if (type.startsWith('demande_achat')) return FileSignature;
@@ -14,16 +15,13 @@ function iconForType(type: string): LucideIcon {
   return Bell;
 }
 
-interface NotificationCenterProps {
-  onNavigate?: (tabId: string) => void;
-}
-
-export function NotificationCenter({ onNavigate }: NotificationCenterProps) {
+export function NotificationCenter() {
   const { items, loading, unreadCount, markRead, markAllRead } = useNotifications();
+  const { navigateToSubsection } = useSubsectionNavigate();
 
   const handleOpenItem = async (n: AppNotification) => {
     if (!n.read_at) await markRead(n.id);
-    if (n.link_tab && onNavigate) onNavigate(n.link_tab);
+    if (n.link_tab) navigateToSubsection(n.link_tab);
   };
 
   return (
