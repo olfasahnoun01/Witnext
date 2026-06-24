@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { getActiveCompanyId } from '@/lib/activeCompany';
+import { getActiveCompanyId, requireActiveCompanyId } from '@/lib/activeCompany';
 import {
   notifyPurchaseRequestCreated,
   notifyPurchaseRequestForwardedToAchat,
@@ -931,6 +931,16 @@ export const documentService = {
     }>;
   }) {
     try {
+      let companyId: string;
+      try {
+        companyId = requireActiveCompanyId();
+      } catch {
+        return {
+          success: false,
+          error: 'Aucune société active sélectionnée. Choisissez une société avant de créer le document.',
+        };
+      }
+
       const numero = await this.generateNextNumber(params.type);
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -944,9 +954,11 @@ export const documentService = {
           fournisseur_id: params.fournisseurId || null,
           notes: params.notes || null,
           created_by: user?.id ?? null,
+          company_id: companyId,
           metadata: params.metadata || {},
         })
-        .select().single();
+        .select()
+        .single();
 
       if (docError) throw docError;
 

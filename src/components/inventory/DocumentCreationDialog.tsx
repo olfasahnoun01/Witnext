@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Dialog, 
   DialogContent, 
+  DialogDescription,
   DialogHeader, 
   DialogTitle, 
   DialogFooter 
@@ -254,6 +255,9 @@ export const DocumentCreationDialog = ({
             <FileText className="w-6 h-6 text-primary" />
             {titleMap[type] || "Nouveau Document"}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Formulaire de création de {titleMap[type] || 'document magasin'}.
+          </DialogDescription>
           {mandatory && (
             <p className="text-sm text-amber-600 dark:text-amber-400 pt-2">
               Ce document est obligatoire suite à la transaction stock enregistrée.

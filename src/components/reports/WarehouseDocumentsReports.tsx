@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -361,6 +362,9 @@ export function WarehouseDocumentsReports() {
             <DialogTitle>
               {previewDoc ? `${TYPE_LABELS[previewDoc.type]} — ${previewDoc.numero}` : 'Aperçu'}
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Aperçu PDF du document magasin sélectionné.
+            </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1">
             {loadingPreview ? (

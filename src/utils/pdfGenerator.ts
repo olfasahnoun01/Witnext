@@ -468,36 +468,40 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
     : [['Référence', 'Désignation', 'Description', 'Quantité']];
   
   const emptyRow = showPrice ? ['', '', '', '', '', ''] : ['', '', '', ''];
-  
+
+  const tableWidth = pageWidth - 28;
+  const priceColWeights = [10, 22, 26, 12, 15, 15];
+  const noPriceColWeights = [12, 30, 46, 12];
+  const weights = showPrice ? priceColWeights : noPriceColWeights;
+  const weightSum = weights.reduce((sum, w) => sum + w, 0);
+  const columnStyles: Record<number, { cellWidth: number; halign?: 'center' | 'right' }> = {};
+  weights.forEach((weight, index) => {
+    columnStyles[index] = {
+      cellWidth: (tableWidth * weight) / weightSum,
+      ...(index === 0 || index === 3 ? { halign: 'center' as const } : {}),
+      ...(showPrice && (index === 4 || index === 5) ? { halign: 'right' as const } : {}),
+    };
+  });
+
   let officialTableEndY = 150;
   autoTable(doc, {
     startY: 135,
     head: tableHead,
     body: tableData.length > 0 ? tableData : [emptyRow],
     theme: 'grid',
-    headStyles: { 
+    tableWidth,
+    headStyles: {
       fillColor: [30, 58, 95],
       fontSize: 10,
       fontStyle: 'bold',
-      halign: 'center'
+      halign: 'center',
     },
-    styles: { 
+    styles: {
       fontSize: 9,
-      cellPadding: 4
+      cellPadding: 4,
+      overflow: 'linebreak',
     },
-    columnStyles: showPrice ? {
-      0: { cellWidth: 18, halign: 'center' },
-      1: { cellWidth: 42 },
-      2: { cellWidth: 48 },
-      3: { cellWidth: 22, halign: 'center' },
-      4: { cellWidth: 28, halign: 'right' },
-      5: { cellWidth: 28, halign: 'right' }
-    } : {
-      0: { cellWidth: 22, halign: 'center' },
-      1: { cellWidth: 52 },
-      2: { cellWidth: 72 },
-      3: { cellWidth: 28, halign: 'center' }
-    },
+    columnStyles,
     alternateRowStyles: {
       fillColor: [245, 247, 250]
     },
