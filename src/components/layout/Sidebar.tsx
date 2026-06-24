@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type MouseEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Menu, X, ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,17 @@ function collapsedSectionsState(): Record<string, boolean> {
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
+}
+
+/** True for a normal left-click navigation (not new-tab / new-window gestures). */
+function isPlainLeftClick(event: MouseEvent): boolean {
+  return (
+    event.button === 0 &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !event.altKey
+  );
 }
 
 export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
@@ -113,36 +124,56 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
                 if (visibleSubsections.length === 0) return null;
 
                 const theme = getSectionTheme(section.id);
+                const firstSubsection = visibleSubsections[0];
+                const sectionEntryPath =
+                  firstSubsection.path ?? getPathForSubsection(firstSubsection.id);
 
                 return (
                   <div key={section.id} className="space-y-1">
-                    <button
-                      onClick={() => toggleSection(section.id)}
+                    <div
                       className={cn(
-                        'group flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-xs font-black uppercase tracking-widest transition-all',
+                        'flex w-full items-stretch overflow-hidden rounded-2xl border text-xs font-black uppercase tracking-widest transition-all',
                         isExpanded
                           ? cn(theme.headerExpanded, 'mb-2')
                           : cn(theme.headerCollapsed, 'border-transparent')
                       )}
                     >
-                      <div className="flex items-center gap-3">
+                      <NavLink
+                        to={sectionEntryPath}
+                        end
+                        title={`Ouvrir ${section.label}`}
+                        onClick={(event) => {
+                          if (!isPlainLeftClick(event)) return;
+                          setExpandedSections((prev) => ({ ...prev, [section.id]: true }));
+                          if (window.innerWidth < 1024) onToggle();
+                        }}
+                        className="group flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-inherit no-underline"
+                      >
                         <div
                           className={cn(
-                            'rounded-xl p-2 transition-colors',
+                            'shrink-0 rounded-xl p-2 transition-colors',
                             isExpanded ? theme.iconExpanded : theme.iconCollapsed
                           )}
                         >
                           <section.icon className="h-4 w-4" />
                         </div>
-                        {section.label}
-                      </div>
-                      <ChevronDown
-                        className={cn(
-                          'h-4 w-4 transition-transform duration-300',
-                          isExpanded ? 'rotate-0' : '-rotate-90 opacity-40'
-                        )}
-                      />
-                    </button>
+                        <span className="truncate">{section.label}</span>
+                      </NavLink>
+                      <button
+                        type="button"
+                        onClick={() => toggleSection(section.id)}
+                        aria-expanded={isExpanded}
+                        aria-label={isExpanded ? `Réduire ${section.label}` : `Développer ${section.label}`}
+                        className="shrink-0 px-3 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                      >
+                        <ChevronDown
+                          className={cn(
+                            'h-4 w-4 transition-transform duration-300',
+                            isExpanded ? 'rotate-0' : '-rotate-90 opacity-40'
+                          )}
+                        />
+                      </button>
+                    </div>
 
                     <div
                       className={cn(
@@ -159,7 +190,8 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
                               key={item.id}
                               to={to}
                               end
-                              onClick={() => {
+                              onClick={(event) => {
+                                if (!isPlainLeftClick(event)) return;
                                 if (window.innerWidth < 1024) onToggle();
                               }}
                               className={({ isActive }) =>

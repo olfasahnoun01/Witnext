@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
 import { LogOut, Settings, User, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -14,17 +13,16 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { userDisplayName, userInitials } from '@/lib/userDisplay';
 import { MyProfileDialog } from '@/components/layout/MyProfileDialog';
-import { getPathForSubsection, normalizePathname } from '@/config/routes';
+import { getPathForSubsection } from '@/config/routes';
 import { SUBSECTION_LABELS } from '@/config/navigation';
+import { NavLink } from '@/components/NavLink';
+import { cn } from '@/lib/utils';
 
 export const UserAccountMenu = () => {
   const { user, signOut, isAdmin } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
   const [fullName, setFullName] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
 
-  const pathname = normalizePathname(location.pathname);
   const accountsPath = getPathForSubsection('accounts');
   const settingsPath = getPathForSubsection('settings');
 
@@ -99,19 +97,27 @@ export const UserAccountMenu = () => {
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
                 Administration
               </DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={() => navigate(accountsPath)}
-                className={pathname === accountsPath ? 'bg-accent' : undefined}
-              >
-                <Users className="w-4 h-4 mr-2" />
-                {SUBSECTION_LABELS.accounts}
+              <DropdownMenuItem asChild>
+                <NavLink
+                  to={accountsPath}
+                  className={({ isActive }) =>
+                    cn('flex items-center', isActive && 'bg-accent')
+                  }
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  {SUBSECTION_LABELS.accounts}
+                </NavLink>
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => navigate(settingsPath)}
-                className={pathname === settingsPath ? 'bg-accent' : undefined}
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                {SUBSECTION_LABELS.settings}
+              <DropdownMenuItem asChild>
+                <NavLink
+                  to={settingsPath}
+                  className={({ isActive }) =>
+                    cn('flex items-center', isActive && 'bg-accent')
+                  }
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  {SUBSECTION_LABELS.settings}
+                </NavLink>
               </DropdownMenuItem>
             </>
           ) : null}
