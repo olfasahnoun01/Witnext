@@ -219,11 +219,10 @@ export const updateProduct = async (id: number, product: Partial<Product>): Prom
 };
 
 export const deleteProduct = async (id: number): Promise<void> => {
-  const { error } = await supabase
-    .from('products')
-    .delete()
-    .eq('id', id);
-  
+  const { error } = await supabase.rpc('delete_product', {
+    p_product_id: id,
+  });
+
   if (error) {
     console.error('Erreur lors de la suppression du produit:', error);
     throw new Error(error.message || 'Erreur lors de la suppression du produit');

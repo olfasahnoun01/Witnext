@@ -558,41 +558,101 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
 };
 
 export const downloadUnifiedDocumentPDF = async (doc: UnifiedDocument) => {
-  // Map UnifiedDocument types to jsPDF types
+  await generateOfficialPDF(unifiedDocumentToPdfParams(doc));
+};
+
+function unifiedDocumentToPdfParams(doc: UnifiedDocument) {
   const typeMap: Record<string, DocumentType> = {
-    'BC_FOURNISSEUR': 'bon_entree', // Re-using layout
-    'BE': 'bon_entree',
-    'BL_FOURNISSEUR': 'bon_entree',
-    'BS': 'bon_sortie',
-    'BL_CLIENT': 'bon_livraison',
-    'BC_CLIENT': 'bon_livraison',
-    'FACTURE': 'bon_livraison', // Will use price-enabled layout
+    BC_FOURNISSEUR: 'bon_entree',
+    BE: 'bon_entree',
+    BL_FOURNISSEUR: 'bon_entree',
+    BS: 'bon_sortie',
+    BL_CLIENT: 'bon_livraison',
+    BC_CLIENT: 'bon_livraison',
+    FACTURE: 'bon_livraison',
   };
 
   const docType = typeMap[doc.type] || 'bon_livraison';
-  
-  const docItems: DocumentItem[] = (doc.lines || []).map(l => ({
+
+  const docItems: DocumentItem[] = (doc.lines || []).map((l) => ({
     product_id: l.product_id || 0,
-    ref: (l as any).products?.sku || '',
-    designation: (l as any).products?.name || 'Produit',
+    ref: (l as { products?: { sku?: string; name?: string } }).products?.sku || '',
+    designation: (l as { products?: { sku?: string; name?: string } }).products?.name || 'Produit',
     description: l.description || '',
     quantity: l.quantity,
     price: l.unit_price,
-    total: l.total_price
+    total: l.total_price,
   }));
 
-  await generateOfficialPDF({
-    docType: docType,
+  const metadata = doc.metadata as Record<string, unknown> | undefined;
+
+  return {
+    docType,
     docNumber: doc.numero,
-    docDate: (doc.metadata as any)?.document_date || doc.created_at,
-    docValidity: doc.metadata?.validity || '',
-    transportRef: doc.metadata?.transport_ref || '',
-    thirdPartyName: doc.fournisseur_name || doc.client_name || doc.metadata?.third_party_name || '',
-    thirdPartyAddress: doc.metadata?.third_party_address || '',
-    thirdPartyTaxId: doc.metadata?.third_party_tax_id || '',
-    docItems: docItems
-  });
-};
+    docDate: (metadata?.document_date as string) || doc.created_at,
+    docValidity: (metadata?.validity as string) || '',
+    transportRef: (metadata?.transport_ref as string) || '',
+    thirdPartyName:
+      doc.fournisseur_name || doc.client_name || (metadata?.third_party_name as string) || '',
+    thirdPartyAddress: (metadata?.third_party_address as string) || '',
+    thirdPartyTaxId: (metadata?.third_party_tax_id as string) || '',
+    docItems,
+  };
+}
+
+export async function getUnifiedDocumentPDFBlob(doc: UnifiedDocument): Promise<Blob> {
+  const pdf = (await generateOfficialPDF(unifiedDocumentToPdfParams(doc), {
+    returnBlob: true,
+  })) as jsPDF;
+  return pdf.output('blob');
+}
+
+async function printPdfBlob(blob: Blob): Promise<void> {
+  const url = URL.createObjectURL(blob);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.src = url;
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+          window.setTimeout(() => resolve(), 400);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      iframe.onerror = () => reject(new Error("Impossible d'ouvrir le PDF"));
+      document.body.appendChild(iframe);
+      window.setTimeout(() => {
+        try {
+          document.body.removeChild(iframe);
+        } catch {
+          // ignore
+        }
+      }, 60_000);
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export async function printUnifiedDocument(doc: UnifiedDocument): Promise<void> {
+  const blob = await getUnifiedDocumentPDFBlob(doc);
+  await printPdfBlob(blob);
+}
+
+export async function printUnifiedDocuments(docs: UnifiedDocument[]): Promise<void> {
+  for (const doc of docs) {
+    await printUnifiedDocument(doc);
+  }
+}
 
 export const downloadDocumentPDF = async (savedDoc: SavedDocument) => {
   await generateOfficialPDF({

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getAllProducts, getLowStockProducts } from '@/services/dbService';
 import { Product } from '@/types';
 import { StandardReports } from '@/components/reports/StandardReports';
+import { WarehouseDocumentsReports } from '@/components/reports/WarehouseDocumentsReports';
 
 export const Reports = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -20,7 +21,8 @@ export const Reports = () => {
   }, []);
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-8 animate-fade-in">
+      <WarehouseDocumentsReports />
       <StandardReports products={products} lowStockProducts={lowStockProducts} />
     </div>
   );

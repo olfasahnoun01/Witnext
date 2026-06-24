@@ -314,20 +314,7 @@ export const ProductGroupView = ({ category, onBack }: ProductGroupViewProps) =>
         await supabase.storage.from('fiches-techniques').remove(storagePaths);
       }
 
-      // Delete variants
-      if (variantCount > 0) {
-        const { error: variantsError } = await supabase
-          .from('products')
-          .delete()
-          .eq('product_group_id', group.id);
-        
-        if (variantsError) throw variantsError;
-      }
-
-      // Delete fournisseurs links
-      await supabase.from('product_group_fournisseurs').delete().eq('product_group_id', group.id);
-      
-      // Then delete the product group
+      // Delete group (variants, supplier links, and stock ledger detach via RPC)
       await deleteProductGroup(group.id);
       toast.success(`Article "${group.name}" supprimé avec succès`);
       fetchGroups();

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { 
@@ -8,7 +8,7 @@ import {
   CalendarIcon,
   X
 } from 'lucide-react';
-import { getAllProducts, createTransaction } from '@/services/dbService';
+import { createTransaction, getProductById } from '@/services/dbService';
 import { Product } from '@/types';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,7 +16,6 @@ import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { ensureSupabaseSessionReady } from '@/lib/supabaseSession';
 import { notifySessionInvalid } from '@/lib/sessionResume';
-import { debugLog } from '@/lib/debugLog';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -39,8 +38,7 @@ export const Transactions = memo(({ onTabChange }: TransactionsProps) => {
   const { navigateToSubsection } = useSubsectionNavigate();
   const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('in');
-  const [products, setProducts] = useState<Product[]>([]);
-  const [selectedProductId, setSelectedProductId] = useState<number | ''>('');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [groupVariantIds, setGroupVariantIds] = useState<number[]>([]);
   const [quantity, setQuantity] = useState<number>(1);
   const [note, setNote] = useState('');
@@ -49,60 +47,71 @@ export const Transactions = memo(({ onTabChange }: TransactionsProps) => {
   const [transactionDate, setTransactionDate] = useState<Date>(new Date());
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
-  const loadProducts = useCallback(async () => {
-    const ready = await ensureSupabaseSessionReady();
-    if (!ready) {
-      notifySessionInvalid('Session expirée lors du chargement des produits');
-      return;
-    }
-    const productsData = await getAllProducts();
-    debugLog('Transactions.tsx:loadProducts', 'products loaded', {
-      rowCount: productsData.length,
-    }, 'F');
-    setProducts(productsData);
-  }, []);
+  const refreshSelectedProduct = useCallback(async () => {
+    if (!selectedProduct) return;
+    const fresh = await getProductById(selectedProduct.id);
+    if (fresh) setSelectedProduct(fresh);
+  }, [selectedProduct]);
 
-  useEffect(() => {
-    void loadProducts();
-  }, [loadProducts]);
-
-  useSessionResumeReload(loadProducts);
-  useCompanyChangeReload(loadProducts);
-
-  const selectedProduct = products.find(p => p.id === selectedProductId) || null;
+  useSessionResumeReload(refreshSelectedProduct);
+  useCompanyChangeReload(() => {
+    setSelectedProduct(null);
+    setGroupVariantIds([]);
+    setError('');
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (!selectedProductId || !selectedProduct) {
+    let product = selectedProduct;
+    if (!product) {
       setError('Veuillez sélectionner un produit');
+      toast.error('Veuillez sélectionner un produit');
       return;
     }
 
     if (quantity <= 0) {
       setError('La quantité doit être supérieure à 0');
+      toast.error('La quantité doit être supérieure à 0');
       return;
     }
 
-    if (activeTab === 'out' && quantity > selectedProduct.quantity) {
-      setError(`Stock insuffisant. Disponible: ${selectedProduct.quantity} unités`);
+    // Refresh stock from DB before OUT validation (selector data may be stale).
+    const fresh = await getProductById(product.id);
+    if (fresh) {
+      product = fresh;
+      setSelectedProduct(fresh);
+    }
+
+    if (activeTab === 'out' && quantity > product.quantity) {
+      const msg = `Stock insuffisant. Disponible: ${product.quantity} unités`;
+      setError(msg);
+      toast.error(msg);
       return;
     }
 
     setIsSubmitting(true);
     try {
+      const ready = await ensureSupabaseSessionReady();
+      if (!ready) {
+        notifySessionInvalid('Session expirée — reconnectez-vous pour enregistrer la transaction');
+        return;
+      }
+
       const result = await createTransaction({
-        product_id: selectedProduct.id,
-        product_name: selectedProduct.name,
+        product_id: product.id,
+        product_name: product.name,
         type: activeTab === 'in' ? 'IN' : 'OUT',
         quantity,
         date: transactionDate.toISOString(),
-        note
+        note,
       });
 
       if (!result.success) {
-        setError(result.error || 'Erreur lors de la création de la transaction');
+        const msg = result.error || 'Erreur lors de la création de la transaction';
+        setError(msg);
+        toast.error(msg);
         return;
       }
 
@@ -110,35 +119,51 @@ export const Transactions = memo(({ onTabChange }: TransactionsProps) => {
       const targetTab = activeTab === 'in' ? 'be-magasin' : 'bs-magasin';
       const dateIso = transactionDate.toISOString().slice(0, 10);
 
-      writePendingWarehouseDocument({
-        companyId: requireActiveCompanyId(),
-        type: docType,
-        productId: selectedProduct.id,
-        productName: selectedProduct.name,
-        sku: selectedProduct.sku || '',
-        quantity,
-        unitPrice: selectedProduct.price || 0,
-        date: dateIso,
-        note: note || undefined,
-        transactionId: result.transactionId,
-      });
+      try {
+        writePendingWarehouseDocument({
+          companyId: requireActiveCompanyId(),
+          type: docType,
+          productId: product.id,
+          productName: product.name,
+          sku: product.sku || '',
+          quantity,
+          unitPrice: product.price || 0,
+          date: dateIso,
+          note: note || undefined,
+          transactionId: result.transactionId,
+        });
+      } catch (pendingErr) {
+        console.warn('Pending warehouse document not saved:', pendingErr);
+        toast.warning(
+          "Transaction enregistrée, mais le bon n'a pas pu être pré-rempli. Créez-le manuellement."
+        );
+        setHistoryRefreshKey((k) => k + 1);
+        await refreshSelectedProduct();
+        return;
+      }
 
       setHistoryRefreshKey((k) => k + 1);
+      await refreshSelectedProduct();
 
-      toast.info(
+      toast.success(
         activeTab === 'in'
-          ? "Transaction enregistrée. Créez le bon d'entrée pour finaliser."
-          : 'Transaction enregistrée. Créez le bon de sortie pour finaliser.'
+          ? "Entrée enregistrée. Complétez le bon d'entrée."
+          : 'Sortie enregistrée. Complétez le bon de sortie.'
       );
 
       (onTabChange ?? navigateToSubsection)(targetTab);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : 'Erreur lors de la création de la transaction';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleTransactionChange = () => {
-    loadProducts();
+    void refreshSelectedProduct();
   };
 
   return (
@@ -177,6 +202,12 @@ export const Transactions = memo(({ onTabChange }: TransactionsProps) => {
           </h3>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error ? (
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            ) : null}
 
             <div>
               <label className="form-label">Produit *</label>
@@ -203,7 +234,7 @@ export const Transactions = memo(({ onTabChange }: TransactionsProps) => {
                     variant="ghost"
                     size="sm"
                     onClick={() => {
-                      setSelectedProductId('');
+                      setSelectedProduct(null);
                       setGroupVariantIds([]);
                       setError('');
                     }}
@@ -214,13 +245,12 @@ export const Transactions = memo(({ onTabChange }: TransactionsProps) => {
                 </div>
               ) : (
                 <CategoryProductSelector
-                  selectedProductId={selectedProductId}
+                  selectedProductId={selectedProduct?.id ?? ''}
                   onGroupSelect={(group, variants) => {
-                    // When a group is selected, store all variant IDs for history
-                    setGroupVariantIds(variants.map(v => v.id));
+                    setGroupVariantIds(variants.map((v) => v.id));
                   }}
                   onSelect={(product) => {
-                    setSelectedProductId(product.id);
+                    setSelectedProduct(product);
                     setError('');
                   }}
                 />

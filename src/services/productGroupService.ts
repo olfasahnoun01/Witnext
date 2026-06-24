@@ -326,13 +326,12 @@ export const moveProductGroupToCategory = async (
   }
 };
 
-// Delete a product group (variants will have product_group_id set to NULL)
+// Delete a product group and all its variants (stock ledger rows are detached, not deleted)
 export const deleteProductGroup = async (id: number): Promise<void> => {
-  const { error } = await supabase
-    .from('product_groups')
-    .delete()
-    .eq('id', id);
-  
+  const { error } = await supabase.rpc('delete_product_group', {
+    p_group_id: id,
+  });
+
   if (error) {
     console.error('Error deleting product group:', error);
     throw error;
