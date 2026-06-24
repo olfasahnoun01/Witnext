@@ -14,6 +14,8 @@ import {
   readGlobalSessionEpoch,
   readTabSessionEpoch,
   adoptGlobalSessionEpoch,
+  getOrCreateGlobalSessionEpoch,
+  SESSION_EPOCH_KEY,
 } from '@/lib/sessionEpoch';
 import { toast } from '@/hooks/use-toast';
 
@@ -63,6 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const sessionExpiredRef = useRef(false);
   const sessionChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const authInitDoneRef = useRef(false);
+  const sessionRestoredFromStorageRef = useRef(false);
 
   useEffect(() => {
     userRef.current = user;
@@ -117,7 +120,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     authInitDoneRef.current = false;
+    sessionRestoredFromStorageRef.current = false;
     setIsLoading(true);
+
+    adoptGlobalSessionEpoch();
 
     if (!sessionStorage.getItem('browser_session_active')) {
       sessionStorage.setItem('browser_session_active', 'true');
@@ -193,6 +199,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const completeInitialAuth = (nextSession: Session | null) => {
       if (cancelled) return;
+      if (nextSession?.user) {
+        sessionRestoredFromStorageRef.current = true;
+      }
       syncAuthSession(nextSession);
       if (!authInitDoneRef.current) {
         finishAuthInit();
@@ -247,15 +256,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
           if (event === 'SIGNED_OUT') {
             if (sessionExpiredRef.current) return;
+            sessionRestoredFromStorageRef.current = false;
             syncAuthSession(null);
             finishAuthInit();
             return;
           }
 
         if (event === 'SIGNED_IN') {
+          const isFreshLogin = !sessionRestoredFromStorageRef.current;
+          if (nextSession?.user) {
+            sessionRestoredFromStorageRef.current = true;
+          }
           syncAuthSession(nextSession);
           finishAuthInit();
-          if (nextSession?.user) runDeferredAuthWork(nextSession, { announceLogin: true });
+          if (nextSession?.user) {
+            runDeferredAuthWork(nextSession, { announceLogin: isFreshLogin });
+          }
           return;
         }
 
@@ -355,6 +371,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     window.addEventListener('app:session-invalid', onSessionInvalid);
 
+    const onEpochStorage = (event: StorageEvent) => {
+      if (event.key !== SESSION_EPOCH_KEY || event.storageArea !== localStorage) return;
+      if (event.newValue) adoptGlobalSessionEpoch();
+    };
+    window.addEventListener('storage', onEpochStorage);
+
     const epochCheckInterval = window.setInterval(() => {
       if (isSessionEpochStale()) {
         void handleSessionExpired('Concurrent login');
@@ -372,6 +394,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       window.removeEventListener('online', resumeAfterIdle);
       window.removeEventListener('pageshow', resumeAfterIdle);
       window.removeEventListener('app:session-invalid', onSessionInvalid);
+      window.removeEventListener('storage', onEpochStorage);
       roleChannel.unsubscribe();
       removeSessionChannel();
     };
@@ -380,14 +403,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const setupSessionTracking = async (userId: string, isFreshLogin: boolean) => {
     const deviceId = getDeviceId();
     const channelName = `session_${userId}`;
-    const sessionEpoch = isFreshLogin ? bumpSessionEpoch() : readGlobalSessionEpoch() ?? bumpSessionEpoch();
 
     if (!isFreshLogin) {
+      getOrCreateGlobalSessionEpoch();
       adoptGlobalSessionEpoch();
       if (isSessionEpochStale()) {
         await handleSessionExpired('Concurrent login');
         return;
       }
+    }
+
+    const sessionEpoch = isFreshLogin
+      ? bumpSessionEpoch()
+      : (readGlobalSessionEpoch() ?? getOrCreateGlobalSessionEpoch());
+
+    if (!isFreshLogin) {
+      adoptGlobalSessionEpoch();
     }
 
     if (sessionChannelRef.current) {
@@ -408,12 +439,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .on('broadcast', { event: 'new_login' }, (payload) => {
         const incomingEpoch = payload.payload?.session_epoch as string | undefined;
         const tabEpoch = readTabSessionEpoch();
+        const incomingDeviceId = payload.payload?.device_id as string | undefined;
+
         if (incomingEpoch && tabEpoch && incomingEpoch !== tabEpoch) {
+          if (incomingDeviceId === deviceId) {
+            adoptGlobalSessionEpoch();
+            return;
+          }
           console.log('Concurrent login detected, logging out...');
           void handleSessionExpired('Concurrent login');
           return;
         }
-        if (payload.payload?.device_id && payload.payload.device_id !== deviceId && !incomingEpoch) {
+        if (incomingDeviceId && incomingDeviceId !== deviceId && !incomingEpoch) {
           console.log('Concurrent login detected, logging out...');
           void handleSessionExpired('Concurrent login');
         }
@@ -470,6 +507,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signOut = async () => {
     await supabase.auth.signOut({ scope: 'global' });
     clearSessionEpoch();
+    sessionRestoredFromStorageRef.current = false;
     setActiveCompanyId(null);
     sessionExpiredRef.current = false;
     setUser(null);

@@ -5,10 +5,11 @@ import {
   adoptGlobalSessionEpoch,
   bumpSessionEpoch,
   clearSessionEpoch,
+  getOrCreateGlobalSessionEpoch,
   isSessionEpochStale,
   readGlobalSessionEpoch,
   readTabSessionEpoch,
-} from '../sessionEpoch';
+} from '@/lib/sessionEpoch';
 
 function createStorage(): Storage {
   const store = new Map<string, string>();
@@ -62,6 +63,19 @@ describe('sessionEpoch', () => {
     localStorage.setItem(SESSION_EPOCH_KEY, 'global-epoch');
     sessionStorage.setItem(TAB_SESSION_EPOCH_KEY, 'old-tab-epoch');
     expect(isSessionEpochStale()).toBe(true);
+  });
+
+  it('auto-adopts when global exists but tab epoch is missing', () => {
+    localStorage.setItem(SESSION_EPOCH_KEY, 'global-epoch');
+    sessionStorage.removeItem(TAB_SESSION_EPOCH_KEY);
+    expect(isSessionEpochStale()).toBe(false);
+    expect(readTabSessionEpoch()).toBe('global-epoch');
+  });
+
+  it('getOrCreateGlobalSessionEpoch does not replace an existing epoch', () => {
+    localStorage.setItem(SESSION_EPOCH_KEY, 'stable-epoch');
+    expect(getOrCreateGlobalSessionEpoch()).toBe('stable-epoch');
+    expect(readGlobalSessionEpoch()).toBe('stable-epoch');
   });
 
   it('clearSessionEpoch removes both keys', () => {

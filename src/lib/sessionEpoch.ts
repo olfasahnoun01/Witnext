@@ -8,6 +8,19 @@ export function bumpSessionEpoch(): string {
   return epoch;
 }
 
+/** Create a shared epoch only when missing — does not invalidate other tabs. */
+export function getOrCreateGlobalSessionEpoch(): string {
+  const existing = readGlobalSessionEpoch();
+  if (existing) return existing;
+  const epoch = `${Date.now()}-${crypto.randomUUID()}`;
+  try {
+    localStorage.setItem(SESSION_EPOCH_KEY, epoch);
+  } catch {
+    /* ignore */
+  }
+  return epoch;
+}
+
 export function readGlobalSessionEpoch(): string | null {
   try {
     return localStorage.getItem(SESSION_EPOCH_KEY);
@@ -41,8 +54,15 @@ export function adoptGlobalSessionEpoch(): void {
 
 export function isSessionEpochStale(): boolean {
   const global = readGlobalSessionEpoch();
+  if (!global) return false;
+
   const tab = readTabSessionEpoch();
-  return Boolean(global && tab && global !== tab);
+  if (!tab) {
+    adoptGlobalSessionEpoch();
+    return false;
+  }
+
+  return global !== tab;
 }
 
 export function clearSessionEpoch(): void {
