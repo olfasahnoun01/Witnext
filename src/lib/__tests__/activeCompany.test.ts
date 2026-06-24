@@ -5,6 +5,7 @@ import {
   getActiveCompanyId,
   setActiveCompanyId,
   onActiveCompanyChange,
+  applyActiveCompanyFromStorage,
 } from '../activeCompany';
 
 const GROSAFE = { id: '11111111-1111-1111-1111-111111111111', code: 'grosafe', name: 'Grosafe' };
@@ -84,5 +85,38 @@ describe('setActiveCompanyId / onActiveCompanyChange', () => {
     setActiveCompanyId(GROSAFE.id);
     setActiveCompanyId(GROSAFE.id);
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('applyActiveCompanyFromStorage', () => {
+  beforeEach(() => {
+    setActiveCompanyId(null);
+  });
+
+  it('updates in-memory company without writing localStorage', () => {
+    const listener = vi.fn();
+    onActiveCompanyChange(listener);
+
+    const result = applyActiveCompanyFromStorage(GRANISAFE.id);
+    expect(result).toEqual({ id: GRANISAFE.id, changed: true });
+    expect(getActiveCompanyId()).toBe(GRANISAFE.id);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns changed: false when the stored id matches', () => {
+    setActiveCompanyId(GROSAFE.id);
+    const listener = vi.fn();
+    onActiveCompanyChange(listener);
+
+    const result = applyActiveCompanyFromStorage(GROSAFE.id);
+    expect(result).toEqual({ id: GROSAFE.id, changed: false });
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('clears the active company when storage is removed', () => {
+    setActiveCompanyId(GROSAFE.id);
+    const result = applyActiveCompanyFromStorage(null);
+    expect(result).toEqual({ id: null, changed: true });
+    expect(getActiveCompanyId()).toBeNull();
   });
 });

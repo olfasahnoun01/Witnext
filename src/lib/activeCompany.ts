@@ -11,6 +11,9 @@
 
 const STORAGE_KEY = 'erp.activeCompanyId';
 
+/** localStorage key for cross-tab company sync. */
+export const ACTIVE_COMPANY_STORAGE_KEY = STORAGE_KEY;
+
 let activeCompanyId: string | null = null;
 const listeners = new Set<() => void>();
 
@@ -54,6 +57,28 @@ export function onActiveCompanyChange(listener: () => void): () => void {
   return () => {
     listeners.delete(listener);
   };
+}
+
+/**
+ * Update in-memory active company from another tab's localStorage write.
+ * Does not persist (avoids storage feedback loops).
+ */
+export function applyActiveCompanyFromStorage(
+  storedId: string | null | undefined
+): { id: string | null; changed: boolean } {
+  const next = storedId?.trim() ? storedId : null;
+  if (activeCompanyId === next) {
+    return { id: next, changed: false };
+  }
+  activeCompanyId = next;
+  listeners.forEach((l) => {
+    try {
+      l();
+    } catch (err) {
+      console.error('[activeCompany] listener failed:', err);
+    }
+  });
+  return { id: next, changed: true };
 }
 
 /** Spread into an insert payload to stamp the active company_id (when known). */

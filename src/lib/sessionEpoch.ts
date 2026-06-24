@@ -25,9 +25,17 @@ export function readTabSessionEpoch(): string | null {
 }
 
 export function syncTabSessionEpochFromGlobal(): void {
+  adoptGlobalSessionEpoch();
+}
+
+/** Align this tab with the browser-wide login epoch (safe for multiple tabs). */
+export function adoptGlobalSessionEpoch(): void {
   const global = readGlobalSessionEpoch();
-  if (global && !readTabSessionEpoch()) {
+  if (!global) return;
+  try {
     sessionStorage.setItem(TAB_SESSION_EPOCH_KEY, global);
+  } catch {
+    /* ignore */
   }
 }
 

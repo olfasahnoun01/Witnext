@@ -13,7 +13,7 @@ import {
   isSessionEpochStale,
   readGlobalSessionEpoch,
   readTabSessionEpoch,
-  syncTabSessionEpochFromGlobal,
+  adoptGlobalSessionEpoch,
 } from '@/lib/sessionEpoch';
 import { toast } from '@/hooks/use-toast';
 
@@ -123,23 +123,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       sessionStorage.setItem('browser_session_active', 'true');
     }
 
-    // Helper to clear auth data on tab close
-    const clearAuthOnTabClose = async () => {
-        // Remove stored tokens
-        sessionStorage.removeItem('browser_session_active');
-        // Sign out globally – revokes refresh token on the server
-        try {
-          await supabase.auth.signOut({ scope: 'global' });
-        } catch {}
-        // Reset auth state
-        setUser(null);
-        setSession(null);
-        setIsAdmin(false);
-        setIsModerator(false);
-      };
-
-    // Register beforeunload listener for automatic logout
-    window.addEventListener('beforeunload', clearAuthOnTabClose);
+    // Multi-tab: do not sign out on tab close — session is shared across tabs via
+    // Supabase localStorage. Explicit logout and concurrent-login detection handle security.
 
     // Listen for role updates broadcasted from the server
     const roleChannel = supabase.channel('role_updates');
@@ -370,13 +355,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     window.addEventListener('app:session-invalid', onSessionInvalid);
 
-    const onPageHide = (event: PageTransitionEvent) => {
-      if (event.persisted) return;
-      if (!userRef.current) return;
-      void supabase.auth.signOut({ scope: 'local' });
-    };
-    window.addEventListener('pagehide', onPageHide);
-
     const epochCheckInterval = window.setInterval(() => {
       if (isSessionEpochStale()) {
         void handleSessionExpired('Concurrent login');
@@ -394,9 +372,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       window.removeEventListener('online', resumeAfterIdle);
       window.removeEventListener('pageshow', resumeAfterIdle);
       window.removeEventListener('app:session-invalid', onSessionInvalid);
-      window.removeEventListener('pagehide', onPageHide);
-      // Remove listeners added for logout and role updates
-      window.removeEventListener('beforeunload', clearAuthOnTabClose);
       roleChannel.unsubscribe();
       removeSessionChannel();
     };
@@ -408,7 +383,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const sessionEpoch = isFreshLogin ? bumpSessionEpoch() : readGlobalSessionEpoch() ?? bumpSessionEpoch();
 
     if (!isFreshLogin) {
-      syncTabSessionEpochFromGlobal();
+      adoptGlobalSessionEpoch();
       if (isSessionEpochStale()) {
         await handleSessionExpired('Concurrent login');
         return;
@@ -493,7 +468,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: 'global' });
     clearSessionEpoch();
     setActiveCompanyId(null);
     sessionExpiredRef.current = false;

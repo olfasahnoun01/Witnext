@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { getActiveCompanyId, setActiveCompanyId, resolveActiveCompanyId } from '@/lib/activeCompany';
+import { getActiveCompanyId, setActiveCompanyId, resolveActiveCompanyId, ACTIVE_COMPANY_STORAGE_KEY, applyActiveCompanyFromStorage, onActiveCompanyChange } from '@/lib/activeCompany';
 import { ensureSupabaseSessionReady, supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 export interface AppCompany {
@@ -111,6 +111,29 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
   }, [sessionReady, authLoading, userId, load]);
 
   useSessionResumeReload(() => load({ background: true }));
+
+  // Same-tab: sync React state when active company is cleared elsewhere (e.g. logout).
+  useEffect(() => {
+    return onActiveCompanyChange(() => {
+      const id = getActiveCompanyId();
+      setCurrentCompanyId((prev) => (prev === id ? prev : id));
+    });
+  }, []);
+
+  // Other tabs: localStorage write → refresh data for the new company.
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== ACTIVE_COMPANY_STORAGE_KEY || event.storageArea !== localStorage) {
+        return;
+      }
+      const { id, changed } = applyActiveCompanyFromStorage(event.newValue);
+      if (!changed) return;
+      setCurrentCompanyId(id);
+      window.dispatchEvent(new CustomEvent(COMPANY_CHANGED_EVENT, { detail: { companyId: id } }));
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const setCompany = useCallback((id: string) => {
     setCurrentCompanyId(id);
