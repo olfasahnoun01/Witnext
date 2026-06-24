@@ -1,5 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import { AlertCircle, Loader2, MessageCircle, RefreshCw, Send, Trash2, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { AlertCircle, Loader2, MessageCircle, RefreshCw, Send, Trash2, Users, X } from 'lucide-react';
 import { useTeamChat } from '@/hooks/useTeamChat';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -153,6 +154,7 @@ function MessageList() {
 }
 
 export function TeamChatPage() {
+  const navigate = useNavigate();
   const {
     canAccess,
     messages,
@@ -167,6 +169,14 @@ export function TeamChatPage() {
   } = useTeamChatContext();
 
   if (!canAccess) return null;
+
+  const handleClose = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/dashboard');
+    }
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -183,10 +193,23 @@ export function TeamChatPage() {
               </p>
             </div>
           </div>
-          <Badge variant="outline" className="shrink-0 gap-1">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
-            En direct
-          </Badge>
+          <div className="flex shrink-0 items-center gap-2">
+            <Badge variant="outline" className="gap-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
+              En direct
+            </Badge>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              onClick={handleClose}
+              aria-label="Fermer le chat"
+              title="Fermer"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         <div
