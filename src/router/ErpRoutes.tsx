@@ -57,7 +57,8 @@ function LazyRoute({ children }: { children: React.ReactNode }) {
 export function ErpRoutes() {
   return (
     <BootstrapGate>
-      <Routes>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route
           path="/dashboard"
@@ -487,7 +488,8 @@ export function ErpRoutes() {
         />
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+        </Routes>
+      </div>
     </BootstrapGate>
   );
 }

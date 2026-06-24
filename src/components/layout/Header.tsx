@@ -1,4 +1,4 @@
-import { Menu } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { usePresence } from '@/hooks/usePresence';
@@ -25,6 +25,14 @@ export const Header = ({ title, onToggle, sidebarOpen }: HeaderProps) => {
   const pathname = normalizePathname(location.pathname);
   const messagesPath = getPathForSubsection('team-chat');
   const isMessagesActive = pathname === messagesPath;
+
+  const handleCloseChat = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/dashboard');
+    }
+  };
 
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-md">
@@ -58,10 +66,23 @@ export const Header = ({ title, onToggle, sidebarOpen }: HeaderProps) => {
             <OnlineUsersIndicator onlineUsers={onlineUsers} currentUserId={user?.id} />
           )}
 
-          <TeamChatTrigger
-            isActive={isMessagesActive}
-            onOpen={() => navigate(messagesPath)}
-          />
+          {isMessagesActive ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-2"
+              onClick={handleCloseChat}
+              aria-label="Fermer le chat"
+            >
+              <X className="h-4 w-4" />
+              <span className="hidden sm:inline">Fermer</span>
+            </Button>
+          ) : (
+            <TeamChatTrigger
+              isActive={isMessagesActive}
+              onOpen={() => navigate(messagesPath)}
+            />
+          )}
 
           <NotificationCenter />
 

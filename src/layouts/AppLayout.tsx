@@ -98,7 +98,10 @@ export function AppLayout() {
               sidebarOpen={sidebarOpen}
             />
             <main
-              className={cn('flex min-h-0 flex-1 flex-col', isMessages ? 'p-3 sm:p-4' : 'p-6')}
+              className={cn(
+                'flex min-h-0 flex-1 flex-col',
+                isMessages ? 'overflow-hidden p-3 sm:p-4' : 'p-6'
+              )}
             >
               <ErpRoutes />
             </main>
