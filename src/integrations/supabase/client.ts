@@ -1,6 +1,6 @@
 // Supabase browser client — URL and anon key come only from Vite env (see .env.example).
 import { createClient } from '@supabase/supabase-js';
-import { inMemoryStorage } from '@/lib/inMemoryStorage';
+import { getSupabaseAuthStorage } from '@/lib/supabaseAuthStorage';
 import type { Database } from './types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -33,9 +33,11 @@ if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
 
 export const supabase = createClient<Database>(url, SUPABASE_PUBLISHABLE_KEY.trim(), {
   auth: {
-    storage: inMemoryStorage,
+    storage: getSupabaseAuthStorage(),
     persistSession: true,
     autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
   },
 });
 
