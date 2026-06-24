@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { BonCommande, UnifiedDocument, UnifiedDocumentLine } from '@/types';
-import { computeDevisTotals } from '@/lib/devisPricing';
+import { computeDevisTotals, resolveFodecEnabled } from '@/lib/devisPricing';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
 import { pdfPreviewDialogContentClassName } from '@/lib/pdfPreviewDialog';
 import { ProcurementDialog } from './ProcurementDialog';
@@ -465,7 +465,11 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
             const totals = computeDevisTotals(bc.items, false, {
               devisType: (bc.type === 'achat' || bc.type === 'entrant') ? 'achat' : 'vente',
               docType: 'bc',
-              isTvaEnabled: bc.is_ttc
+              isTvaEnabled: bc.is_ttc,
+              isFodecEnabled: resolveFodecEnabled({
+                devisType: (bc.type === 'achat' || bc.type === 'entrant') ? 'achat' : 'vente',
+                items: bc.items,
+              }),
             });
             return totals.totalFinal > 1 ? `${totals.totalFinal.toFixed(3)} TND` : '-';
           })()}

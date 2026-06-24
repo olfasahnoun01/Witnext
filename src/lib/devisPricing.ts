@@ -145,6 +145,17 @@ export interface DevisTotals {
   totalFodec?: number;   // contribution FODEC if applicable
 }
 
+/** Whether FODEC applies on an achat document (toggle or lines with explicit fodec). */
+export function resolveFodecEnabled(options?: {
+  devisType?: 'achat' | 'vente';
+  isFodecEnabled?: boolean;
+  items?: DevisItem[];
+}): boolean {
+  if (options?.devisType !== 'achat') return false;
+  if (options?.isFodecEnabled === true) return true;
+  return (options?.items ?? []).some((i) => typeof i.fodec === 'number');
+}
+
 export function computeDevisTotals(
   items: DevisItem[],
   isSortantTTC: boolean,
@@ -152,11 +163,16 @@ export function computeDevisTotals(
     devisType?: 'achat' | 'vente';
     docType?: 'devis' | 'bc' | 'ba';
     isTvaEnabled?: boolean;
+    isFodecEnabled?: boolean;
   }
 ): DevisTotals {
   let totalHT = 0, totalRemise = 0, totalNet = 0, totalTVA = 0, totalTTC = 0, totalFodec = 0;
 
-  const isBcFurnitureAchat = options?.devisType === 'achat' && options?.docType === 'bc' && options?.isTvaEnabled === true;
+  const isBcFurnitureAchat = resolveFodecEnabled({
+    devisType: options?.devisType,
+    isFodecEnabled: options?.isFodecEnabled,
+    items,
+  });
 
   items.forEach(item => {
     const line = computeDevisLine(item, isSortantTTC, { isBcFurnitureAchat });

@@ -7,16 +7,17 @@ import { OnlineUsersIndicator } from '@/components/OnlineUsersIndicator';
 import { NotificationCenter } from '@/components/notifications/NotificationCenter';
 import { CompanySwitcher } from '@/components/layout/CompanySwitcher';
 import { UserAccountMenu } from '@/components/layout/UserAccountMenu';
-import { TeamChat } from '@/components/TeamChat';
+import { TeamChatTrigger } from '@/components/TeamChat';
 
 interface HeaderProps {
   title: string;
   onToggle?: () => void;
   sidebarOpen?: boolean;
   onNavigateTab?: (tabId: string) => void;
+  activeTab?: string;
 }
 
-export const Header = ({ title, onToggle, sidebarOpen, onNavigateTab }: HeaderProps) => {
+export const Header = ({ title, onToggle, sidebarOpen, onNavigateTab, activeTab }: HeaderProps) => {
   const { user, isAdmin } = useAuth();
   const { onlineUsers } = usePresence();
 
@@ -52,7 +53,10 @@ export const Header = ({ title, onToggle, sidebarOpen, onNavigateTab }: HeaderPr
             <OnlineUsersIndicator onlineUsers={onlineUsers} currentUserId={user?.id} />
           )}
 
-          <TeamChat />
+          <TeamChatTrigger
+            isActive={activeTab === 'team-chat'}
+            onOpen={() => onNavigateTab?.('team-chat')}
+          />
 
           <NotificationCenter onNavigate={onNavigateTab} />
 

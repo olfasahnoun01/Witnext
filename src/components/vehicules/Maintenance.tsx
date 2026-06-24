@@ -1,8 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Wrench, Plus, Calendar, Car, AlertTriangle, CheckCircle2, Clock, Search, Banknote } from 'lucide-react';
+import { Wrench, Plus, Calendar, Car, AlertTriangle, CheckCircle2, Clock, Banknote, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -20,102 +21,192 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { getActiveCompanyId } from '@/lib/activeCompany';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
+import {
+  type MaintenanceStatus,
+  type MaintenanceType,
+  type VehicleMaintenanceRecord,
+  hasActiveMaintenance,
+  loadMaintenanceRecords,
+  saveMaintenanceRecords,
+} from '@/lib/vehicleMaintenanceStorage';
 
-interface MaintenanceRecord {
-  id: string;
-  vehicule: string;
-  vehiculeId?: string;
-  description: string;
-  type: 'preventive' | 'urgent' | 'corrective';
-  dateDebut: string;
-  coutEstime: string;
-  notes: string;
-  status: 'en_cours' | 'termine' | 'annule';
+const EMPTY_FORM = {
+  vehiculeId: '',
+  description: '',
+  type: 'preventive' as MaintenanceType,
+  dateDebut: new Date().toISOString().split('T')[0],
+  coutEstime: '',
+  notes: '',
+  status: 'en_cours' as MaintenanceStatus,
+};
+
+async function syncVehicleMaintenanceStatus(
+  vehicleId: string,
+  records: VehicleMaintenanceRecord[],
+  previousVehicleId?: string
+): Promise<void> {
+  const companyId = getActiveCompanyId();
+  const applyStatus = async (statut: 'en_maintenance' | 'en_panne') => {
+    let q = supabase.from('vehicles').update({ statut }).eq('id', vehicleId);
+    if (companyId) q = q.eq('company_id', companyId);
+    return q;
+  };
+
+  let { error: maintenanceError } = await applyStatus('en_maintenance');
+  if (maintenanceError) {
+    ({ error: maintenanceError } = await applyStatus('en_panne'));
+  }
+  if (maintenanceError) {
+    console.error(maintenanceError);
+    toast.error('Maintenance enregistrée, mais le statut véhicule n’a pas pu être mis à jour');
+  }
+
+  if (previousVehicleId && previousVehicleId !== vehicleId) {
+    if (!hasActiveMaintenance(records, previousVehicleId)) {
+      let releaseQ = supabase.from('vehicles').update({ statut: 'disponible' }).eq('id', previousVehicleId);
+      if (companyId) releaseQ = releaseQ.eq('company_id', companyId);
+      await releaseQ;
+    }
+  }
+}
+
+async function releaseVehicleIfNoActiveMaintenance(
+  vehicleId: string | undefined,
+  records: VehicleMaintenanceRecord[]
+): Promise<void> {
+  if (!vehicleId || hasActiveMaintenance(records, vehicleId)) return;
+  const companyId = getActiveCompanyId();
+  let q = supabase.from('vehicles').update({ statut: 'disponible', conducteur_id: null }).eq('id', vehicleId);
+  if (companyId) q = q.eq('company_id', companyId);
+  const { error } = await q;
+  if (error) console.error(error);
 }
 
 export const Maintenance = () => {
-  const [records, setRecords] = useState<MaintenanceRecord[]>(() => {
-    const saved = localStorage.getItem('grosafe_maintenances');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [records, setRecords] = useState<VehicleMaintenanceRecord[]>(() =>
+    loadMaintenanceRecords(getActiveCompanyId())
+  );
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
-  // Load vehicles from Supabase
-  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [vehicles, setVehicles] = useState<Array<{ id: string; modele: string; matricule: string }>>([]);
+  const [form, setForm] = useState(EMPTY_FORM);
 
-  useEffect(() => {
-    const fetchVehicles = async () => {
-      const { data } = await supabase.from('vehicles').select('id, modele, matricule');
-      setVehicles(data || []);
-    };
-    fetchVehicles();
+  const fetchVehicles = useCallback(async () => {
+    const companyId = getActiveCompanyId();
+    let q = supabase.from('vehicles').select('id, modele, matricule').order('modele');
+    if (companyId) q = q.eq('company_id', companyId);
+    const { data } = await q;
+    setVehicles(data || []);
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('grosafe_maintenances', JSON.stringify(records));
-  }, [records]);
-  
-  const [form, setForm] = useState({
-    vehiculeId: '',
-    description: '',
-    type: 'preventive' as const,
-    dateDebut: new Date().toISOString().split('T')[0],
-    coutEstime: '',
-    notes: '',
-  });
+    void fetchVehicles();
+  }, [fetchVehicles]);
 
-  const handleSubmit = useCallback(() => {
-    if (!form.vehiculeId || !form.description) {
+  const reloadMaintenanceRecords = useCallback(() => {
+    setRecords(loadMaintenanceRecords(getActiveCompanyId()));
+  }, []);
+
+  useCompanyChangeReload(reloadMaintenanceRecords);
+
+  const persistRecords = useCallback((nextRecords: VehicleMaintenanceRecord[]) => {
+    setRecords(nextRecords);
+    saveMaintenanceRecords(getActiveCompanyId(), nextRecords);
+  }, []);
+
+  const resetDialog = useCallback(() => {
+    setEditingId(null);
+    setForm({ ...EMPTY_FORM, dateDebut: new Date().toISOString().split('T')[0] });
+  }, []);
+
+  const openCreateDialog = useCallback(() => {
+    resetDialog();
+    setIsDialogOpen(true);
+  }, [resetDialog]);
+
+  const openEditDialog = useCallback((record: VehicleMaintenanceRecord) => {
+    setEditingId(record.id);
+    setForm({
+      vehiculeId: record.vehiculeId || '',
+      description: record.description,
+      type: record.type,
+      dateDebut: record.dateDebut,
+      coutEstime: record.coutEstime,
+      notes: record.notes,
+      status: record.status,
+    });
+    setIsDialogOpen(true);
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
+    if (!form.vehiculeId || !form.description.trim()) {
       toast.error('Veuillez remplir les champs obligatoires');
       return;
     }
-    const selectedVehicle = vehicles.find((v: any) => v.id === form.vehiculeId);
+
+    const selectedVehicle = vehicles.find((v) => v.id === form.vehiculeId);
     const vehicleLabel = selectedVehicle
       ? `${selectedVehicle.modele} (${selectedVehicle.matricule})`
       : form.vehiculeId;
 
-    const newRecord: MaintenanceRecord = {
-      id: crypto.randomUUID(),
+    const previousRecord = editingId ? records.find((r) => r.id === editingId) : undefined;
+    const payload: VehicleMaintenanceRecord = {
+      id: editingId ?? crypto.randomUUID(),
       vehicule: vehicleLabel,
       vehiculeId: form.vehiculeId,
-      description: form.description,
+      description: form.description.trim(),
       type: form.type,
       dateDebut: form.dateDebut,
       coutEstime: form.coutEstime,
-      notes: form.notes,
-      status: 'en_cours',
+      notes: form.notes.trim(),
+      status: form.status,
     };
 
-    setRecords((prev) => [newRecord, ...prev]);
-    void supabase
-      .from('vehicles')
-      .update({ statut: 'en_panne' })
-      .eq('id', form.vehiculeId);
-    setIsDialogOpen(false);
-    setForm({
-      vehiculeId: '',
-      description: '',
-      type: 'preventive',
-      dateDebut: new Date().toISOString().split('T')[0],
-      coutEstime: '',
-      notes: '',
-    });
-    toast.success('Entretien enregistré');
-  }, [form]);
+    const nextRecords = editingId
+      ? records.map((r) => (r.id === editingId ? payload : r))
+      : [payload, ...records];
 
-  const getTypeStyles = (type: MaintenanceRecord['type']) => {
+    persistRecords(nextRecords);
+    setIsDialogOpen(false);
+    resetDialog();
+
+    if (form.status === 'en_cours') {
+      await syncVehicleMaintenanceStatus(
+        form.vehiculeId,
+        nextRecords,
+        previousRecord?.vehiculeId
+      );
+    } else {
+      await releaseVehicleIfNoActiveMaintenance(form.vehiculeId, nextRecords);
+      if (previousRecord?.vehiculeId && previousRecord.vehiculeId !== form.vehiculeId) {
+        await releaseVehicleIfNoActiveMaintenance(previousRecord.vehiculeId, nextRecords);
+      }
+    }
+
+    toast.success(editingId ? 'Maintenance mise à jour' : 'Entretien enregistré');
+  }, [form, vehicles, editingId, records, resetDialog, persistRecords]);
+
+  const getTypeStyles = (type: MaintenanceType) => {
     switch (type) {
-      case 'urgent': return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
-      case 'corrective': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
-      case 'preventive': return 'bg-sky-500/10 text-sky-500 border-sky-500/20';
+      case 'urgent':
+        return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+      case 'corrective':
+        return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+      default:
+        return 'bg-sky-500/10 text-sky-500 border-sky-500/20';
     }
   };
 
-  const getStatusIcon = (status: MaintenanceRecord['status']) => {
+  const getStatusIcon = (status: MaintenanceStatus) => {
     switch (status) {
-      case 'en_cours': return <Clock className="w-4 h-4 text-amber-500" />;
-      case 'termine': return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
-      case 'annule': return <AlertTriangle className="w-4 h-4 text-rose-500" />;
+      case 'en_cours':
+        return <Clock className="w-4 h-4 text-amber-500" />;
+      case 'termine':
+        return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
+      default:
+        return <AlertTriangle className="w-4 h-4 text-rose-500" />;
     }
   };
 
@@ -130,7 +221,10 @@ export const Maintenance = () => {
             <h2 className="text-2xl font-black text-foreground tracking-tight">Maintenances</h2>
           </div>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} className="gap-2 rounded-2xl h-14 px-8 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95">
+        <Button
+          onClick={openCreateDialog}
+          className="gap-2 rounded-2xl h-14 px-8 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95"
+        >
           <Plus className="w-5 h-5" />
           Nouvelle Maintenance
         </Button>
@@ -146,14 +240,18 @@ export const Maintenance = () => {
                   <Clock className="w-5 h-5 text-amber-500" />
                   <span className="font-semibold text-amber-600 dark:text-amber-400">En cours</span>
                 </div>
-                <span className="text-xl font-black text-amber-500">{records.filter(r => r.status === 'en_cours').length}</span>
+                <span className="text-xl font-black text-amber-500">
+                  {records.filter((r) => r.status === 'en_cours').length}
+                </span>
               </div>
               <div className="flex items-center justify-between p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
                 <div className="flex items-center gap-3">
                   <AlertTriangle className="w-5 h-5 text-rose-500" />
                   <span className="font-semibold text-rose-600 dark:text-rose-400">Urgent</span>
                 </div>
-                <span className="text-xl font-black text-rose-500">{records.filter(r => r.type === 'urgent').length}</span>
+                <span className="text-xl font-black text-rose-500">
+                  {records.filter((r) => r.type === 'urgent').length}
+                </span>
               </div>
             </div>
           </div>
@@ -166,44 +264,75 @@ export const Maintenance = () => {
                 <Wrench className="w-10 h-10 text-muted-foreground/30" />
               </div>
               <h3 className="text-lg font-bold text-foreground">Aucun historique de maintenance</h3>
-              <p className="text-muted-foreground max-w-xs mt-2">Enregistrez vos premières interventions pour commencer le suivi.</p>
+              <p className="text-muted-foreground max-w-xs mt-2">
+                Enregistrez vos premières interventions pour commencer le suivi.
+              </p>
             </div>
           ) : (
             records.map((record) => (
-              <div key={record.id} className="group bg-card p-6 rounded-3xl border border-border shadow-sm hover:shadow-md transition-all">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+              <div
+                key={record.id}
+                className="group bg-card p-6 rounded-3xl border border-border shadow-sm hover:shadow-md transition-all"
+              >
+                <div className="flex items-start justify-between mb-4 gap-3">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
                       <Car className="w-6 h-6" />
                     </div>
-                    <div>
-                      <h4 className="font-bold text-foreground">{record.vehicule}</h4>
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-foreground truncate">{record.vehicule}</h4>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold mt-1">
-                        <Calendar className="w-3 h-3" />
-                        {new Date(record.dateDebut).toLocaleDateString()}
+                        <Calendar className="w-3 h-3 shrink-0" />
+                        {new Date(record.dateDebut).toLocaleDateString('fr-FR')}
                       </div>
                     </div>
                   </div>
-                  <Badge variant="outline" className={`rounded-xl px-3 py-1 font-bold uppercase text-[10px] tracking-wider ${getTypeStyles(record.type)}`}>
-                    {record.type}
-                  </Badge>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge
+                      variant="outline"
+                      className={`rounded-xl px-3 py-1 font-bold uppercase text-[10px] tracking-wider ${getTypeStyles(record.type)}`}
+                    >
+                      {record.type}
+                    </Badge>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9 rounded-xl"
+                      onClick={() => openEditDialog(record)}
+                      title="Modifier"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-                
+
                 <h5 className="text-lg font-bold text-foreground mb-2">{record.description}</h5>
-                <p className="text-sm text-muted-foreground mb-6 bg-muted/30 p-4 rounded-2xl line-clamp-2 italic">{record.notes || 'Aucune note supplémentaire.'}</p>
-                
+                {record.notes ? (
+                  <p className="text-sm text-muted-foreground mb-6 bg-muted/30 p-4 rounded-2xl whitespace-pre-wrap">
+                    {record.notes}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground mb-6 italic">Aucune note supplémentaire.</p>
+                )}
+
                 <div className="flex items-center justify-between pt-4 border-t border-border">
                   <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-full bg-muted/50">
-                      {getStatusIcon(record.status)}
-                    </div>
+                    <div className="p-1.5 rounded-full bg-muted/50">{getStatusIcon(record.status)}</div>
                     <span className="text-xs font-bold text-muted-foreground uppercase tracking-tight">
-                      {record.status === 'en_cours' ? 'Intervention en cours' : record.status}
+                      {record.status === 'en_cours'
+                        ? 'Intervention en cours'
+                        : record.status === 'termine'
+                          ? 'Terminée'
+                          : 'Annulée'}
                     </span>
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] font-bold text-muted-foreground uppercase mb-0.5">Coût Estimé</p>
-                    <p className="font-black text-foreground text-lg">{parseFloat(record.coutEstime || '0').toLocaleString()} <span className="text-xs opacity-50">TND</span></p>
+                    <p className="font-black text-foreground text-lg">
+                      {parseFloat(record.coutEstime || '0').toLocaleString('fr-FR')}{' '}
+                      <span className="text-xs opacity-50">TND</span>
+                    </p>
                   </div>
                 </div>
               </div>
@@ -212,7 +341,13 @@ export const Maintenance = () => {
         </div>
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) resetDialog();
+        }}
+      >
         <DialogContent className="flex max-h-[min(90dvh,calc(100vh-2rem))] w-[calc(100vw-2rem)] max-w-2xl flex-col overflow-hidden rounded-2xl border-none bg-card p-0 shadow-2xl sm:rounded-[2rem]">
           <DialogHeader className="relative shrink-0 bg-primary p-6 text-primary-foreground sm:p-10">
             <div className="absolute top-0 right-0 -mr-24 -mt-24 hidden h-48 w-48 rounded-full bg-white/5 sm:block" />
@@ -220,14 +355,18 @@ export const Maintenance = () => {
               <div className="rounded-2xl bg-white/10 p-2 backdrop-blur-md sm:p-3">
                 <Wrench className="h-6 w-6 sm:h-8 sm:w-8" />
               </div>
-              <span className="leading-tight">Nouvelle Intervention</span>
+              <span className="leading-tight">
+                {editingId ? 'Modifier l’intervention' : 'Nouvelle Intervention'}
+              </span>
             </DialogTitle>
           </DialogHeader>
 
           <div className="grid flex-1 gap-6 overflow-y-auto overscroll-contain p-6 sm:gap-8 sm:p-10">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div className="space-y-3">
-                <Label htmlFor="vehicule" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">Sélection du Véhicule *</Label>
+                <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">
+                  Sélection du Véhicule *
+                </Label>
                 <Select
                   value={form.vehiculeId}
                   onValueChange={(v) => setForm({ ...form, vehiculeId: v })}
@@ -237,9 +376,11 @@ export const Maintenance = () => {
                   </SelectTrigger>
                   <SelectContent className="rounded-2xl border-border bg-card">
                     {vehicles.length === 0 ? (
-                      <div className="p-2 text-xs text-muted-foreground text-center italic">Aucun véhicule enregistré</div>
+                      <div className="p-2 text-xs text-muted-foreground text-center italic">
+                        Aucun véhicule enregistré
+                      </div>
                     ) : (
-                      vehicles.map((v: any) => (
+                      vehicles.map((v) => (
                         <SelectItem key={v.id} value={v.id} className="rounded-xl">
                           {v.modele} - {v.matricule}
                         </SelectItem>
@@ -249,37 +390,46 @@ export const Maintenance = () => {
                 </Select>
               </div>
               <div className="space-y-3">
-                <Label htmlFor="type" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">Type de Maintenance</Label>
-                <Select
-                  value={form.type}
-                  onValueChange={(v: any) => setForm({ ...form, type: v })}
-                >
+                <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">
+                  Type de Maintenance
+                </Label>
+                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as MaintenanceType })}>
                   <SelectTrigger className="h-11 rounded-2xl border-border bg-background font-semibold sm:h-14">
                     <SelectValue placeholder="Type" />
                   </SelectTrigger>
                   <SelectContent className="rounded-2xl border-border bg-card">
-                    <SelectItem value="preventive" className="rounded-xl">Préventive</SelectItem>
-                    <SelectItem value="corrective" className="rounded-xl">Corrective</SelectItem>
-                    <SelectItem value="urgent" className="rounded-xl">URGENT</SelectItem>
+                    <SelectItem value="preventive" className="rounded-xl">
+                      Préventive
+                    </SelectItem>
+                    <SelectItem value="corrective" className="rounded-xl">
+                      Corrective
+                    </SelectItem>
+                    <SelectItem value="urgent" className="rounded-xl">
+                      URGENT
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="space-y-3">
-              <Label htmlFor="description" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">Description de l'intervention *</Label>
-              <Input
+              <Label htmlFor="description" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">
+                Description de l&apos;intervention *
+              </Label>
+              <Textarea
                 id="description"
-                placeholder="Ex: Vidange moteur + filtres"
+                placeholder="Ex: Vidange moteur + filtres, révision complète…"
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="h-11 rounded-2xl border-border bg-background font-bold sm:h-14"
+                className="min-h-[100px] rounded-2xl border-border bg-background font-medium resize-y"
               />
             </div>
 
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div className="space-y-3">
-                <Label htmlFor="dateDebut" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">Date de début</Label>
+                <Label htmlFor="dateDebut" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">
+                  Date de début
+                </Label>
                 <div className="relative">
                   <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
@@ -292,7 +442,9 @@ export const Maintenance = () => {
                 </div>
               </div>
               <div className="space-y-3">
-                <Label htmlFor="cout" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">Coût Estimé (TND)</Label>
+                <Label htmlFor="cout" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">
+                  Coût Estimé (TND)
+                </Label>
                 <div className="relative">
                   <Banknote className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
@@ -307,24 +459,57 @@ export const Maintenance = () => {
               </div>
             </div>
 
+            {editingId && (
+              <div className="space-y-3">
+                <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">
+                  Statut intervention
+                </Label>
+                <Select
+                  value={form.status}
+                  onValueChange={(v) => setForm({ ...form, status: v as MaintenanceStatus })}
+                >
+                  <SelectTrigger className="h-11 rounded-2xl border-border bg-background font-semibold sm:h-14">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-border bg-card">
+                    <SelectItem value="en_cours">En cours</SelectItem>
+                    <SelectItem value="termine">Terminée</SelectItem>
+                    <SelectItem value="annule">Annulée</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-3">
-              <Label htmlFor="notes" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">Notes Additionnelles</Label>
-              <textarea
+              <Label htmlFor="notes" className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">
+                Notes additionnelles
+              </Label>
+              <Textarea
                 id="notes"
-                placeholder="Détails, pièces à changer, garage..."
+                placeholder="Détails, pièces à changer, garage…"
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                className="min-h-[100px] w-full resize-none rounded-3xl border border-border bg-background p-4 text-sm font-medium transition-all focus:border-primary focus:ring-2 focus:ring-primary/20 sm:min-h-[120px] sm:p-5"
+                className="min-h-[100px] w-full resize-y rounded-3xl border border-border bg-background p-4 text-sm font-medium transition-all focus:border-primary focus:ring-2 focus:ring-primary/20 sm:min-h-[120px] sm:p-5"
               />
             </div>
           </div>
 
           <DialogFooter className="shrink-0 flex-col gap-3 border-t border-border bg-muted/30 p-6 sm:flex-row sm:justify-end sm:gap-4 sm:p-10">
-            <Button variant="ghost" onClick={() => setIsDialogOpen(false)} className="h-11 w-full rounded-2xl px-8 font-bold text-muted-foreground hover:bg-muted/50 sm:h-14 sm:w-auto">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setIsDialogOpen(false);
+                resetDialog();
+              }}
+              className="h-11 w-full rounded-2xl px-8 font-bold text-muted-foreground hover:bg-muted/50 sm:h-14 sm:w-auto"
+            >
               Annuler
             </Button>
-            <Button onClick={handleSubmit} className="h-11 w-full rounded-2xl bg-primary px-10 font-black text-primary-foreground shadow-xl shadow-primary/20 transition-all hover:scale-105 hover:bg-primary/90 active:scale-95 sm:h-14 sm:w-auto">
-              Lancer l'Intervention
+            <Button
+              onClick={() => void handleSubmit()}
+              className="h-11 w-full rounded-2xl bg-primary px-10 font-black text-primary-foreground shadow-xl shadow-primary/20 transition-all hover:scale-105 hover:bg-primary/90 active:scale-95 sm:h-14 sm:w-auto"
+            >
+              {editingId ? 'Enregistrer' : "Lancer l'Intervention"}
             </Button>
           </DialogFooter>
         </DialogContent>

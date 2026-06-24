@@ -11,7 +11,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Plus, Trash2, Search, Package, AlertCircle } from 'lucide-react';
-import { computeDevisTotals, computeDevisLine } from '@/lib/devisPricing';
+import { computeDevisTotals, computeDevisLine, resolveFodecEnabled } from '@/lib/devisPricing';
 import { mergeDevisItemsFromSources } from '@/lib/mergeCommercialDocuments';
 import { getDevisItemDisplayCode } from '@/lib/devisItemPdf';
 import { mapLightRowToProduct, searchInventoryProductsLight } from '@/lib/inventoryProductSearch';
@@ -137,7 +137,11 @@ export const BCCreationDialog = ({
     return computeDevisTotals(items, false, {
       devisType: devis.type as 'achat' | 'vente',
       docType: 'bc',
-      isTvaEnabled: devis.is_ttc ?? false
+      isTvaEnabled: devis.is_ttc ?? false,
+      isFodecEnabled: resolveFodecEnabled({
+        devisType: devis.type as 'achat' | 'vente',
+        items,
+      }),
     });
   }, [items, sourceDevis, sourceDevisList]);
 
@@ -255,7 +259,10 @@ export const BCCreationDialog = ({
                   </TableRow>
                 ) : (
                   items.map((item, idx) => {
-                    const isBcFurnitureAchat = sourceDevis.type === 'achat' && sourceDevis.is_ttc;
+                    const isBcFurnitureAchat = resolveFodecEnabled({
+                      devisType: sourceDevis.type as 'achat' | 'vente',
+                      items,
+                    });
                     const pricing = computeDevisLine(item, false, { isBcFurnitureAchat });
                     return (
                       <TableRow key={idx}>

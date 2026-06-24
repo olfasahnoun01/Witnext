@@ -13,6 +13,7 @@ export interface DevisFormDraft {
   documentStatus: string;
   devisItems: DevisItem[];
   isTtc: boolean;
+  isFodecEnabled: boolean;
   savedAt: string;
 }
 

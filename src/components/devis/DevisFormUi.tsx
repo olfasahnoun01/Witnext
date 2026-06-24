@@ -141,32 +141,94 @@ export function DevisPricingToggle({
   isTtc,
   onChange,
   embedded,
+  compact,
 }: {
   isTtc: boolean;
   onChange: (v: boolean) => void;
   /** Sans bordure externe — pour cellule de tableau */
   embedded?: boolean;
+  compact?: boolean;
 }) {
   return (
     <div
       className={cn(
         'flex items-center justify-between gap-3',
-        embedded ? 'px-0.5 py-0.5' : 'rounded-lg border bg-muted/30 px-4 py-3'
+        embedded ? 'px-0.5 py-0.5' : 'rounded-lg border bg-muted/30 px-4 py-3',
+        compact && 'rounded-md border border-border/70 bg-background/80 px-3 py-2'
       )}
     >
-      <div>
-        <p className="text-sm font-medium">Mode de tarification</p>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {isTtc
-            ? 'Afficher TVA, montant TTC et timbre dans la synthèse'
-            : 'Prix unitaires et totaux du tableau en hors taxes'}
-        </p>
-      </div>
+      {!compact && (
+        <div>
+          <p className="text-sm font-medium">Mode de tarification</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {isTtc
+              ? 'Afficher TVA, montant TTC et timbre dans la synthèse'
+              : 'Prix unitaires et totaux du tableau en hors taxes'}
+          </p>
+        </div>
+      )}
+      {compact && <span className="text-xs font-medium text-muted-foreground shrink-0">Tarification</span>}
       <div className="flex items-center gap-2 shrink-0">
         <span className={cn('text-xs font-medium', !isTtc && 'text-primary')}>HT</span>
         <Switch checked={isTtc} onCheckedChange={onChange} aria-label="Basculer HT / TTC" />
         <span className={cn('text-xs font-medium', isTtc && 'text-primary')}>TTC</span>
       </div>
+    </div>
+  );
+}
+
+export function DevisFodecToggle({
+  enabled,
+  onChange,
+  compact,
+}: {
+  enabled: boolean;
+  onChange: (v: boolean) => void;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background/80 px-3 py-2',
+        !compact && 'rounded-lg bg-muted/30 px-4 py-3'
+      )}
+    >
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-foreground">FODEC</p>
+        {!compact && (
+          <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+            Colonne FODEC (1 %) dans le tableau articles
+          </p>
+        )}
+      </div>
+      <Switch checked={enabled} onCheckedChange={onChange} aria-label="Activer FODEC" />
+    </div>
+  );
+}
+
+export function DevisDocumentSettingsBar({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
+      {children}
+    </div>
+  );
+}
+
+export function DevisDocumentSettingsGroup({
+  label,
+  children,
+}: {
+  label?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5 min-w-0">
+      {label && (
+        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-0.5">
+          {label}
+        </span>
+      )}
+      <div className="flex flex-wrap items-center gap-2">{children}</div>
     </div>
   );
 }
@@ -446,6 +508,7 @@ export function DevisZohoFooter({
   onUpdate,
   onSaveDraft,
   saveLabel,
+  draftSavedAt,
 }: {
   editing: boolean;
   isSaving?: boolean;
@@ -454,6 +517,7 @@ export function DevisZohoFooter({
   onUpdate: () => void;
   onSaveDraft?: () => void;
   saveLabel?: string;
+  draftSavedAt?: string | null;
 }) {
   return (
     <div className="border-t border-border/70 bg-muted/15 px-4 sm:px-6 py-4 flex flex-col-reverse sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
@@ -484,6 +548,15 @@ export function DevisZohoFooter({
           Annuler
         </button>
       </div>
+      {draftSavedAt && !editing && (
+        <p className="text-[11px] text-muted-foreground sm:ml-auto tabular-nums">
+          Brouillon local enregistré ·{' '}
+          {new Date(draftSavedAt).toLocaleTimeString('fr-FR', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </p>
+      )}
     </div>
   );
 }

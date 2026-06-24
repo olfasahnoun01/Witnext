@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { AppLayoutProvider } from '@/contexts/AppLayoutContext';
 import { AppCompanyProvider, useAppCompany } from '@/contexts/AppCompanyContext';
 import { BootstrapErrorPanel } from '@/components/layout/BootstrapErrorPanel';
+import { TeamChatProvider, TeamChatPage } from '@/components/TeamChat';
 
 // Eagerly import Dashboard since it's the default view
 import { Dashboard } from '@/components/Dashboard';
@@ -180,12 +181,17 @@ const IndexContent = () => {
       );
     }
 
-    if (activeTab !== 'dashboard' && !canAccessSubsection(activeTab)) {
+    if (
+      activeTab !== 'dashboard' &&
+      activeTab !== 'team-chat' &&
+      !canAccessSubsection(activeTab)
+    ) {
       return <AccessDenied />;
     }
 
     if (
       activeTab !== 'dashboard' &&
+      activeTab !== 'team-chat' &&
       !isSubsectionVisibleForCompany(activeTab, currentCompany?.code)
     ) {
       return <CompanyScopeDenied subsectionId={activeTab} />;
@@ -304,34 +310,50 @@ const IndexContent = () => {
         {activeTab === 'settings' && (isAdmin ? <Settings /> : <AccessDenied />)}
 
         {activeTab === 'finance-hub' && <FinanceModule />}
+        {activeTab === 'team-chat' && <TeamChatPage />}
       </Suspense>
       </ErrorBoundary>
     );
   };
 
-  return (
-    <AppLayoutProvider sidebarOpen={sidebarOpen}>
-      <div className="min-h-screen bg-background">
-        <Sidebar
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-          isOpen={sidebarOpen}
-          onToggle={() => setSidebarOpen(!sidebarOpen)}
-        />
+  const isTeamChat = activeTab === 'team-chat';
 
-        <div className={cn('transition-all duration-300', sidebarOpen ? 'lg:ml-72' : 'lg:ml-0')}>
-          <Header
-            title={SUBSECTION_LABELS[activeTab] || 'Witnext'}
+  return (
+    <TeamChatProvider isPageOpen={isTeamChat}>
+      <AppLayoutProvider sidebarOpen={sidebarOpen}>
+        <div className="flex min-h-screen flex-col bg-background">
+          <Sidebar
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            isOpen={sidebarOpen}
             onToggle={() => setSidebarOpen(!sidebarOpen)}
-            sidebarOpen={sidebarOpen}
-            onNavigateTab={handleTabChange}
           />
-          <main className="p-6">
-            {renderContent()}
-          </main>
+
+          <div
+            className={cn(
+              'flex min-h-0 flex-1 flex-col transition-all duration-300',
+              sidebarOpen ? 'lg:ml-72' : 'lg:ml-0'
+            )}
+          >
+            <Header
+              title={isTeamChat ? 'Chat Équipe' : SUBSECTION_LABELS[activeTab] || 'Witnext'}
+              onToggle={() => setSidebarOpen(!sidebarOpen)}
+              sidebarOpen={sidebarOpen}
+              onNavigateTab={handleTabChange}
+              activeTab={activeTab}
+            />
+            <main
+              className={cn(
+                'flex min-h-0 flex-1 flex-col',
+                isTeamChat ? 'p-3 sm:p-4' : 'p-6'
+              )}
+            >
+              {renderContent()}
+            </main>
+          </div>
         </div>
-      </div>
-    </AppLayoutProvider>
+      </AppLayoutProvider>
+    </TeamChatProvider>
   );
 };
 

@@ -120,14 +120,14 @@ describe('computeDevisTotals', () => {
     expect(totals.totalTTC).toBeCloseTo(333.2, 3);
   });
 
-  it('calculates FODEC for BC supplier (achat) when TVA is enabled', () => {
+  it('calculates FODEC for BC supplier (achat) when FODEC is enabled', () => {
     const totals = computeDevisTotals(
       [
         item({ prix_ttc: 100, quantity: 1, tva: 19 }),
         item({ prix_ttc: 100, quantity: 2, remise: 10, tva: 19 }),
       ],
       false,
-      { devisType: 'achat', docType: 'bc', isTvaEnabled: true }
+      { devisType: 'achat', docType: 'bc', isFodecEnabled: true }
     );
     expect(totals.totalFodec).toBeCloseTo(2.8, 3);
     expect(totals.totalFinal).toBeCloseTo(336.532 + TIMBRE_FISCAL_DT, 3);
@@ -140,31 +140,31 @@ describe('computeDevisTotals', () => {
         item({ prix_ttc: 100, quantity: 1, tva: 19 }),
       ],
       false,
-      { devisType: 'achat', docType: 'bc', isTvaEnabled: true }
+      { devisType: 'achat', docType: 'bc', isFodecEnabled: true }
     );
     expect(totals.totalFodec).toBeCloseTo(6, 3); // 5 manual + 1 auto
     expect(totals.totalTVA).toBeCloseTo(39.14, 3);
   });
 
-  it('does not calculate FODEC if docType is not bc or devisType is not achat or tva not enabled', () => {
+  it('does not calculate FODEC if devisType is not achat or FODEC disabled', () => {
     const t1 = computeDevisTotals(
       [item({ prix_ttc: 100, quantity: 1, tva: 19 })],
       false,
-      { devisType: 'vente', docType: 'bc', isTvaEnabled: true }
+      { devisType: 'vente', docType: 'bc', isFodecEnabled: true }
     );
     expect(t1.totalFodec).toBeUndefined();
 
     const t2 = computeDevisTotals(
       [item({ prix_ttc: 100, quantity: 1, tva: 19 })],
       false,
-      { devisType: 'achat', docType: 'devis', isTvaEnabled: true }
+      { devisType: 'achat', docType: 'devis', isFodecEnabled: false }
     );
     expect(t2.totalFodec).toBeUndefined();
 
     const t3 = computeDevisTotals(
       [item({ prix_ttc: 100, quantity: 1, tva: 19 })],
       false,
-      { devisType: 'achat', docType: 'bc', isTvaEnabled: false }
+      { devisType: 'achat', docType: 'bc', isFodecEnabled: false }
     );
     expect(t3.totalFodec).toBeUndefined();
   });

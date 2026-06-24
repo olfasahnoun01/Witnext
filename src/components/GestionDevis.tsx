@@ -17,7 +17,7 @@ import {
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { notifySessionInvalid } from '@/lib/sessionResume';
 import { debugLog } from '@/lib/debugLog';
-import { computeDevisTotals } from '@/lib/devisPricing';
+import { computeDevisTotals, resolveFodecEnabled } from '@/lib/devisPricing';
 import { parseAttachmentUrls, uploadCommercialAttachments, type CommercialAttachmentRecord } from '@/lib/commercialAttachments';
 import { buildMergedBcNotes, mergeDevisItemsFromSources, validateDevisMergeForBc } from '@/lib/mergeCommercialDocuments';
 import { ensureSuiviFromDevis } from '@/lib/partiesSuivi';
@@ -170,6 +170,7 @@ export const GestionDevis = ({
   const [devisItems, setDevisItems] = useState<DevisItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isTtc, setIsTtc] = useState(false);
+  const [isFodecEnabled, setIsFodecEnabled] = useState(false);
 
   // Derived lists
   const savedDevis = useMemo(() => allDevis.filter((d) => d && !d.is_bc && !d.is_ba && !d.is_bl), [allDevis]);
@@ -177,9 +178,54 @@ export const GestionDevis = ({
     writeStoredDevisSection(sectionMode, devisType, activeSection);
   }, [activeSection, sectionMode, devisType]);
 
+  const isDraftEligibleDoc = docType === 'devis' || docType === 'bc';
+
+  const flushDraftToStorage = useCallback(() => {
+    if (editingDevis || showEditDialog || !isDraftEligibleDoc) return;
+    const companyId = getActiveCompanyId();
+    if (currentDraftRef.current) {
+      saveDevisDraft(companyId, devisType, docType, currentDraftRef.current);
+      setDraftSavedAt(new Date().toISOString());
+    } else {
+      clearDevisDraft(companyId, devisType, docType);
+      setDraftSavedAt(null);
+    }
+  }, [editingDevis, showEditDialog, isDraftEligibleDoc, devisType, docType]);
+
+  const prevActiveSectionRef = useRef(activeSection);
   useEffect(() => {
-    if (draftHydratedRef.current || editingDevis || showEditDialog) return;
-    if (docType !== 'devis' || activeSection !== 'form') return;
+    if (prevActiveSectionRef.current === 'form' && activeSection !== 'form') {
+      flushDraftToStorage();
+    }
+    prevActiveSectionRef.current = activeSection;
+  }, [activeSection, flushDraftToStorage]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && activeSection === 'form') {
+        flushDraftToStorage();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [activeSection, flushDraftToStorage]);
+
+  // Restore local draft for new devis OR new BC forms (not edit dialog).
+  useEffect(() => {
+    if (editingDevis || showEditDialog || !isDraftEligibleDoc || activeSection !== 'form') return;
+
+    const hasInMemoryContent =
+      devisItems.length > 0 ||
+      thirdPartyName.trim() ||
+      notes.trim() ||
+      thirdPartyAddress.trim();
+
+    if (hasInMemoryContent) {
+      draftHydratedRef.current = true;
+      return;
+    }
+
+    if (draftHydratedRef.current) return;
 
     const companyId = getActiveCompanyId();
     const draft = loadDevisDraft(companyId, devisType, docType);
@@ -199,15 +245,25 @@ export const GestionDevis = ({
     setDocumentStatus(draft.documentStatus as typeof documentStatus);
     setDevisItems(draft.devisItems);
     setIsTtc(draft.isTtc);
+    setIsFodecEnabled(draft.isFodecEnabled ?? false);
     setDraftSavedAt(draft.savedAt);
     draftHydratedRef.current = true;
-    toast.info('Brouillon de devis restauré automatiquement');
+    toast.info(
+      docType === 'bc'
+        ? 'Brouillon de bon de commande restauré automatiquement'
+        : 'Brouillon de devis restauré automatiquement'
+    );
   }, [
     editingDevis,
     showEditDialog,
     docType,
     activeSection,
     devisType,
+    isDraftEligibleDoc,
+    devisItems.length,
+    thirdPartyName,
+    notes,
+    thirdPartyAddress,
   ]);
 
   // Update ref whenever form state changes
@@ -234,48 +290,40 @@ export const GestionDevis = ({
         documentStatus,
         devisItems,
         isTtc,
+        isFodecEnabled,
       };
     }
   }, [
     devisType, docType, devisNumber, devisDate, thirdPartyName, 
     thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, 
-    documentStatus, devisItems, isTtc
+    documentStatus, devisItems, isTtc, isFodecEnabled
   ]);
 
-  // Handle synchronous save on unmount or beforeunload
+  // Flush local draft when leaving the page or unmounting the create form.
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (editingDevis || showEditDialog || docType !== 'devis' || activeSection !== 'form') return;
-      const companyId = getActiveCompanyId();
-      if (currentDraftRef.current) {
-        saveDevisDraft(companyId, devisType, docType, currentDraftRef.current);
-      } else {
-        clearDevisDraft(companyId, devisType, docType);
-      }
+      if (editingDevis || showEditDialog || !isDraftEligibleDoc || activeSection !== 'form') return;
+      flushDraftToStorage();
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      handleBeforeUnload();
+      if (activeSection === 'form') {
+        handleBeforeUnload();
+      }
     };
-  }, [editingDevis, showEditDialog, docType, activeSection, devisType]);
+  }, [editingDevis, showEditDialog, docType, activeSection, devisType, isDraftEligibleDoc, flushDraftToStorage]);
 
-  // Existing debounce save
+  // Autosave local (devis + BC) — debounced while the create form is open.
   useEffect(() => {
-    if (editingDevis || showEditDialog || docType !== 'devis' || activeSection !== 'form') return;
+    if (editingDevis || showEditDialog || !isDraftEligibleDoc || activeSection !== 'form') return;
     if (!draftHydratedRef.current && devisItems.length === 0 && !thirdPartyName.trim()) return;
 
     const companyId = getActiveCompanyId();
     const timer = window.setTimeout(() => {
-      if (!currentDraftRef.current) {
-        clearDevisDraft(companyId, devisType, docType);
-        setDraftSavedAt(null);
-        return;
-      }
-      saveDevisDraft(companyId, devisType, docType, currentDraftRef.current);
-      setDraftSavedAt(new Date().toISOString());
+      flushDraftToStorage();
     }, 1200);
 
     return () => window.clearTimeout(timer);
@@ -295,6 +343,9 @@ export const GestionDevis = ({
     documentStatus,
     devisItems,
     isTtc,
+    isFodecEnabled,
+    isDraftEligibleDoc,
+    flushDraftToStorage,
   ]);
 
   const importableDevisForBc = useMemo(
@@ -448,11 +499,13 @@ export const GestionDevis = ({
     setDocumentStatus('brouillon');
     if (clearItems) setDevisItems([]);
     setIsTtc(false);
+    setIsFodecEnabled(false);
     setExistingAttachments([]);
     setPendingAttachmentFiles([]);
     setImportSourceDevisIds([]);
     clearDevisDraft(getActiveCompanyId(), devisType, docType);
     setDraftSavedAt(null);
+    draftHydratedRef.current = false;
   }, [devisType, docType]);
 
   const resetForm = useCallback(() => {
@@ -531,6 +584,7 @@ export const GestionDevis = ({
         devisType,
         docType,
         isTvaEnabled: isTtc,
+        isFodecEnabled,
       });
       const totalAmount = totals.totalFodec ? (totals.totalTTC + totals.totalFodec) : totals.totalTTC;
       const { data: { user } } = await supabase.auth.getUser();
@@ -615,17 +669,21 @@ export const GestionDevis = ({
         }
 
         const created = parseDevisRow(inserted, {}, {}, {});
-        setEditingDevis(created);
-        setDevisNumber(created.devis_number);
         setPendingAttachmentFiles([]);
         setExistingAttachments(attachmentUrls);
         clearDevisDraft(companyId, devisType, docType);
         setDraftSavedAt(null);
+        draftHydratedRef.current = true;
 
         toast.success(saveAsBc ? 'Bon de commande enregistré' : 'Devis sauvegardé');
         await loadAll();
+        setEditingDevis(null);
+        clearFormFields(true);
+        void refreshDevisNumber(devisType, saveAsBc ? 'bc' : 'devis');
         if (saveAsBc) {
           setActiveSection('bc');
+        } else {
+          setActiveSection('history');
         }
       }
     } catch (err) {
@@ -634,7 +692,7 @@ export const GestionDevis = ({
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, hasDocumentContent, devisType, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, docType, sectionMode, documentStatus, existingAttachments, pendingAttachmentFiles, importSourceDevisIds, loadAll]);
+  }, [isSaving, hasDocumentContent, devisType, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, isFodecEnabled, docType, sectionMode, documentStatus, existingAttachments, pendingAttachmentFiles, importSourceDevisIds, loadAll, clearFormFields, refreshDevisNumber]);
 
   const updateDevis = useCallback(async () => {
     if (!editingDevis) return;
@@ -646,6 +704,7 @@ export const GestionDevis = ({
       devisType,
       docType,
       isTvaEnabled: isTtc,
+      isFodecEnabled,
     });
     const totalAmount = totals.totalFodec ? (totals.totalTTC + totals.totalFodec) : totals.totalTTC;
     const folderKind = docType === 'bc' || editingDevis.is_bc ? 'bc' : 'devis';
@@ -684,7 +743,7 @@ export const GestionDevis = ({
       resetForm();
       loadAll();
     }
-  }, [editingDevis, hasDocumentContent, docType, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, documentStatus, existingAttachments, pendingAttachmentFiles, loadAll, resetForm]);
+  }, [editingDevis, hasDocumentContent, docType, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, isFodecEnabled, documentStatus, existingAttachments, pendingAttachmentFiles, loadAll, resetForm]);
 
   const deleteDevis = useCallback(async (devis: Devis) => {
     const { error } = await supabase.from('devis').delete().eq('id', devis.id);
@@ -752,7 +811,11 @@ export const GestionDevis = ({
       const totals = computeDevisTotals(modifiedItems, false, {
         devisType: primary.type as 'achat' | 'vente',
         docType: 'bc',
-        isTvaEnabled: primaryIsTtc
+        isTvaEnabled: primaryIsTtc,
+        isFodecEnabled: resolveFodecEnabled({
+          devisType: primary.type as 'achat' | 'vente',
+          items: modifiedItems,
+        }),
       });
       const totalAmount = totals.totalFodec ? (totals.totalTTC + totals.totalFodec) : totals.totalTTC;
       const mergedAttachments = sources.flatMap((d) => parseAttachmentUrls(d.attachment_urls));
@@ -834,6 +897,10 @@ export const GestionDevis = ({
     setDocumentStatus(d.status || 'brouillon');
     setDevisItems(d.items);
     setIsTtc(d.is_ttc ?? false);
+    setIsFodecEnabled(resolveFodecEnabled({
+      devisType: d.type as 'achat' | 'vente',
+      items: d.items,
+    }));
     setExistingAttachments(parseAttachmentUrls(d.attachment_urls));
     setPendingAttachmentFiles([]);
     setShowEditDialog(true);
@@ -842,6 +909,7 @@ export const GestionDevis = ({
   const handleAddNew = useCallback((mode: 'devis' | 'bc' | 'ba') => {
     setEditingDevis(null);
     setShowEditDialog(false);
+    draftHydratedRef.current = true;
     clearFormFields(true);
     setDevisType(defaultDevisType);
     setDocType(mode);
@@ -886,6 +954,7 @@ export const GestionDevis = ({
                   editingDevis={editingDevis}
                   isSaving={isSaving}
                   isTtc={isTtc}
+                  isFodecEnabled={isFodecEnabled}
                   docType="bc"
                   setDocType={setDocType}
                   setDevisType={handleTypeChange}
@@ -900,6 +969,7 @@ export const GestionDevis = ({
                   setDocumentStatus={setDocumentStatus}
                   setDevisItems={setDevisItems}
                   setIsTtc={setIsTtc}
+                  setIsFodecEnabled={setIsFodecEnabled}
                   onSave={saveDevis}
                   onUpdate={updateDevis}
                   onCancel={resetForm}
@@ -1009,6 +1079,7 @@ export const GestionDevis = ({
           editingDevis={editingDevis}
           isSaving={isSaving}
           isTtc={isTtc}
+          isFodecEnabled={isFodecEnabled}
           docType={docType}
           setDocType={setDocType}
           setDevisType={handleTypeChange}
@@ -1023,6 +1094,8 @@ export const GestionDevis = ({
           setDocumentStatus={setDocumentStatus}
           setDevisItems={setDevisItems}
           setIsTtc={setIsTtc}
+          setIsFodecEnabled={setIsFodecEnabled}
+          draftSavedAt={draftSavedAt}
           onSave={saveDevis}
           onUpdate={updateDevis}
           onCancel={editingDevis ? resetForm : clearInputsOnly}
@@ -1095,6 +1168,7 @@ export const GestionDevis = ({
                 editingDevis={editingDevis}
                 isSaving={isSaving}
                 isTtc={isTtc}
+                isFodecEnabled={isFodecEnabled}
                 docType={docType}
                 setDocType={setDocType}
                 setDevisType={handleTypeChange}
@@ -1109,6 +1183,7 @@ export const GestionDevis = ({
                 setDocumentStatus={setDocumentStatus}
                 setDevisItems={setDevisItems}
                 setIsTtc={setIsTtc}
+                setIsFodecEnabled={setIsFodecEnabled}
                 onSave={saveDevis}
                 onUpdate={updateDevis}
                 onCancel={resetForm}

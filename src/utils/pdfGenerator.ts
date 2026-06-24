@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { Product, DocumentItem, UnifiedDocument } from '@/types';
-import { computeDevisLine, computeDevisTotals, resolveDevisLineTvaRate } from '@/lib/devisPricing';
+import { computeDevisLine, computeDevisTotals, resolveDevisLineTvaRate, resolveFodecEnabled } from '@/lib/devisPricing';
 import { getDevisItemArticleCode, getDevisItemDetailDescription } from '@/lib/devisItemPdf';
 import companyLogo from '@/assets/grosafe-logo.webp';
 
@@ -830,7 +830,11 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   const totals = computeDevisTotals(devis.items, linePricesAreUnitHt, {
     devisType: (devis.type === 'sortant' || devis.type === 'vente' as any) ? 'vente' : 'achat',
     docType: devis.is_bc ? 'bc' : (devis.is_ba ? 'ba' : 'devis'),
-    isTvaEnabled: showTvaColumn
+    isTvaEnabled: showTvaColumn,
+    isFodecEnabled: resolveFodecEnabled({
+      devisType: (devis.type === 'sortant' || devis.type === 'vente' as any) ? 'vente' : 'achat',
+      items: devis.items,
+    }),
   });
   const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
   const showTvaTotals = showTvaColumn && totalTVA > 0;

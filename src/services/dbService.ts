@@ -696,6 +696,10 @@ const insertTableData = async (
       }
       
       delete (insertData as any).prix_ttc;
+
+      if (tableName === 'products') {
+        (insertData as any).quantity = 0;
+      }
       
       if (currentUserId) {
         const originalUserId = (insertData as any).user_id;
@@ -737,6 +741,69 @@ const insertTableData = async (
     throw new Error(`Import partiel (${failures.length} erreur(s)): ${failures.slice(0, 5).join('; ')}`);
   }
 };
+
+async function importStockTransactionsViaRpc(transactions: any[]): Promise<void> {
+  if (!transactions.length) return;
+  const failures: string[] = [];
+
+  for (const tx of transactions) {
+    const productId = tx.product_id;
+    const quantity = Number(tx.quantity) || 0;
+    const type = tx.type as string;
+    if (!productId || quantity <= 0) continue;
+    if (!['IN', 'OUT', 'ADJUSTMENT'].includes(type)) continue;
+
+    const dateRaw = tx.date;
+    const dateIso =
+      typeof dateRaw === 'string' && dateRaw.length <= 10
+        ? `${dateRaw}T12:00:00.000Z`
+        : dateRaw || new Date().toISOString();
+
+    const { error } = await supabase.rpc('create_stock_transaction', {
+      p_product_id: productId,
+      p_product_name: tx.product_name || 'Article',
+      p_type: type,
+      p_quantity: quantity,
+      p_date: dateIso,
+      p_note: tx.note ?? 'Import restauration',
+    });
+
+    if (error) {
+      failures.push(`${productId}/${type}: ${error.message}`);
+    }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(
+      `Import mouvements stock (${failures.length} erreur(s)): ${failures.slice(0, 3).join('; ')}`
+    );
+  }
+}
+
+/** Opening stock when backup has product quantities but no transaction ledger rows. */
+async function importOpeningStockFromProductSnapshot(products: any[]): Promise<void> {
+  const failures: string[] = [];
+  for (const p of products) {
+    const qty = Number(p.quantity) || 0;
+    const productId = p.id;
+    if (!productId || qty <= 0) continue;
+
+    const { error } = await supabase.rpc('create_stock_transaction', {
+      p_product_id: productId,
+      p_product_name: p.name || 'Article',
+      p_type: 'IN',
+      p_quantity: qty,
+      p_date: new Date().toISOString(),
+      p_note: 'Stock initial (import restauration)',
+    });
+    if (error) failures.push(`${productId}: ${error.message}`);
+  }
+  if (failures.length > 0) {
+    throw new Error(
+      `Stock initial import (${failures.length} erreur(s)): ${failures.slice(0, 3).join('; ')}`
+    );
+  }
+}
 
 async function importExtendedTables(
   dataToImport: Record<string, unknown>,
@@ -874,8 +941,13 @@ export const importDatabase = async (file: Blob, onProgress?: (message: string) 
     onProgress?.('Importation des fournisseurs de groupes...');
     await insertTableData('product_group_fournisseurs', product_group_fournisseurs, false);
 
-    onProgress?.('Importation des transactions...');
-    await insertTableData('transactions', transactions, false);
+    if (transactions.length > 0) {
+      onProgress?.('Reconstruction du ledger stock (RPC)...');
+      await importStockTransactionsViaRpc(transactions);
+    } else if (products.some((p: { quantity?: number }) => Number(p.quantity) > 0)) {
+      onProgress?.('Application du stock initial (RPC)...');
+      await importOpeningStockFromProductSnapshot(products);
+    }
 
     const backupVersion = Number(importData._metadata?.version ?? 5);
     if (backupVersion >= BACKUP_FORMAT_VERSION) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Truck, Plus, Trash2, Loader2, Bell, CheckCircle2, Pencil, UserCheck, MoreHorizontal } from 'lucide-react';
+import { Truck, Plus, Trash2, Loader2, Bell, CheckCircle2, Pencil, UserCheck, MoreHorizontal, Car, Wrench } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,11 @@ import { getActiveCompanyId } from '@/lib/activeCompany';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { cn } from '@/lib/utils';
 import { FLOTTE_EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
+import {
+  activeMaintenanceForVehicle,
+  loadMaintenanceRecords,
+  type VehicleMaintenanceRecord,
+} from '@/lib/vehicleMaintenanceStorage';
 
 interface Vehicle {
   id: string;
@@ -61,7 +66,7 @@ interface Vehicle {
   visite_technique_remind_at?: string | null;
   contract_holder_name?: string | null;
   contract_document_url?: string | null;
-  statut?: 'disponible' | 'en_fonction' | 'en_panne';
+  statut?: 'disponible' | 'en_fonction' | 'en_panne' | 'en_maintenance';
   conducteur_id?: string | null;
 }
 
@@ -157,6 +162,13 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
 
   const [assigningVehicleId, setAssigningVehicleId] = useState<string | null>(null);
   const [selectedDriverByVehicle, setSelectedDriverByVehicle] = useState<Record<string, string>>({});
+  const [maintenanceRecords, setMaintenanceRecords] = useState<VehicleMaintenanceRecord[]>(() =>
+    loadMaintenanceRecords(getActiveCompanyId())
+  );
+
+  const reloadMaintenanceRecords = () => {
+    setMaintenanceRecords(loadMaintenanceRecords(getActiveCompanyId()));
+  };
 
   useEffect(() => {
     setSection(initialSection);
@@ -208,7 +220,16 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
     fetchVehicles();
   }, []);
 
-  useCompanyChangeReload(fetchVehicles);
+  useEffect(() => {
+    if (section !== 'status') return;
+    reloadMaintenanceRecords();
+    void fetchVehicles();
+  }, [section]);
+
+  useCompanyChangeReload(() => {
+    void fetchVehicles();
+    reloadMaintenanceRecords();
+  });
 
   const openAddDialog = () => {
     setForm({
@@ -386,6 +407,16 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
       );
       if (!proceed) return;
     }
+    const vehicle = vehicles.find((v) => v.id === vehicleId);
+    if (
+      vehicle &&
+      (vehicle.statut === 'en_maintenance' ||
+        vehicle.statut === 'en_panne' ||
+        activeMaintenanceForVehicle(maintenanceRecords, vehicleId))
+    ) {
+      toast.error('Ce véhicule est en maintenance et ne peut pas être affecté');
+      return;
+    }
     setAssigningVehicleId(vehicleId);
     const { error } = await supabase
       .from('vehicles')
@@ -422,11 +453,13 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
   const statusBadgeClass = (status?: Vehicle['statut']) => {
     switch (status) {
       case 'en_fonction':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
+        return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800';
+      case 'en_maintenance':
+        return 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800';
       case 'en_panne':
-        return 'bg-red-100 text-red-700 border-red-200';
+        return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800';
       default:
-        return 'bg-green-100 text-green-700 border-green-200';
+        return 'bg-green-100 text-green-700 border-green-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800';
     }
   };
 
@@ -434,12 +467,19 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
     switch (status) {
       case 'en_fonction':
         return 'En fonction';
+      case 'en_maintenance':
+        return 'Maintenance';
       case 'en_panne':
         return 'En panne';
       default:
         return 'Disponible';
     }
   };
+
+  const isVehicleInMaintenance = (vehicle: Vehicle) =>
+    vehicle.statut === 'en_maintenance' ||
+    vehicle.statut === 'en_panne' ||
+    Boolean(activeMaintenanceForVehicle(maintenanceRecords, vehicle.id));
 
   const handleCreateReminders = async (vehicle: Vehicle) => {
     const rows = buildVehicleReminderRows(vehicle);
@@ -596,65 +636,115 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
           </Button>
         </div>
       ) : section === 'status' ? (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {vehicles.map((v) => {
             const driverName = getDriverName(v.conducteur_id);
+            const activeMaintenance = activeMaintenanceForVehicle(maintenanceRecords, v.id);
+            const inMaintenance = isVehicleInMaintenance(v);
+            const displayStatus: Vehicle['statut'] =
+              inMaintenance && v.statut !== 'en_maintenance' && v.statut !== 'en_panne'
+                ? 'en_maintenance'
+                : v.statut;
+
             return (
-              <div key={v.id} className="rounded-xl border border-border bg-card p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-foreground">{v.modele} ({v.matricule})</p>
-                    <p className="text-xs text-muted-foreground">
-                      {driverName ? `Affecté à ${driverName}` : 'Aucun chauffeur affecté'}
-                    </p>
+              <div
+                key={v.id}
+                className={cn(
+                  'aspect-square rounded-2xl border bg-card p-4 flex flex-col items-center justify-between text-center shadow-sm transition-all hover:shadow-md',
+                  inMaintenance ? 'border-amber-300/60 bg-amber-50/30 dark:bg-amber-950/10' : 'border-border'
+                )}
+              >
+                <div className="flex flex-col items-center gap-2 w-full min-h-0 flex-1 justify-center">
+                  <div
+                    className={cn(
+                      'w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center shrink-0',
+                      inMaintenance ? 'bg-amber-500/15 text-amber-600' : 'bg-primary/10 text-primary'
+                    )}
+                  >
+                    <Car className="w-7 h-7 sm:w-8 sm:h-8" />
                   </div>
-                  <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${statusBadgeClass(v.statut)}`}>
-                    {statusLabel(v.statut)}
+                  <div className="w-full min-w-0 px-1">
+                    <p className="font-bold text-sm text-foreground truncate">{v.modele}</p>
+                    <p className="text-[11px] font-mono text-muted-foreground truncate">{v.matricule}</p>
+                  </div>
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                      statusBadgeClass(displayStatus)
+                    )}
+                  >
+                    {statusLabel(displayStatus)}
                   </span>
+                  {driverName && !inMaintenance && (
+                    <p className="text-[10px] text-muted-foreground truncate w-full px-1">
+                      {driverName}
+                    </p>
+                  )}
+                  {activeMaintenance && (
+                    <div className="w-full mt-1 rounded-lg border border-amber-200/80 bg-amber-50/80 dark:bg-amber-950/20 px-2 py-1.5 text-left">
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-400 mb-0.5">
+                        <Wrench className="w-3 h-3 shrink-0" />
+                        Maintenance
+                      </div>
+                      <p className="text-[10px] text-amber-900/80 dark:text-amber-200/90 line-clamp-2 leading-snug">
+                        {activeMaintenance.description}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
-                {v.statut === 'en_panne' ? (
-                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                    Ce véhicule est en panne (mis à jour automatiquement depuis Maintenance).
-                  </div>
-                ) : (
-                  <div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_auto_auto] md:items-center">
-                    <Select
-                      value={selectedDriverByVehicle[v.id] || ''}
-                      onValueChange={(value) =>
-                        setSelectedDriverByVehicle((prev) => ({ ...prev, [v.id]: value }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Affecter à un chauffeur" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {drivers.length === 0 ? (
-                          <div className="px-3 py-2 text-xs text-muted-foreground">
-                            Aucun chauffeur trouvé dans la liste employés
-                          </div>
-                        ) : (
-                          drivers.map((d) => (
-                            <SelectItem key={d.id} value={d.id}>
-                              {`${d.prenom} ${d.nom}`.trim()}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      onClick={() => assignVehicleToDriver(v.id)}
-                      disabled={assigningVehicleId === v.id || drivers.length === 0}
-                      className="gap-2"
-                    >
-                      <UserCheck className="w-4 h-4" />
-                      Assigner
-                    </Button>
-                    <Button variant="outline" onClick={() => setVehicleAvailable(v.id)}>
-                      Marquer disponible
-                    </Button>
-                  </div>
-                )}
+                <div className="w-full pt-2 mt-auto space-y-2">
+                  {inMaintenance ? (
+                    <p className="text-[10px] text-muted-foreground leading-snug px-1">
+                      Véhicule en maintenance — affectation suspendue
+                    </p>
+                  ) : (
+                    <>
+                      <Select
+                        value={selectedDriverByVehicle[v.id] || ''}
+                        onValueChange={(value) =>
+                          setSelectedDriverByVehicle((prev) => ({ ...prev, [v.id]: value }))
+                        }
+                      >
+                        <SelectTrigger className="h-8 text-xs rounded-xl">
+                          <SelectValue placeholder="Chauffeur" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {drivers.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-muted-foreground">
+                              Aucun chauffeur
+                            </div>
+                          ) : (
+                            drivers.map((d) => (
+                              <SelectItem key={d.id} value={d.id}>
+                                {`${d.prenom} ${d.nom}`.trim()}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <Button
+                          size="sm"
+                          onClick={() => assignVehicleToDriver(v.id)}
+                          disabled={assigningVehicleId === v.id || drivers.length === 0}
+                          className="h-8 text-[10px] gap-1 rounded-xl px-2"
+                        >
+                          <UserCheck className="w-3 h-3" />
+                          Assigner
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setVehicleAvailable(v.id)}
+                          className="h-8 text-[10px] rounded-xl px-2"
+                        >
+                          Libre
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             );
           })}

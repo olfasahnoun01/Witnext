@@ -46,12 +46,14 @@ import type { CommercialAttachmentRecord } from '@/lib/commercialAttachments';
 import { ClientDocumentPreviewDialog } from '@/components/shared/ClientDocumentPreviewDialog';
 import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { PhoneLinesEditor } from '@/components/shared/PhoneLinesEditor';
-import { formatPhonesDisplay, serializePhoneList } from '@/lib/phoneList';
+import { formatPhonesDisplay, parsePhoneListFromStorage, serializePhoneList } from '@/lib/phoneList';
 import { validateUploadFile } from '@/lib/uploadValidation';
 import {
   DevisField,
   DevisFlowBadge,
-  DevisFormPageHeader,
+  DevisFodecToggle,
+  DevisDocumentSettingsBar,
+  DevisDocumentSettingsGroup,
   DevisPricingToggle,
   DevisSegmentedGrid,
   DevisSegmentedOption,
@@ -62,7 +64,6 @@ import {
   DevisZohoTotalsPanel,
 } from './DevisFormUi';
 import { DevisArticlesTable } from './DevisArticlesTable';
-import { DevisDocumentSettingsTable } from './DevisDocumentSettingsTable';
 import { DevisPartyFieldsTable } from './DevisPartyFieldsTable';
 import { ImportDevisIntoBcPanel } from './ImportDevisIntoBcPanel';
 import { useAppLayout } from '@/contexts/AppLayoutContext';
@@ -71,9 +72,43 @@ const DEFAULT_CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires',
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', 'Unique'];
 const COLORS = ['Noir', 'Blanc', 'Bleu', 'Rouge', 'Vert', 'Jaune', 'Orange', 'Gris', 'Marron', 'Beige'];
 
+function partyPhoneToLines(displayOrRaw: string): string[] {
+  const trimmed = displayOrRaw.trim();
+  if (!trimmed) return [''];
+  if (trimmed.includes(' · ')) {
+    const parts = trimmed.split(' · ').map((s) => s.trim()).filter(Boolean);
+    return parts.length > 0 ? parts : [''];
+  }
+  const parsed = parsePhoneListFromStorage(trimmed);
+  return parsed.length > 0 ? parsed : [trimmed];
+}
+
+function parsePartyAddressFields(address: string): {
+  exactLocation: string;
+  city: string;
+  governorate: string;
+} {
+  const trimmed = address.trim();
+  if (!trimmed) return { exactLocation: '', city: '', governorate: '' };
+
+  const parts = trimmed.split(', ').map((p) => p.trim()).filter(Boolean);
+  if (parts.length >= 3) {
+    return {
+      exactLocation: parts.slice(0, -2).join(', '),
+      city: parts[parts.length - 2],
+      governorate: parts[parts.length - 1],
+    };
+  }
+  if (parts.length === 2) {
+    return { exactLocation: '', city: parts[0], governorate: parts[1] };
+  }
+  return { exactLocation: parts[0], city: '', governorate: '' };
+}
+
 interface Fournisseur {
   id: number;
   nom: string;
+  code?: string | null;
   matricule_fiscale: string | null;
   location: string | null;
   phone: string | null;
@@ -105,6 +140,7 @@ interface DevisFormProps {
   editingDevis: Devis | null;
   isSaving: boolean;
   isTtc: boolean;
+  isFodecEnabled: boolean;
   setDevisType: (t: 'achat' | 'vente') => void;
   setDevisNumber: (v: string) => void;
   setDevisDate: (v: string) => void;
@@ -116,6 +152,8 @@ interface DevisFormProps {
   setDocumentStatus: (v: 'brouillon' | 'envoyé' | 'accepté' | 'refusé' | 'confirmé' | 'reçu' | 'intégré') => void;
   setDevisItems: React.Dispatch<React.SetStateAction<DevisItem[]>>;
   setIsTtc: (v: boolean) => void;
+  setIsFodecEnabled: (v: boolean) => void;
+  draftSavedAt?: string | null;
   onSave: () => void;
   onUpdate: () => void;
   onCancel: () => void;
@@ -135,10 +173,11 @@ interface DevisFormProps {
 export const DevisForm = memo(({
   devisType, devisNumber, devisDate,
   thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone,
-  notes, documentStatus, devisItems, editingDevis, isSaving, isTtc,
+  notes, documentStatus, devisItems, editingDevis, isSaving, isTtc, isFodecEnabled,
   setDevisType, setDevisNumber, setDevisDate,
   setThirdPartyName, setThirdPartyAddress, setThirdPartyTaxId, setThirdPartyPhone,
-  setNotes, setDocumentStatus, setDevisItems, setIsTtc,
+  setNotes, setDocumentStatus, setDevisItems, setIsTtc, setIsFodecEnabled,
+  draftSavedAt,
   onSave, onUpdate, onCancel,
   docType, setDocType, lockDevisType, forceDocType,
   existingAttachments = [],
@@ -298,7 +337,7 @@ export const DevisForm = memo(({
   useEffect(() => {
     const load = async () => {
       const cid = getActiveCompanyId();
-      const fournQuery = supabase.from('fournisseurs').select('id, nom, matricule_fiscale, location, phone, patente_url, registre_commerce_url, created_at');
+      const fournQuery = supabase.from('fournisseurs').select('id, nom, code, matricule_fiscale, location, phone, patente_url, registre_commerce_url, created_at');
       const clientsQuery = supabase.from('clients').select('id, nom, code, matricule_fiscale, location, phone, tva_status, created_at');
       const [fRes, cRes, catSettingsRes, productsCatsRes, groupCatsRes] = await Promise.all([
         (cid ? fournQuery.eq('company_id', cid) : fournQuery).order('created_at', { ascending: false }),
@@ -550,6 +589,59 @@ export const DevisForm = memo(({
     setNewClientCode(generateNextEntityCode(codes));
   }, [showNewClient, clients]);
 
+  useEffect(() => {
+    if (!showNewFournisseur) return;
+    const codes = fournisseurs.map((f) => f.code).filter(Boolean) as string[];
+    setNewFournisseurCode(generateNextEntityCode(codes, 'FRN-', 3));
+  }, [showNewFournisseur, fournisseurs]);
+
+  const prefillNewClientFromPartyTable = useCallback(() => {
+    const { exactLocation, city, governorate } = parsePartyAddressFields(thirdPartyAddress);
+    setNewClientName(thirdPartyName.trim());
+    setNewClientMatricule(thirdPartyTaxId.trim());
+    setNewClientPhoneLines(partyPhoneToLines(thirdPartyPhone));
+    setNewClientExactLocation(exactLocation);
+    setNewClientGovernorate(governorate);
+    setNewClientCity(city);
+    if (thirdPartyTvaStatus) {
+      setNewClientTvaStatus(thirdPartyTvaStatus);
+    }
+  }, [
+    thirdPartyName,
+    thirdPartyTaxId,
+    thirdPartyPhone,
+    thirdPartyAddress,
+    thirdPartyTvaStatus,
+  ]);
+
+  const prefillNewFournisseurFromPartyTable = useCallback(() => {
+    const { exactLocation, city, governorate } = parsePartyAddressFields(thirdPartyAddress);
+    setNewFournisseurName(thirdPartyName.trim());
+    setNewFournisseurMatricule(thirdPartyTaxId.trim());
+    setNewFournisseurPhoneLines(partyPhoneToLines(thirdPartyPhone));
+    setNewFournisseurGovernorate(governorate);
+    setNewFournisseurCity(city);
+    if (!city && !governorate && exactLocation) {
+      const fallback = parsePartyAddressFields(exactLocation);
+      if (fallback.city || fallback.governorate) {
+        setNewFournisseurCity(fallback.city);
+        setNewFournisseurGovernorate(fallback.governorate);
+      }
+    }
+  }, [thirdPartyName, thirdPartyTaxId, thirdPartyPhone, thirdPartyAddress]);
+
+  const openNewClientDialog = useCallback(() => {
+    resetNewClientForm();
+    prefillNewClientFromPartyTable();
+    setShowNewClient(true);
+  }, [resetNewClientForm, prefillNewClientFromPartyTable]);
+
+  const openNewFournisseurDialog = useCallback(() => {
+    resetNewFournisseurForm();
+    prefillNewFournisseurFromPartyTable();
+    setShowNewFournisseur(true);
+  }, [resetNewFournisseurForm, prefillNewFournisseurFromPartyTable]);
+
   const createClient = useCallback(async () => {
     if (!newClientName.trim()) { toast.error('Nom requis'); return; }
     if (!newClientMatricule.trim()) { toast.error('Matricule fiscal requis'); return; }
@@ -679,7 +771,7 @@ export const DevisForm = memo(({
 
     const detailDescription = itemDescription.trim();
     const catalogSku = selectedProduct?.sku?.trim();
-    const showFodecColumn = devisType === 'achat' && docType === 'bc' && isTtc && !partyExonereDeTva;
+    const showFodecColumn = isAchat && isFodecEnabled && !partyExonereDeTva;
     const fodecExtra =
       showFodecColumn && itemFodec !== null ? { fodec: itemFodec } : {};
 
@@ -739,7 +831,7 @@ export const DevisForm = memo(({
     if (articleMode === 'search') {
       requestAnimationFrame(() => composerSearchRef.current?.focus());
     }
-  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, itemTva, itemFodec, devisType, docType, isTtc, partyExonereDeTva, articleMode, isAchat, thirdPartyName, selectedProduct, setDevisItems]);
+  }, [itemDesignation, itemFournisseur, itemPrixTtc, itemRemise, itemQuantity, itemDescription, itemPrixAchat, itemTva, itemFodec, isAchat, isFodecEnabled, partyExonereDeTva, articleMode, thirdPartyName, selectedProduct, setDevisItems]);
 
 
 
@@ -1223,13 +1315,12 @@ export const DevisForm = memo(({
       devisType,
       docType,
       isTvaEnabled: isTtc && !partyExonereDeTva,
+      isFodecEnabled,
     });
-  }, [devisItems, devisType, docType, isTtc, partyExonereDeTva]);
+  }, [devisItems, devisType, docType, isTtc, isFodecEnabled, partyExonereDeTva]);
   const totalAmount = devisTotals.totalFinal;
   const thirdPartyLabel = isAchat ? 'Fournisseur' : 'Client';
 
-  const docLabel = docType === 'bc' ? 'Bon de commande' : 'Devis';
-  const pageTitle = editingDevis ? `Modifier ${docLabel}` : `Nouveau ${docLabel}`;
   const savePrimaryLabel =
     docType === 'bc' ? 'Enregistrer le bon de commande' : 'Enregistrer le devis';
 
@@ -1247,102 +1338,100 @@ export const DevisForm = memo(({
         )}
       >
         <DevisZohoTopBar>
-          <DevisFormPageHeader
-            title={pageTitle}
-            subtitle={
-              isAchat
-                ? 'Document reçu d\'un fournisseur'
-                : 'Document adressé à un client'
-            }
-            badges={<DevisFlowBadge devisType={devisType} docType={docType} />}
-          />
+          <DevisDocumentSettingsBar>
+            <div className="flex flex-wrap items-end gap-4 min-w-0">
+              <DevisDocumentSettingsGroup label="Nature">
+                {!editingDevis && !forceDocType ? (
+                  <DevisSegmentedGrid>
+                    <DevisSegmentedOption
+                      value="devis"
+                      current={docType}
+                      onSelect={setDocType}
+                      accent={isAchat ? 'achat' : 'vente'}
+                      label="Devis"
+                      icon={FileText}
+                      className="min-h-[2.5rem] py-1.5"
+                    />
+                    <DevisSegmentedOption
+                      value="bc"
+                      current={docType}
+                      onSelect={setDocType}
+                      accent={isAchat ? 'achat' : 'vente'}
+                      label="BC"
+                      icon={ShoppingCart}
+                      className="min-h-[2.5rem] py-1.5"
+                    />
+                  </DevisSegmentedGrid>
+                ) : (
+                  <DevisFlowBadge devisType={devisType} docType={docType} />
+                )}
+              </DevisDocumentSettingsGroup>
 
-          <DevisDocumentSettingsTable
-            natureCell={
-              !editingDevis && !forceDocType ? (
-                <DevisSegmentedGrid>
-                  <DevisSegmentedOption
-                    value="devis"
-                    current={docType}
-                    onSelect={setDocType}
-                    accent={isAchat ? 'achat' : 'vente'}
-                    label="Devis"
-                    icon={FileText}
-                    className="min-h-[2.5rem] py-1.5"
-                  />
-                  <DevisSegmentedOption
-                    value="bc"
-                    current={docType}
-                    onSelect={setDocType}
-                    accent={isAchat ? 'achat' : 'vente'}
-                    label="BC"
-                    icon={ShoppingCart}
-                    className="min-h-[2.5rem] py-1.5"
-                  />
-                </DevisSegmentedGrid>
-              ) : (
-                <span className="text-sm font-medium text-foreground">
-                  {docType === 'bc' ? 'Bon de commande' : 'Devis'}
-                </span>
-              )
-            }
-            fluxCell={
-              !forceDocType && !lockDevisType ? (
-                <DevisSegmentedGrid>
-                  <DevisSegmentedOption
-                    value="achat"
-                    current={devisType}
-                    onSelect={setDevisType}
-                    accent="achat"
-                    label="Achat"
-                    icon={ArrowDownLeft}
-                    className="min-h-[2.5rem] py-1.5"
-                  />
-                  <DevisSegmentedOption
-                    value="vente"
-                    current={devisType}
-                    onSelect={setDevisType}
-                    accent="vente"
-                    label="Vente"
-                    icon={ArrowUpRight}
-                    className="min-h-[2.5rem] py-1.5"
-                  />
-                </DevisSegmentedGrid>
-              ) : (
-                <DevisFlowBadge devisType={devisType} docType={docType} />
-              )
-            }
-            pricingCell={
-              partyExonereDeTva ? (
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground leading-snug">
-                    Prix unitaires <span className="font-medium text-foreground">HT</span>
-                    {thirdPartyTvaStatus ? (
-                      <>
-                        {' '}
-                        —{' '}
-                        <span className="font-medium text-foreground">
-                          {clientTvaStatusLabel(thirdPartyTvaStatus)}
-                        </span>
-                      </>
-                    ) : null}
-                  </p>
-                  <p className="text-xs text-muted-foreground leading-snug">
-                    Aucune TVA sur ce devis (tiers exonéré).
-                  </p>
+              <DevisDocumentSettingsGroup label="Flux">
+                {!forceDocType && !lockDevisType ? (
+                  <DevisSegmentedGrid>
+                    <DevisSegmentedOption
+                      value="achat"
+                      current={devisType}
+                      onSelect={setDevisType}
+                      accent="achat"
+                      label="Achat"
+                      icon={ArrowDownLeft}
+                      className="min-h-[2.5rem] py-1.5"
+                    />
+                    <DevisSegmentedOption
+                      value="vente"
+                      current={devisType}
+                      onSelect={setDevisType}
+                      accent="vente"
+                      label="Vente"
+                      icon={ArrowUpRight}
+                      className="min-h-[2.5rem] py-1.5"
+                    />
+                  </DevisSegmentedGrid>
+                ) : (
+                  <DevisFlowBadge devisType={devisType} docType={docType} />
+                )}
+              </DevisDocumentSettingsGroup>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+              {partyExonereDeTva ? (
+                <div className="rounded-md border border-border/70 bg-background/80 px-3 py-2 text-xs text-muted-foreground max-w-xs">
+                  Prix <span className="font-medium text-foreground">HT</span>
+                  {thirdPartyTvaStatus ? (
+                    <> — {clientTvaStatusLabel(thirdPartyTvaStatus)}</>
+                  ) : null}
+                  . Aucune TVA sur ce document.
                 </div>
               ) : (
                 <DevisPricingToggle
                   isTtc={isTtc}
                   onChange={handlePricingModeChange}
-                  embedded
+                  compact
                 />
-              )
-            }
-          />
+              )}
+              {isAchat && !partyExonereDeTva && (
+                <DevisFodecToggle
+                  enabled={isFodecEnabled}
+                  onChange={setIsFodecEnabled}
+                  compact
+                />
+              )}
+              {draftSavedAt && !editingDevis && (
+                <p className="text-[11px] text-muted-foreground px-1 tabular-nums">
+                  Brouillon local ·{' '}
+                  {new Date(draftSavedAt).toLocaleTimeString('fr-FR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              )}
+            </div>
+          </DevisDocumentSettingsBar>
         </DevisZohoTopBar>
 
-        <DevisZohoSection title={thirdPartyLabel}>
+        <div className="px-4 sm:px-6 py-5 border-b border-border/50">
           <DevisPartyFieldsTable
             partyLabel={thirdPartyLabel}
             thirdPartyName={thirdPartyName}
@@ -1363,10 +1452,10 @@ export const DevisForm = memo(({
             documentStatus={documentStatus}
             onDocumentStatusChange={(v) => setDocumentStatus(v)}
             showNewParty
-            onNewParty={() => (isAchat ? setShowNewFournisseur(true) : setShowNewClient(true))}
+            onNewParty={() => (isAchat ? openNewFournisseurDialog() : openNewClientDialog())}
             newPartyTitle={isAchat ? 'Nouveau fournisseur' : 'Nouveau client'}
           />
-        </DevisZohoSection>
+        </div>
 
         {(docType === 'bc' || forceDocType === 'bc') && !editingDevis && onImportDevis && (
           <div className="px-4 sm:px-6 pt-4 border-b border-border/50">
@@ -1389,14 +1478,20 @@ export const DevisForm = memo(({
                   accent={isAchat ? 'achat' : 'vente'}
                   onSelect={(v) => {
                     achatPriceRequestRef.current += 1;
+                    const keepName = itemDesignation.trim() || productSearch.trim();
                     setArticleMode(v);
                     setSelectedProduct(null);
-                    setItemDesignation('');
+                    if (keepName) {
+                      setItemDesignation(keepName);
+                      if (v === 'search') setProductSearch(keepName);
+                    }
                     setItemFournisseur('');
                     setItemPrixTtc(0);
                     setItemDescription('');
-                    setProductSearch('');
-                    setSearchResults([]);
+                    if (!keepName) {
+                      setProductSearch('');
+                      setSearchResults([]);
+                    }
                   }}
                   label="Catalogue"
                   icon={Search}
@@ -1408,14 +1503,20 @@ export const DevisForm = memo(({
                   accent={isAchat ? 'achat' : 'vente'}
                   onSelect={(v) => {
                     achatPriceRequestRef.current += 1;
+                    const keepName = itemDesignation.trim() || productSearch.trim();
                     setArticleMode(v);
                     setSelectedProduct(null);
-                    setItemDesignation('');
+                    if (keepName) {
+                      setItemDesignation(keepName);
+                      if (v === 'search') setProductSearch(keepName);
+                    }
                     setItemFournisseur('');
                     setItemPrixTtc(0);
                     setItemDescription('');
-                    setProductSearch('');
-                    setSearchResults([]);
+                    if (!keepName) {
+                      setProductSearch('');
+                      setSearchResults([]);
+                    }
                   }}
                   label="Saisie libre"
                   icon={Edit}
@@ -1467,7 +1568,7 @@ export const DevisForm = memo(({
             itemFodec={itemFodec}
             onItemFodecChange={setItemFodec}
             partyExonereDeTva={partyExonereDeTva}
-            showFodecColumn={devisType === 'achat' && docType === 'bc' && isTtc && !partyExonereDeTva}
+            showFodecColumn={isAchat && isFodecEnabled && !partyExonereDeTva}
           />
         </DevisZohoSection>
 
@@ -1506,8 +1607,9 @@ export const DevisForm = memo(({
           onCancel={onCancel}
           onSave={onSave}
           onUpdate={onUpdate}
-          onSaveDraft={docType === 'bc' && !editingDevis ? handleSaveDraft : undefined}
+          onSaveDraft={!editingDevis ? handleSaveDraft : undefined}
           saveLabel={savePrimaryLabel}
+          draftSavedAt={draftSavedAt}
         />
       </DevisZohoShell>
 
