@@ -12,7 +12,7 @@ export const SuiviPartiesHub = () => {
         <div>
           <h2 className="text-xl font-bold text-foreground">Suivi client / fournisseur</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Suivis regroupés par société — plusieurs devis et contacts par client ou fournisseur.
+            Suivis regroupés par société. Un suivi est créé automatiquement à chaque nouveau devis.
           </p>
         </div>
       </div>

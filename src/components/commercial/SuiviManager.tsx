@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useCallback, useEffect, Fragment } from 'react';
-import { useAuth } from '@/hooks/useAuth';
 import {
   Table,
   TableBody,
@@ -19,14 +18,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Plus, Search, Pencil, Trash2, FileText, Download, ChevronDown, FileSpreadsheet, MoreHorizontal, Building2, Phone, CalendarDays } from 'lucide-react';
+import { Plus, Search, Pencil, FileText, Download, ChevronDown, FileSpreadsheet, Building2, Phone, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -85,6 +82,10 @@ const EMPTY_FORM: SuiviFormState = {
   dernier_contact_date: '',
 };
 
+function isAutoSuiviFromDevis(reponse: string | null): boolean {
+  return (reponse ?? '').trim().startsWith('Devis créé');
+}
+
 function formatDisplayDate(value: string | null): string {
   if (!value) return '—';
   try {
@@ -110,7 +111,6 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [lockSocieteOnCreate, setLockSocieteOnCreate] = useState(false);
   const GROUPS_PER_PAGE = 8;
-  const { isAdmin } = useAuth();
 
   const resetDialog = useCallback(() => {
     setEditingId(null);
@@ -283,19 +283,6 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('Supprimer ce suivi ?')) return;
-    try {
-      const { error } = await supabase.from('parties_suivi').delete().eq('id', id);
-      if (error) throw error;
-      toast.success('Suivi supprimé');
-      await loadSuivi();
-    } catch (err) {
-      console.error(err);
-      toast.error(formatError(err));
-    }
-  };
-
   const partyLabel = type === 'client' ? 'client' : 'fournisseur';
 
   const handleExport = useCallback(
@@ -414,13 +401,23 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
             Aucun suivi — ajoutez une société puis enregistrez les suivis commerciaux.
           </div>
         ) : (
-          <div className="divide-y divide-border">
+          <div className="space-y-4 p-4">
             {paginatedGroups.map((group) => (
-              <section key={group.key} className="bg-background">
+              <section
+                key={group.key}
+                className={cn(
+                  'overflow-hidden rounded-xl border-2 bg-background shadow-sm',
+                  type === 'client'
+                    ? 'border-emerald-200/80 dark:border-emerald-800/60'
+                    : 'border-orange-200/80 dark:border-orange-800/60'
+                )}
+              >
                 <div
                   className={cn(
-                    'flex flex-col gap-3 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between',
-                    type === 'client' ? 'bg-emerald-500/5' : 'bg-orange-500/5'
+                    'flex flex-col gap-3 border-b-2 px-4 py-4 sm:flex-row sm:items-center sm:justify-between',
+                    type === 'client'
+                      ? 'border-emerald-200/80 bg-emerald-500/8 dark:border-emerald-800/60'
+                      : 'border-orange-200/80 bg-orange-500/8 dark:border-orange-800/60'
                   )}
                 >
                   <div className="flex min-w-0 items-start gap-3">
@@ -469,29 +466,45 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
                   </Button>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto border-t border-border/60">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableRow className="bg-muted/50 hover:bg-muted/50">
                         <TableHead className="w-[110px] font-semibold">Date devis</TableHead>
                         <TableHead className="w-[120px] font-semibold">N° Devis</TableHead>
                         <TableHead className="min-w-[280px] font-semibold">Réponse / Description</TableHead>
                         <TableHead className="w-[130px] font-semibold">Dernier contact</TableHead>
                         <TableHead className="w-[130px] font-semibold">Suivi par</TableHead>
                         <TableHead className="w-[130px] font-semibold">Modifié par</TableHead>
-                        <TableHead className="w-[72px] text-right font-semibold">Actions</TableHead>
+                        <TableHead className="w-[52px] text-right font-semibold" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {group.entries.map((row, index) => (
                         <TableRow
                           key={row.id}
-                          className={cn('align-top', index % 2 === 0 ? 'bg-background' : 'bg-muted/10')}
+                          className={cn(
+                            'align-top',
+                            index % 2 === 0 ? 'bg-background' : 'bg-muted/10',
+                            index < group.entries.length - 1 ? 'border-b border-border/50' : ''
+                          )}
                         >
                           <TableCell className="whitespace-nowrap py-3 text-sm">
                             {formatDisplayDate(row.devis_date)}
                           </TableCell>
-                          <TableCell className="py-3 font-mono text-sm">{row.devis_number || '—'}</TableCell>
+                          <TableCell className="py-3 font-mono text-sm">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span>{row.devis_number || '—'}</span>
+                              {isAutoSuiviFromDevis(row.reponse) ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] font-medium uppercase tracking-wide"
+                                >
+                                  Auto devis
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </TableCell>
                           <TableCell className="py-3">
                             <div
                               className="max-h-36 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-border/50 bg-muted/15 px-3 py-2 text-sm leading-relaxed"
@@ -518,36 +531,16 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
                             )}
                           </TableCell>
                           <TableCell className="py-3 text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  aria-label="Actions"
-                                >
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-44">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => openEdit(row)}>
-                                  <Pencil className="mr-2 h-4 w-4" />
-                                  Modifier
-                                </DropdownMenuItem>
-                                {isAdmin && (
-                                  <DropdownMenuItem
-                                    className="text-destructive focus:text-destructive"
-                                    onClick={() => void handleDelete(row.id)}
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Supprimer
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-label="Modifier le suivi"
+                              onClick={() => openEdit(row)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
