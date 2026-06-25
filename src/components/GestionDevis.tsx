@@ -18,7 +18,7 @@ import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { useDevisFormLeaveGuard } from '@/hooks/useDevisFormLeaveGuard';
 import { notifySessionInvalid } from '@/lib/sessionResume';
 import { debugLog } from '@/lib/debugLog';
-import { computeDevisTotals, resolveFodecEnabled } from '@/lib/devisPricing';
+import { computeDevisTotals, resolveFodecEnabled, prepareDevisItemsForPersistence } from '@/lib/devisPricing';
 import { parseAttachmentUrls, uploadCommercialAttachments, type CommercialAttachmentRecord } from '@/lib/commercialAttachments';
 import { buildMergedBcNotes, mergeDevisItemsFromSources, validateDevisMergeForBc } from '@/lib/mergeCommercialDocuments';
 import { ensureSuiviFromDevis } from '@/lib/partiesSuivi';
@@ -475,7 +475,6 @@ export const GestionDevis = ({
 
   useEffect(() => { loadAll(); }, [loadAll]);
   useSessionResumeReload(loadAll);
-  useCompanyChangeReload(loadAll);
 
   // Apply route defaults once on mount only — do not reset section when user is mid-form.
   const routeDefaultsAppliedRef = useRef(false);
@@ -547,6 +546,15 @@ export const GestionDevis = ({
     setShowEditDialog(false);
     void refreshDevisNumber(defaultDevisType, 'devis');
   }, [clearFormFields, defaultDevisType, refreshDevisNumber]);
+
+  const handleCompanyChange = useCallback(() => {
+    if (showEditDialog || editingDevis) {
+      resetForm();
+    }
+    void loadAll();
+  }, [showEditDialog, editingDevis, resetForm, loadAll]);
+
+  useCompanyChangeReload(handleCompanyChange);
 
   const clearInputsOnly = useCallback(() => {
     clearFormFields(true);
@@ -621,6 +629,7 @@ export const GestionDevis = ({
       const { data: { user } } = await supabase.auth.getUser();
       const companyId = requireActiveCompanyId();
       const numberMode = saveAsBc ? 'bc' : 'devis';
+      const persistedItems = prepareDevisItemsForPersistence(devisItems, { isFodecEnabled });
 
       const buildInsertPayload = (devisNum: string) => ({
         type: devisType,
@@ -631,7 +640,7 @@ export const GestionDevis = ({
         third_party_address: thirdPartyAddress || null,
         third_party_tax_id: thirdPartyTaxId || null,
         third_party_phone: thirdPartyPhone || null,
-        items: JSON.parse(JSON.stringify(devisItems)),
+        items: JSON.parse(JSON.stringify(persistedItems)),
         total_amount: totalAmount,
         notes: notes || null,
         created_by: user?.id,
@@ -731,55 +740,113 @@ export const GestionDevis = ({
   }, [isSaving, hasDocumentContent, devisType, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, isFodecEnabled, docType, sectionMode, documentStatus, existingAttachments, pendingAttachmentFiles, importSourceDevisIds, loadAll, clearFormFields, refreshDevisNumber]);
 
   const updateDevis = useCallback(async () => {
+    if (isSaving) return;
     if (!editingDevis) return;
     if (!hasDocumentContent) {
       toast.error('Ajoutez au moins une ligne d\'article');
       return;
     }
-    const totals = computeDevisTotals(devisItems, false, {
-      devisType,
-      docType,
-      isTvaEnabled: isTtc,
-      isFodecEnabled,
-    });
-    const totalAmount = totals.totalFodec ? (totals.totalTTC + totals.totalFodec) : totals.totalTTC;
-    const folderKind = docType === 'bc' || editingDevis.is_bc ? 'bc' : 'devis';
 
-    let attachmentUrls = existingAttachments;
-    if (pendingAttachmentFiles.length > 0) {
-      const uploaded = await uploadCommercialAttachments(
-        pendingAttachmentFiles,
-        `${folderKind}/${editingDevis.id}`
+    setIsSaving(true);
+    try {
+      const ready = await ensureSupabaseSessionReady();
+      if (!ready) {
+        notifySessionInvalid('session expired during devis update');
+        toast.error(SESSION_EXPIRED_USER_MESSAGE);
+        return;
+      }
+
+      const companyId = requireActiveCompanyId();
+      const { data: { user } } = await supabase.auth.getUser();
+      const persistedItems = prepareDevisItemsForPersistence(devisItems, { isFodecEnabled });
+      const totals = computeDevisTotals(persistedItems, false, {
+        devisType,
+        docType,
+        isTvaEnabled: isTtc,
+        isFodecEnabled,
+      });
+      const totalAmount = totals.totalFodec ? (totals.totalTTC + totals.totalFodec) : totals.totalTTC;
+      const folderKind = docType === 'bc' || editingDevis.is_bc ? 'bc' : 'devis';
+
+      let attachmentUrls = existingAttachments;
+      if (pendingAttachmentFiles.length > 0) {
+        const uploaded = await uploadCommercialAttachments(
+          pendingAttachmentFiles,
+          `${folderKind}/${editingDevis.id}`
+        );
+        attachmentUrls = [...existingAttachments, ...uploaded];
+      }
+
+      const { data: updated, error } = await supabaseQueryWithAuthRetry(async () =>
+        await supabase
+          .from('devis')
+          .update({
+            type: devisType,
+            devis_number: devisNumber.trim() || editingDevis.devis_number,
+            devis_date: devisDate,
+            third_party_name: thirdPartyName || null,
+            third_party_address: thirdPartyAddress || null,
+            third_party_tax_id: thirdPartyTaxId || null,
+            third_party_phone: thirdPartyPhone || null,
+            items: JSON.parse(JSON.stringify(persistedItems)),
+            total_amount: totalAmount,
+            notes: notes || null,
+            is_ttc: isTtc,
+            is_bc: editingDevis.is_bc && !editingDevis.is_bl,
+            is_bl: editingDevis.is_bl ?? false,
+            is_ba: editingDevis.is_ba ?? false,
+            status: docType === 'bc' ? documentStatus : editingDevis.status,
+            attachment_urls: attachmentUrls,
+            updated_by: user?.id ?? null,
+          } as any)
+          .eq('id', editingDevis.id)
+          .eq('company_id' as any, companyId)
+          .select('id')
+          .maybeSingle()
       );
-      attachmentUrls = [...existingAttachments, ...uploaded];
-    }
 
-    const { error } = await supabase.from('devis').update({
-      type: devisType,
-      devis_date: devisDate,
-      third_party_name: thirdPartyName || null,
-      third_party_address: thirdPartyAddress || null,
-      third_party_tax_id: thirdPartyTaxId || null,
-      third_party_phone: thirdPartyPhone || null,
-      items: JSON.parse(JSON.stringify(devisItems)),
-      total_amount: totalAmount,
-      notes: notes || null,
-      is_ttc: isTtc,
-      is_bc: editingDevis.is_bc && !editingDevis.is_bl,
-      is_bl: editingDevis.is_bl ?? false,
-      is_ba: false,
-      status: docType === 'bc' ? documentStatus : editingDevis.status,
-      attachment_urls: attachmentUrls,
-    } as any).eq('id', editingDevis.id);
+      if (error) {
+        toast.error(`Erreur lors de la mise à jour : ${error.message}`);
+        return;
+      }
+      if (!updated) {
+        toast.error('Aucune ligne mise à jour (droits insuffisants ou document introuvable).');
+        return;
+      }
 
-    if (error) {
-      toast.error('Erreur lors de la mise à jour');
-    } else {
+      setPendingAttachmentFiles([]);
+      setExistingAttachments(attachmentUrls);
       toast.success('Devis mis à jour');
+      await loadAll();
       resetForm();
-      loadAll();
+    } catch (err) {
+      console.error(err);
+      toast.error('Erreur lors de la mise à jour');
+    } finally {
+      setIsSaving(false);
     }
-  }, [editingDevis, hasDocumentContent, docType, devisType, devisNumber, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, isFodecEnabled, documentStatus, existingAttachments, pendingAttachmentFiles, loadAll, resetForm]);
+  }, [
+    isSaving,
+    editingDevis,
+    hasDocumentContent,
+    docType,
+    devisType,
+    devisNumber,
+    devisDate,
+    thirdPartyName,
+    thirdPartyAddress,
+    thirdPartyTaxId,
+    thirdPartyPhone,
+    notes,
+    devisItems,
+    isTtc,
+    isFodecEnabled,
+    documentStatus,
+    existingAttachments,
+    pendingAttachmentFiles,
+    loadAll,
+    resetForm,
+  ]);
 
   const deleteDevis = useCallback(async (devis: Devis) => {
     const { error } = await supabase.from('devis').delete().eq('id', devis.id);

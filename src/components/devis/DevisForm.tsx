@@ -225,6 +225,7 @@ export const DevisForm = memo(({
   const [newClientAttestationUrl, setNewClientAttestationUrl] = useState<string | null>(null);
   const [newClientTvaStatus, setNewClientTvaStatus] = useState<ClientTvaStatus>('assujetti');
   const partyTvaPolicyKeyRef = useRef<string | null>(null);
+  const skipTvaPolicyOnEditHydrateRef = useRef(false);
   const { preview: documentPreview, pdfBytesRef, openDocumentPreview, closePreview: closeDocumentPreview } =
     useClientDocumentPreview();
 
@@ -543,13 +544,20 @@ export const DevisForm = memo(({
 
     const policyKey = `${devisType}|${selectedThirdPartyId}|${thirdPartyName.trim().toLowerCase()}|${thirdPartyTvaStatus}`;
     if (partyTvaPolicyKeyRef.current === policyKey) return;
+
+    if (skipTvaPolicyOnEditHydrateRef.current) {
+      partyTvaPolicyKeyRef.current = policyKey;
+      skipTvaPolicyOnEditHydrateRef.current = false;
+      return;
+    }
+
     partyTvaPolicyKeyRef.current = policyKey;
 
     const defaultTva = defaultDevisLineTvaForParty(thirdPartyTvaStatus);
     setItemTva(defaultTva);
     setDevisItems((prev) => applyPartyTvaPolicyToItems(prev, thirdPartyTvaStatus));
     setIsTtc(defaultDevisPricingModeIsTtc(thirdPartyTvaStatus));
-  }, [thirdPartyTvaStatus, thirdPartyName, selectedThirdPartyId, devisType, setDevisItems, setIsTtc]);
+  }, [thirdPartyTvaStatus, thirdPartyName, selectedThirdPartyId, devisType, setDevisItems, setIsTtc, editingDevis]);
 
   useEffect(() => {
     if (partyExonereDeTva && isTtc) {
@@ -559,6 +567,7 @@ export const DevisForm = memo(({
 
   useEffect(() => {
     partyTvaPolicyKeyRef.current = null;
+    skipTvaPolicyOnEditHydrateRef.current = Boolean(editingDevis?.id);
   }, [devisType, editingDevis?.id]);
 
   const handleThirdPartySuggestionSelect = useCallback((item: Fournisseur | Client) => {

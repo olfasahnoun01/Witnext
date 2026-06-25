@@ -533,6 +533,35 @@ export const Planning = () => {
     });
   }, [employees, dates]);
 
+  const summaryTotals = useMemo(
+    () =>
+      summaries.reduce(
+        (acc, s) => ({
+          totalJ: acc.totalJ + s.totalJ,
+          totalN: acc.totalN + s.totalN,
+          totalR: acc.totalR + s.totalR,
+          totalJP1: acc.totalJP1 + s.totalJP1,
+          totalJP2: acc.totalJP2 + s.totalJP2,
+          totalNP1: acc.totalNP1 + s.totalNP1,
+          totalNP2: acc.totalNP2 + s.totalNP2,
+          totalWorkDays: acc.totalWorkDays + s.totalWorkDays,
+          totalSalary: acc.totalSalary + s.salary,
+        }),
+        {
+          totalJ: 0,
+          totalN: 0,
+          totalR: 0,
+          totalJP1: 0,
+          totalJP2: 0,
+          totalNP1: 0,
+          totalNP2: 0,
+          totalWorkDays: 0,
+          totalSalary: 0,
+        }
+      ),
+    [summaries]
+  );
+
   // Generate table
   const handleGenerate = useCallback(() => {
     if (!employeeCount || employeeCount <= 0) {
@@ -670,7 +699,7 @@ export const Planning = () => {
         if (section === 'all') doc.addPage();
         addHeader('Résumé / Récapitulatif');
         const summaryHead = [
-          ['#', 'Employé(e)', 'J', 'N', 'J-P1', 'J-P2', 'N-P1', 'N-P2', 'R', 'Total Travail'].reverse(),
+          ['#', 'Employé(e)', 'J', 'N', 'J-P1', 'J-P2', 'N-P1', 'N-P2', 'R', 'Total Travail', 'Salaire (DT)'].reverse(),
         ];
         const summaryBody = employees.map((emp, i) => {
           const s = summaries[i];
@@ -685,8 +714,24 @@ export const Planning = () => {
             String(s.totalNP2),
             String(s.totalR),
             `${s.totalWorkDays} j`,
+            `${s.salary.toFixed(3)} DT`,
           ].reverse();
         });
+        summaryBody.push(
+          [
+            '',
+            'TOTAL',
+            String(summaryTotals.totalJ),
+            String(summaryTotals.totalN),
+            String(summaryTotals.totalJP1),
+            String(summaryTotals.totalJP2),
+            String(summaryTotals.totalNP1),
+            String(summaryTotals.totalNP2),
+            String(summaryTotals.totalR),
+            `${summaryTotals.totalWorkDays} j`,
+            `${summaryTotals.totalSalary.toFixed(3)} DT`,
+          ].reverse()
+        );
 
         autoTable(doc, {
           head: summaryHead,
@@ -694,7 +739,7 @@ export const Planning = () => {
           startY: PLANNING_PDF_TABLE_START_Y,
           styles: { fontSize: 8, cellPadding: 2, halign: 'center' },
           headStyles: { fillColor: [30, 58, 95], fontSize: 7 },
-          columnStyles: { 8: { halign: 'right' } },
+          columnStyles: { 9: { halign: 'right' }, 10: { halign: 'right', fontStyle: 'bold' } },
         });
       };
 
@@ -711,6 +756,14 @@ export const Planning = () => {
             `${s.salary.toFixed(3)} DT`,
           ].reverse();
         });
+        salaryBody.push(
+          [
+            '',
+            'TOTAL',
+            String(summaryTotals.totalWorkDays),
+            `${summaryTotals.totalSalary.toFixed(3)} DT`,
+          ].reverse()
+        );
 
         autoTable(doc, {
           head: salaryHead,
@@ -744,7 +797,7 @@ export const Planning = () => {
       };
       toast.success(successMessages[section]);
     },
-    [companyName, siteName, startDate, endDate, dates, employees, summaries]
+    [companyName, siteName, startDate, endDate, dates, employees, summaries, summaryTotals]
   );
 
   useEffect(() => {
@@ -1233,6 +1286,9 @@ export const Planning = () => {
                   <th className="px-3 py-3 text-center text-xs font-semibold border-b border-border bg-primary/10 text-primary">
                     Total Travail (Jours)
                   </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-border bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 min-w-[110px]">
+                    Salaire (DT)
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1269,13 +1325,50 @@ export const Planning = () => {
                       <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border bg-red-500/5 text-red-600 dark:text-red-400">
                         {s.totalR}
                       </td>
-                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-border bg-primary/5 text-primary">
+                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border bg-primary/5 text-primary">
                         {s.totalWorkDays} j
+                      </td>
+                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-border bg-emerald-500/5 text-emerald-700 dark:text-emerald-400">
+                        {s.salary.toFixed(3)} DT
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
+              <tfoot>
+                <tr className="bg-muted/70 font-bold">
+                  <td className="px-4 py-3 text-sm text-foreground border-t-2 border-l border-border">
+                    TOTAL
+                  </td>
+                  <td className="px-3 py-3 text-center text-sm border-t-2 border-l border-border">
+                    {summaryTotals.totalJ}
+                  </td>
+                  <td className="px-3 py-3 text-center text-sm border-t-2 border-l border-border">
+                    {summaryTotals.totalN}
+                  </td>
+                  <td className="px-3 py-3 text-center text-sm border-t-2 border-l border-border">
+                    {summaryTotals.totalJP1}
+                  </td>
+                  <td className="px-3 py-3 text-center text-sm border-t-2 border-l border-border">
+                    {summaryTotals.totalJP2}
+                  </td>
+                  <td className="px-3 py-3 text-center text-sm border-t-2 border-l border-border">
+                    {summaryTotals.totalNP1}
+                  </td>
+                  <td className="px-3 py-3 text-center text-sm border-t-2 border-l border-border">
+                    {summaryTotals.totalNP2}
+                  </td>
+                  <td className="px-3 py-3 text-center text-sm border-t-2 border-l border-border">
+                    {summaryTotals.totalR}
+                  </td>
+                  <td className="px-3 py-3 text-center text-sm border-t-2 border-l border-border text-primary">
+                    {summaryTotals.totalWorkDays} j
+                  </td>
+                  <td className="px-3 py-3 text-center text-sm border-t-2 border-border text-emerald-700 dark:text-emerald-400">
+                    {summaryTotals.totalSalary.toFixed(3)} DT
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
@@ -1325,6 +1418,19 @@ export const Planning = () => {
                   );
                 })}
               </tbody>
+              <tfoot>
+                <tr className="bg-muted/70 font-bold">
+                  <td className="px-4 py-3 text-sm text-foreground border-t-2 border-l border-border">
+                    TOTAL
+                  </td>
+                  <td className="px-3 py-3 text-center text-sm border-t-2 border-l border-border">
+                    {summaryTotals.totalWorkDays}
+                  </td>
+                  <td className="px-3 py-3 text-center text-sm border-t-2 border-border text-emerald-700 dark:text-emerald-400">
+                    {summaryTotals.totalSalary.toFixed(3)} DT
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>

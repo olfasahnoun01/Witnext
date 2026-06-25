@@ -203,3 +203,16 @@ export function computeDevisTotals(
   };
 }
 
+/** Clone line items for DB persistence; strip FODEC when the toggle is off. */
+export function prepareDevisItemsForPersistence(
+  items: DevisItem[],
+  options: { isFodecEnabled?: boolean }
+): DevisItem[] {
+  const cloned = JSON.parse(JSON.stringify(items)) as DevisItem[];
+  if (options.isFodecEnabled) return cloned;
+  return cloned.map((item) => {
+    const { fodec: _fodec, ...rest } = item;
+    return rest;
+  });
+}
+
