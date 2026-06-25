@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Plus, Search, Pencil, Trash2, FileText, Download, ChevronDown, FileSpreadsheet, MoreHorizontal } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, FileText, Download, ChevronDown, FileSpreadsheet, MoreHorizontal, Building2, Phone, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
@@ -48,6 +48,8 @@ import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { formatError } from '@/lib/formatError';
 import { buildProfilesMap, collectUserIdsForProfiles, formatModifieePar, attachProfileNames } from '@/lib/documentListAudit';
 import { cn } from '@/lib/utils';
+import { groupSuiviBySociete } from '@/lib/suiviPartiesGrouping';
+import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -106,12 +108,14 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  const [lockSocieteOnCreate, setLockSocieteOnCreate] = useState(false);
+  const GROUPS_PER_PAGE = 8;
   const { isAdmin } = useAuth();
 
   const resetDialog = useCallback(() => {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setLockSocieteOnCreate(false);
   }, []);
 
   const loadSuivi = useCallback(async () => {
@@ -181,16 +185,29 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, type]);
 
-  const totalPages = Math.ceil(filteredRows.length / ITEMS_PER_PAGE);
-  const paginatedRows = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredRows.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredRows, currentPage]);
+  const groupedBySociete = useMemo(() => groupSuiviBySociete(filteredRows), [filteredRows]);
+
+  const totalPages = Math.ceil(groupedBySociete.length / GROUPS_PER_PAGE);
+  const paginatedGroups = useMemo(() => {
+    const start = (currentPage - 1) * GROUPS_PER_PAGE;
+    return groupedBySociete.slice(start, start + GROUPS_PER_PAGE);
+  }, [groupedBySociete, currentPage]);
 
   const openCreate = () => {
     resetDialog();
+    setDialogOpen(true);
+  };
+
+  const openCreateForSociete = (societe: string, telephone: string | null) => {
+    resetDialog();
+    setForm({
+      ...EMPTY_FORM,
+      societe,
+      telephone: telephone ?? '',
+    });
+    setLockSocieteOnCreate(true);
     setDialogOpen(true);
   };
 
@@ -248,11 +265,11 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
           })
           .eq('id', editingId);
         if (error) throw error;
-        toast.success('Ligne mise à jour');
+        toast.success('Suivi mis à jour');
       } else {
         const { error } = await supabase.from('parties_suivi').insert(payload);
         if (error) throw error;
-        toast.success('Ligne ajoutée');
+        toast.success('Suivi ajouté');
       }
 
       setDialogOpen(false);
@@ -267,11 +284,11 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Supprimer cette ligne de suivi ?')) return;
+    if (!window.confirm('Supprimer ce suivi ?')) return;
     try {
       const { error } = await supabase.from('parties_suivi').delete().eq('id', id);
       if (error) throw error;
-      toast.success('Ligne supprimée');
+      toast.success('Suivi supprimé');
       await loadSuivi();
     } catch (err) {
       console.error(err);
@@ -370,122 +387,184 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
             </DropdownMenu>
             <Button className="gap-2 shrink-0" onClick={openCreate}>
               <Plus className="w-4 h-4" />
-              Ajouter une ligne
+              Nouvelle société
             </Button>
           </div>
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50 hover:bg-muted/50">
-                <TableHead className="font-semibold">Date devis</TableHead>
-                <TableHead className="font-semibold">N° Devis</TableHead>
-                <TableHead className="font-semibold">Société</TableHead>
-                <TableHead className="font-semibold">Téléphone</TableHead>
-                <TableHead className="font-semibold min-w-[360px] w-[40%]">Réponse / Description</TableHead>
-                <TableHead className="font-semibold">Date dernier contact</TableHead>
-                <TableHead className="font-semibold min-w-[140px]">Suivi par</TableHead>
-                <TableHead className="font-semibold min-w-[140px]">Modifié par</TableHead>
-                <TableHead className="w-[90px] text-right font-semibold">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
-                    Chargement…
-                  </TableCell>
-                </TableRow>
-              ) : filteredRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="h-24 text-center text-muted-foreground italic">
-                    Aucune ligne — saisissez le suivi manuellement pour chaque {partyLabel}.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginatedRows.map((row, index) => (
-                  <TableRow
-                    key={row.id}
-                    className={cn(
-                      'align-top hover:bg-muted/40',
-                      index % 2 === 0 ? 'bg-background' : 'bg-muted/15'
-                    )}
-                  >
-                    <TableCell className="text-sm whitespace-nowrap py-3">
-                      {formatDisplayDate(row.devis_date)}
-                    </TableCell>
-                    <TableCell className="text-sm font-mono py-3">{row.devis_number || '—'}</TableCell>
-                    <TableCell className="text-sm font-semibold py-3">{row.societe}</TableCell>
-                    <TableCell className="text-sm py-3">{row.telephone || '—'}</TableCell>
-                    <TableCell className="py-3 min-w-[360px]">
-                      <div
-                        className="text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground max-h-40 overflow-y-auto rounded-md border border-border/60 bg-muted/20 px-3 py-2"
-                        title={row.reponse ?? undefined}
-                      >
-                        {row.reponse || '—'}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap py-3">
-                      {formatDisplayDate(row.dernier_contact_date)}
-                    </TableCell>
-                    <TableCell className="text-sm py-3">
-                      <span className="inline-flex items-center rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-xs font-medium">
-                        {row.suivi_par_name ? `Suivi par : ${row.suivi_par_name}` : '—'}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-sm py-3">
-                      {formatModifieePar({ ...row, updated_at: '' }) !== '-' ? (
-                        <span className="inline-flex items-center rounded-md border border-amber-200/80 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-                          {formatModifieePar({ ...row, updated_at: '' })}
-                        </span>
-                      ) : (
-                        '—'
+        {!loading && filteredRows.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-3 border-b bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+            <span>
+              <strong className="text-foreground">{groupedBySociete.length}</strong> société
+              {groupedBySociete.length > 1 ? 's' : ''}
+            </span>
+            <span className="text-border">|</span>
+            <span>
+              <strong className="text-foreground">{filteredRows.length}</strong> suivi
+              {filteredRows.length > 1 ? 's' : ''} au total
+            </span>
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="flex h-32 items-center justify-center text-muted-foreground">Chargement…</div>
+        ) : filteredRows.length === 0 ? (
+          <div className="flex h-32 items-center justify-center px-4 text-center text-muted-foreground italic">
+            Aucun suivi — ajoutez une société puis enregistrez les suivis commerciaux.
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {paginatedGroups.map((group) => (
+              <section key={group.key} className="bg-background">
+                <div
+                  className={cn(
+                    'flex flex-col gap-3 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between',
+                    type === 'client' ? 'bg-emerald-500/5' : 'bg-orange-500/5'
+                  )}
+                >
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div
+                      className={cn(
+                        'mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border shadow-sm',
+                        type === 'client'
+                          ? 'border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                          : 'border-orange-200 bg-orange-100 text-orange-700 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-300'
                       )}
-                    </TableCell>
-                    <TableCell className="text-right py-3">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            aria-label="Actions"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => openEdit(row)}>
-                            <Pencil className="mr-2 h-4 w-4" />
-                            Modifier
-                          </DropdownMenuItem>
-                          {isAdmin && (
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => void handleDelete(row.id)}
+                    >
+                      <Building2 className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base font-bold tracking-tight text-foreground">{group.societe}</h3>
+                        <Badge variant="secondary" className="font-semibold">
+                          {group.entries.length} suivi{group.entries.length > 1 ? 's' : ''}
+                        </Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        {group.telephone ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Phone className="h-3.5 w-3.5" />
+                            {group.telephone}
+                          </span>
+                        ) : null}
+                        {group.latestContactDate ? (
+                          <span className="inline-flex items-center gap-1">
+                            <CalendarDays className="h-3.5 w-3.5" />
+                            Dernier contact : {formatDisplayDate(group.latestContactDate)}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 gap-1.5 self-start sm:self-center"
+                    onClick={() => openCreateForSociete(group.societe, group.telephone)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Ajouter un suivi
+                  </Button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableHead className="w-[110px] font-semibold">Date devis</TableHead>
+                        <TableHead className="w-[120px] font-semibold">N° Devis</TableHead>
+                        <TableHead className="min-w-[280px] font-semibold">Réponse / Description</TableHead>
+                        <TableHead className="w-[130px] font-semibold">Dernier contact</TableHead>
+                        <TableHead className="w-[130px] font-semibold">Suivi par</TableHead>
+                        <TableHead className="w-[130px] font-semibold">Modifié par</TableHead>
+                        <TableHead className="w-[72px] text-right font-semibold">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {group.entries.map((row, index) => (
+                        <TableRow
+                          key={row.id}
+                          className={cn('align-top', index % 2 === 0 ? 'bg-background' : 'bg-muted/10')}
+                        >
+                          <TableCell className="whitespace-nowrap py-3 text-sm">
+                            {formatDisplayDate(row.devis_date)}
+                          </TableCell>
+                          <TableCell className="py-3 font-mono text-sm">{row.devis_number || '—'}</TableCell>
+                          <TableCell className="py-3">
+                            <div
+                              className="max-h-36 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-border/50 bg-muted/15 px-3 py-2 text-sm leading-relaxed"
+                              title={row.reponse ?? undefined}
                             >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Supprimer
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                              {row.reponse || '—'}
+                            </div>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap py-3 text-sm">
+                            {formatDisplayDate(row.dernier_contact_date)}
+                          </TableCell>
+                          <TableCell className="py-3 text-sm">
+                            <span className="inline-flex rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-xs font-medium">
+                              {row.suivi_par_name || '—'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="py-3 text-sm">
+                            {formatModifieePar({ ...row, updated_at: '' }) !== '-' ? (
+                              <span className="inline-flex rounded-md border border-amber-200/80 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                                {formatModifieePar({ ...row, updated_at: '' })}
+                              </span>
+                            ) : (
+                              '—'
+                            )}
+                          </TableCell>
+                          <TableCell className="py-3 text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  aria-label="Actions"
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-44">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => openEdit(row)}>
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  Modifier
+                                </DropdownMenuItem>
+                                {isAdmin && (
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() => void handleDelete(row.id)}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Supprimer
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
+
         {totalPages > 1 && (
-          <div className="p-4 border-t flex items-center justify-between">
+          <div className="flex items-center justify-between border-t p-4">
             <div className="text-sm text-muted-foreground">
-              Affichage {((currentPage - 1) * ITEMS_PER_PAGE) + 1} à {Math.min(currentPage * ITEMS_PER_PAGE, filteredRows.length)} sur {filteredRows.length} lignes
+              Sociétés {(currentPage - 1) * GROUPS_PER_PAGE + 1} à{' '}
+              {Math.min(currentPage * GROUPS_PER_PAGE, groupedBySociete.length)} sur{' '}
+              {groupedBySociete.length}
             </div>
             <Pagination className="w-auto mx-0">
               <PaginationContent>
@@ -550,7 +629,11 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editingId ? 'Modifier la ligne' : 'Nouvelle ligne de suivi'}
+              {editingId
+                ? 'Modifier le suivi'
+                : lockSocieteOnCreate
+                  ? `Nouveau suivi — ${form.societe}`
+                  : 'Nouvelle société / suivi'}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4 py-2">
@@ -562,7 +645,14 @@ export const SuiviManager = ({ type }: SuiviManagerProps) => {
                 onChange={(e) => setForm({ ...form, societe: e.target.value })}
                 placeholder={`Nom du ${partyLabel}`}
                 required
+                readOnly={lockSocieteOnCreate}
+                className={lockSocieteOnCreate ? 'bg-muted/50' : undefined}
               />
+              {lockSocieteOnCreate ? (
+                <p className="text-xs text-muted-foreground">
+                  Le suivi sera rattaché à cette société. Utilisez « Nouvelle société » pour un autre tiers.
+                </p>
+              ) : null}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
