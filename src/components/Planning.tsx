@@ -629,7 +629,11 @@ export const Planning = () => {
   // PDF Export (per section or all)
   const exportSectionPDF = useCallback(
     async (section: PlanningPdfSection) => {
-      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const doc = new jsPDF({
+        orientation: section === 'salary' ? 'portrait' : 'landscape',
+        unit: 'mm',
+        format: 'a4',
+      });
       const periodSuffix = `${formatDD_MM(startDate)}_${formatDD_MM(endDate)}`;
       const periodLabelStr = `${formatDD_MM(startDate)} - ${formatDD_MM(endDate)}`;
       const generatedAt = new Date();
@@ -744,9 +748,9 @@ export const Planning = () => {
       };
 
       const addSalaryPage = () => {
-        if (section === 'all') doc.addPage();
-        addHeader('Estimation Salaires');
-        const salaryHead = [['#', 'Employé(e)', 'Jours de travail', 'Salaire (DT)'].reverse()];
+        if (section === 'all') doc.addPage('a4', 'portrait');
+        addHeader('Estimation Salaires / جدول الرواتب');
+        const salaryHead = [['#', 'Employé(e)', 'Jours de travail', 'Salaire (DT)']];
         const salaryBody = employees.map((emp, i) => {
           const s = summaries[i];
           return [
@@ -754,25 +758,75 @@ export const Planning = () => {
             emp.name || `Employé(e) ${i + 1}`,
             String(s.totalWorkDays),
             `${s.salary.toFixed(3)} DT`,
-          ].reverse();
+          ];
         });
-        salaryBody.push(
-          [
-            '',
-            'TOTAL',
-            String(summaryTotals.totalWorkDays),
-            `${summaryTotals.totalSalary.toFixed(3)} DT`,
-          ].reverse()
-        );
+        salaryBody.push([
+          '',
+          'TOTAL',
+          String(summaryTotals.totalWorkDays),
+          `${summaryTotals.totalSalary.toFixed(3)} DT`,
+        ]);
 
         autoTable(doc, {
           head: salaryHead,
           body: salaryBody,
           startY: PLANNING_PDF_TABLE_START_Y,
-          styles: { fontSize: 9, cellPadding: 3, halign: 'center' },
-          headStyles: { fillColor: [21, 128, 61], fontSize: 8 },
-          columnStyles: { 2: { halign: 'right' } },
+          styles: {
+            fontSize: 10,
+            cellPadding: 3,
+            halign: 'right',
+            lineColor: [148, 163, 184],
+            lineWidth: 0.2,
+          },
+          headStyles: {
+            fillColor: [22, 101, 52],
+            textColor: 255,
+            fontStyle: 'bold',
+            halign: 'right',
+            fontSize: 9,
+          },
+          footStyles: { fillColor: [226, 232, 240], fontStyle: 'bold', halign: 'right' },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          columnStyles: {
+            0: { halign: 'center', cellWidth: 14 },
+            3: { halign: 'left', fontStyle: 'bold' },
+          },
+          theme: 'grid',
         });
+
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const margin = 14;
+        const tableEndY =
+          (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ??
+          PLANNING_PDF_TABLE_START_Y + 20;
+        const sigY = tableEndY + 18;
+        const halfW = (pageWidth - margin * 2) / 2;
+
+        const drawSignatureBlock = (centerX: number, title: string, subtitle: string) => {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(10);
+          doc.setTextColor(15, 23, 42);
+          doc.text(title, centerX, sigY, { align: 'center' });
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          doc.text(subtitle, centerX, sigY + 5, { align: 'center' });
+          doc.setDrawColor(51, 65, 85);
+          doc.setLineWidth(0.4);
+          doc.line(centerX - halfW / 2 + 10, sigY + 22, centerX + halfW / 2 - 10, sigY + 22);
+          doc.setFontSize(9);
+          doc.setTextColor(71, 85, 105);
+          doc.text('Date : _______________', centerX + halfW / 2 - 12, sigY + 30, {
+            align: 'right',
+          });
+        };
+
+        drawSignatureBlock(
+          margin + halfW / 2,
+          'Responsable RH',
+          'Signature du responsable des ressources humaines'
+        );
+        drawSignatureBlock(margin + halfW + halfW / 2, 'Direction', 'Signature de la direction');
       };
 
       if (section === 'schedule' || section === 'all') addSchedulePage();
@@ -1378,60 +1432,83 @@ export const Planning = () => {
       {isGenerated && (
         <div
           data-section="salary"
-          className="planning-section rounded-2xl border border-border bg-card shadow-md overflow-hidden mt-6"
+          className="planning-section planning-salary-section rounded-2xl border border-border bg-card shadow-md overflow-hidden mt-6"
         >
-          {renderPlanningDocumentHeader('salary', 'Estimation Salaires')}
+          {renderPlanningDocumentHeader('salary', 'Estimation Salaires / جدول الرواتب')}
           <div className="no-print flex items-center justify-between gap-3 p-4 border-b border-border bg-muted/30">
             <h3 className="text-base font-semibold text-foreground">جدول الرواتب (Estimation Salaires)</h3>
             {renderSectionActions('salary')}
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+
+          <div className="planning-salary-intro">
+            <p className="planning-salary-intro__title">جدول تقدير الرواتب الشهرية</p>
+            <div className="planning-salary-intro__meta">
+              <span>
+                <strong>الشركة :</strong> {companyName || '—'}
+              </span>
+              <span>
+                <strong>الموقع :</strong> {siteName || '—'}
+              </span>
+              <span>
+                <strong>الفترة :</strong> {periodLabel}
+              </span>
+              <span>
+                <strong>عدد الموظفين :</strong> {employees.length}
+              </span>
+            </div>
+            <p className="planning-salary-intro__note">
+              الحساب : 250,000 د.ت لـ 22 يوم عمل كامل — تناسبي حسب أيام العمل الفعلية (J, N, J-P1, J-P2, N-P1, N-P2).
+            </p>
+          </div>
+
+          <div className="planning-salary-table-wrap overflow-x-auto">
+            <table className="planning-salary-table">
               <thead>
-                <tr className="bg-muted/60">
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-muted-foreground border-b border-l border-border min-w-[200px]">
-                    الموظف
-                  </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-l border-border">
-                    أيام العمل الإجمالية
-                  </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold border-b border-border bg-emerald-500/10 text-emerald-700">
-                    الراتب (DT)
-                  </th>
+                <tr>
+                  <th className="col-index">ر.ت</th>
+                  <th className="col-name">اسم الموظف</th>
+                  <th className="col-days">أيام العمل</th>
+                  <th className="col-salary">الراتب (د.ت)</th>
                 </tr>
               </thead>
               <tbody>
                 {employees.map((emp, empIdx) => {
                   const s = summaries[empIdx];
                   return (
-                    <tr key={emp.id} className="hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-2 text-sm font-medium text-foreground border-b border-l border-border">
-                        {emp.name || `موظف ${empIdx + 1}`}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-l border-border">
-                        {s.totalWorkDays}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm font-bold border-b border-border text-emerald-600">
-                        {s.salary.toFixed(3)} DT
-                      </td>
+                    <tr key={emp.id}>
+                      <td className="col-index">{empIdx + 1}</td>
+                      <td className="col-name">{emp.name || `موظف ${empIdx + 1}`}</td>
+                      <td className="col-days">{s.totalWorkDays}</td>
+                      <td className="col-salary">{s.salary.toFixed(3)}</td>
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot>
-                <tr className="bg-muted/70 font-bold">
-                  <td className="px-4 py-3 text-sm text-foreground border-t-2 border-l border-border">
-                    TOTAL
+                <tr>
+                  <td className="col-index" colSpan={2}>
+                    المجموع
                   </td>
-                  <td className="px-3 py-3 text-center text-sm border-t-2 border-l border-border">
-                    {summaryTotals.totalWorkDays}
-                  </td>
-                  <td className="px-3 py-3 text-center text-sm border-t-2 border-border text-emerald-700 dark:text-emerald-400">
-                    {summaryTotals.totalSalary.toFixed(3)} DT
-                  </td>
+                  <td className="col-days">{summaryTotals.totalWorkDays}</td>
+                  <td className="col-salary">{summaryTotals.totalSalary.toFixed(3)}</td>
                 </tr>
               </tfoot>
             </table>
+          </div>
+
+          <div className="planning-salary-signatures">
+            <div className="planning-salary-signature">
+              <p className="planning-salary-signature__title">توقيع مسؤول الموارد البشرية</p>
+              <p className="planning-salary-signature__subtitle">Signature — Responsable RH</p>
+              <div className="planning-salary-signature__line" aria-hidden="true" />
+              <p className="planning-salary-signature__date">التاريخ : _______________</p>
+            </div>
+            <div className="planning-salary-signature">
+              <p className="planning-salary-signature__title">توقيع الإدارة</p>
+              <p className="planning-salary-signature__subtitle">Signature — Direction</p>
+              <div className="planning-salary-signature__line" aria-hidden="true" />
+              <p className="planning-salary-signature__date">التاريخ : _______________</p>
+            </div>
           </div>
         </div>
       )}

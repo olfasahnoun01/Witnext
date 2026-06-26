@@ -63,6 +63,8 @@ export interface SubSection {
   label: string;
   icon: LucideIcon;
   path?: string;
+  /** Optional group label rendered inside a section (e.g. Magasin sub-groups). */
+  group?: string;
 }
 
 export interface BigSection {
@@ -115,16 +117,15 @@ export const BIG_SECTIONS: BigSection[] = [
     label: 'Magasin & Stock',
     icon: Package,
     subsections: [
-      { id: 'dashboard', label: 'Tableau de Bord', icon: LayoutDashboard },
-      { id: 'demande-achat-magasin', label: "Demandes d'achat", icon: FileSignature },
-      { id: 'inventory', label: 'Inventaire', icon: Package },
-      { id: 'be-magasin', label: "Bons d'Entrée", icon: PackageCheck },
-      { id: 'bs-magasin', label: 'Bons de Sortie', icon: TrendingUp },
-      { id: 'bl-magasin', label: 'Bons de Livraison', icon: Truck },
-
-      { id: 'comparison', label: 'Comparaison Prix', icon: GitCompare },
-      { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
-      { id: 'reports', label: 'Rapports & Documents', icon: FileText },
+      { id: 'dashboard', label: 'Tableau de Bord', icon: LayoutDashboard, group: "Vue d'ensemble" },
+      { id: 'demande-achat-magasin', label: 'Demandes magasin', icon: FileSignature, group: 'Achats magasin' },
+      { id: 'inventory', label: 'Inventaire', icon: Package, group: 'Stock' },
+      { id: 'be-magasin', label: "Bons d'Entrée", icon: PackageCheck, group: 'Stock' },
+      { id: 'bs-magasin', label: 'Bons de Sortie', icon: TrendingUp, group: 'Stock' },
+      { id: 'bl-magasin', label: 'Bons de Livraison', icon: Truck, group: 'Stock' },
+      { id: 'comparison', label: 'Comparaison Prix', icon: GitCompare, group: 'Analyse' },
+      { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight, group: 'Analyse' },
+      { id: 'reports', label: 'Rapports & Documents', icon: FileText, group: 'Analyse' },
     ],
   },
   {

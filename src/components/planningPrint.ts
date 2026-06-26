@@ -30,10 +30,15 @@ export function printPlanningSection(section: PlanningPrintSection): void {
     return;
   }
 
+  const isSalary = section === 'salary';
+  const bodyClass = isSalary ? 'planning-print-body planning-print-body--salary' : 'planning-print-body';
+  const htmlAttrs = isSalary ? 'lang="ar" dir="rtl"' : 'lang="fr" dir="ltr"';
+
   frameDoc.open();
   frameDoc.write(
-    `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title></title>` +
-      `<style>${planningPrintCss}</style></head><body>${clone.outerHTML}</body></html>`
+    `<!DOCTYPE html><html ${htmlAttrs}><head><meta charset="utf-8"><title></title>` +
+      `<style>${planningPrintCss}</style></head>` +
+      `<body class="${bodyClass}">${clone.outerHTML}</body></html>`
   );
   frameDoc.close();
 

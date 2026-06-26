@@ -89,7 +89,7 @@ export function AppLayout() {
           <div
             className={cn(
               'flex min-h-0 flex-1 flex-col transition-all duration-300',
-              sidebarOpen ? 'lg:ml-72' : 'lg:ml-0'
+              sidebarOpen ? 'lg:ml-80' : 'lg:ml-0'
             )}
           >
             <Header
