@@ -308,6 +308,9 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           toast.error(result.error || 'Erreur lors de la création');
           return;
         }
+        if (result.id && formData.image) {
+          await updateProduct(result.id, { image: formData.image });
+        }
         if (formData.fiche_urls.length > 0 && result.id) {
           await supabase.rpc('update_product_fiche_technique', {
             _product_id: result.id,

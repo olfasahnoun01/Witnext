@@ -201,9 +201,19 @@ export const updateProduct = async (id: number, product: Partial<Product>): Prom
   if (product.remise !== undefined) updateData.remise = product.remise;
   if (product.min_stock !== undefined) updateData.min_stock = product.min_stock;
   if (product.image !== undefined) {
-    updateData.image = product.image
-      ? await persistProductImageIfInline(product.image, `product-${id}.webp`)
-      : null;
+    try {
+      updateData.image = product.image
+        ? await persistProductImageIfInline(product.image, `product-${id}.webp`)
+        : null;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      console.error('Erreur lors du téléversement de l\'image produit:', error);
+      throw new Error(
+        message.toLowerCase().includes('failed to fetch')
+          ? 'Impossible d\'envoyer l\'image. Vérifiez votre connexion et réessayez.'
+          : `Impossible d'enregistrer l'image : ${message}`
+      );
+    }
   }
   if (product.color !== undefined) updateData.color = product.color || null;
   

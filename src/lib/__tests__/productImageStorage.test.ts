@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  inlineDataUrlToBlob,
   isInlineProductImage,
   parseProductImageStoragePath,
 } from '@/lib/productImageStorage';
@@ -14,6 +15,19 @@ describe('isInlineProductImage', () => {
     expect(isInlineProductImage('https://example.com/x.png')).toBe(false);
     expect(isInlineProductImage(null)).toBe(false);
     expect(isInlineProductImage('')).toBe(false);
+  });
+});
+
+describe('inlineDataUrlToBlob', () => {
+  it('converts a data URL to a blob with the correct mime type', () => {
+    const dataUrl = 'data:image/webp;base64,QUJDRA==';
+    const blob = inlineDataUrlToBlob(dataUrl);
+    expect(blob.type).toBe('image/webp');
+    expect(blob.size).toBe(4);
+  });
+
+  it('rejects malformed data URLs', () => {
+    expect(() => inlineDataUrlToBlob('not-a-data-url')).toThrow('Image inline invalide');
   });
 });
 

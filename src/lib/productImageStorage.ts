@@ -29,6 +29,23 @@ export function isInlineProductImage(value: string | null | undefined): boolean 
   return value.startsWith('data:');
 }
 
+/** Convert a data URL to Blob without fetch (fetch on data: URLs is unreliable in browsers). */
+export function inlineDataUrlToBlob(dataUrl: string): Blob {
+  const comma = dataUrl.indexOf(',');
+  if (comma < 0) {
+    throw new Error('Image inline invalide');
+  }
+  const header = dataUrl.slice(0, comma);
+  const base64 = dataUrl.slice(comma + 1);
+  const mime = header.match(/data:([^;]+)/i)?.[1]?.trim() || 'image/webp';
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: mime });
+}
+
 export function parseProductImageStoragePath(stored: string): string | null {
   const trimmed = stored.trim();
   if (!trimmed || isInlineProductImage(trimmed)) return null;
@@ -143,8 +160,7 @@ export async function persistProductImageIfInline(
   if (!value?.trim()) return null;
   if (!isInlineProductImage(value)) return value;
 
-  const res = await fetch(value);
-  const blob = await res.blob();
+  const blob = inlineDataUrlToBlob(value);
   return uploadProductImageFile(blob, fileName);
 }
 
