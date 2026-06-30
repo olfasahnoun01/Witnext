@@ -33,6 +33,8 @@ interface AvoirFinancierPanelProps {
   companyId: string;
   clients: CounterpartyOption[];
   fournisseurs: CounterpartyOption[];
+  /** When set, hides the vente/achat tabs and locks the panel to this flow. */
+  lockType?: AvoirFinancierType;
   onCreated?: () => void;
 }
 
@@ -47,22 +49,24 @@ export function AvoirFinancierPanel({
   companyId,
   clients,
   fournisseurs,
+  lockType,
   onCreated,
 }: AvoirFinancierPanelProps) {
-  const [tab, setTab] = useState<AvoirFinancierType>('vente');
+  const [tab, setTab] = useState<AvoirFinancierType>(lockType ?? 'vente');
   const [counterparty, setCounterparty] = useState<CounterpartyOption | null>(null);
-  const [numero, setNumero] = useState(() => generateAvoirNumero('vente'));
+  const [numero, setNumero] = useState(() => generateAvoirNumero(lockType ?? 'vente'));
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
   const [lignes, setLignes] = useState<LineDraft[]>([emptyLine()]);
   const [busy, setBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const tiers = tab === 'vente' ? clients : fournisseurs;
+  const activeType = lockType ?? tab;
+  const tiers = activeType === 'vente' ? clients : fournisseurs;
   const [existing, setExisting] = useState<AvoirFinancier[]>([]);
 
   useEffect(() => {
     let active = true;
-    listAvoirs(companyId, tab)
+    listAvoirs(companyId, activeType)
       .then((rows) => {
         if (active) setExisting(rows);
       })
@@ -70,7 +74,7 @@ export function AvoirFinancierPanel({
     return () => {
       active = false;
     };
-  }, [companyId, tab, refreshKey]);
+  }, [companyId, activeType, refreshKey]);
 
   const previewLignes = useMemo(() => {
     return lignes
@@ -102,7 +106,7 @@ export function AvoirFinancierPanel({
     try {
       await createAvoirFinancier({
         companyId,
-        type: tab,
+        type: activeType,
         numero,
         issueDate,
         counterpartyId: counterparty.id,
@@ -116,7 +120,7 @@ export function AvoirFinancierPanel({
         valider,
       });
       toast.success(valider ? 'Avoir validé — crédit disponible en lettrage' : 'Avoir en brouillon');
-      setNumero(generateAvoirNumero(tab));
+      setNumero(generateAvoirNumero(activeType));
       setLignes([emptyLine()]);
       setCounterparty(null);
       setRefreshKey((k) => k + 1);
@@ -131,19 +135,25 @@ export function AvoirFinancierPanel({
   return (
     <div className="space-y-6">
       <Tabs
-        value={tab}
-        onValueChange={(v) => {
-          setTab(v as AvoirFinancierType);
-          setNumero(generateAvoirNumero(v as AvoirFinancierType));
-          setCounterparty(null);
-        }}
+        value={activeType}
+        onValueChange={
+          lockType
+            ? undefined
+            : (v) => {
+                setTab(v as AvoirFinancierType);
+                setNumero(generateAvoirNumero(v as AvoirFinancierType));
+                setCounterparty(null);
+              }
+        }
       >
-        <TabsList>
-          <TabsTrigger value="vente">Avoir client</TabsTrigger>
-          <TabsTrigger value="achat">Avoir fournisseur</TabsTrigger>
-        </TabsList>
+        {!lockType && (
+          <TabsList>
+            <TabsTrigger value="vente">Avoir client</TabsTrigger>
+            <TabsTrigger value="achat">Avoir fournisseur</TabsTrigger>
+          </TabsList>
+        )}
 
-        <TabsContent value={tab} className="mt-4 space-y-6">
+        <TabsContent value={activeType} className="mt-4 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

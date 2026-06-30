@@ -93,6 +93,14 @@ export const SuiviPartiesHub = lazy(() =>
 export const FacturesVente = lazy(() =>
   import('@/components/commercial/FacturesVente').then((m) => ({ default: m.FacturesVente }))
 );
+export const AvoirClientPage = lazy(() =>
+  import('@/components/commercial/CommercialAvoirPage').then((m) => ({ default: m.AvoirClientPage }))
+);
+export const AvoirFournisseurPage = lazy(() =>
+  import('@/components/commercial/CommercialAvoirPage').then((m) => ({
+    default: m.AvoirFournisseurPage,
+  }))
+);
 export const FinanceModule = lazy(() =>
   import('@/modules/finance/FinanceModule').then((m) => ({ default: m.FinanceModule }))
 );

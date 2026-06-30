@@ -11,6 +11,8 @@ import {
   Dashboard,
   DriverControlPlanning,
   FacturesVente,
+  AvoirClientPage,
+  AvoirFournisseurPage,
   FinanceModule,
   Flotte,
   FluxSuiviHub,
@@ -213,6 +215,16 @@ export function ErpRoutes() {
             </SubsectionRoute>
           }
         />
+        <Route
+          path="/sales/avoir-client"
+          element={
+            <SubsectionRoute subsectionId="avoir-client">
+              <LazyRoute>
+                <AvoirClientPage />
+              </LazyRoute>
+            </SubsectionRoute>
+          }
+        />
 
         <Route path="/purchases" element={<Navigate to="/purchases/requests" replace />} />
         <Route
@@ -274,6 +286,16 @@ export function ErpRoutes() {
                   title="Réception fournisseurs"
                   documentTypes={['BC_FOURNISSEUR']}
                 />
+              </LazyRoute>
+            </SubsectionRoute>
+          }
+        />
+        <Route
+          path="/purchases/avoir-fournisseur"
+          element={
+            <SubsectionRoute subsectionId="avoir-fournisseur">
+              <LazyRoute>
+                <AvoirFournisseurPage />
               </LazyRoute>
             </SubsectionRoute>
           }

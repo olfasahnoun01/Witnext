@@ -25,6 +25,7 @@ import {
   Fuel,
   CreditCard,
   Receipt,
+  FileMinus,
   Settings,
   ShoppingBag,
   PackageCheck,
@@ -98,6 +99,7 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'bc-vente', label: 'Bons de Commande', icon: FileText },
       { id: 'bl-vente', label: 'Bons de Livraison', icon: Truck },
       { id: 'factures-vente', label: 'Factures', icon: Receipt },
+      { id: 'avoir-client', label: 'Avoir Client', icon: FileMinus },
     ],
   },
   {
@@ -110,6 +112,7 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'devis-achat', label: "Devis fournisseurs", icon: ClipboardList },
       { id: 'bc-achat', label: "BC fournisseurs", icon: FileText },
       { id: 'bc-fournisseur-reception', label: 'Réception fournisseurs', icon: PackageCheck },
+      { id: 'avoir-fournisseur', label: 'Avoir Fournisseur', icon: FileMinus },
     ],
   },
   {

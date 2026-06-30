@@ -23,6 +23,7 @@ export const SUBSECTION_ROUTES: Record<string, string> = {
   'bc-vente': '/sales/orders',
   'bl-vente': '/sales/delivery-notes',
   'factures-vente': '/sales/invoices',
+  'avoir-client': '/sales/avoir-client',
 
   // Achats → /purchases/*
   'demande-achat': '/purchases/requests',
@@ -30,6 +31,7 @@ export const SUBSECTION_ROUTES: Record<string, string> = {
   'devis-achat': '/purchases/quotations',
   'bc-achat': '/purchases/orders',
   'bc-fournisseur-reception': '/purchases/reception',
+  'avoir-fournisseur': '/purchases/avoir-fournisseur',
 
   // Commercial
   'flux-suivi': '/commercial/flux',
