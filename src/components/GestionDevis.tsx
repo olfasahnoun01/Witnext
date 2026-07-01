@@ -625,11 +625,11 @@ export const GestionDevis = ({
         isTvaEnabled: isTtc,
         isFodecEnabled,
       });
-      const totalAmount = totals.totalFodec ? (totals.totalTTC + totals.totalFodec) : totals.totalTTC;
+      const totalAmount = totals.totalTTC;
       const { data: { user } } = await supabase.auth.getUser();
       const companyId = requireActiveCompanyId();
       const numberMode = saveAsBc ? 'bc' : 'devis';
-      const persistedItems = prepareDevisItemsForPersistence(devisItems, { isFodecEnabled });
+      const persistedItems = prepareDevisItemsForPersistence(devisItems, { isFodecEnabled, isSortantTTC: false });
 
       const buildInsertPayload = (devisNum: string) => ({
         type: devisType,
@@ -758,14 +758,14 @@ export const GestionDevis = ({
 
       const companyId = requireActiveCompanyId();
       const { data: { user } } = await supabase.auth.getUser();
-      const persistedItems = prepareDevisItemsForPersistence(devisItems, { isFodecEnabled });
+      const persistedItems = prepareDevisItemsForPersistence(devisItems, { isFodecEnabled, isSortantTTC: false });
       const totals = computeDevisTotals(persistedItems, false, {
         devisType,
         docType,
         isTvaEnabled: isTtc,
         isFodecEnabled,
       });
-      const totalAmount = totals.totalFodec ? (totals.totalTTC + totals.totalFodec) : totals.totalTTC;
+      const totalAmount = totals.totalTTC;
       const folderKind = docType === 'bc' || editingDevis.is_bc ? 'bc' : 'devis';
 
       let attachmentUrls = existingAttachments;
@@ -911,16 +911,21 @@ export const GestionDevis = ({
     try {
       const bcNumber = await allocateDevisNumber(primary.type as 'achat' | 'vente', 'bc');
       const { data: { user } } = await supabase.auth.getUser();
-      const totals = computeDevisTotals(modifiedItems, false, {
+      const fodecEnabled = resolveFodecEnabled({
+        devisType: primary.type as 'achat' | 'vente',
+        items: modifiedItems,
+      });
+      const persistedItems = prepareDevisItemsForPersistence(modifiedItems, {
+        isFodecEnabled: fodecEnabled,
+        isSortantTTC: false,
+      });
+      const totals = computeDevisTotals(persistedItems, false, {
         devisType: primary.type as 'achat' | 'vente',
         docType: 'bc',
         isTvaEnabled: primaryIsTtc,
-        isFodecEnabled: resolveFodecEnabled({
-          devisType: primary.type as 'achat' | 'vente',
-          items: modifiedItems,
-        }),
+        isFodecEnabled: fodecEnabled,
       });
-      const totalAmount = totals.totalFodec ? (totals.totalTTC + totals.totalFodec) : totals.totalTTC;
+      const totalAmount = totals.totalTTC;
       const mergedAttachments = sources.flatMap((d) => parseAttachmentUrls(d.attachment_urls));
 
       const { data: insertedBc, error } = await supabase.from('devis').insert({
@@ -934,7 +939,7 @@ export const GestionDevis = ({
         third_party_address: primary.third_party_address,
         third_party_tax_id: primary.third_party_tax_id,
         third_party_phone: primary.third_party_phone,
-        items: JSON.parse(JSON.stringify(modifiedItems)),
+        items: JSON.parse(JSON.stringify(persistedItems)),
         total_amount: totalAmount,
         notes: isMerge ? buildMergedBcNotes(sources) : primary.notes,
         is_ttc: primaryIsTtc,

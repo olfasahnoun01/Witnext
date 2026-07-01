@@ -3,6 +3,8 @@ import {
   computeArticleTableLineTotalHT,
   computeDevisLine,
   computeDevisTotals,
+  prepareDevisItemsForPersistence,
+  resolveFodecEnabled,
   round3,
   TIMBRE_FISCAL_DT,
 } from '../devisPricing';
@@ -167,5 +169,26 @@ describe('computeDevisTotals', () => {
       { devisType: 'achat', docType: 'bc', isFodecEnabled: false }
     );
     expect(t3.totalFodec).toBeUndefined();
+  });
+});
+
+describe('prepareDevisItemsForPersistence', () => {
+  it('bakes default FODEC per line when toggle is on', () => {
+    const items = [item({ prix_ttc: 100, quantity: 1, tva: 19 })];
+    const persisted = prepareDevisItemsForPersistence(items, { isFodecEnabled: true });
+    expect(persisted[0].fodec).toBeCloseTo(1, 3);
+    expect(resolveFodecEnabled({ devisType: 'achat', items: persisted })).toBe(true);
+  });
+
+  it('strips FODEC from lines when toggle is off', () => {
+    const items = [item({ prix_ttc: 100, quantity: 1, tva: 19, fodec: 1 })];
+    const persisted = prepareDevisItemsForPersistence(items, { isFodecEnabled: false });
+    expect(persisted[0].fodec).toBeUndefined();
+  });
+
+  it('keeps manual FODEC values when toggle is on', () => {
+    const items = [item({ prix_ttc: 100, quantity: 1, tva: 19, fodec: 5 })];
+    const persisted = prepareDevisItemsForPersistence(items, { isFodecEnabled: true });
+    expect(persisted[0].fodec).toBe(5);
   });
 });

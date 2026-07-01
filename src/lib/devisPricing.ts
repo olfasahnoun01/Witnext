@@ -206,13 +206,25 @@ export function computeDevisTotals(
 /** Clone line items for DB persistence; strip FODEC when the toggle is off. */
 export function prepareDevisItemsForPersistence(
   items: DevisItem[],
-  options: { isFodecEnabled?: boolean }
+  options: { isFodecEnabled?: boolean; isSortantTTC?: boolean }
 ): DevisItem[] {
   const cloned = JSON.parse(JSON.stringify(items)) as DevisItem[];
-  if (options.isFodecEnabled) return cloned;
+  const isSortantTTC = options.isSortantTTC ?? false;
+
+  if (!options.isFodecEnabled) {
+    return cloned.map((item) => {
+      const { fodec: _fodec, ...rest } = item;
+      return rest;
+    });
+  }
+
   return cloned.map((item) => {
-    const { fodec: _fodec, ...rest } = item;
-    return rest;
+    if (typeof item.fodec === 'number' && Number.isFinite(item.fodec)) {
+      return item;
+    }
+    const line = computeDevisLine(item, isSortantTTC, { isBcFurnitureAchat: true });
+    const fodec = line.lineFodec ?? defaultLineFodec(line.lineHT);
+    return { ...item, fodec };
   });
 }
 
