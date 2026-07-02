@@ -2,6 +2,11 @@ import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { Product, DocumentItem, UnifiedDocument } from '@/types';
 import { computeDevisLine, computeDevisTotals, resolveDevisLineTvaRate, resolveFodecEnabled } from '@/lib/devisPricing';
+import {
+  applyPartyTvaPolicyToItems,
+  fetchClientTvaStatusByName,
+  isPartyExonereDeTva,
+} from '@/lib/devisTvaPolicy';
 import { getDevisItemArticleCode, getDevisItemDetailDescription } from '@/lib/devisItemPdf';
 import companyLogo from '@/assets/grosafe-logo.webp';
 
@@ -82,8 +87,10 @@ export function getDevisPdfTableColumnWidths(
 /** Show TVA column + breakdown when legacy TTC flag is set or any line has a TVA rate > 0. */
 export function devisPdfShowsTvaBreakdown(
   items: DevisPDFData['items'],
-  legacyIsTtc = false
+  legacyIsTtc = false,
+  partyExonereDeTva = false
 ): boolean {
+  if (partyExonereDeTva) return false;
   if (legacyIsTtc) return true;
   return items.some((item) => resolveDevisLineTvaRate(item.tva) > 0);
 }
@@ -707,6 +714,8 @@ export interface DevisPDFData {
   is_bl?: boolean;
   is_facture?: boolean;
   date_echeance?: string | null;
+  /** Client exonéré de TVA — masque TVA dans le PDF même si des lignes ont un taux enregistré. */
+  party_exonere_de_tva?: boolean;
 }
 
 /** Safe PDF basename: document number + client or fournisseur name. */
@@ -822,7 +831,11 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   }
 
   // Items table — PU HT + per-line TVA (is_ttc legacy OR explicit line rates)
-  const showTvaColumn = devisPdfShowsTvaBreakdown(devis.items, devis.is_ttc);
+  const showTvaColumn = devisPdfShowsTvaBreakdown(
+    devis.items,
+    devis.is_ttc,
+    devis.party_exonere_de_tva
+  );
   /** Lignes enregistrées en PU HT (avant remise) ; TVA/remise via computeDevisLine */
   const linePricesAreUnitHt = false;
 
@@ -1013,13 +1026,29 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   return doc;
 };
 
+async function normalizeDevisPdfData(devis: DevisPDFData): Promise<DevisPDFData> {
+  if (devis.type !== 'sortant') return devis;
+
+  const status = await fetchClientTvaStatusByName(devis.third_party_name);
+  if (!isPartyExonereDeTva(status)) return devis;
+
+  return {
+    ...devis,
+    is_ttc: false,
+    party_exonere_de_tva: true,
+    items: applyPartyTvaPolicyToItems(devis.items, status),
+  };
+}
+
 export const downloadDevisPDF = async (devis: DevisPDFData) => {
-  const doc = await buildDevisPDF(devis);
-  doc.save(buildDocumentPdfFileName(devis));
+  const normalized = await normalizeDevisPdfData(devis);
+  const doc = await buildDevisPDF(normalized);
+  doc.save(buildDocumentPdfFileName(normalized));
 };
 
 export const getDevisPDFBlobUrl = async (devis: DevisPDFData): Promise<string> => {
-  const doc = await buildDevisPDF(devis);
+  const normalized = await normalizeDevisPdfData(devis);
+  const doc = await buildDevisPDF(normalized);
   const buffer = doc.output("arraybuffer");
   const blob = new Blob([buffer], { type: "application/pdf" });
   return URL.createObjectURL(blob);

@@ -19,6 +19,16 @@ describe('devisPdfShowsTvaBreakdown', () => {
       devisPdfShowsTvaBreakdown([{ designation: 'A', quantity: 1, remise: 0, prix_ttc: 100, fournisseur: '' }], true)
     ).toBe(true);
   });
+
+  it('hides TVA for exonéré clients even when lines have rates or is_ttc is true', () => {
+    expect(
+      devisPdfShowsTvaBreakdown(
+        [{ designation: 'A', quantity: 1, remise: 0, prix_ttc: 100, fournisseur: '', tva: 19 }],
+        true,
+        true
+      )
+    ).toBe(false);
+  });
 });
 
 describe('getDevisPdfTableColumnWidths', () => {
