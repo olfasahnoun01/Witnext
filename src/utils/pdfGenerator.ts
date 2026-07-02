@@ -4,7 +4,8 @@ import { Product, DocumentItem, UnifiedDocument } from '@/types';
 import { computeDevisLine, computeDevisTotals, resolveDevisLineTvaRate, resolveFodecEnabled } from '@/lib/devisPricing';
 import {
   applyPartyTvaPolicyToItems,
-  fetchClientTvaStatusByName,
+  devisItemsHavePositiveTva,
+  fetchClientTvaStatusByParty,
   isPartyExonereDeTva,
 } from '@/lib/devisTvaPolicy';
 import { getDevisItemArticleCode, getDevisItemDetailDescription } from '@/lib/devisItemPdf';
@@ -84,14 +85,13 @@ export function getDevisPdfTableColumnWidths(
   return weights.map((w) => (tableWidth * w) / totalWeight);
 }
 
-/** Show TVA column + breakdown when legacy TTC flag is set or any line has a TVA rate > 0. */
+/** Show TVA column + breakdown only when at least one line has a TVA rate > 0. */
 export function devisPdfShowsTvaBreakdown(
   items: DevisPDFData['items'],
-  legacyIsTtc = false,
+  _legacyIsTtc = false,
   partyExonereDeTva = false
 ): boolean {
   if (partyExonereDeTva) return false;
-  if (legacyIsTtc) return true;
   return items.some((item) => resolveDevisLineTvaRate(item.tva) > 0);
 }
 
@@ -1029,15 +1029,30 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
 async function normalizeDevisPdfData(devis: DevisPDFData): Promise<DevisPDFData> {
   if (devis.type !== 'sortant') return devis;
 
-  const status = await fetchClientTvaStatusByName(devis.third_party_name);
-  if (!isPartyExonereDeTva(status)) return devis;
+  const status = await fetchClientTvaStatusByParty(
+    devis.third_party_name,
+    devis.third_party_tax_id
+  );
 
-  return {
-    ...devis,
-    is_ttc: false,
-    party_exonere_de_tva: true,
-    items: applyPartyTvaPolicyToItems(devis.items, status),
-  };
+  if (isPartyExonereDeTva(status)) {
+    return {
+      ...devis,
+      is_ttc: false,
+      party_exonere_de_tva: true,
+      items: applyPartyTvaPolicyToItems(devis.items, status),
+    };
+  }
+
+  if (!devis.is_ttc && !devisItemsHavePositiveTva(devis.items)) {
+    return {
+      ...devis,
+      is_ttc: false,
+      party_exonere_de_tva: true,
+      items: applyPartyTvaPolicyToItems(devis.items, 'exonere'),
+    };
+  }
+
+  return devis;
 }
 
 export const downloadDevisPDF = async (devis: DevisPDFData) => {

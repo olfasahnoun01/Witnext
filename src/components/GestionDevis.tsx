@@ -19,7 +19,7 @@ import { useDevisFormLeaveGuard } from '@/hooks/useDevisFormLeaveGuard';
 import { notifySessionInvalid } from '@/lib/sessionResume';
 import { debugLog } from '@/lib/debugLog';
 import { computeDevisTotals, resolveFodecEnabled, prepareDevisItemsForPersistence } from '@/lib/devisPricing';
-import { resolveDevisPartyTvaPersistence } from '@/lib/devisTvaPolicy';
+import { resolveDevisPartyTvaPersistence, type DevisFormCommitOptions } from '@/lib/devisTvaPolicy';
 import { parseAttachmentUrls, uploadCommercialAttachments, type CommercialAttachmentRecord } from '@/lib/commercialAttachments';
 import { buildMergedBcNotes, mergeDevisItemsFromSources, validateDevisMergeForBc } from '@/lib/mergeCommercialDocuments';
 import { ensureSuiviFromDevis } from '@/lib/partiesSuivi';
@@ -606,7 +606,7 @@ export const GestionDevis = ({
 
   const hasDocumentContent = devisItems.length > 0;
 
-  const saveDevis = useCallback(async (options?: { redirectAfterSave?: boolean }): Promise<boolean> => {
+  const saveDevis = useCallback(async (commit?: DevisFormCommitOptions, options?: { redirectAfterSave?: boolean }): Promise<boolean> => {
     if (isSaving) return false;
     if (!hasDocumentContent) {
       toast.error('Ajoutez au moins une ligne d\'article');
@@ -620,11 +620,15 @@ export const GestionDevis = ({
     const saveAsBc = docType === 'bc' || sectionMode === 'bc';
     setIsSaving(true);
     try {
+      const sourceItems = commit?.items ?? devisItems;
+      const sourceIsTtc = commit?.isTtc ?? isTtc;
       const partyTva = await resolveDevisPartyTvaPersistence({
         devisType,
         thirdPartyName,
-        items: devisItems,
-        isTtc,
+        thirdPartyTaxId,
+        items: sourceItems,
+        isTtc: sourceIsTtc,
+        partyTvaStatus: commit?.partyTvaStatus,
       });
       const itemsForSave = partyTva.items;
       const isTtcForSave = partyTva.isTtc;
@@ -749,7 +753,7 @@ export const GestionDevis = ({
     }
   }, [isSaving, hasDocumentContent, devisType, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, isFodecEnabled, docType, sectionMode, documentStatus, existingAttachments, pendingAttachmentFiles, importSourceDevisIds, loadAll, clearFormFields, refreshDevisNumber]);
 
-  const updateDevis = useCallback(async () => {
+  const updateDevis = useCallback(async (commit?: DevisFormCommitOptions) => {
     if (isSaving) return;
     if (!editingDevis) return;
     if (!hasDocumentContent) {
@@ -768,11 +772,15 @@ export const GestionDevis = ({
 
       const companyId = requireActiveCompanyId();
       const { data: { user } } = await supabase.auth.getUser();
+      const sourceItems = commit?.items ?? devisItems;
+      const sourceIsTtc = commit?.isTtc ?? isTtc;
       const partyTva = await resolveDevisPartyTvaPersistence({
         devisType,
         thirdPartyName,
-        items: devisItems,
-        isTtc,
+        thirdPartyTaxId,
+        items: sourceItems,
+        isTtc: sourceIsTtc,
+        partyTvaStatus: commit?.partyTvaStatus,
       });
       const itemsForSave = partyTva.items;
       const isTtcForSave = partyTva.isTtc;
@@ -932,6 +940,7 @@ export const GestionDevis = ({
       const partyTva = await resolveDevisPartyTvaPersistence({
         devisType: primary.type as 'achat' | 'vente',
         thirdPartyName: primary.third_party_name,
+        thirdPartyTaxId: primary.third_party_tax_id,
         items: modifiedItems,
         isTtc: primaryIsTtc,
       });
@@ -1399,7 +1408,7 @@ export const GestionDevis = ({
               onClick={(e) => {
                 e.preventDefault();
                 void (async () => {
-                  const ok = await saveDevis({ redirectAfterSave: false });
+                  const ok = await saveDevis(undefined, { redirectAfterSave: false });
                   if (ok) leaveGuard.confirmLeave();
                 })();
               }}

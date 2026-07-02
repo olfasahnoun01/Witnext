@@ -14,10 +14,10 @@ describe('devisPdfShowsTvaBreakdown', () => {
     ).toBe(false);
   });
 
-  it('shows TVA for legacy documents with is_ttc true', () => {
+  it('hides TVA when legacy is_ttc is true but all line rates are 0%', () => {
     expect(
       devisPdfShowsTvaBreakdown([{ designation: 'A', quantity: 1, remise: 0, prix_ttc: 100, fournisseur: '' }], true)
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('hides TVA for exonéré clients even when lines have rates or is_ttc is true', () => {

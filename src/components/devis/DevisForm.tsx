@@ -7,6 +7,7 @@ import {
   defaultDevisLineTvaForParty,
   defaultDevisPricingModeIsTtc,
   isPartyExonereDeTva,
+  type DevisFormCommitOptions,
 } from '@/lib/devisTvaPolicy';
 import { CLIENT_TVA_STATUS_OPTIONS, clientTvaStatusLabel, type ClientTvaStatus } from '@/config/sectionThemes';
 import { Plus, Trash2, Edit, X, Search, Layers, Check, AlertCircle, Upload, ChevronsUpDown, FileText, ShoppingCart, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
@@ -154,8 +155,8 @@ interface DevisFormProps {
   setIsTtc: (v: boolean) => void;
   setIsFodecEnabled: (v: boolean) => void;
   draftSavedAt?: string | null;
-  onSave: () => void;
-  onUpdate: () => void;
+  onSave: (options?: DevisFormCommitOptions) => void;
+  onUpdate: (options?: DevisFormCommitOptions) => void;
   onCancel: () => void;
   docType: 'devis' | 'bc' | 'ba';
   setDocType: (t: 'devis' | 'bc' | 'ba') => void;
@@ -548,6 +549,10 @@ export const DevisForm = memo(({
     if (skipTvaPolicyOnEditHydrateRef.current) {
       partyTvaPolicyKeyRef.current = policyKey;
       skipTvaPolicyOnEditHydrateRef.current = false;
+      if (isPartyExonereDeTva(thirdPartyTvaStatus)) {
+        setDevisItems((prev) => applyPartyTvaPolicyToItems(prev, thirdPartyTvaStatus));
+        setIsTtc(false);
+      }
       return;
     }
 
@@ -789,6 +794,28 @@ export const DevisForm = memo(({
     }
   }, [newFournisseurName, newFournisseurMatricule, newFournisseurSpecialite, newFournisseurGovernorate, newFournisseurCity, newFournisseurCode, newFournisseurPhoneLines, newFournisseurPatenteUrl, newFournisseurRneUrl, isAchat, setThirdPartyName, setThirdPartyPhone, setThirdPartyAddress, setThirdPartyTaxId, resetNewFournisseurForm]);
 
+  const buildCommitOptions = useCallback((): DevisFormCommitOptions | undefined => {
+    if (isAchat || !thirdPartyTvaStatus) return undefined;
+    return {
+      items: applyPartyTvaPolicyToItems(devisItems, thirdPartyTvaStatus),
+      isTtc: isPartyExonereDeTva(thirdPartyTvaStatus) ? false : isTtc,
+      partyTvaStatus: thirdPartyTvaStatus,
+    };
+  }, [isAchat, thirdPartyTvaStatus, devisItems, isTtc]);
+
+  const handleSave = useCallback(() => {
+    const commit = buildCommitOptions();
+    if (commit) {
+      setDevisItems(commit.items);
+      setIsTtc(commit.isTtc);
+    }
+    onSave(commit);
+  }, [buildCommitOptions, onSave, setDevisItems, setIsTtc]);
+
+  const handleUpdate = useCallback(() => {
+    onUpdate(buildCommitOptions());
+  }, [buildCommitOptions, onUpdate]);
+
   const addItem = useCallback(() => {
     if (articleMode === 'search') {
       if (!selectedProduct) {
@@ -885,8 +912,8 @@ export const DevisForm = memo(({
 
   const handleSaveDraft = useCallback(() => {
     setDocumentStatus('brouillon');
-    requestAnimationFrame(() => onSave());
-  }, [setDocumentStatus, onSave]);
+    requestAnimationFrame(() => handleSave());
+  }, [setDocumentStatus, handleSave]);
 
   // New article creation
   const resetNewArticleForm = useCallback(() => {
@@ -1640,8 +1667,8 @@ export const DevisForm = memo(({
           editing={Boolean(editingDevis)}
           isSaving={isSaving}
           onCancel={onCancel}
-          onSave={onSave}
-          onUpdate={onUpdate}
+          onSave={handleSave}
+          onUpdate={handleUpdate}
           onSaveDraft={!editingDevis ? handleSaveDraft : undefined}
           saveLabel={savePrimaryLabel}
           draftSavedAt={draftSavedAt}

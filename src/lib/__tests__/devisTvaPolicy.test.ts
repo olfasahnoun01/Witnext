@@ -3,7 +3,9 @@ import {
   applyPartyTvaPolicyToItems,
   defaultDevisLineTvaForParty,
   defaultDevisPricingModeIsTtc,
+  devisItemsHavePositiveTva,
   isPartyExonereDeTva,
+  isVenteCommercialType,
 } from '../devisTvaPolicy';
 import type { DevisItem } from '@/types';
 
@@ -46,5 +48,13 @@ describe('devisTvaPolicy', () => {
     expect(next[0].tva).toBe(19);
     expect(next[1].tva).toBe(7);
     expect(next[2].tva).toBe(19);
+  });
+
+  it('detects vente commercial types', () => {
+    expect(isVenteCommercialType('vente')).toBe(true);
+    expect(isVenteCommercialType('sortant')).toBe(true);
+    expect(isVenteCommercialType('achat')).toBe(false);
+    expect(devisItemsHavePositiveTva([line({ tva: 0 }), line({ tva: 19 })])).toBe(true);
+    expect(devisItemsHavePositiveTva([line({ tva: 0 })])).toBe(false);
   });
 });
