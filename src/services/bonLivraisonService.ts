@@ -9,6 +9,7 @@ import { supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
 import type { BonCommande, Devis } from '@/types';
 import { computeDevisTotals } from '@/lib/devisPricing';
 import { isMissingDevisColumnError, resolveBcIdFromBlRow } from '@/modules/flux/services/devisFluxFields';
+import { requireActiveCompanyId } from '@/lib/activeCompany';
 
 type BlBcLinkRow = {
   source_bc_id?: number | null;
@@ -81,10 +82,12 @@ export type CreateBlFromBcResult =
   | { success: false; error: string };
 
 async function generateNextBlNumber(): Promise<string> {
+  const companyId = requireActiveCompanyId();
   const prefix = 'BLS-';
   const { data, error } = await supabase
     .from('devis')
     .select('devis_number')
+    .eq('company_id', companyId)
     .eq('is_bl', true)
     .ilike('devis_number', `${prefix}%`);
 
@@ -152,9 +155,19 @@ export async function createBonLivraisonFromBonCommandeVente(
     Number(bc.total_amount) > 0 ? Number(bc.total_amount) : Number(totals.totalFinal.toFixed(3));
 
   const { data: auth } = await supabase.auth.getUser();
+  let companyId: string;
+  try {
+    companyId = requireActiveCompanyId();
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : 'Aucune société active sélectionnée.',
+    };
+  }
 
   const base = {
     devis_number: blNumber,
+    company_id: companyId,
     devis_date: new Date().toISOString().split('T')[0],
     type: 'vente',
     third_party_name: bc.third_party_name,
@@ -212,9 +225,19 @@ export async function createBonLivraisonFromMultipleBonsCommandeVente(
   }
 
   const { data: auth } = await supabase.auth.getUser();
+  let companyId: string;
+  try {
+    companyId = requireActiveCompanyId();
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : 'Aucune société active sélectionnée.',
+    };
+  }
 
   const base = {
     devis_number: blNumber,
+    company_id: companyId,
     devis_date: new Date().toISOString().split('T')[0],
     type: 'vente',
     third_party_name: primary.third_party_name,

@@ -2,21 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { devisPdfShowsTvaBreakdown, getDevisPdfTableColumnWidths } from '../pdfGenerator';
 
 describe('devisPdfShowsTvaBreakdown', () => {
-  it('shows TVA when any line has a rate > 0', () => {
+  it('shows TVA in TTC mode when any line has a rate > 0', () => {
     expect(
-      devisPdfShowsTvaBreakdown([{ designation: 'A', quantity: 1, remise: 0, prix_ttc: 100, fournisseur: '', tva: 19 }], false)
+      devisPdfShowsTvaBreakdown([{ designation: 'A', quantity: 1, remise: 0, prix_ttc: 100, fournisseur: '', tva: 19 }], true)
     ).toBe(true);
   });
 
-  it('hides TVA when all lines are at 0% and legacy is_ttc is false', () => {
+  it('hides TVA in HT mode even when lines still have rates stored', () => {
     expect(
-      devisPdfShowsTvaBreakdown([{ designation: 'A', quantity: 1, remise: 0, prix_ttc: 100, fournisseur: '', tva: 0 }], false)
+      devisPdfShowsTvaBreakdown([{ designation: 'A', quantity: 1, remise: 0, prix_ttc: 100, fournisseur: '', tva: 19 }], false)
     ).toBe(false);
   });
 
-  it('hides TVA when legacy is_ttc is true but all line rates are 0%', () => {
+  it('hides TVA when TTC mode is on but all line rates are 0%', () => {
     expect(
-      devisPdfShowsTvaBreakdown([{ designation: 'A', quantity: 1, remise: 0, prix_ttc: 100, fournisseur: '' }], true)
+      devisPdfShowsTvaBreakdown([{ designation: 'A', quantity: 1, remise: 0, prix_ttc: 100, fournisseur: '', tva: 0 }], true)
     ).toBe(false);
   });
 

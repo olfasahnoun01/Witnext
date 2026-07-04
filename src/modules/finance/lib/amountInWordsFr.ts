@@ -103,3 +103,16 @@ export function montantEnLettresDtCapitalized(montant: number): string {
   const s = montantEnLettresDt(montant);
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+/**
+ * Style facture tunisienne : dinars en majuscules + millimes sur 3 chiffres.
+ * Ex. 2788.075 → « DEUX MILLE SEPT CENT QUATRE VINGT HUIT DINARS 075 MILLIMES »
+ */
+export function montantEnLettresFactureStyle(montant: number): string {
+  const safe = round3(Math.abs(montant));
+  const dinars = Math.floor(safe);
+  const millimes = Math.round((safe - dinars) * 1000);
+  const words = integerToFrench(dinars).toUpperCase().replace(/-/g, ' ');
+  const label = dinars <= 1 ? 'DINAR' : 'DINARS';
+  return `${words} ${label} ${String(millimes).padStart(3, '0')} MILLIMES`;
+}

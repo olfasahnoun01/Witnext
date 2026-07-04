@@ -46,18 +46,34 @@ const DEVIS_PDF_TABLE_HEAD_HT = [
 const DEVIS_PDF_HEAD_STYLES = {
   fillColor: [30, 58, 95] as [number, number, number],
   textColor: 255,
-  fontSize: 8,
+  fontSize: 7.5,
   fontStyle: 'bold' as const,
   halign: 'center' as const,
-  cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 },
-  minCellHeight: 6,
+  /** Tight horizontal padding so header labels use the full column width. */
+  cellPadding: { top: 3.5, right: 0.6, bottom: 3.5, left: 0.6 },
+  minCellHeight: 9,
   overflow: 'linebreak' as const,
   valign: 'middle' as const,
+  lineColor: [30, 58, 95] as [number, number, number],
+  lineWidth: 0.2,
 };
 
-/** Relative column weights (must sum to 100). Code + Mnt HT narrower; Désignation wider. */
-const DEVIS_PDF_COL_WEIGHTS_TTC = [4, 5, 22, 17, 6, 10, 6, 10, 8, 12] as const;
-const DEVIS_PDF_COL_WEIGHTS_HT = [4, 5, 24, 23, 7, 11, 7, 11, 8] as const;
+/** Body cells — lighter, distinct from the header band. */
+const DEVIS_PDF_BODY_STYLES = {
+  fontSize: 8,
+  fontStyle: 'normal' as const,
+  cellPadding: { top: 2.5, right: 1.5, bottom: 2.5, left: 1.5 },
+  overflow: 'linebreak' as const,
+  valign: 'middle' as const,
+  halign: 'center' as const,
+  lineColor: [200, 205, 215] as [number, number, number],
+  lineWidth: 0.15,
+  textColor: [30, 30, 30] as [number, number, number],
+};
+
+/** Relative column weights (must sum to 100). Text columns wider so headers fit fully. */
+const DEVIS_PDF_COL_WEIGHTS_TTC = [4, 6, 20, 16, 6, 10, 7, 10, 8, 13] as const;
+const DEVIS_PDF_COL_WEIGHTS_HT = [4, 6, 22, 20, 7, 11, 8, 11, 11] as const;
 
 function weightsToColumnStyles(
   weights: readonly number[],
@@ -85,13 +101,14 @@ export function getDevisPdfTableColumnWidths(
   return weights.map((w) => (tableWidth * w) / totalWeight);
 }
 
-/** Show TVA column + breakdown only when at least one line has a TVA rate > 0. */
+/** Show TVA column + breakdown only in TTC mode when at least one line has a rate > 0. */
 export function devisPdfShowsTvaBreakdown(
   items: DevisPDFData['items'],
-  _legacyIsTtc = false,
+  isTtc = false,
   partyExonereDeTva = false
 ): boolean {
   if (partyExonereDeTva) return false;
+  if (!isTtc) return false;
   return items.some((item) => resolveDevisLineTvaRate(item.tva) > 0);
 }
 
@@ -716,6 +733,8 @@ export interface DevisPDFData {
   date_echeance?: string | null;
   /** Client exonéré de TVA — masque TVA dans le PDF même si des lignes ont un taux enregistré. */
   party_exonere_de_tva?: boolean;
+  /** Optional company code override for facture branding (defaults to active company). */
+  company_code?: string | null;
 }
 
 /** Safe PDF basename: document number + client or fournisseur name. */
@@ -742,6 +761,13 @@ export const buildDocumentPdfFileName = (devis: DevisPDFData): string => {
 };
 
 const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
+  // Official BL-Facture layout (same template for all companies; logo/theme per brand).
+  if (devis.is_facture) {
+    const { buildFacturePDF } = await import('./facturePdfTemplate');
+    const { getActiveCompanyCode } = await import('@/lib/factureCompanyBrand');
+    return buildFacturePDF(devis, devis.company_code ?? getActiveCompanyCode());
+  }
+
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -869,15 +895,9 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     theme: 'grid',
     tableWidth: itemsTableWidth,
     headStyles: DEVIS_PDF_HEAD_STYLES,
+    bodyStyles: DEVIS_PDF_BODY_STYLES,
     styles: {
-      fontSize: 8,
-      fontStyle: 'bold',
-      cellPadding: { top: 2, right: 2, bottom: 2, left: 2 },
-      overflow: 'linebreak',
-      valign: 'middle',
-      halign: 'center',
-      lineColor: [210, 210, 210],
-      lineWidth: 0.1,
+      ...DEVIS_PDF_BODY_STYLES,
     },
     rowPageBreak: 'avoid',
     columnStyles: getDevisPdfTableColumnStyles(showTvaColumn, itemsTableWidth),
@@ -885,17 +905,34 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
     margin: { left: DEVIS_PDF_MARGIN_X, right: DEVIS_PDF_MARGIN_X, bottom: 35 },
     didParseCell: (data) => {
       if (data.section === 'head') {
+        // Header band: labels use full cell width, wrap if needed, stay centered.
         data.cell.styles.overflow = 'linebreak';
-        data.cell.styles.fontSize = 8;
+        data.cell.styles.fontSize = 7.5;
         data.cell.styles.fontStyle = 'bold';
         data.cell.styles.valign = 'middle';
         data.cell.styles.halign = 'center';
+        data.cell.styles.cellPadding = { top: 3.5, right: 0.6, bottom: 3.5, left: 0.6 };
+        data.cell.styles.minCellHeight = 9;
+        data.cell.styles.fillColor = [30, 58, 95];
+        data.cell.styles.textColor = 255;
       }
       if (data.section === 'body') {
+        // Body values — normal weight, more padding, clearly below the header.
         data.cell.styles.halign = 'center';
         data.cell.styles.valign = 'middle';
-        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fontStyle = 'normal';
         data.cell.styles.fontSize = 8;
+        data.cell.styles.cellPadding = { top: 2.5, right: 1.5, bottom: 2.5, left: 1.5 };
+        data.cell.styles.textColor = [30, 30, 30];
+      }
+    },
+    didDrawCell: (data) => {
+      // Thick separator between header row and article values.
+      if (data.section === 'head') {
+        const { x, y, width, height } = data.cell;
+        doc.setDrawColor(30, 58, 95);
+        doc.setLineWidth(0.7);
+        doc.line(x, y + height, x + width, y + height);
       }
     },
     didDrawPage: (data) => {

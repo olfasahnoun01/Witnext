@@ -226,7 +226,8 @@ export const DevisForm = memo(({
   const [newClientAttestationUrl, setNewClientAttestationUrl] = useState<string | null>(null);
   const [newClientTvaStatus, setNewClientTvaStatus] = useState<ClientTvaStatus>('assujetti');
   const partyTvaPolicyKeyRef = useRef<string | null>(null);
-  const skipTvaPolicyOnEditHydrateRef = useRef(false);
+  /** Last editingDevis.id we already hydrated — do not override saved is_ttc on open. */
+  const hydratedEditIdRef = useRef<number | string | null>(null);
   const { preview: documentPreview, pdfBytesRef, openDocumentPreview, closePreview: closeDocumentPreview } =
     useClientDocumentPreview();
 
@@ -543,12 +544,16 @@ export const DevisForm = memo(({
   useEffect(() => {
     if (!thirdPartyName.trim() || thirdPartyTvaStatus == null) return;
 
-    const policyKey = `${devisType}|${selectedThirdPartyId}|${thirdPartyName.trim().toLowerCase()}|${thirdPartyTvaStatus}`;
-    if (partyTvaPolicyKeyRef.current === policyKey) return;
+    const editId = editingDevis?.id ?? null;
+    const isEditHydrate = editId != null && hydratedEditIdRef.current !== editId;
 
-    if (skipTvaPolicyOnEditHydrateRef.current) {
+    const policyKey = `${devisType}|${selectedThirdPartyId}|${thirdPartyName.trim().toLowerCase()}|${thirdPartyTvaStatus}`;
+    if (!isEditHydrate && partyTvaPolicyKeyRef.current === policyKey) return;
+
+    // Opening an existing BC/devis: keep saved HT/TTC (and line rates), except exonéré → force HT.
+    if (isEditHydrate) {
+      hydratedEditIdRef.current = editId;
       partyTvaPolicyKeyRef.current = policyKey;
-      skipTvaPolicyOnEditHydrateRef.current = false;
       if (isPartyExonereDeTva(thirdPartyTvaStatus)) {
         setDevisItems((prev) => applyPartyTvaPolicyToItems(prev, thirdPartyTvaStatus));
         setIsTtc(false);
@@ -571,8 +576,10 @@ export const DevisForm = memo(({
   }, [partyExonereDeTva, isTtc, setIsTtc]);
 
   useEffect(() => {
-    partyTvaPolicyKeyRef.current = null;
-    skipTvaPolicyOnEditHydrateRef.current = Boolean(editingDevis?.id);
+    if (editingDevis?.id == null) {
+      hydratedEditIdRef.current = null;
+      partyTvaPolicyKeyRef.current = null;
+    }
   }, [devisType, editingDevis?.id]);
 
   const handleThirdPartySuggestionSelect = useCallback((item: Fournisseur | Client) => {

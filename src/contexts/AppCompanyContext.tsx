@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { getActiveCompanyId, setActiveCompanyId, resolveActiveCompanyId, ACTIVE_COMPANY_STORAGE_KEY, applyActiveCompanyFromStorage, onActiveCompanyChange } from '@/lib/activeCompany';
+import { setActiveCompanyCode } from '@/lib/factureCompanyBrand';
 import { ensureSupabaseSessionReady, supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 export interface AppCompany {
@@ -41,6 +42,7 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
       setCompanies([]);
       setCurrentCompanyId(null);
       setActiveCompanyId(null);
+      setActiveCompanyCode(null);
       setLoadError(null);
       setLoading(false);
       loadedForUserRef.current = null;
@@ -73,6 +75,7 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
 
         const next = resolveActiveCompanyId(rows, getActiveCompanyId());
         setCurrentCompanyId(next);
+        setActiveCompanyCode(rows.find((c) => c.id === next)?.code ?? null);
         setActiveCompanyId(next);
         setLoadError(rows.length === 0 ? 'Aucune société assignée à votre compte.' : null);
         setLoading(false);
@@ -91,6 +94,7 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
     setCompanies([]);
     setCurrentCompanyId(null);
     setActiveCompanyId(null);
+    setActiveCompanyCode(null);
     setLoadError('Impossible de charger vos sociétés. Réessayez ou reconnectez-vous.');
     setLoading(false);
   }, [userId]);
@@ -101,6 +105,7 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
         setCompanies([]);
         setCurrentCompanyId(null);
         setActiveCompanyId(null);
+        setActiveCompanyCode(null);
         setLoadError(null);
         setLoading(false);
         loadedForUserRef.current = null;
@@ -129,6 +134,11 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
       const { id, changed } = applyActiveCompanyFromStorage(event.newValue);
       if (!changed) return;
       setCurrentCompanyId(id);
+      try {
+        setActiveCompanyCode(localStorage.getItem('erp.activeCompanyCode'));
+      } catch {
+        setActiveCompanyCode(null);
+      }
       window.dispatchEvent(new CustomEvent(COMPANY_CHANGED_EVENT, { detail: { companyId: id } }));
     };
     window.addEventListener('storage', onStorage);
@@ -137,11 +147,12 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
 
   const setCompany = useCallback((id: string) => {
     setCurrentCompanyId(id);
+    setActiveCompanyCode(companies.find((c) => c.id === id)?.code ?? null);
     setActiveCompanyId(id);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(COMPANY_CHANGED_EVENT, { detail: { companyId: id } }));
     }
-  }, []);
+  }, [companies]);
 
   const currentCompany = useMemo(
     () => companies.find((c) => c.id === currentCompanyId) ?? null,

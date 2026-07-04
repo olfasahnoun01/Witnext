@@ -126,11 +126,21 @@ export async function createFactureFromBonLivraisonVente(bl: BonLivraison): Prom
   const dateEcheance = due.toISOString().slice(0, 10);
 
   const { data: auth } = await supabase.auth.getUser();
+  let companyId: string;
+  try {
+    companyId = requireActiveCompanyId();
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : 'Aucune société active sélectionnée.',
+    };
+  }
 
   const { data: inserted, error: insErr } = await supabase
     .from('factures')
     .insert({
       numero,
+      company_id: companyId,
       type: 'vente',
       date_creation: dateCreation,
       date_echeance: dateEcheance,
@@ -195,11 +205,21 @@ export async function createFactureFromMultipleBonsLivraisonVente(
   const mergedAttachments = blList.flatMap((b) => parseAttachmentUrls(b.attachment_urls));
 
   const { data: auth } = await supabase.auth.getUser();
+  let companyId: string;
+  try {
+    companyId = requireActiveCompanyId();
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : 'Aucune société active sélectionnée.',
+    };
+  }
 
   const { data: inserted, error: insErr } = await supabase
     .from('factures')
     .insert({
       numero,
+      company_id: companyId,
       type: 'vente',
       date_creation: dateCreation,
       date_echeance: due.toISOString().slice(0, 10),

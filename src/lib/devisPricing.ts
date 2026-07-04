@@ -174,28 +174,37 @@ export function computeDevisTotals(
     items,
   });
 
+  const tvaEnabled = options?.isTvaEnabled !== false;
+
   items.forEach(item => {
     const line = computeDevisLine(item, isSortantTTC, { isBcFurnitureAchat });
     // Gross HT = unitHT * qty (before remise)
     totalHT += round3(line.unitHT * item.quantity);
     totalRemise += line.remiseDT_HT;
     totalNet += line.lineHT;
-    totalTVA += line.lineTVA;
-    totalTTC += line.lineTTC;
     if (line.lineFodec) {
       totalFodec += line.lineFodec;
+    }
+    if (tvaEnabled) {
+      totalTVA += line.lineTVA;
+      totalTTC += line.lineTTC;
+    } else {
+      // HT mode (TTC toggle off): ignore line TVA rates for document totals.
+      const fodec = line.lineFodec ?? 0;
+      totalTTC += round3(line.lineHT + fodec);
     }
   });
 
   const netRounded = round3(totalNet);
   const ttcRounded = round3(totalTTC);
   const fodecRounded = round3(totalFodec);
+  const tvaRounded = tvaEnabled ? round3(totalTVA) : 0;
 
   return {
     totalHT: round3(totalHT),
     totalRemise: round3(totalRemise),
     totalNet: netRounded,
-    totalTVA: round3(totalTVA),
+    totalTVA: tvaRounded,
     totalTTC: ttcRounded,
     totalFinal: round3(ttcRounded + TIMBRE_FISCAL_DT),
     totalFinalHT: round3(netRounded + TIMBRE_FISCAL_DT),

@@ -41,6 +41,7 @@ import {
   type DevisPDFData,
   type DocumentType,
 } from '@/utils/pdfGenerator';
+import { getActiveCompanyCode } from '@/lib/factureCompanyBrand';
 import type { UnifiedDocument } from '@/types';
 import {
   fetchCommercialOperations,
@@ -283,6 +284,7 @@ export function CommercialOperationsTrackerPanel({ companyId }: CommercialOperat
           is_facture: ref.module === 'factures',
           devis_number: ref.numero,
           date_echeance: ref.module === 'factures' ? String(row.date_echeance ?? '') : undefined,
+          company_code: getActiveCompanyCode(),
         });
         url = await getDevisPDFBlobUrl(pdfData);
       } else {

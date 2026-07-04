@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
+import { getActiveCompanyCode } from '@/lib/factureCompanyBrand';
 import { pdfPreviewDialogContentClassName } from '@/lib/pdfPreviewDialog';
 import {
   Dialog,
@@ -46,6 +47,7 @@ const toFacturePDFData = (facture: Facture): DevisPDFData => ({
   is_ba: false,
   is_facture: true,
   date_echeance: facture.date_echeance,
+  company_code: getActiveCompanyCode(),
 });
 
 export const FacturesVente = () => {
