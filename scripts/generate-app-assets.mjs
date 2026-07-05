@@ -13,7 +13,9 @@ const root = path.join(__dirname, '..');
 const master = path.join(root, 'src', 'assets', 'witnext-brand-logo-icon.png');
 const brandingDir = path.join(root, 'build', 'branding');
 const faviconPath = path.join(root, 'public', 'favicon.png');
+const pwaIconPath = path.join(root, 'public', 'pwa-icon-512.png');
 const square512Path = path.join(brandingDir, 'app-icon-512.png');
+const pwaSquare512Path = path.join(brandingDir, 'pwa-icon-512.png');
 const icoPath = path.join(root, 'build', 'icon.ico');
 
 async function removeNearWhitePng(inputBuffer, threshold = 242) {
@@ -55,6 +57,18 @@ async function main() {
   fs.writeFileSync(square512Path, squarePng);
   fs.writeFileSync(faviconPath, squarePng);
   console.log(`Updated ${faviconPath}`);
+
+  const pwaSquarePng = await transparent
+    .resize(512, 512, {
+      fit: 'contain',
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
+    })
+    .png()
+    .toBuffer();
+
+  fs.writeFileSync(pwaSquare512Path, pwaSquarePng);
+  fs.writeFileSync(pwaIconPath, pwaSquarePng);
+  console.log(`Updated ${pwaIconPath}`);
 
   const icoBuffer = await pngToIco(square512Path);
   fs.writeFileSync(icoPath, icoBuffer);

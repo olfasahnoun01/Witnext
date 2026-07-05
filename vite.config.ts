@@ -95,23 +95,29 @@ export default defineConfig(({ mode }) => {
         : [
             VitePWA({
               registerType: "autoUpdate",
-              includeAssets: ["favicon.png"],
+              includeAssets: ["favicon.png", "pwa-icon-512.png"],
               manifest: {
                 name: "Witnext — Suivi commercial",
                 short_name: "Witnext",
                 description: "Suivi quotidien de l'activité commerciale Grosafe",
-                theme_color: "#0A1628",
-                background_color: "#0A1628",
+                theme_color: "#FFFFFF",
+                background_color: "#FFFFFF",
                 display: "standalone",
                 orientation: "portrait",
                 start_url: "/boss",
                 scope: "/",
                 icons: [
                   {
-                    src: "/favicon.png",
+                    src: "/pwa-icon-512.png",
                     sizes: "512x512",
                     type: "image/png",
-                    purpose: "any maskable",
+                    purpose: "any",
+                  },
+                  {
+                    src: "/pwa-icon-512.png",
+                    sizes: "512x512",
+                    type: "image/png",
+                    purpose: "maskable",
                   },
                 ],
               },
