@@ -85,10 +85,37 @@ export async function loadCommercialTeam(companyId: string): Promise<CommercialT
   return (profiles ?? [])
     .map((p) => ({
       userId: p.user_id,
-      fullName: p.full_name?.trim() || p.email?.trim() || 'Utilisateur',
+      fullName: resolveAccountDisplayName(p.full_name, p.email),
       email: p.email,
     }))
-    .sort((a, b) => a.fullName.localeCompare(b.fullName, 'fr'));
+    .sort((a, b) => a.fullName.localeCompare(b.fullName, 'fr', { sensitivity: 'base' }));
+}
+
+function resolveAccountDisplayName(fullName: string | null | undefined, email: string | null | undefined): string {
+  const name = fullName?.trim();
+  if (name) return name;
+  const mail = email?.trim();
+  if (mail) return mail.split('@')[0] ?? mail;
+  return 'Compte sans nom';
+}
+
+async function loadProfileNames(userIds: string[]): Promise<Map<string, CommercialTeamMember>> {
+  if (userIds.length === 0) return new Map();
+
+  const { data: profiles, error } = await supabaseQueryWithAuthRetry(() =>
+    supabase.from('profiles').select('user_id, full_name, email').in('user_id', userIds)
+  );
+  if (error) throw error;
+
+  const map = new Map<string, CommercialTeamMember>();
+  for (const p of profiles ?? []) {
+    map.set(p.user_id, {
+      userId: p.user_id,
+      fullName: resolveAccountDisplayName(p.full_name, p.email),
+      email: p.email,
+    });
+  }
+  return map;
 }
 
 export async function loadBossDailyActivity(
@@ -139,12 +166,20 @@ export async function loadBossDailyActivity(
   }
 
   const teamById = new Map(team.map((m) => [m.userId, m]));
+  const orphanIds = [...docsByUser.keys()].filter((id) => !teamById.has(id));
+  if (orphanIds.length > 0) {
+    const orphanProfiles = await loadProfileNames(orphanIds);
+    for (const [id, member] of orphanProfiles) {
+      teamById.set(id, member);
+    }
+  }
+
   const allUserIds = new Set([...team.map((m) => m.userId), ...docsByUser.keys()]);
 
   const employees: BossEmployeeActivity[] = [...allUserIds].map((userId) => {
     const member = teamById.get(userId) ?? {
       userId,
-      fullName: 'Commercial',
+      fullName: 'Compte inconnu',
       email: null,
     };
     const documents = docsByUser.get(userId) ?? [];
@@ -155,12 +190,9 @@ export async function loadBossDailyActivity(
     return { member, counts, documents };
   });
 
-  employees.sort((a, b) => {
-    const aTotal = a.documents.length;
-    const bTotal = b.documents.length;
-    if (bTotal !== aTotal) return bTotal - aTotal;
-    return a.member.fullName.localeCompare(b.member.fullName, 'fr');
-  });
+  employees.sort((a, b) =>
+    a.member.fullName.localeCompare(b.member.fullName, 'fr', { sensitivity: 'base' })
+  );
 
   const totalDocuments = employees.reduce((sum, e) => sum + e.documents.length, 0);
 

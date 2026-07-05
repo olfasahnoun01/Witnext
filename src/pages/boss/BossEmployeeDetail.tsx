@@ -9,11 +9,17 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { COMMERCIAL_DOC_KIND_LABELS } from '@/lib/commercialDocKind';
 import {
+  BOSS_DOC_TYPE_FILTER_OPTIONS,
+  filterBossDocuments,
+  parseBossDocTypeFilter,
+} from '@/lib/bossActivityFilters';
+import {
   formatBossDocTime,
   loadBossDailyActivity,
   type BossCommercialDocument,
 } from '@/services/bossCommercialService';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 const KIND_BADGE_CLASS: Record<string, string> = {
   DEVIS_CLIENT: 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300',
@@ -35,9 +41,7 @@ function DocRow({ doc }: { doc: BossCommercialDocument }) {
             {COMMERCIAL_DOC_KIND_LABELS[doc.kind]}
           </Badge>
         </div>
-        {doc.thirdPartyName && (
-          <p className="text-sm text-foreground">{doc.thirdPartyName}</p>
-        )}
+        {doc.thirdPartyName && <p className="text-sm text-foreground">{doc.thirdPartyName}</p>}
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span className="capitalize">{doc.status}</span>
           {doc.totalAmount != null && (
@@ -53,12 +57,14 @@ function DocRow({ doc }: { doc: BossCommercialDocument }) {
 
 export function BossEmployeeDetail() {
   const { userId } = useParams<{ userId: string }>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentCompanyId, loading: companyLoading } = useAppCompany();
   const selectedDate = searchParams.get('date') ?? format(new Date(), 'yyyy-MM-dd');
+  const typeFilter = parseBossDocTypeFilter(searchParams.get('type'));
   const [loading, setLoading] = useState(true);
-  const [memberName, setMemberName] = useState('Commercial');
-  const [documents, setDocuments] = useState<BossCommercialDocument[]>([]);
+  const [memberName, setMemberName] = useState('Compte');
+  const [memberEmail, setMemberEmail] = useState<string | null>(null);
+  const [allDocuments, setAllDocuments] = useState<BossCommercialDocument[]>([]);
 
   const load = useCallback(async () => {
     if (!currentCompanyId || !userId) {
@@ -71,12 +77,13 @@ export function BossEmployeeDetail() {
       const date = new Date(`${selectedDate}T12:00:00`);
       const data = await loadBossDailyActivity(currentCompanyId, date);
       const employee = data.employees.find((e) => e.member.userId === userId);
-      setMemberName(employee?.member.fullName ?? 'Commercial');
-      setDocuments(employee?.documents ?? []);
+      setMemberName(employee?.member.fullName ?? 'Compte inconnu');
+      setMemberEmail(employee?.member.email ?? null);
+      setAllDocuments(employee?.documents ?? []);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error(`Erreur : ${message}`);
-      setDocuments([]);
+      setAllDocuments([]);
     } finally {
       setLoading(false);
     }
@@ -87,15 +94,22 @@ export function BossEmployeeDetail() {
     void load();
   }, [companyLoading, load]);
 
+  const documents = useMemo(
+    () => filterBossDocuments(allDocuments, typeFilter),
+    [allDocuments, typeFilter]
+  );
+
   const dateLabel = useMemo(
     () => format(new Date(`${selectedDate}T12:00:00`), 'EEEE d MMMM yyyy', { locale: fr }),
     [selectedDate]
   );
 
+  const backQuery = searchParams.toString();
+
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-4 pb-8">
       <Button variant="ghost" size="sm" className="w-fit -ml-2" asChild>
-        <Link to={`/boss?date=${selectedDate}`}>
+        <Link to={backQuery ? `/boss?${backQuery}` : '/boss'}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Retour
         </Link>
@@ -103,10 +117,31 @@ export function BossEmployeeDetail() {
 
       <div>
         <h2 className="text-xl font-bold">{memberName}</h2>
-        <p className="text-sm capitalize text-muted-foreground">{dateLabel}</p>
+        {memberEmail && <p className="text-sm text-muted-foreground">{memberEmail}</p>}
+        <p className="mt-1 text-sm capitalize text-muted-foreground">{dateLabel}</p>
         <p className="mt-1 text-sm">
           {documents.length} document{documents.length !== 1 ? 's' : ''}
         </p>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {BOSS_DOC_TYPE_FILTER_OPTIONS.map((opt) => (
+          <Button
+            key={opt.value}
+            type="button"
+            size="sm"
+            variant={typeFilter === opt.value ? 'default' : 'outline'}
+            className={cn('h-8 text-xs', typeFilter === opt.value && 'shadow-sm')}
+            onClick={() => {
+              const next = new URLSearchParams(searchParams);
+              if (opt.value === 'all') next.delete('type');
+              else next.set('type', opt.value);
+              setSearchParams(next, { replace: true });
+            }}
+          >
+            {opt.label}
+          </Button>
+        ))}
       </div>
 
       {loading || companyLoading ? (
@@ -115,7 +150,7 @@ export function BossEmployeeDetail() {
         </div>
       ) : documents.length === 0 ? (
         <p className="py-12 text-center text-sm text-muted-foreground">
-          Aucun devis ou bon de commande créé ce jour.
+          Aucun document pour ce filtre ce jour.
         </p>
       ) : (
         <div className="flex flex-col gap-3">
