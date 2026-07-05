@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 
 const HCAPTCHA_SCRIPT = "https://js.hcaptcha.com";
@@ -89,6 +90,38 @@ export default defineConfig(({ mode }) => {
 
     plugins: [
       react(),
+      ...(isElectronTarget
+        ? []
+        : [
+            VitePWA({
+              registerType: "autoUpdate",
+              includeAssets: ["favicon.png"],
+              manifest: {
+                name: "Witnext — Suivi commercial",
+                short_name: "Witnext",
+                description: "Suivi quotidien de l'activité commerciale Grosafe",
+                theme_color: "#0A1628",
+                background_color: "#0A1628",
+                display: "standalone",
+                orientation: "portrait",
+                start_url: "/boss",
+                scope: "/",
+                icons: [
+                  {
+                    src: "/favicon.png",
+                    sizes: "512x512",
+                    type: "image/png",
+                    purpose: "any maskable",
+                  },
+                ],
+              },
+              workbox: {
+                globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+                navigateFallback: "/index.html",
+                navigateFallbackDenylist: [/^\/functions\//, /^\/rest\//, /^\/auth\/v1\//],
+              },
+            }),
+          ]),
       {
         name: "html-csp",
         transformIndexHtml(html) {

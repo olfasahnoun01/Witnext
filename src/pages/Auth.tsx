@@ -13,6 +13,10 @@ import { Loader2, Mail, Lock, LogIn, AlertCircle, RefreshCw } from 'lucide-react
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { WitnextLogoBanner } from '@/components/WitnextLogoBanner';
+import {
+  getUserPositionFromMetadata,
+  shouldAutoRedirectToBoss,
+} from '@/lib/bossAccess';
 
 const isWebTarget = import.meta.env.VITE_APP_TARGET !== 'electron';
 const hcaptchaSiteKey = import.meta.env.VITE_HCAPTCHA_SITE_KEY?.trim() ?? '';
@@ -31,7 +35,7 @@ export default function Auth() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { session, isLoading: authLoading } = useAuth();
+  const { session, isLoading: authLoading, isAdmin, isModerator } = useAuth();
 
   const resetCaptcha = useCallback(() => {
     setCaptchaToken(null);
@@ -49,9 +53,13 @@ export default function Auth() {
     if (authLoading) return;
     if (session?.user) {
       setShowSessionExpiredAlert(false);
-      navigate('/dashboard', { replace: true });
+      const position = getUserPositionFromMetadata(session.user);
+      const target = shouldAutoRedirectToBoss({ isAdmin, isModerator, userPosition: position })
+        ? '/boss'
+        : '/dashboard';
+      navigate(target, { replace: true });
     }
-  }, [authLoading, session, navigate]);
+  }, [authLoading, session, navigate, isAdmin, isModerator]);
 
   const handleClearCache = () => {
     clearSupabaseBrowserSession(supabaseProjectUrl);

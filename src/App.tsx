@@ -8,6 +8,7 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { AppCompanyProvider } from '@/contexts/AppCompanyContext';
 import { AppLayout } from '@/layouts/AppLayout';
+import { BossLayout } from '@/layouts/BossLayout';
 import Auth from "./pages/Auth";
 import { AutoUpdateNotifier } from "@/components/AutoUpdateNotifier";
 import { SessionResumeHandler } from "@/components/SessionResumeHandler";
@@ -52,6 +53,16 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/login" element={<Navigate to="/auth" replace />} />
       <Route path="/auth" element={<Auth />} />
+      <Route
+        path="/boss/*"
+        element={
+          <ProtectedRoute>
+            <AppCompanyProvider>
+              <BossLayout />
+            </AppCompanyProvider>
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/*"
         element={
