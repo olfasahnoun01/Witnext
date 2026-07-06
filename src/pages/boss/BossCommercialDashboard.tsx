@@ -42,7 +42,7 @@ function buildBossQueryParams(date: string, nameQuery: string, typeFilter: BossD
 }
 
 export function BossCommercialDashboard() {
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const { currentCompanyId, currentCompany, loading: companyLoading } = useAppCompany();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedDate, setSelectedDate] = useState(
@@ -81,7 +81,9 @@ export function BossCommercialDashboard() {
     setLoading(true);
     try {
       const date = new Date(`${selectedDate}T12:00:00`);
-      const data = await loadBossDailyActivity(currentCompanyId, date);
+      const data = await loadBossDailyActivity(currentCompanyId, date, {
+        excludeUserIds: user?.id ? [user.id] : [],
+      });
       setActivity(data);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -90,7 +92,7 @@ export function BossCommercialDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [currentCompanyId, selectedDate]);
+  }, [currentCompanyId, selectedDate, user?.id]);
 
   useEffect(() => {
     if (companyLoading) return;

@@ -9,6 +9,7 @@ import {
 } from '@/lib/bossAccess';
 import { BossCommercialDashboard } from '@/pages/boss/BossCommercialDashboard';
 import { BossEmployeeDetail } from '@/pages/boss/BossEmployeeDetail';
+import { BossDocumentDetail } from '@/pages/boss/BossDocumentDetail';
 import { WitnextLogoBanner } from '@/components/WitnextLogoBanner';
 
 export function BossLayout() {
@@ -46,6 +47,7 @@ export function BossLayout() {
         <Routes>
           <Route index element={<BossCommercialDashboard />} />
           <Route path="employee/:userId" element={<BossEmployeeDetail />} />
+          <Route path="employee/:userId/doc/:docId" element={<BossDocumentDetail />} />
           <Route path="*" element={<Navigate to="/boss" replace />} />
         </Routes>
       </main>

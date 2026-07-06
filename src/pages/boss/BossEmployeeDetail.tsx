@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useAppCompany } from '@/contexts/AppCompanyContext';
 import { Button } from '@/components/ui/button';
@@ -28,30 +28,40 @@ const KIND_BADGE_CLASS: Record<string, string> = {
   BC_FOURNISSEUR: 'bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200',
 };
 
-function DocRow({ doc }: { doc: BossCommercialDocument }) {
+function DocRow({ doc, userId, searchParams }: { doc: BossCommercialDocument; userId: string; searchParams: URLSearchParams }) {
+  const detailQuery = searchParams.toString();
+  const href = detailQuery
+    ? `/boss/employee/${userId}/doc/${doc.id}?${detailQuery}`
+    : `/boss/employee/${userId}/doc/${doc.id}`;
+
   return (
-    <Card>
-      <CardContent className="space-y-2 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="font-semibold">{doc.devisNumber}</p>
-            <p className="text-xs text-muted-foreground">{formatBossDocTime(doc.createdAt)}</p>
+    <Link to={href} className="block">
+      <Card className="transition-colors hover:bg-muted/40 active:bg-muted/60">
+        <CardContent className="flex items-center gap-3 p-4">
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-semibold">{doc.devisNumber}</p>
+                <p className="text-xs text-muted-foreground">{formatBossDocTime(doc.createdAt)}</p>
+              </div>
+              <Badge className={KIND_BADGE_CLASS[doc.kind] ?? ''} variant="outline">
+                {COMMERCIAL_DOC_KIND_LABELS[doc.kind]}
+              </Badge>
+            </div>
+            {doc.thirdPartyName && <p className="text-sm text-foreground">{doc.thirdPartyName}</p>}
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span className="capitalize">{doc.status}</span>
+              {doc.totalAmount != null && (
+                <span className="font-medium text-foreground">
+                  {Number(doc.totalAmount).toFixed(3)} TND
+                </span>
+              )}
+            </div>
           </div>
-          <Badge className={KIND_BADGE_CLASS[doc.kind] ?? ''} variant="outline">
-            {COMMERCIAL_DOC_KIND_LABELS[doc.kind]}
-          </Badge>
-        </div>
-        {doc.thirdPartyName && <p className="text-sm text-foreground">{doc.thirdPartyName}</p>}
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span className="capitalize">{doc.status}</span>
-          {doc.totalAmount != null && (
-            <span className="font-medium text-foreground">
-              {Number(doc.totalAmount).toFixed(3)} TND
-            </span>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+          <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
 
@@ -155,7 +165,7 @@ export function BossEmployeeDetail() {
       ) : (
         <div className="flex flex-col gap-3">
           {documents.map((doc) => (
-            <DocRow key={doc.id} doc={doc} />
+            <DocRow key={doc.id} doc={doc} userId={userId!} searchParams={searchParams} />
           ))}
         </div>
       )}
