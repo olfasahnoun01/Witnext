@@ -1,10 +1,11 @@
 import { useCallback, useState } from 'react';
-import { FileText, Plus, Trash2, Download, Loader2, Paperclip, Car } from 'lucide-react';
+import { FileText, Plus, Trash2, Download, Loader2, Paperclip, Car, Inbox, PenLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -23,8 +24,9 @@ import {
 import { downloadRhSecurityReportPdf } from '@/utils/rhSecurityReportPdf';
 import { saveRhSecurityReport } from '@/services/rhReportService';
 import { validateUploadFile, MAX_UPLOAD_BYTES } from '@/lib/uploadValidation';
+import { RhRapportsInbox } from '@/components/rh/RhRapportsInbox';
 
-export const RhRapports = () => {
+function RhRapportsCreateForm() {
   const { toast } = useToast();
   const [form, setForm] = useState<RhSecurityReportForm>(() => defaultRhReportForm());
   const [saving, setSaving] = useState(false);
@@ -152,14 +154,7 @@ export const RhRapports = () => {
   const showVehicle = form.incidentTypes.includes('accident');
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <FileText className="w-7 h-7 text-primary" />
-          Rapports de contrôle & incidents
-        </h2>
-      </div>
-
+    <div className="space-y-8 pb-8">
       <section className="bg-card border border-border rounded-xl p-6 space-y-4">
         <h3 className="font-semibold text-foreground">Nature(s) du constat *</h3>
         <p className="text-xs text-muted-foreground">Sélectionnez une ou plusieurs options.</p>
@@ -405,6 +400,41 @@ export const RhRapports = () => {
           PDF uniquement
         </Button>
       </div>
+    </div>
+  );
+}
+
+export const RhRapports = () => {
+  return (
+    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
+      <div>
+        <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <FileText className="w-7 h-7 text-primary" />
+          Rapports RH
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Consultez les rapports envoyés par les chauffeurs (application mobile) ou rédigez un nouveau rapport.
+        </p>
+      </div>
+
+      <Tabs defaultValue="inbox" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="inbox" className="gap-2">
+            <Inbox className="h-4 w-4" />
+            Rapports reçus
+          </TabsTrigger>
+          <TabsTrigger value="create" className="gap-2">
+            <PenLine className="h-4 w-4" />
+            Nouveau rapport
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="inbox" className="mt-4">
+          <RhRapportsInbox />
+        </TabsContent>
+        <TabsContent value="create" className="mt-4">
+          <RhRapportsCreateForm />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

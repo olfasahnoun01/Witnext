@@ -58,7 +58,31 @@ export interface RhSecurityReportRecord {
   body_sections: RhReportSection[];
   vehicle_info: RhVehicleInfo | null;
   attachment_paths: string[];
+  created_by: string | null;
   created_at: string;
+  author_name?: string | null;
+}
+
+export function rhReportRecordToForm(record: RhSecurityReportRecord): RhSecurityReportForm {
+  const defaults = defaultRhReportForm();
+  return {
+    incidentTypes: record.incident_types.filter((id): id is RhIncidentTypeId =>
+      RH_INCIDENT_TYPES.some((t) => t.id === id)
+    ),
+    reportKind: (RH_REPORT_KINDS.some((k) => k.id === record.report_kind)
+      ? record.report_kind
+      : 'controle_site') as RhReportKindId,
+    title: record.title,
+    subtitle: record.subtitle ?? '',
+    companyName: record.company_name ?? '',
+    incidentDate: record.incident_date ?? '',
+    incidentTime: '',
+    location: record.location ?? '',
+    incidentTypeDetail: record.incident_type_detail ?? '',
+    sections: record.body_sections.length > 0 ? record.body_sections : defaults.sections,
+    vehicleInfo: record.vehicle_info ?? defaults.vehicleInfo,
+    attachmentFiles: [],
+  };
 }
 
 export const defaultRhReportForm = (): RhSecurityReportForm => ({

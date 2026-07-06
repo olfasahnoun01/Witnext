@@ -68,6 +68,7 @@ import { formatPhonesDisplay, parsePhoneListFromStorage, serializePhoneList } fr
 import { getActiveCompanyId } from '@/lib/activeCompany';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
+import { userDisplayName } from '@/lib/userDisplay';
 
 interface RDV {
   id: string;
@@ -145,6 +146,8 @@ export const RDV = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [rdvs, setRdvs] = useState<RDV[]>([]);
+  const [chargeDisplayByRaw, setChargeDisplayByRaw] = useState<Record<string, string>>({});
+  const [currentUserDisplay, setCurrentUserDisplay] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRDV, setEditingRDV] = useState<RDV | null>(null);
@@ -181,6 +184,24 @@ export const RDV = () => {
       }));
 
       setRdvs(mappedRdvs);
+
+      const rawCharges = [...new Set(mappedRdvs.map((r) => r.charge.trim()).filter(Boolean))];
+      if (rawCharges.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('full_name, email')
+          .in('email', rawCharges);
+        const displayMap: Record<string, string> = {};
+        for (const raw of rawCharges) {
+          const profile = (profiles ?? []).find(
+            (p) => (p.email ?? '').trim().toLowerCase() === raw.toLowerCase()
+          );
+          displayMap[raw] = userDisplayName(profile?.full_name, profile?.email ?? raw);
+        }
+        setChargeDisplayByRaw(displayMap);
+      } else {
+        setChargeDisplayByRaw({});
+      }
     } catch (error: any) {
       console.error('Error fetching rdvs:', error);
       toast.error('Erreur lors du chargement des rendez-vous');
@@ -192,6 +213,27 @@ export const RDV = () => {
   useEffect(() => {
     fetchRdvs();
   }, [fetchRdvs]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setCurrentUserDisplay('');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (!cancelled) {
+        setCurrentUserDisplay(userDisplayName(data?.full_name, user.email));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.email]);
 
   useSessionResumeReload(fetchRdvs);
   useCompanyChangeReload(fetchRdvs);
@@ -227,7 +269,7 @@ export const RDV = () => {
         notes: formData.notes || '',
         besoin: formData.besoin || '',
         piece_jointe: formData.pieceJointe,
-        charge: editingRDV?.charge || user?.email || 'Unknown',
+        charge: editingRDV?.charge || currentUserDisplay || userDisplayName(null, user?.email),
         ...(companyId ? { company_id: companyId } : {}),
       };
 
@@ -613,7 +655,7 @@ export const RDV = () => {
                     <th>Date RDV</th>
                     <th className="min-w-[200px]">Besoin</th>
                     <th>P. jointe</th>
-                    <th>Chargé</th>
+                    <th>Compte utilisateur</th>
                     <th className="text-right">Actions</th>
                   </tr>
                 </thead>
@@ -658,7 +700,9 @@ export const RDV = () => {
                             </Badge>
                           )}
                         </td>
-                        <td className="text-xs font-semibold">{rdv.charge}</td>
+                        <td className="text-xs font-semibold">
+                          {chargeDisplayByRaw[rdv.charge] ?? rdv.charge}
+                        </td>
                         <td className="text-right w-[52px]">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>

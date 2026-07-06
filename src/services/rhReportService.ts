@@ -1,22 +1,10 @@
 import { supabase } from '@/integrations/supabase/client';
+import { getActiveCompanyId } from '@/lib/activeCompany';
 import { buildCompanyStoragePath } from '@/lib/storagePaths';
+import { userDisplayName } from '@/lib/userDisplay';
 import type { RhSecurityReportForm, RhSecurityReportRecord, RhReportSection, RhVehicleInfo } from '@/lib/rhReportTypes';
 
 const BUCKET = 'rh-report-files';
-
-export async function fetchRhSecurityReports(): Promise<RhSecurityReportRecord[]> {
-  const { data, error } = await supabase
-    .from('rh_security_reports')
-    .select('*')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('[RH] fetch reports:', error.message);
-    throw new Error(error.message);
-  }
-
-  return (data || []).map(mapRow);
-}
 
 function mapRow(row: Record<string, unknown>): RhSecurityReportRecord {
   return {
@@ -32,8 +20,43 @@ function mapRow(row: Record<string, unknown>): RhSecurityReportRecord {
     body_sections: (row.body_sections as RhReportSection[]) || [],
     vehicle_info: (row.vehicle_info as RhVehicleInfo | null) || null,
     attachment_paths: (row.attachment_paths as string[]) || [],
+    created_by: row.created_by != null ? String(row.created_by) : null,
     created_at: String(row.created_at || ''),
   };
+}
+
+async function attachAuthorNames(records: RhSecurityReportRecord[]): Promise<RhSecurityReportRecord[]> {
+  const userIds = [...new Set(records.map((r) => r.created_by).filter(Boolean))] as string[];
+  if (userIds.length === 0) return records;
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('user_id, full_name, email')
+    .in('user_id', userIds);
+
+  const byUserId = new Map(
+    (profiles ?? []).map((p) => [p.user_id, userDisplayName(p.full_name, p.email)])
+  );
+
+  return records.map((record) => ({
+    ...record,
+    author_name: record.created_by ? byUserId.get(record.created_by) ?? 'Chauffeur' : '—',
+  }));
+}
+
+export async function fetchRhSecurityReports(): Promise<RhSecurityReportRecord[]> {
+  const companyId = getActiveCompanyId();
+  let query = supabase.from('rh_security_reports').select('*').order('created_at', { ascending: false });
+  if (companyId) query = query.eq('company_id', companyId);
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('[RH] fetch reports:', error.message);
+    throw new Error(error.message);
+  }
+
+  return attachAuthorNames((data || []).map(mapRow));
 }
 
 export async function uploadRhAttachments(files: File[], reportId: string): Promise<string[]> {
@@ -51,10 +74,20 @@ export async function uploadRhAttachments(files: File[], reportId: string): Prom
   return paths;
 }
 
+export async function getRhReportAttachmentUrl(path: string): Promise<string | null> {
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
+  if (error) {
+    console.warn('[RH] signed url:', error.message);
+    return null;
+  }
+  return data.signedUrl;
+}
+
 export async function saveRhSecurityReport(form: RhSecurityReportForm): Promise<RhSecurityReportRecord> {
   const { data: userData } = await supabase.auth.getUser();
+  const companyId = getActiveCompanyId();
 
-  const insertPayload = {
+  const insertPayload: Record<string, unknown> = {
     incident_types: form.incidentTypes,
     report_kind: form.reportKind,
     title: form.title.trim() || 'Rapport sans titre',
@@ -68,6 +101,7 @@ export async function saveRhSecurityReport(form: RhSecurityReportForm): Promise<
     attachment_paths: [] as string[],
     created_by: userData.user?.id ?? null,
   };
+  if (companyId) insertPayload.company_id = companyId;
 
   const { data, error } = await supabase
     .from('rh_security_reports')
@@ -90,7 +124,8 @@ export async function saveRhSecurityReport(form: RhSecurityReportForm): Promise<
     }
   }
 
-  return mapRow({ ...data, attachment_paths });
+  const [record] = await attachAuthorNames([mapRow({ ...data, attachment_paths })]);
+  return record;
 }
 
 export async function deleteRhSecurityReport(id: string): Promise<void> {
