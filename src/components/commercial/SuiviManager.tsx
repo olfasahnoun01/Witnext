@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, Fragment } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import {
   Table,
   TableBody,
@@ -89,7 +90,7 @@ function isAutoSuiviFromDevis(reponse: string | null): boolean {
 function formatDisplayDate(value: string | null): string {
   if (!value) return '—';
   try {
-    return format(new Date(value), 'dd/MM/yyyy', { locale: fr });
+    return formatAppDate(value);
   } catch {
     return value;
   }

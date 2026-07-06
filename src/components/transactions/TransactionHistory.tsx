@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { ArrowDownLeft, ArrowUpRight, Edit, Trash2, Search, ChevronLeft, ChevronRight, List, Package } from 'lucide-react';
 import { Transaction, Product } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
@@ -276,12 +277,7 @@ export const TransactionHistory = ({
                       <>
                         <p className="font-medium text-foreground">{tx.product_name}</p>
                         <p className="text-sm text-muted-foreground">
-                          {tx.quantity} unités • {new Date(tx.date).toLocaleDateString('fr-TN', {
-                            day: 'numeric',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+                          {tx.quantity} unités • {formatAppDate(tx.date)}
                         </p>
                         {tx.note && (
                           <p className="text-xs text-muted-foreground mt-1 truncate">{tx.note}</p>

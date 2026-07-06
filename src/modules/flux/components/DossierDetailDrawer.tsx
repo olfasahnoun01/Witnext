@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatAppDateTime } from '@/lib/formatAppDate';
 import { toast } from 'sonner';
 import { Loader2, RefreshCw, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -161,7 +162,7 @@ export function DossierDetailDrawer({ dossierId, onClose, onUpdated }: DossierDe
                   {events.map((ev) => (
                     <li key={ev.id} className="border-l-2 border-muted pl-3 py-0.5">
                       <span className="text-xs text-muted-foreground">
-                        {new Date(ev.created_at).toLocaleString('fr-FR')}
+                        {formatAppDateTime(ev.created_at)}
                       </span>
                       <p>{ev.message}</p>
                     </li>

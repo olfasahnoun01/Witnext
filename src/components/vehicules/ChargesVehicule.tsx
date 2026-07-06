@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { Receipt, Plus, Car, Shield, FileCheck, Landmark, Trash2, AlertCircle, Bell, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -186,7 +187,7 @@ export const ChargesVehicule = () => {
                 {charge.type === 'leasing' ? 'Prochaine Échéance' : 'Échéance'}
               </p>
               <p className={`font-bold ${isExpired(charge.dateEcheance) ? 'text-white' : 'text-foreground'}`}>
-                {new Date(charge.dateEcheance).toLocaleDateString()}
+                {formatAppDate(charge.dateEcheance)}
               </p>
             </div>
           </div>
@@ -230,7 +231,7 @@ export const ChargesVehicule = () => {
             <div className={`flex items-center gap-2 p-3 rounded-xl border ${isReminderDue(charge.reminderDate) ? 'text-amber-500 bg-amber-500/10 border-amber-500/20' : 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20'}`}>
               <Bell className={`w-4 h-4 ${isReminderDue(charge.reminderDate) ? 'animate-bounce' : ''}`} />
               <span className="text-xs font-bold uppercase tracking-wider">
-                {isReminderDue(charge.reminderDate) ? 'Rappel en cours !' : 'Rappel programmé'} : {new Date(`${charge.reminderDate.slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR')}
+                {isReminderDue(charge.reminderDate) ? 'Rappel en cours !' : 'Rappel programmé'} : {formatAppDate(charge.reminderDate.slice(0, 10))}
               </span>
             </div>
           )}

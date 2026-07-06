@@ -1,4 +1,5 @@
 import { format, startOfDay, endOfDay } from 'date-fns';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { supabase } from '@/integrations/supabase/client';
 import { supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
 import { parseAttachmentUrls } from '@/lib/commercialAttachments';
@@ -278,7 +279,7 @@ export async function loadBossDailyActivity(
 }
 
 export function formatBossActivityDate(date: Date): string {
-  return format(date, 'dd/MM/yyyy');
+  return formatAppDate(date);
 }
 
 export function formatBossDocTime(iso: string): string {

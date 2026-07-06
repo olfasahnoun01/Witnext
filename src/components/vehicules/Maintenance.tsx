@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { Wrench, Plus, Calendar, Car, AlertTriangle, CheckCircle2, Clock, Banknote, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -283,7 +284,7 @@ export const Maintenance = () => {
                       <h4 className="font-bold text-foreground truncate">{record.vehicule}</h4>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold mt-1">
                         <Calendar className="w-3 h-3 shrink-0" />
-                        {new Date(record.dateDebut).toLocaleDateString('fr-FR')}
+                        {formatAppDate(record.dateDebut)}
                       </div>
                     </div>
                   </div>

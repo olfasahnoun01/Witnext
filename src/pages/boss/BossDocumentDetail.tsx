@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { formatAppDate } from '@/lib/formatAppDate';
 import { ArrowLeft, Download, Eye, Loader2 } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useAppCompany } from '@/contexts/AppCompanyContext';
@@ -142,7 +141,7 @@ export function BossDocumentDetail() {
   }, [previewUrl]);
 
   const dateLabel = doc
-    ? format(new Date(doc.devis_date), 'EEEE d MMMM yyyy', { locale: fr })
+    ? formatAppDate(doc.devis_date)
     : '';
 
   return (

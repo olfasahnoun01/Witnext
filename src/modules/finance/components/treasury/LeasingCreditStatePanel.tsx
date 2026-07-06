@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { toast } from 'sonner';
 import { Car, Loader2, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -248,7 +249,7 @@ export function LeasingCreditStatePanel({ companyId }: LeasingCreditStatePanelPr
                           {contract.contractNumber}
                         </TableCell>
                         <TableCell rowSpan={LEASING_LINE_KINDS.length} className="align-top text-sm">
-                          {new Date(contract.contractDate).toLocaleDateString('fr-FR')}
+                          {formatAppDate(contract.contractDate)}
                         </TableCell>
                       </>
                     )}

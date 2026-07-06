@@ -1,4 +1,5 @@
 import { memo, useMemo, useState, useCallback } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { History, Download, Edit, Trash2, Eye, Loader2 } from 'lucide-react';
 import { SavedDocument, documentTypes, downloadDocumentPDF, getDocumentPDFBlobUrl } from '@/utils/pdfGenerator';
 import {
@@ -103,7 +104,7 @@ export const DocumentHistory = memo(({ savedDocuments, canEdit, onEdit, onDelete
                   </td>
                   <td className="py-3 px-4 text-sm font-medium text-foreground">{doc.doc_number}</td>
                   <td className="py-3 px-4 text-sm text-muted-foreground">
-                    {new Date(doc.doc_date).toLocaleDateString('fr-FR')}
+                    {formatAppDate(doc.doc_date)}
                   </td>
                   <td className="py-3 px-4 text-sm text-foreground">{doc.third_party_name || '-'}</td>
                   <td className="py-3 px-4 text-sm text-muted-foreground">

@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { FileUp, Loader2, ScanLine, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -190,7 +191,7 @@ export function BcFournisseurPdfReader({
               )}
               {preview.header.documentDate && (
                 <Badge variant="outline">
-                  Date : {new Date(preview.header.documentDate).toLocaleDateString('fr-FR')}
+                  Date : {formatAppDate(preview.header.documentDate)}
                 </Badge>
               )}
               <Badge variant="outline">{preview.lines.length} ligne(s)</Badge>

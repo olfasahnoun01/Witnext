@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { FileDown, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -133,7 +134,7 @@ export function ImportDevisIntoBcPanel({ devisList, onImport, disabled }: Props)
                     <span className="text-muted-foreground">
                       {' '}
                       — {d.third_party_name || 'Sans tiers'} ·{' '}
-                      {new Date(d.devis_date).toLocaleDateString('fr-FR')} · {d.items?.length ?? 0}{' '}
+                      {formatAppDate(d.devis_date)} · {d.items?.length ?? 0}{' '}
                       ligne
                       {(d.items?.length ?? 0) !== 1 ? 's' : ''}
                     </span>

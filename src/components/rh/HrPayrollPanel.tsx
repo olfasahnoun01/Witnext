@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { Loader2, Plus, Printer, Download, MinusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -298,7 +299,7 @@ export const HrPayrollPanel = () => {
               <tbody>
                 {movements.slice(0, 50).map((m) => (
                   <tr key={m.id}>
-                    <td>{new Date(`${m.movement_date}T12:00:00`).toLocaleDateString('fr-FR')}</td>
+                    <td>{formatAppDate(m.movement_date)}</td>
                     <td>
                       {m.employee?.nom} {m.employee?.prenom}
                     </td>

@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { autoTable } from 'jspdf-autotable';
 import { Product, DocumentItem, UnifiedDocument } from '@/types';
 import { computeDevisLine, computeDevisTotals, resolveDevisLineTvaRate, resolveFodecEnabled } from '@/lib/devisPricing';
@@ -210,7 +211,7 @@ export const generateInventoryPDF = (products: Product[], filterName?: string) =
   
   doc.setFontSize(10);
   doc.setTextColor(100, 100, 100);
-  doc.text(`Généré le: ${new Date().toLocaleDateString('fr-TN')}`, 14, 40);
+  doc.text(`Généré le: ${formatAppDate(new Date())}`, 14, 40);
   
   // Group products by category
   const productsByCategory: Record<string, Product[]> = {};
@@ -331,7 +332,7 @@ export const generateLowStockPDF = (lowStockProducts: Product[]) => {
   
   doc.setFontSize(10);
   doc.setTextColor(100, 100, 100);
-  doc.text(`Généré le: ${new Date().toLocaleDateString('fr-TN')}`, 14, 40);
+  doc.text(`Généré le: ${formatAppDate(new Date())}`, 14, 40);
   
   if (lowStockProducts.length === 0) {
     doc.setFontSize(12);
@@ -431,7 +432,7 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
   doc.text(`N° : ${docNumber || '______'}`, pageWidth - 72, 60);
-  doc.text(`Date : ${new Date(docDate).toLocaleDateString('fr-FR')}`, pageWidth - 72, 68);
+  doc.text(`Date : ${formatAppDate(docDate)}`, pageWidth - 72, 68);
   
   // Validity info
   if (docValidity) {
@@ -816,10 +817,10 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(80, 80, 80);
-  const dateStr = new Date(devis.devis_date).toLocaleDateString('fr-FR');
+  const dateStr = formatAppDate(devis.devis_date);
   const metaY = devis.is_facture && devis.date_echeance ? 52 : 54;
   if (devis.is_facture && devis.date_echeance) {
-    const dueStr = new Date(devis.date_echeance).toLocaleDateString('fr-FR');
+    const dueStr = formatAppDate(devis.date_echeance);
     const metaMargin = 18;
     doc.text(`N° ${devis.devis_number}`, metaMargin, metaY);
     doc.text(`Date : ${dateStr}`, pageWidth / 2, metaY, { align: 'center' });

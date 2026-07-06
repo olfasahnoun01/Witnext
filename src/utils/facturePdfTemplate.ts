@@ -15,6 +15,7 @@ import {
 import { getDevisItemDetailDescription } from '@/lib/devisItemPdf';
 import { getFactureCompanyBrand, type FactureCompanyBrand } from '@/lib/factureCompanyBrand';
 import { montantEnLettresFactureStyle } from '@/modules/finance/lib/amountInWordsFr';
+import { formatAppDate } from '@/lib/formatAppDate';
 import type { DevisPDFData } from './pdfGenerator';
 
 /** A4 page with tight professional margins (mm). */
@@ -70,9 +71,7 @@ function formatAmount(n: number): string {
 }
 
 function formatDateFr(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('fr-FR');
+  return formatAppDate(iso, iso);
 }
 
 function loadLogo(url: string): Promise<PdfLogoAsset | null> {

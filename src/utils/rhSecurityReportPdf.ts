@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf';
+import { formatAppDate } from '@/lib/formatAppDate';
 import type { RhReportSection, RhSecurityReportForm, RhVehicleInfo } from '@/lib/rhReportTypes';
 import { incidentTypeLabels, RH_REPORT_KINDS } from '@/lib/rhReportTypes';
 
@@ -93,11 +94,7 @@ function drawCenteredHeader(doc: jsPDF, logo: { dataUrl: string; w: number; h: n
   doc.setFontSize(9);
   doc.setTextColor(...GRAY);
   doc.text(
-    `Rapport établi le ${new Date().toLocaleDateString('fr-FR', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    })}`,
+    `Rapport établi le ${formatAppDate(new Date())}`,
     PAGE_W / 2,
     y,
     { align: 'center' }
@@ -106,13 +103,7 @@ function drawCenteredHeader(doc: jsPDF, logo: { dataUrl: string; w: number; h: n
 }
 
 function formatDateDdMmYyyy(isoDate: string): string {
-  if (!isoDate) return '—';
-  const d = new Date(isoDate);
-  if (Number.isNaN(d.getTime())) return isoDate;
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
+  return formatAppDate(isoDate, isoDate);
 }
 
 function formatHeure(time: string): string {

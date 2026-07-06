@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { Fuel, Plus, Search, Calendar, User, Car, Banknote, ClipboardList, Loader2, Image as ImageIcon, Eye, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -494,7 +495,7 @@ export const BonCarburant = () => {
                         {(bon.montant || 0).toLocaleString()} TND
                       </TableCell>
                       <TableCell className="text-foreground">
-                        {new Date(bon.date).toLocaleDateString()}
+                        {formatAppDate(bon.date)}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={fuelVoucherStatusBadgeClass(bon.status)}>

@@ -11,6 +11,7 @@ import {
   UnifiedDocumentLine 
 } from '@/types';
 import { toast } from 'sonner';
+import { formatAppDateTime } from '@/lib/formatAppDate';
 
 /**
  * Service for the new Unified Document Engine (v2)
@@ -145,7 +146,7 @@ export const documentService = {
       .eq('id', id)
       .maybeSingle();
     if (fetchErr || !row) return;
-    const stamp = new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+    const stamp = formatAppDateTime(new Date());
     const actionNote =
       kind === 'BC_FOURNISSEUR'
         ? `[${stamp}] Converti en BC fournisseur (approvisionnement).`
@@ -1018,7 +1019,7 @@ export const documentService = {
       lines,
     });
     if (result.success && result.document) {
-      const stamp = new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+      const stamp = formatAppDateTime(new Date());
       const numero = (result.document as { numero?: string }).numero || '';
       await this.appendLegacyDevisNote(
         devis.id,

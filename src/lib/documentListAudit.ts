@@ -1,5 +1,7 @@
 /** Helpers for "Dernière modification" / "Modifiée par" columns in document lists. */
 
+import { formatAppDateTime } from '@/lib/formatAppDate';
+
 export type DocumentAuditFields = {
   updated_at: string;
   created_by?: string | null;
@@ -42,10 +44,7 @@ export function attachProfileNames<T extends { created_by?: string | null; updat
 
 /** Date/time; appends " — par …" when another user last modified the row. */
 export function formatDerniereModification(doc: DocumentAuditFields): string {
-  const dateStr = new Date(doc.updated_at).toLocaleString('fr-FR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  });
+  const dateStr = formatAppDateTime(doc.updated_at);
   if (
     doc.updated_by &&
     doc.created_by &&

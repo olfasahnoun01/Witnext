@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Devis, DevisItem, BonCommande } from '@/types';
 import { buildProfilesMap, collectUserIdsForProfiles } from '@/lib/documentListAudit';
+import { formatAppDateTime } from '@/lib/formatAppDate';
 import { useAuth } from '@/hooks/useAuth';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import { getActiveCompanyId, requireActiveCompanyId } from '@/lib/activeCompany';
@@ -999,7 +1000,7 @@ export const GestionDevis = ({
         toast.error('Erreur lors de la création du BC');
         console.error(error);
       } else {
-        const stamp = new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+        const stamp = formatAppDateTime(new Date());
         for (const src of sources) {
           await documentService.appendLegacyDevisNote(
             src.id,

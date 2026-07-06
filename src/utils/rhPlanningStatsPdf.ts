@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
+import { formatAppDate, formatAppDateTime } from '@/lib/formatAppDate';
 import type {
   ParsedPlanningSnapshot,
   PlanningPeriodComparison,
@@ -66,13 +67,7 @@ function fmtDelta(n: number, suffix = ''): string {
 }
 
 function formatDateDdMmYyyy(isoDate: string): string {
-  if (!isoDate) return '—';
-  const d = new Date(isoDate);
-  if (Number.isNaN(d.getTime())) return isoDate;
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
+  return formatAppDate(isoDate, isoDate);
 }
 
 function drawPageFooter(doc: jsPDF, page: number) {
@@ -118,13 +113,7 @@ function drawCenteredHeader(
   doc.setFontSize(9);
   doc.setTextColor(...GRAY);
   doc.text(
-    `Rapport généré le ${reportDate.toLocaleDateString('fr-FR', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })}`,
+    `Rapport généré le ${formatAppDateTime(reportDate)}`,
     PAGE_W / 2,
     y,
     { align: 'center' }

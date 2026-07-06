@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { Download, Eye, FileText, Loader2, Printer, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { UnifiedDocument, UnifiedDocumentType } from '@/types';
@@ -54,7 +55,7 @@ const TYPE_BADGE_CLASS: Partial<Record<UnifiedDocumentType, string>> = {
 function formatDocDate(doc: UnifiedDocument): string {
   const meta = doc.metadata as Record<string, unknown> | undefined;
   const raw = (meta?.document_date as string) || doc.created_at;
-  return new Date(raw).toLocaleDateString('fr-FR');
+  return formatAppDate(raw);
 }
 
 export function WarehouseDocumentsReports() {

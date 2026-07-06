@@ -34,6 +34,7 @@ import {
 } from '@/lib/saveFilePicker';
 import './planningPrint.css';
 import { printPlanningSection } from './planningPrint';
+import { formatAppDate } from '@/lib/formatAppDate';
 
 // ── Types ──────────────────────────────────────────────────────────────
 interface EmployeeRow {
@@ -71,17 +72,11 @@ function buildDateRange(start: Date, end: Date): Date[] {
 }
 
 function formatDD_MM(d: Date): string {
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  return `${dd}/${mm}`;
+  return formatAppDate(d);
 }
 
 function formatPlanningGeneratedDate(d: Date): string {
-  return d.toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+  return formatAppDate(d);
 }
 
 function formatPlanningGeneratedTime(d: Date): string {
@@ -230,11 +225,7 @@ function mapLegacyRowsToEmployees(
 }
 
 function formatPlanningGeneratedAt(date: Date): { date: string; time: string; combined: string } {
-  const dateStr = date.toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+  const dateStr = formatAppDate(date);
   const timeStr = date.toLocaleTimeString('fr-FR', {
     hour: '2-digit',
     minute: '2-digit',

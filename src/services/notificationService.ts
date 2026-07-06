@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { posteMatches } from '@/lib/userPositions';
 import { localDateIso } from '@/lib/vehicleReminders';
 
@@ -163,7 +164,7 @@ export async function syncVehicleReminderNotifications() {
     const v = row.vehicle as { modele?: string; matricule?: string } | null;
     const label = REMINDER_LABELS[row.reminder_type] || row.reminder_type;
     const vehLabel = `${v?.modele || 'Véhicule'} (${v?.matricule || '-'})`;
-    const due = new Date(row.due_date).toLocaleDateString('fr-FR');
+    const due = formatAppDate(row.due_date);
 
     await dispatch(recipientIds, {
       type: 'vehicle_reminder',

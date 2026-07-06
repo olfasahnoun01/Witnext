@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ElementType } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { toast } from 'sonner';
 import {
   AlertCircle,
@@ -409,7 +410,7 @@ export function CommercialOperationsTrackerPanel({ companyId }: CommercialOperat
                           BC CLIENT
                         </Badge>
                         <span className="text-[10px] text-muted-foreground">
-                          {new Date(op.createdAt).toLocaleDateString('fr-FR')}
+                          {formatAppDate(op.createdAt)}
                         </span>
                       </div>
                       <h4 className="font-bold">{op.bcNumero}</h4>

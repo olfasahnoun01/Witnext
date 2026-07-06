@@ -4,6 +4,7 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { formatAppDateTime } from '@/lib/formatAppDate';
 import { FISCAL_LABELS } from './fiscalTerminology';
 import { formatMontantDt } from './money';
 import type { FiscalPeriodSummary } from '../services/fiscalPeriodSummary';
@@ -39,7 +40,7 @@ export function buildFiscalDashboardPdf(data: FiscalDashboardPdfData): jsPDF {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const margin = 14;
   const pageW = doc.internal.pageSize.getWidth();
-  const generatedAt = new Date().toLocaleString('fr-TN');
+  const generatedAt = formatAppDateTime(new Date());
 
   doc.setFillColor(248, 250, 252);
   doc.rect(0, 0, pageW, 297, 'F');

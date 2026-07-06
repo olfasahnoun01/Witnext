@@ -1,5 +1,7 @@
 /** Parse & analyse JSON exports from the Planning subsection. */
 
+import { formatAppDate, formatAppMonthYear } from '@/lib/formatAppDate';
+
 const WORK_SHIFT_CODES = new Set(['J', 'N', 'J-P1', 'J-P2', 'N-P1', 'N-P2']);
 
 export interface ParsedPlanningAgent {
@@ -181,11 +183,11 @@ function formatPeriodLabel(referenceDate: string, periodType: string): string {
   if (!referenceDate) return 'Période';
   const d = new Date(referenceDate);
   if (Number.isNaN(d.getTime())) return referenceDate;
-  const month = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  const month = formatAppMonthYear(d);
   if (periodType === 'weekly') {
-    return `Semaine du ${d.toLocaleDateString('fr-FR')}`;
+    return `Semaine du ${formatAppDate(d)}`;
   }
-  return month.charAt(0).toUpperCase() + month.slice(1);
+  return month;
 }
 
 export function parsePlanningExportFile(

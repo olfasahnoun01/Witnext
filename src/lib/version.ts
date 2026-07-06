@@ -16,13 +16,7 @@ const minutes = String(date.getMinutes()).padStart(2, '0');
 export const APP_VERSION = `${year}.${month}.${day}.${hours}${minutes}`;
 
 // Human readable build date
-export const BUILD_DATE_FORMATTED = date.toLocaleDateString('fr-FR', {
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit'
-});
+export const BUILD_DATE_FORMATTED = `${day}/${month}/${String(year).slice(-2)} ${hours}:${minutes}`;
 
 export const VERSION_INFO = {
   version: APP_VERSION,

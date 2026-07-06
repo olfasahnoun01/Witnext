@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { CreditCard, Plus, History, RefreshCw, User, Wallet, MoreVertical, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import {
   DropdownMenu,
@@ -23,8 +24,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { formatAppDate, formatAppDateTime } from '@/lib/formatAppDate';
 
 interface FuelCard {
   id: string;
@@ -33,37 +43,96 @@ interface FuelCard {
   solde: number;
 }
 
+type FuelCardHistoryType = 'creation' | 'recharge';
+
+interface FuelCardHistoryEntry {
+  id: string;
+  cardId: string;
+  type: FuelCardHistoryType;
+  amount: number;
+  balanceAfter: number;
+  createdAt: string;
+}
+
+const CARDS_STORAGE_KEY = 'grosafe_fuel_cards';
+const HISTORY_STORAGE_KEY = 'grosafe_fuel_card_history';
+
+function loadCards(): FuelCard[] {
+  try {
+    const saved = localStorage.getItem(CARDS_STORAGE_KEY);
+    return saved ? (JSON.parse(saved) as FuelCard[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadHistory(): FuelCardHistoryEntry[] {
+  try {
+    const saved = localStorage.getItem(HISTORY_STORAGE_KEY);
+    return saved ? (JSON.parse(saved) as FuelCardHistoryEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 export const CartesCarburant = () => {
-  const [cards, setCards] = useState<FuelCard[]>(() => {
-    const saved = localStorage.getItem('grosafe_fuel_cards');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [cards, setCards] = useState<FuelCard[]>(loadCards);
+  const [history, setHistory] = useState<FuelCardHistoryEntry[]>(loadHistory);
   const [isNewCardDialogOpen, setIsNewCardDialogOpen] = useState(false);
   const [isRechargeDialogOpen, setIsRechargeDialogOpen] = useState(false);
+  const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   const [selectedCard, setSelectedCard] = useState<FuelCard | null>(null);
   const [rechargeAmount, setRechargeAmount] = useState('');
-  
-  // Load employees from Supabase
-  const [employees, setEmployees] = useState<any[]>([]);
+
+  const [employees, setEmployees] = useState<{ id: string; prenom: string; nom: string }[]>([]);
 
   useEffect(() => {
     const fetchEmployees = async () => {
       const { data } = await supabase.from('employees').select('id, prenom, nom');
       setEmployees(data || []);
     };
-    fetchEmployees();
+    void fetchEmployees();
   }, []);
-  
+
   const [newCardForm, setNewCardForm] = useState({
     numCarte: '',
     conducteur: '',
     solde: '',
   });
 
-  const saveCards = (newCards: FuelCard[]) => {
+  const saveCards = useCallback((newCards: FuelCard[]) => {
     setCards(newCards);
-    localStorage.setItem('grosafe_fuel_cards', JSON.stringify(newCards));
-  };
+    localStorage.setItem(CARDS_STORAGE_KEY, JSON.stringify(newCards));
+  }, []);
+
+  const saveHistory = useCallback((entries: FuelCardHistoryEntry[]) => {
+    setHistory(entries);
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(entries));
+  }, []);
+
+  const appendHistory = useCallback(
+    (entry: Omit<FuelCardHistoryEntry, 'id' | 'createdAt'>) => {
+      const next: FuelCardHistoryEntry = {
+        ...entry,
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+      };
+      saveHistory([next, ...history]);
+    },
+    [history, saveHistory]
+  );
+
+  const openHistory = useCallback((card: FuelCard) => {
+    setSelectedCard(card);
+    setIsHistoryDialogOpen(true);
+  }, []);
+
+  const cardHistory = useMemo(() => {
+    if (!selectedCard) return [];
+    return history
+      .filter((h) => h.cardId === selectedCard.id)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [history, selectedCard]);
 
   const handleCreateCard = useCallback(() => {
     if (!newCardForm.numCarte || !newCardForm.conducteur) {
@@ -71,18 +140,25 @@ export const CartesCarburant = () => {
       return;
     }
 
+    const initialSolde = parseFloat(newCardForm.solde || '0');
     const newCard: FuelCard = {
       id: crypto.randomUUID(),
       numCarte: newCardForm.numCarte,
       conducteur: newCardForm.conducteur,
-      solde: parseFloat(newCardForm.solde || '0'),
+      solde: initialSolde,
     };
 
     saveCards([...cards, newCard]);
+    appendHistory({
+      cardId: newCard.id,
+      type: 'creation',
+      amount: initialSolde,
+      balanceAfter: initialSolde,
+    });
     setIsNewCardDialogOpen(false);
     setNewCardForm({ numCarte: '', conducteur: '', solde: '' });
     toast.success('Carte de carburant créée');
-  }, [newCardForm, cards]);
+  }, [newCardForm, cards, saveCards, appendHistory]);
 
   const handleRecharge = useCallback(() => {
     if (!selectedCard || !rechargeAmount || parseFloat(rechargeAmount) <= 0) {
@@ -90,23 +166,37 @@ export const CartesCarburant = () => {
       return;
     }
 
-    const updatedCards = cards.map(c => 
-      c.id === selectedCard.id 
-        ? { ...c, solde: c.solde + parseFloat(rechargeAmount) } 
-        : c
+    const amount = parseFloat(rechargeAmount);
+    const balanceAfter = selectedCard.solde + amount;
+    const updatedCards = cards.map((c) =>
+      c.id === selectedCard.id ? { ...c, solde: balanceAfter } : c
     );
 
     saveCards(updatedCards);
-    toast.success(`Carte rechargée de ${rechargeAmount} TND`);
+    appendHistory({
+      cardId: selectedCard.id,
+      type: 'recharge',
+      amount,
+      balanceAfter,
+    });
+    toast.success(`Carte rechargée de ${amount} TND`);
     setIsRechargeDialogOpen(false);
     setRechargeAmount('');
     setSelectedCard(null);
-  }, [selectedCard, rechargeAmount, cards]);
+  }, [selectedCard, rechargeAmount, cards, saveCards, appendHistory]);
 
-  const handleDeleteCard = useCallback((id: string) => {
-    saveCards(cards.filter(c => c.id !== id));
-    toast.success('Carte supprimée');
-  }, [cards]);
+  const handleDeleteCard = useCallback(
+    (id: string) => {
+      saveCards(cards.filter((c) => c.id !== id));
+      saveHistory(history.filter((h) => h.cardId !== id));
+      if (selectedCard?.id === id) {
+        setSelectedCard(null);
+        setIsHistoryDialogOpen(false);
+      }
+      toast.success('Carte supprimée');
+    },
+    [cards, history, saveCards, saveHistory, selectedCard]
+  );
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -142,9 +232,8 @@ export const CartesCarburant = () => {
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 font-sans">
           {cards.map((card) => (
             <div key={card.id} className="group relative overflow-hidden rounded-3xl bg-white border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-              {/* Background gradient deco */}
               <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-150" />
-              
+
               <div className="p-6 relative">
                 <div className="flex items-start justify-between mb-8">
                   <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
@@ -157,7 +246,10 @@ export const CartesCarburant = () => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="rounded-xl border-slate-100 p-1">
-                      <DropdownMenuItem className="gap-2 text-slate-600 rounded-lg cursor-pointer">
+                      <DropdownMenuItem
+                        className="gap-2 text-slate-600 rounded-lg cursor-pointer"
+                        onClick={() => openHistory(card)}
+                      >
                         <History className="w-4 h-4" />
                         Historique complet
                       </DropdownMenuItem>
@@ -174,7 +266,7 @@ export const CartesCarburant = () => {
                     <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Numéro de Carte</p>
                     <p className="text-lg font-mono font-medium text-slate-700">{card.numCarte}</p>
                   </div>
-                  
+
                   <div className="space-y-0.5 pb-2">
                     <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Conducteur</p>
                     <div className="flex items-center gap-2">
@@ -195,19 +287,24 @@ export const CartesCarburant = () => {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mt-6">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="rounded-2xl h-10 gap-2 border-indigo-100 text-indigo-600 hover:bg-indigo-50 group/btn"
                     onClick={() => {
-                        setSelectedCard(card);
-                        setIsRechargeDialogOpen(true);
+                      setSelectedCard(card);
+                      setIsRechargeDialogOpen(true);
                     }}
                   >
                     <RefreshCw className="w-3.5 h-3.5 group-hover/btn:rotate-180 transition-transform duration-500" />
                     Recharger
                   </Button>
-                  <Button variant="secondary" size="sm" className="rounded-2xl h-10 gap-2 bg-slate-100 text-slate-600 hover:bg-slate-200">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="rounded-2xl h-10 gap-2 bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    onClick={() => openHistory(card)}
+                  >
                     <History className="w-3.5 h-3.5" />
                     Historique
                   </Button>
@@ -217,6 +314,64 @@ export const CartesCarburant = () => {
           ))}
         </div>
       )}
+
+      {/* History Dialog */}
+      <Dialog open={isHistoryDialogOpen} onOpenChange={setIsHistoryDialogOpen}>
+        <DialogContent className="sm:max-w-lg rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-5 h-5 text-indigo-600" />
+              Historique — {selectedCard?.numCarte}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedCard?.conducteur} — recharges et création de la carte
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-80 overflow-y-auto rounded-xl border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Opération</TableHead>
+                  <TableHead className="text-right">Montant</TableHead>
+                  <TableHead className="text-right">Solde</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {cardHistory.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      Aucune opération enregistrée
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  cardHistory.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {formatAppDateTime(entry.createdAt)}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {entry.type === 'creation' ? 'Création' : 'Recharge'}
+                      </TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">
+                        {entry.amount.toLocaleString()} TND
+                      </TableCell>
+                      <TableCell className="text-right text-sm tabular-nums font-medium">
+                        {entry.balanceAfter.toLocaleString()} TND
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsHistoryDialogOpen(false)}>
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* New Card Dialog */}
       <Dialog open={isNewCardDialogOpen} onOpenChange={setIsNewCardDialogOpen}>
@@ -252,7 +407,7 @@ export const CartesCarburant = () => {
                     {employees.length === 0 ? (
                       <div className="p-2 text-xs text-muted-foreground text-center italic">Aucun employé enregistré</div>
                     ) : (
-                      employees.map((emp: any) => (
+                      employees.map((emp) => (
                         <SelectItem key={emp.id} value={`${emp.prenom} ${emp.nom}`}>
                           {emp.prenom} {emp.nom}
                         </SelectItem>

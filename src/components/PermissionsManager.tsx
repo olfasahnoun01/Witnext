@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import {
   Shield,
   ShieldCheck,
@@ -804,7 +805,7 @@ export const PermissionsManager = () => {
         <div>
           <p className="text-xs text-muted-foreground">Créé le</p>
           <p className="font-medium text-foreground mt-0.5">
-            {new Date(u.created_at).toLocaleDateString('fr-FR')}
+            {formatAppDate(u.created_at)}
           </p>
         </div>
       </div>

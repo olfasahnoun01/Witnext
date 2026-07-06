@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload, FileText, Eye, FileDown, X } from 'lucide-react';
 import { ProductGroup, Product, StockStatus } from '@/types';
 import { getVariantsByGroupId, createVariant } from '@/services/productGroupService';
@@ -35,7 +36,7 @@ import { fr } from 'date-fns/locale';
 function formatVariantAddedAt(iso: string | null | undefined): string {
   if (!iso) return '—';
   try {
-    return format(parseISO(iso), 'dd/MM/yyyy HH:mm', { locale: fr });
+    return formatAppDateTime(iso);
   } catch {
     return '—';
   }

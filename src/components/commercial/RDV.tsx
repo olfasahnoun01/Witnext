@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { COMMERCIAL_EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
@@ -638,7 +639,7 @@ export const RDV = () => {
                         <td className="text-xs">{rdv.personneContactee}</td>
                         <td>
                           <Badge variant="outline" className="bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-950/40 dark:text-sky-200">
-                            {rdv.dateRDV ? format(parseISO(rdv.dateRDV), 'dd/MM/yyyy HH:mm') : '—'}
+                            {rdv.dateRDV ? formatAppDateTime(rdv.dateRDV) : '—'}
                           </Badge>
                         </td>
                         <td className="text-xs italic text-muted-foreground max-w-[200px] truncate" title={rdv.besoin}>
@@ -717,7 +718,7 @@ export const RDV = () => {
               <div className="flex-1 p-6 overflow-y-auto space-y-4">
                 <div className="flex items-center justify-between border-b pb-4">
                   <h3 className="font-bold text-lg">
-                    {selectedDate ? format(selectedDate, 'EEEE d MMMM yyyy', { locale: fr }) : 'Sélectionnez une date'}
+                    {selectedDate ? formatAppDate(selectedDate) : 'Sélectionnez une date'}
                   </h3>
                   <Badge variant="outline">{rdvsOnSelectedDate.length} RDV</Badge>
                 </div>

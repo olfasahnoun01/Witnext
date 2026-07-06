@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { formatAppDate } from '@/lib/formatAppDate';
 import { ArrowLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useAppCompany } from '@/contexts/AppCompanyContext';
@@ -110,7 +110,7 @@ export function BossEmployeeDetail() {
   );
 
   const dateLabel = useMemo(
-    () => format(new Date(`${selectedDate}T12:00:00`), 'EEEE d MMMM yyyy', { locale: fr }),
+    () => formatAppDate(`${selectedDate}T12:00:00`),
     [selectedDate]
   );
 

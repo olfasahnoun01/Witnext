@@ -1,4 +1,5 @@
 import { round3 } from './money';
+import { formatAppMonthYear } from '@/lib/formatAppDate';
 import type { FinanceInvoiceStatus, InvoiceRow, PaymentRow } from '../types';
 
 export interface DonutSlice {
@@ -43,7 +44,7 @@ function monthKey(dateStr: string): string {
 function monthLabel(key: string): string {
   const [y, m] = key.split('-');
   const d = new Date(Number(y), Number(m) - 1, 1);
-  return d.toLocaleDateString('fr-TN', { month: 'short', year: '2-digit' });
+  return formatAppMonthYear(d);
 }
 
 function lastNMonths(n: number): string[] {

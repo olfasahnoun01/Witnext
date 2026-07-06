@@ -1,6 +1,5 @@
 import { useState, useCallback, memo } from 'react';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { formatAppDate } from '@/lib/formatAppDate';
 import { 
   ArrowDownLeft, 
   ArrowUpRight, 
@@ -291,7 +290,7 @@ export const Transactions = memo(({ onTabChange }: TransactionsProps) => {
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {transactionDate ? format(transactionDate, "PPP", { locale: fr }) : <span>Choisir une date</span>}
+                    {transactionDate ? formatAppDate(transactionDate) : <span>Choisir une date</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">

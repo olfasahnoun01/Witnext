@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { formatAppDateTime } from '@/lib/formatAppDate';
 
 const roleColors: Record<string, string> = {
   admin: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
@@ -49,12 +50,7 @@ function formatTime(dateStr: string) {
   if (isToday) {
     return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   }
-  return date.toLocaleDateString('fr-FR', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatAppDateTime(dateStr);
 }
 
 interface TeamChatTriggerProps {

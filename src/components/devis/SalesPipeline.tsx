@@ -1,5 +1,6 @@
 /** @deprecated Use Finance → Documents sources → Suivi des opérations (CommercialOperationsTrackerPanel). */
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Search, 
@@ -190,7 +191,7 @@ export const SalesPipeline = () => {
                 <div className="p-4 bg-muted/5 min-w-[200px] border-r border-muted/20 flex flex-col justify-center">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-[10px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded">BC CLIENT</span>
-                    <span className="text-xs text-muted-foreground">{new Date(item.bc.created_at).toLocaleDateString()}</span>
+                    <span className="text-xs text-muted-foreground">{formatAppDate(item.bc.created_at)}</span>
                   </div>
                   <h3 className="font-bold text-lg">{item.bc.numero}</h3>
                   <p className="text-sm text-muted-foreground truncate">{item.bc.client_name || "Client Inconnu"}</p>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { Plus, Trash2, Loader2, CalendarRange } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -142,8 +143,8 @@ export const HrLeavesPanel = () => {
                   <td className="font-medium">
                     {leave.employee?.nom} {leave.employee?.prenom}
                   </td>
-                  <td>{new Date(`${leave.date_from}T12:00:00`).toLocaleDateString('fr-FR')}</td>
-                  <td>{new Date(`${leave.date_to}T12:00:00`).toLocaleDateString('fr-FR')}</td>
+                  <td>{formatAppDate(leave.date_from)}</td>
+                  <td>{formatAppDate(leave.date_to)}</td>
                   <td className="max-w-xs truncate">{leave.note || '—'}</td>
                   <td>
                     <Button type="button" variant="ghost" size="icon" onClick={() => handleDelete(leave.id)}>

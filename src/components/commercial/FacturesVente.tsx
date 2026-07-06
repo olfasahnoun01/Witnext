@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { Search, FileText, CheckCircle, Clock, XCircle, FileEdit, Trash2, Eye, Download, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Facture } from '@/types';
@@ -271,10 +272,10 @@ export const FacturesVente = () => {
                       {facture.third_party_name || '-'}
                     </td>
                     <td className="px-6 py-4 text-muted-foreground">
-                      {format(new Date(facture.date_creation), 'dd MMM yyyy', { locale: fr })}
+                      {formatAppDate(facture.date_creation)}
                     </td>
                     <td className="px-6 py-4 text-muted-foreground">
-                      {facture.date_echeance ? format(new Date(facture.date_echeance), 'dd MMM yyyy', { locale: fr }) : '-'}
+                      {facture.date_echeance ? formatAppDate(facture.date_echeance) : '-'}
                     </td>
                     <td className="px-6 py-4 text-right font-medium">
                       {facture.total_amount.toLocaleString('fr-TN', { style: 'currency', currency: 'TND' })}

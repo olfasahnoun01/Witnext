@@ -10,6 +10,7 @@ import { CompanySwitcher } from '@/components/layout/CompanySwitcher';
 import { UserAccountMenu } from '@/components/layout/UserAccountMenu';
 import { TeamChatTrigger } from '@/components/TeamChat';
 import { getPathForSubsection, normalizePathname } from '@/config/routes';
+import { formatAppDate } from '@/lib/formatAppDate';
 
 interface HeaderProps {
   title: string;
@@ -49,12 +50,7 @@ export const Header = ({ title, onToggle, sidebarOpen }: HeaderProps) => {
           <div>
             <h1 className="text-2xl font-bold text-foreground">{title}</h1>
             <p className="text-sm text-muted-foreground">
-              {new Date().toLocaleDateString('fr-TN', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
+              {formatAppDate(new Date())}
             </p>
           </div>
         </div>

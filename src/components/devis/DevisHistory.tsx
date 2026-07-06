@@ -1,4 +1,5 @@
 import { memo, useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus, Truck, MoreHorizontal, Printer, GitMerge, CheckCircle2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CommercialAttachmentBadges } from '@/components/shared/CommercialAttachmentBadges';
@@ -391,7 +392,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
         </td>
         <td className="py-3 px-4 text-sm font-medium text-foreground">{d.devis_number}</td>
         <td className="py-3 px-4 text-sm text-muted-foreground">
-          {new Date(d.devis_date).toLocaleDateString('fr-FR')}
+          {formatAppDate(d.devis_date)}
         </td>
         <td className="py-3 px-4 text-sm text-foreground">{d.third_party_name || '-'}</td>
         <td className="py-3 px-4 text-sm text-muted-foreground">{d.creator_name || '-'}</td>

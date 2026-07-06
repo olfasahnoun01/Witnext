@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { formatAppDate } from '@/lib/formatAppDate';
 import { formatHrMoney, type HrEmployee } from '@/lib/hrTypes';
 
 export type PayrollPdfRow = {
@@ -19,7 +20,7 @@ export function buildPayrollPdf(params: {
   doc.setFontSize(14);
   doc.text('Salaires, avances et pénalités', 14, 14);
   doc.setFontSize(10);
-  doc.text(params.periodLabel || `Généré le ${new Date().toLocaleDateString('fr-FR')}`, 14, 21);
+  doc.text(params.periodLabel || `Généré le ${formatAppDate(new Date())}`, 14, 21);
 
   autoTable(doc, {
     startY: 26,

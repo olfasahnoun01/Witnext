@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, memo } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { toast } from 'sonner';
 import { Truck, Trash2, Download, Eye, Loader2, Search, X, Receipt, GitMerge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -308,7 +309,7 @@ export const BonLivraisonList = memo(({
                       <td className="py-3 px-4 text-sm font-medium">{bl.devis_number}</td>
                       <td className="py-3 px-4 text-sm text-muted-foreground">{bl.source_bc_number || '-'}</td>
                       <td className="py-3 px-4 text-sm text-muted-foreground">
-                        {new Date(bl.devis_date).toLocaleDateString('fr-FR')}
+                        {formatAppDate(bl.devis_date)}
                       </td>
                       <td className="py-3 px-4 text-sm">{bl.third_party_name || '-'}</td>
                       <td className="py-3 px-4 text-sm text-muted-foreground">{bl.creator_name || '-'}</td>

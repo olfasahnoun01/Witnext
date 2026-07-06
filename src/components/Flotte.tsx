@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { Truck, Plus, Trash2, Loader2, Bell, CheckCircle2, Pencil, UserCheck, MoreHorizontal, Car, Wrench } from 'lucide-react';
 import {
   Dialog,
@@ -603,9 +604,9 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
                   {' · '}
                   {(r.vehicle?.modele || 'Véhicule')} ({r.vehicle?.matricule || '-'})
                   {' · Rappel: '}
-                  {new Date(`${r.remind_at}T12:00:00`).toLocaleDateString('fr-FR')}
+                  {formatAppDate(r.remind_at)}
                   {' · Échéance: '}
-                  {new Date(`${r.due_date}T12:00:00`).toLocaleDateString('fr-FR')}
+                  {formatAppDate(r.due_date)}
                 </div>
                 <Button size="sm" variant="outline" onClick={() => markReminderDone(r.id)} className="gap-1">
                   <CheckCircle2 className="w-3 h-3" />
@@ -791,23 +792,23 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
                   <td className="text-muted-foreground">{v.leasing_contract_number || '-'}</td>
                   <td>{v.company_owner || '-'}</td>
                   <td className="whitespace-nowrap text-muted-foreground">
-                    {v.mise_en_circulation ? new Date(v.mise_en_circulation).toLocaleDateString('fr-FR') : '-'}
+                    {v.mise_en_circulation ? formatAppDate(v.mise_en_circulation) : '-'}
                   </td>
                   <td className="whitespace-nowrap font-medium tabular-nums text-foreground">
                     {v.loyer_amount != null ? `${v.loyer_amount.toLocaleString()} TND` : '-'}
                   </td>
                   <td className="whitespace-nowrap text-muted-foreground">
-                    {v.leasing_due_date ? new Date(v.leasing_due_date).toLocaleDateString('fr-FR') : '-'}
+                    {v.leasing_due_date ? formatAppDate(v.leasing_due_date) : '-'}
                   </td>
                   <td>{v.assureur || '-'}</td>
                   <td className="whitespace-nowrap text-muted-foreground">
-                    {v.assurance_due_date ? new Date(v.assurance_due_date).toLocaleDateString('fr-FR') : '-'}
+                    {v.assurance_due_date ? formatAppDate(v.assurance_due_date) : '-'}
                   </td>
                   <td className="whitespace-nowrap text-muted-foreground">
-                    {v.vignette_due_date ? new Date(v.vignette_due_date).toLocaleDateString('fr-FR') : '-'}
+                    {v.vignette_due_date ? formatAppDate(v.vignette_due_date) : '-'}
                   </td>
                   <td className="whitespace-nowrap text-muted-foreground">
-                    {v.visite_technique_end_date ? new Date(v.visite_technique_end_date).toLocaleDateString('fr-FR') : '-'}
+                    {v.visite_technique_end_date ? formatAppDate(v.visite_technique_end_date) : '-'}
                   </td>
                   <td>{v.contract_holder_name || '-'}</td>
                 </tr>

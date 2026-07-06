@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { fr } from 'date-fns/locale';
 import { exportExcelTable } from '@/lib/exportExcel';
 
@@ -23,7 +24,7 @@ export interface SuiviPartiesExportRow {
 function formatExportDate(value: string | null): string {
   if (!value) return '';
   try {
-    return format(new Date(value), 'dd/MM/yyyy', { locale: fr });
+    return formatAppDate(value);
   } catch {
     return value;
   }
@@ -75,7 +76,7 @@ export async function exportSuiviPartiesPdf(
   doc.text(title, 14, 14);
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
-  doc.text(`Exporté le ${new Date().toLocaleString('fr-FR')}`, 14, 20);
+  doc.text(`Exporté le ${formatAppDateTime(new Date())}`, 14, 20);
   doc.text(`${rows.length} ligne${rows.length > 1 ? 's' : ''}`, 14, 25);
   doc.setTextColor(0, 0, 0);
 

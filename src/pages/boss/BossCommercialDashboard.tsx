@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { formatAppDate } from '@/lib/formatAppDate';
 import { CalendarDays, ChevronRight, Loader2, LogOut, RefreshCw, Search, Users } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -109,9 +109,7 @@ export function BossCommercialDashboard() {
     [filteredEmployees]
   );
 
-  const dateLabel = format(new Date(`${selectedDate}T12:00:00`), 'EEEE d MMMM yyyy', {
-    locale: fr,
-  });
+  const dateLabel = formatAppDate(`${selectedDate}T12:00:00`);
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-4">

@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, memo } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { toast } from 'sonner';
 import {
   FileText,
@@ -454,7 +455,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
         <td className="py-3 px-4 text-sm font-medium text-foreground">{bc.devis_number}</td>
         <td className="py-3 px-4 text-sm text-muted-foreground">{bc.source_devis_number || '-'}</td>
         <td className="py-3 px-4 text-sm text-muted-foreground">
-          {new Date(bc.devis_date).toLocaleDateString('fr-FR')}
+          {formatAppDate(bc.devis_date)}
         </td>
         <td className="py-3 px-4 text-sm text-foreground">{getBcClientDisplayName(bc)}</td>
         <td className="py-3 px-4 text-sm text-muted-foreground">{getBcFournisseurDisplayName(bc)}</td>

@@ -1,4 +1,5 @@
 import { memo, useMemo, useState, useCallback } from 'react';
+import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { FileSignature, Trash2, Download, Eye, Loader2, Search, X, Plus, Edit, Pencil, CheckCircle2, PackagePlus, ChevronDown, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -225,7 +226,7 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
                     <td className="py-3 px-4 text-sm font-medium text-foreground">{ba.devis_number}</td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">{ba.source_devis_number || '-'}</td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">
-                      {new Date(ba.devis_date).toLocaleDateString('fr-FR')}
+                      {formatAppDate(ba.devis_date)}
                     </td>
                     <td className="py-3 px-4 text-sm text-foreground">{ba.third_party_name || '-'}</td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">{ba.creator_name || '-'}</td>
