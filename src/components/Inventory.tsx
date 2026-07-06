@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Package, RefreshCw, Plus } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Package, RefreshCw, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CategoryCard, getCategoryColor } from './inventory/CategoryCard';
 import { CategoryEditModal } from './inventory/CategoryEditModal';
@@ -27,6 +27,8 @@ export const Inventory = () => {
   // Edit modal state
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingCategoryCount, setEditingCategoryCount] = useState(0);
+  const [categorySearch, setCategorySearch] = useState('');
+  const [categorySearchApplied, setCategorySearchApplied] = useState('');
 
   const {
     isLoading,
@@ -39,6 +41,16 @@ export const Inventory = () => {
     refresh,
     refreshCounts,
   } = useProductGroupCategoryStats();
+
+  const filteredCategories = useMemo(() => {
+    const q = categorySearchApplied.trim().toLowerCase();
+    if (!q) return sortedCategories;
+    return sortedCategories.filter(({ category }) => category.toLowerCase().includes(q));
+  }, [sortedCategories, categorySearchApplied]);
+
+  const showUncategorized =
+    uncategorizedCount > 0 &&
+    (!categorySearchApplied.trim() || 'non catégorisé'.includes(categorySearchApplied.trim().toLowerCase()));
 
   // Handle deep linking from DevisHelper
   useEffect(() => {
@@ -211,7 +223,38 @@ export const Inventory = () => {
             {totalProducts} produit{totalProducts !== 1 ? 's' : ''} au total
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <div className="flex gap-2 flex-1 sm:flex-initial">
+            <Input
+              value={categorySearch}
+              onChange={(e) => setCategorySearch(e.target.value)}
+              placeholder="Rechercher une catégorie…"
+              className="sm:w-56"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setCategorySearchApplied(categorySearch);
+              }}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setCategorySearchApplied(categorySearch)}
+            >
+              <Search className="w-4 h-4 mr-2" />
+              Rechercher
+            </Button>
+            {categorySearchApplied && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setCategorySearch('');
+                  setCategorySearchApplied('');
+                }}
+              >
+                Effacer
+              </Button>
+            )}
+          </div>
           <Button variant="outline" onClick={() => void refreshCounts()} disabled={isLoading}>
             <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Actualiser
@@ -234,7 +277,7 @@ export const Inventory = () => {
         <>
           {/* Category Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {sortedCategories.map(({ category, count }) => {
+            {filteredCategories.map(({ category, count }) => {
               const isCustom = customCategoryNames.includes(category);
               const canDeleteThis = isModerator && isCustom && count === 0;
               return (
@@ -252,7 +295,7 @@ export const Inventory = () => {
               );
             })}
             
-            {uncategorizedCount > 0 && (
+            {showUncategorized && (
               <CategoryCard
                 name="Non catégorisé"
                 count={uncategorizedCount}
@@ -262,12 +305,16 @@ export const Inventory = () => {
           </div>
 
           {/* Empty State */}
-          {sortedCategories.every(c => c.count === 0) && uncategorizedCount === 0 && (
+          {filteredCategories.length === 0 && !showUncategorized && (
             <div className="text-center py-12">
               <Package className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">Aucun produit</h3>
+              <h3 className="text-lg font-medium text-foreground mb-2">
+                {categorySearchApplied ? 'Aucune catégorie trouvée' : 'Aucun produit'}
+              </h3>
               <p className="text-muted-foreground">
-                Commencez par ajouter des produits à votre inventaire.
+                {categorySearchApplied
+                  ? 'Essayez un autre terme de recherche.'
+                  : 'Commencez par ajouter des produits à votre inventaire.'}
               </p>
             </div>
           )}

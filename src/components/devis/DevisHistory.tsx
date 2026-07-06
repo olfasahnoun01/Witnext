@@ -99,6 +99,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   const [echantillonCounts, setEchantillonCounts] = useState<Record<number, number>>({});
   const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>(defaultTypeFilter || 'all');
   const [selectedConfirmation, setSelectedConfirmation] = useState<'all' | 'confirmed' | 'unconfirmed'>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [selectedDevisIds, setSelectedDevisIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -164,15 +166,21 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     } else if (selectedConfirmation === 'unconfirmed') {
       result = result.filter((d) => !isDevisConfirmed(d.status));
     }
+    if (dateFrom) {
+      result = result.filter((d) => d.devis_date >= dateFrom);
+    }
+    if (dateTo) {
+      result = result.filter((d) => d.devis_date <= dateTo);
+    }
     return result;
-  }, [savedDevis, searchTerm, selectedFournisseur, selectedType, selectedConfirmation]);
+  }, [savedDevis, searchTerm, selectedFournisseur, selectedType, selectedConfirmation, dateFrom, dateTo]);
 
   const devisSorted = useMemo(
     () => sortDevisListRecentFirst(filteredDevis),
     [filteredDevis]
   );
 
-  const listResetKey = `${searchTerm}|${selectedFournisseur}|${selectedType}|${selectedConfirmation}`;
+  const listResetKey = `${searchTerm}|${selectedFournisseur}|${selectedType}|${selectedConfirmation}|${dateFrom}|${dateTo}`;
   const {
     slice: devisPage,
     page,
@@ -549,6 +557,20 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 <SelectItem value="unconfirmed">Non confirmé</SelectItem>
               </SelectContent>
             </Select>
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="h-9 w-36 bg-background"
+              title="Date début"
+            />
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="h-9 w-36 bg-background"
+              title="Date fin"
+            />
             <span className="text-sm text-muted-foreground whitespace-nowrap">{filteredDevis.length} devis</span>
             {showMergeSelection && selectedDevisIds.size >= 2 && (
               <Button

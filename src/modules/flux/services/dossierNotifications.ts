@@ -20,7 +20,7 @@ async function dispatchToUsers(
     p_type: 'flux_dossier',
     p_title: payload.title,
     p_body: payload.body ?? null,
-    p_link_tab: 'flux-suivi',
+    p_link_tab: 'suivi-parties',
     p_entity_type: 'commercial_dossier',
     p_entity_id: (payload.metadata?.dossier_id as string) ?? null,
     p_metadata: payload.metadata ?? {},

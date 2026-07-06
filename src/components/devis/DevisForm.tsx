@@ -67,6 +67,8 @@ import {
 import { DevisArticlesTable } from './DevisArticlesTable';
 import { DevisPartyFieldsTable } from './DevisPartyFieldsTable';
 import { ImportDevisIntoBcPanel } from './ImportDevisIntoBcPanel';
+import { BcFournisseurPdfReader } from './BcFournisseurPdfReader';
+import type { BcFournisseurPdfImportResult } from '@/lib/devisPdfImport';
 import { useAppLayout } from '@/contexts/AppLayoutContext';
 
 const DEFAULT_CATEGORIES = ['Pantalons', 'Blousons', 'Bordequin', 'Accessoires', 'Gants', 'Casques', 'Gilets', 'Polos & T-shirts', 'Parkas et manteaux', 'Non catégorisé'];
@@ -503,6 +505,61 @@ export const DevisForm = memo(({
       setSelectedThirdPartyId('');
     }
   }, [isAchat, fournisseurs, clients, setThirdPartyName, setThirdPartyAddress, setThirdPartyTaxId, setThirdPartyPhone]);
+
+  const handleFournisseurPdfImportApply = useCallback(
+    (result: BcFournisseurPdfImportResult) => {
+      setDevisItems(result.items);
+      setArticleMode('manual');
+
+      if (result.supplier) {
+        setThirdPartyName(result.supplier.nom);
+        setThirdPartyAddress(result.supplier.location || '');
+        setThirdPartyTaxId(result.supplier.matricule_fiscale || '');
+        setThirdPartyPhone(formatPhonesDisplay(result.supplier.phone) || '');
+        setSelectedThirdPartyId(result.supplier.id.toString());
+      } else if (result.header.supplierName) {
+        handleThirdPartyNameChange(result.header.supplierName);
+      }
+
+      if (result.header.documentDate) {
+        setDevisDate(result.header.documentDate);
+      }
+
+      if (result.items.some((item) => (item.tva ?? 0) > 0)) {
+        setIsTtc(true);
+      }
+
+      if (onPendingAttachmentFilesChange) {
+        onPendingAttachmentFilesChange([result.sourceFile]);
+      }
+
+      onComposerDirtyChange?.(true);
+      const label = docType === 'bc' || forceDocType === 'bc' ? 'BC' : 'devis';
+      toast.success(`${label} prérempli depuis le devis fournisseur`);
+    },
+    [
+      setDevisItems,
+      setDevisDate,
+      setIsTtc,
+      handleThirdPartyNameChange,
+      setThirdPartyName,
+      setThirdPartyAddress,
+      setThirdPartyTaxId,
+      setThirdPartyPhone,
+      onPendingAttachmentFilesChange,
+      onComposerDirtyChange,
+      docType,
+      forceDocType,
+    ]
+  );
+
+  const showFournisseurPdfReader =
+    isAchat &&
+    !editingDevis &&
+    (docType === 'devis' || docType === 'bc' || forceDocType === 'devis' || forceDocType === 'bc');
+
+  const fournisseurPdfTargetDocType: 'devis' | 'bc' =
+    docType === 'bc' || forceDocType === 'bc' ? 'bc' : 'devis';
 
   const filteredThirdParties = useMemo(() => {
     const query = thirdPartyName.trim().toLowerCase();
@@ -1525,6 +1582,18 @@ export const DevisForm = memo(({
             newPartyTitle={isAchat ? 'Nouveau fournisseur' : 'Nouveau client'}
           />
         </div>
+
+        {showFournisseurPdfReader && (
+          <div className="px-4 sm:px-6 pt-4 border-b border-border/50">
+            <BcFournisseurPdfReader
+              fournisseurs={fournisseurs}
+              targetDocType={fournisseurPdfTargetDocType}
+              disabled={isSaving}
+              existingItemCount={devisItems.length}
+              onApply={handleFournisseurPdfImportApply}
+            />
+          </div>
+        )}
 
         {(docType === 'bc' || forceDocType === 'bc') && !editingDevis && onImportDevis && (
           <div className="px-4 sm:px-6 pt-4 border-b border-border/50">

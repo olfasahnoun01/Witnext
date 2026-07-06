@@ -93,8 +93,8 @@ export const Clients = memo(() => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortColumn, setSortColumn] = useState<'code' | 'nom'>('nom');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortColumn, setSortColumn] = useState<'code' | 'nom' | 'created_at'>('created_at');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   
   // Form state
   const [nom, setNom] = useState('');
@@ -378,9 +378,13 @@ export const Clients = memo(() => {
 
     // Apply sorting
     result.sort((a, b) => {
+      if (sortColumn === 'created_at') {
+        const tA = new Date(a.created_at).getTime();
+        const tB = new Date(b.created_at).getTime();
+        return sortDirection === 'asc' ? tA - tB : tB - tA;
+      }
       const valA = (a[sortColumn] || '').toLowerCase();
       const valB = (b[sortColumn] || '').toLowerCase();
-      
       if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
       if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
       return 0;

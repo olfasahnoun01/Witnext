@@ -30,12 +30,9 @@ export const SUBSECTION_ROUTES: Record<string, string> = {
   'commerciale-fournisseurs': '/purchases/suppliers',
   'devis-achat': '/purchases/quotations',
   'bc-achat': '/purchases/orders',
-  'bc-fournisseur-reception': '/purchases/reception',
   'avoir-fournisseur': '/purchases/avoir-fournisseur',
 
   // Commercial
-  'flux-suivi': '/commercial/flux',
-  'flux-suivi-magasin': '/commercial/flux',
   'suivi-parties': '/commercial/parties',
   'suivi-clients': '/commercial/parties',
   'suivi-fournisseurs': '/commercial/parties',
@@ -108,7 +105,7 @@ export const MODULE_INDEX_REDIRECTS: Record<string, string> = {
   '/sales': '/sales/clients',
   '/purchases': '/purchases/requests',
   '/hr': '/hr/employees',
-  '/commercial': '/commercial/flux',
+  '/commercial': '/commercial/parties',
   '/vehicles': '/vehicles/fleet',
 };
 

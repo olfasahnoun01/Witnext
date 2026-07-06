@@ -53,6 +53,7 @@ interface Fournisseur {
   id: number;
   code: string;
   nom: string;
+  email?: string | null;
   matricule_fiscale: string | null;
   specialite: string;
   phone: string | null;
@@ -86,8 +87,8 @@ export const Fournisseurs = memo(() => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFournisseur, setEditingFournisseur] = useState<Fournisseur | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortColumn, setSortColumn] = useState<'code' | 'nom'>('nom');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortColumn, setSortColumn] = useState<'code' | 'nom' | 'created_at'>('created_at');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   
   // Form state
   const [nom, setNom] = useState('');
@@ -210,6 +211,10 @@ export const Fournisseurs = memo(() => {
         toast.error('Le code fournisseur est requis (pour nommer les documents)');
         return;
       }
+      if (!emailFournisseur.trim()) {
+        toast.error('L\'email fournisseur est requis');
+        return;
+      }
       if (!selectedGovernorate || !selectedCity) {
         toast.error('Le gouvernorat et la ville sont requis');
         return;
@@ -269,12 +274,13 @@ export const Fournisseurs = memo(() => {
         loadFournisseurs();
       }
     }
-  }, [nom, code, specialite, selectedCity, selectedGovernorate, matriculeFiscale, phoneLines, patenteUrl, rneUrl, editingFournisseur, resetForm, loadFournisseurs]);
+  }, [nom, code, emailFournisseur, specialite, selectedCity, selectedGovernorate, matriculeFiscale, phoneLines, patenteUrl, rneUrl, editingFournisseur, resetForm, loadFournisseurs]);
 
   const handleEdit = useCallback((fournisseur: Fournisseur) => {
     setEditingFournisseur(fournisseur);
     setNom(fournisseur.nom);
     setCode(fournisseur.code || '');
+    setEmailFournisseur(fournisseur.email || '');
     setMatriculeFiscale(fournisseur.matricule_fiscale || '');
     setSpecialite(fournisseur.specialite);
     const parsed = parsePhoneListFromStorage(fournisseur.phone);
@@ -333,9 +339,13 @@ export const Fournisseurs = memo(() => {
 
     // Apply sorting
     result.sort((a, b) => {
+      if (sortColumn === 'created_at') {
+        const tA = new Date(a.created_at).getTime();
+        const tB = new Date(b.created_at).getTime();
+        return sortDirection === 'asc' ? tA - tB : tB - tA;
+      }
       const valA = (a[sortColumn] || '').toLowerCase();
       const valB = (b[sortColumn] || '').toLowerCase();
-      
       if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
       if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
       return 0;

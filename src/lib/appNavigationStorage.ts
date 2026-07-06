@@ -24,26 +24,38 @@ export function devisSectionStorageKey(
   return `grosafe_devis_section_${sectionMode ?? 'devis'}_${devisType}`;
 }
 
-export function readStoredDevisSection(
+export type DevisActiveSection = 'form' | 'history' | 'bc' | 'bl';
+
+const SECTIONS_BY_MODE: Record<'devis' | 'bc' | 'bl', DevisActiveSection[]> = {
+  devis: ['form', 'history', 'bc'],
+  bc: ['form', 'history', 'bc'],
+  bl: ['bl'],
+};
+
+export function resolveDevisSectionForMode(
   sectionMode: 'devis' | 'bc' | 'bl' | undefined,
   devisType: 'achat' | 'vente',
-  fallback: 'form' | 'history' | 'bc' | 'bl' | 'helper'
-): typeof fallback {
+  fallback: DevisActiveSection
+): DevisActiveSection {
+  const mode = sectionMode ?? 'devis';
+  const allowed = SECTIONS_BY_MODE[mode];
   try {
     const raw = localStorage.getItem(devisSectionStorageKey(sectionMode, devisType));
-    if (
-      raw === 'form' ||
-      raw === 'history' ||
-      raw === 'bc' ||
-      raw === 'bl' ||
-      raw === 'helper'
-    ) {
-      return raw;
+    if (raw && allowed.includes(raw as DevisActiveSection)) {
+      return raw as DevisActiveSection;
     }
   } catch {
     // ignore
   }
-  return fallback;
+  return allowed.includes(fallback) ? fallback : allowed[0];
+}
+
+export function readStoredDevisSection(
+  sectionMode: 'devis' | 'bc' | 'bl' | undefined,
+  devisType: 'achat' | 'vente',
+  fallback: DevisActiveSection
+): DevisActiveSection {
+  return resolveDevisSectionForMode(sectionMode, devisType, fallback);
 }
 
 export function writeStoredDevisSection(

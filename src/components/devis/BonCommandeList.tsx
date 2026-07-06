@@ -80,6 +80,8 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
   const [previewTitle, setPreviewTitle] = useState('');
   const [isGenerating, setIsGenerating] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>(defaultTypeFilter);
   const [procurementBC, setProcurementBC] = useState<UnifiedDocument | null>(null);
   const [bcIdsWithBl, setBcIdsWithBl] = useState<Set<number>>(new Set());
@@ -194,12 +196,18 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
     if (selectedType !== 'all') {
       result = result.filter(bc => bc.type === selectedType);
     }
+    if (dateFrom) {
+      result = result.filter((bc) => bc.devis_date >= dateFrom);
+    }
+    if (dateTo) {
+      result = result.filter((bc) => bc.devis_date <= dateTo);
+    }
     return result;
-  }, [mergedBonsCommande, searchTerm, selectedType]);
+  }, [mergedBonsCommande, searchTerm, selectedType, dateFrom, dateTo]);
 
   const bcSorted = useMemo(() => sortDevisListRecentFirst(filteredBC), [filteredBC]);
 
-  const listResetKey = `${searchTerm}|${selectedType}`;
+  const listResetKey = `${searchTerm}|${selectedType}|${dateFrom}|${dateTo}`;
   const {
     slice: bcPage,
     page,
@@ -554,6 +562,20 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                 <SelectItem value="vente">📤 Vente</SelectItem>
               </SelectContent>
             </Select>
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="h-9 w-36 bg-background"
+              title="Date début"
+            />
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="h-9 w-36 bg-background"
+              title="Date fin"
+            />
             <span className="text-sm text-muted-foreground whitespace-nowrap">{filteredBC.length} BC</span>
             {canMergeBl && selectedBcIds.size >= 2 && (
               <Button

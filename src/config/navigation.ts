@@ -5,7 +5,6 @@ import {
   Wallet,
   Car,
   Briefcase,
-  GitBranch,
   LayoutDashboard,
   Building2,
   Users,
@@ -83,7 +82,6 @@ export const BIG_SECTIONS: BigSection[] = [
     label: 'Commercial',
     icon: Briefcase,
     subsections: [
-      { id: 'flux-suivi', label: 'Suivi des flux', icon: GitBranch },
       { id: 'suivi-parties', label: 'Suivi client / fournisseur', icon: UserCheck },
       { id: 'gallery', label: 'Galerie commerciale', icon: ImageIcon },
       { id: 'rdv', label: 'Rendez-vous', icon: CalendarClock },
@@ -111,7 +109,6 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'commerciale-fournisseurs', label: 'Fournisseurs', icon: Building2 },
       { id: 'devis-achat', label: "Devis fournisseurs", icon: ClipboardList },
       { id: 'bc-achat', label: "BC fournisseurs", icon: FileText },
-      { id: 'bc-fournisseur-reception', label: 'Réception fournisseurs', icon: PackageCheck },
       { id: 'avoir-fournisseur', label: 'Avoir Fournisseur', icon: FileMinus },
     ],
   },

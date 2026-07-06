@@ -1026,6 +1026,7 @@ export type Database = {
           code: string | null
           company_id: string
           created_at: string
+          email: string | null
           id: number
           location: string | null
           matricule_fiscale: string | null
@@ -1040,6 +1041,7 @@ export type Database = {
           code?: string | null
           company_id?: string
           created_at?: string
+          email?: string | null
           id?: number
           location?: string | null
           matricule_fiscale?: string | null
@@ -1054,6 +1056,7 @@ export type Database = {
           code?: string | null
           company_id?: string
           created_at?: string
+          email?: string | null
           id?: number
           location?: string | null
           matricule_fiscale?: string | null

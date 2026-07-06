@@ -15,7 +15,6 @@ import {
   AvoirFournisseurPage,
   FinanceModule,
   Flotte,
-  FluxSuiviHub,
   Fournisseurs,
   GestionDevis,
   HrEmployeesHub,
@@ -171,6 +170,7 @@ export function ErpRoutes() {
             <SubsectionRoute subsectionId="devis-vente">
               <LazyRoute>
                 <GestionDevis
+                  key="devis-vente"
                   initialSection="history"
                   initialDevisType="vente"
                   lockDevisType
@@ -185,7 +185,7 @@ export function ErpRoutes() {
           element={
             <SubsectionRoute subsectionId="bc-vente">
               <LazyRoute>
-                <GestionDevis initialSection="bc" initialDevisType="vente" sectionMode="bc" />
+                <GestionDevis key="bc-vente" initialSection="bc" initialDevisType="vente" sectionMode="bc" />
               </LazyRoute>
             </SubsectionRoute>
           }
@@ -196,6 +196,7 @@ export function ErpRoutes() {
             <SubsectionRoute subsectionId="bl-vente">
               <LazyRoute>
                 <GestionDevis
+                  key="bl-vente"
                   initialSection="bl"
                   initialDevisType="vente"
                   lockDevisType
@@ -253,6 +254,7 @@ export function ErpRoutes() {
             <SubsectionRoute subsectionId="devis-achat">
               <LazyRoute>
                 <GestionDevis
+                  key="devis-achat"
                   initialSection="history"
                   initialDevisType="achat"
                   lockDevisType
@@ -268,23 +270,11 @@ export function ErpRoutes() {
             <SubsectionRoute subsectionId="bc-achat">
               <LazyRoute>
                 <GestionDevis
+                  key="bc-achat"
                   initialSection="bc"
                   initialDevisType="achat"
                   lockDevisType
                   sectionMode="bc"
-                />
-              </LazyRoute>
-            </SubsectionRoute>
-          }
-        />
-        <Route
-          path="/purchases/reception"
-          element={
-            <SubsectionRoute subsectionId="bc-fournisseur-reception">
-              <LazyRoute>
-                <UnifiedDocumentList
-                  title="Réception fournisseurs"
-                  documentTypes={['BC_FOURNISSEUR']}
                 />
               </LazyRoute>
             </SubsectionRoute>
@@ -301,17 +291,7 @@ export function ErpRoutes() {
           }
         />
 
-        <Route path="/commercial" element={<Navigate to="/commercial/flux" replace />} />
-        <Route
-          path="/commercial/flux"
-          element={
-            <SubsectionRoute subsectionId="flux-suivi">
-              <LazyRoute>
-                <FluxSuiviHub />
-              </LazyRoute>
-            </SubsectionRoute>
-          }
-        />
+        <Route path="/commercial" element={<Navigate to="/commercial/parties" replace />} />
         <Route
           path="/commercial/parties"
           element={

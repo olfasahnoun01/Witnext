@@ -51,14 +51,11 @@ describe('sectionPermissions', () => {
     expect(canAccessSubsectionWith('inventory', ctx(perms))).toBe(true);
   });
 
-  it('explicit commercial flux grant unlocks flux aliases only', () => {
+  it('flux suivi permission row is still recognized for legacy access checks', () => {
     const perms: PermissionRow[] = [
       { section_key: 'commercial', subsection_key: 'flux-suivi' },
     ];
     expect(hasFluxSuiviAccess(perms)).toBe(true);
-    expect(canAccessSubsectionWith('flux-suivi', ctx(perms))).toBe(true);
-    expect(canAccessSubsectionWith('bc-fournisseur-reception', ctx(perms))).toBe(true);
-    expect(canAccessSubsectionWith('gallery', ctx(perms))).toBe(false);
   });
 
   it('subsection grant unlocks parent section visibility', () => {

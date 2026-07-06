@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DecimalInput } from '@/components/ui/decimal-input';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { 
   Select, 
   SelectContent, 
@@ -27,6 +28,9 @@ import { CategoryProductSelector } from '../shared/CategoryProductSelector';
 import { downloadUnifiedDocumentPDF } from '@/utils/pdfGenerator';
 import { PendingWarehouseDocument, clearPendingWarehouseDocument, readPendingWarehouseDocument } from '@/lib/appNavigationStorage';
 import { getActiveCompanyIdForQuery } from '@/lib/activeCompany';
+import { useAppCompany } from '@/contexts/AppCompanyContext';
+
+type BlPurpose = 'client' | 'magasin_transfer';
 
 interface DocumentCreationDialogProps {
   open: boolean;
@@ -45,6 +49,7 @@ export const DocumentCreationDialog = ({
   initialData = null,
   mandatory = false,
 }: DocumentCreationDialogProps) => {
+  const { companies, currentCompany } = useAppCompany();
   const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState('');
   const [validity, setValidity] = useState('30 jours');
@@ -54,6 +59,9 @@ export const DocumentCreationDialog = ({
   const [fournisseurId, setFournisseurId] = useState<number | null>(null);
   const [selectedTier, setSelectedTier] = useState<any>(null);
   const [tierSearch, setTierSearch] = useState('');
+  const [blPurpose, setBlPurpose] = useState<BlPurpose>('client');
+  const [sourceMagasin, setSourceMagasin] = useState('');
+  const [destinationMagasin, setDestinationMagasin] = useState('');
   
   const [clients, setClients] = useState<any[]>([]);
   const [fournisseurs, setFournisseurs] = useState<any[]>([]);
@@ -108,8 +116,17 @@ export const DocumentCreationDialog = ({
     setFournisseurId(null);
     setSelectedTier(null);
     setTierSearch('');
+    setBlPurpose('client');
+    setSourceMagasin(currentCompany?.name ?? '');
+    setDestinationMagasin('');
     setLines([]);
   };
+
+  useEffect(() => {
+    if (open && type === 'BL_CLIENT' && !sourceMagasin && currentCompany?.name) {
+      setSourceMagasin(currentCompany.name);
+    }
+  }, [open, type, currentCompany?.name, sourceMagasin]);
 
   useEffect(() => {
     if (clientId) {
@@ -151,8 +168,24 @@ export const DocumentCreationDialog = ({
       return;
     }
 
-    if ((type === 'BL_CLIENT' || type === 'BS') && !clientId) {
-      toast.error("Veuillez sélectionner un client");
+    if (type === 'BL_CLIENT' && blPurpose === 'client' && !clientId) {
+      toast.error('Veuillez sélectionner un client');
+      return;
+    }
+
+    if (type === 'BL_CLIENT' && blPurpose === 'magasin_transfer') {
+      if (!sourceMagasin.trim() || !destinationMagasin.trim()) {
+        toast.error('Indiquez le magasin d\'origine et le magasin de destination');
+        return;
+      }
+      if (sourceMagasin.trim().toLowerCase() === destinationMagasin.trim().toLowerCase()) {
+        toast.error('Les magasins d\'origine et de destination doivent être différents');
+        return;
+      }
+    }
+
+    if (type === 'BS' && !clientId) {
+      toast.error('Veuillez sélectionner un client');
       return;
     }
 
@@ -161,7 +194,7 @@ export const DocumentCreationDialog = ({
       const result = await documentService.createDocument({
         type,
         status: 'PENDING',
-        clientId: clientId || undefined,
+        clientId: type === 'BL_CLIENT' && blPurpose === 'magasin_transfer' ? undefined : (clientId || undefined),
         fournisseurId: fournisseurId || undefined,
         notes,
         metadata: { 
@@ -169,9 +202,22 @@ export const DocumentCreationDialog = ({
           document_date: documentDate,
           validity,
           transport_ref: transportRef,
-          third_party_name: selectedTier?.nom || selectedTier?.raison_sociale || '',
-          third_party_address: selectedTier?.adresse || '',
+          third_party_name: type === 'BL_CLIENT' && blPurpose === 'magasin_transfer'
+            ? `Transfert: ${sourceMagasin.trim()} → ${destinationMagasin.trim()}`
+            : (selectedTier?.nom || selectedTier?.raison_sociale || ''),
+          third_party_address: selectedTier?.adresse || selectedTier?.location || '',
           third_party_tax_id: selectedTier?.matricule_fiscal || selectedTier?.tax_id || '',
+          ...(type === 'BL_CLIENT'
+            ? {
+                bl_purpose: blPurpose,
+                ...(blPurpose === 'magasin_transfer'
+                  ? {
+                      source_magasin: sourceMagasin.trim(),
+                      destination_magasin: destinationMagasin.trim(),
+                    }
+                  : {}),
+              }
+            : {}),
           ...(initialData
             ? {
                 source: 'stock_transaction',
@@ -297,13 +343,91 @@ export const DocumentCreationDialog = ({
             </div>
           </div>
 
-          {/* Section 2: Tiers (Client/Fournisseur) */}
+          {/* Section 2: Tiers (Client/Fournisseur) ou transfert magasin */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold border-b pb-2 flex items-center gap-2">
-              {type === 'BE' ? 'Informations Fournisseur' : 'Informations Client'}
+              {type === 'BE'
+                ? 'Informations Fournisseur'
+                : type === 'BL_CLIENT'
+                  ? 'Destination du bon de livraison'
+                  : 'Informations Client'}
             </h3>
+
+            {type === 'BL_CLIENT' && (
+              <RadioGroup
+                value={blPurpose}
+                onValueChange={(v) => {
+                  const next = v as BlPurpose;
+                  setBlPurpose(next);
+                  if (next === 'magasin_transfer') {
+                    setClientId(null);
+                    setSelectedTier(null);
+                    setTierSearch('');
+                    if (!sourceMagasin.trim() && currentCompany?.name) {
+                      setSourceMagasin(currentCompany.name);
+                    }
+                  } else {
+                    setDestinationMagasin('');
+                  }
+                }}
+                className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+              >
+                <label
+                  htmlFor="bl-purpose-client"
+                  className="flex items-start gap-3 rounded-lg border p-4 cursor-pointer hover:bg-muted/40 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+                >
+                  <RadioGroupItem value="client" id="bl-purpose-client" className="mt-0.5" />
+                  <div>
+                    <p className="font-medium">Livraison client</p>
+                    <p className="text-xs text-muted-foreground">Sortie stock vers un client</p>
+                  </div>
+                </label>
+                <label
+                  htmlFor="bl-purpose-transfer"
+                  className="flex items-start gap-3 rounded-lg border p-4 cursor-pointer hover:bg-muted/40 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+                >
+                  <RadioGroupItem value="magasin_transfer" id="bl-purpose-transfer" className="mt-0.5" />
+                  <div>
+                    <p className="font-medium">Transfert inter-magasins</p>
+                    <p className="text-xs text-muted-foreground">Même société, pas de client</p>
+                  </div>
+                </label>
+              </RadioGroup>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
+                {type === 'BL_CLIENT' && blPurpose === 'magasin_transfer' ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Magasin d&apos;origine</Label>
+                      <Input
+                        list="magasin-options"
+                        value={sourceMagasin}
+                        onChange={(e) => setSourceMagasin(e.target.value)}
+                        placeholder="Ex: Dépôt central"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Magasin de destination</Label>
+                      <Input
+                        list="magasin-options"
+                        value={destinationMagasin}
+                        onChange={(e) => setDestinationMagasin(e.target.value)}
+                        placeholder="Ex: Magasin Sfax"
+                      />
+                    </div>
+                    <datalist id="magasin-options">
+                      {companies.map((c) => (
+                        <option key={c.id} value={c.name} />
+                      ))}
+                    </datalist>
+                    <p className="text-xs text-muted-foreground">
+                      Transfert interne : aucun client n&apos;est associé à ce BL.
+                    </p>
+                  </>
+                ) : (
+                  <>
                 <div className="space-y-2">
                   <Label>Sélectionner {(type === 'BL_CLIENT' || type === 'BS') ? 'un Client' : 'un Fournisseur'}</Label>
                   <Input
@@ -342,12 +466,14 @@ export const DocumentCreationDialog = ({
                   <div className="p-4 bg-primary/5 rounded-lg border border-primary/10 space-y-2 animate-in fade-in slide-in-from-top-2">
                     <p className="font-bold text-primary">{selectedTier.nom || selectedTier.raison_sociale}</p>
                     <p className="text-sm text-muted-foreground flex gap-2">
-                      <span className="font-medium text-foreground">Adresse:</span> {selectedTier.adresse || 'N/A'}
+                      <span className="font-medium text-foreground">Adresse:</span> {selectedTier.adresse || selectedTier.location || 'N/A'}
                     </p>
                     <p className="text-sm text-muted-foreground flex gap-2">
                       <span className="font-medium text-foreground">MF / Tax ID:</span> {selectedTier.matricule_fiscal || selectedTier.tax_id || 'N/A'}
                     </p>
                   </div>
+                )}
+                  </>
                 )}
               </div>
 

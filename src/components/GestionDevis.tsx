@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { FileText, History, Plus, Search } from 'lucide-react';
+import { FileText, History, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -8,7 +8,7 @@ import { buildProfilesMap, collectUserIdsForProfiles } from '@/lib/documentListA
 import { useAuth } from '@/hooks/useAuth';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import { getActiveCompanyId, requireActiveCompanyId } from '@/lib/activeCompany';
-import { readStoredDevisSection, writeStoredDevisSection } from '@/lib/appNavigationStorage';
+import { readStoredDevisSection, writeStoredDevisSection, type DevisActiveSection } from '@/lib/appNavigationStorage';
 import {
   clearDevisDraft,
   loadDevisDraft,
@@ -35,7 +35,6 @@ import { DevisForm } from './devis/DevisForm';
 import { DevisHistory } from './devis/DevisHistory';
 import { BonCommandeList } from './devis/BonCommandeList';
 import { BonLivraisonList } from './devis/BonLivraisonList';
-import { DevisHelper } from './devis/DevisHelper';
 import { BCCreationDialog } from './devis/BCCreationDialog';
 import { DevisToSupplierBCDialog } from './devis/DevisToSupplierBCDialog';
 import { documentService } from '@/services/documentService';
@@ -116,7 +115,7 @@ const parseDevisRow = (
 
 interface GestionDevisProps {
   onTabChange?: (tab: string) => void;
-  initialSection?: 'form' | 'history' | 'bc' | 'bl' | 'helper';
+  initialSection?: DevisActiveSection;
   initialDocType?: 'devis' | 'bc' | 'ba';
   initialDevisType?: 'achat' | 'vente';
   lockDevisType?: boolean;
@@ -134,8 +133,8 @@ export const GestionDevis = ({
   const { isAdmin, isModerator, user } = useAuth();
   const canEdit = true;
   const defaultDevisType = initialDevisType ?? 'vente';
-  const [activeSection, setActiveSection] = useState<'form' | 'history' | 'bc' | 'bl' | 'helper'>(() => {
-    const fallback = (initialSection as string) === 'ba' ? 'form' : initialSection;
+  const [activeSection, setActiveSection] = useState<DevisActiveSection>(() => {
+    const fallback = (initialSection as string) === 'ba' ? 'form' : (initialSection ?? 'form');
     return readStoredDevisSection(sectionMode, defaultDevisType, fallback);
   });
   const [allDevis, setAllDevis] = useState<Devis[]>([]);
@@ -228,7 +227,7 @@ export const GestionDevis = ({
   });
 
   const requestSectionChange = useCallback(
-    (section: 'form' | 'history' | 'bc' | 'bl' | 'helper') => {
+    (section: DevisActiveSection) => {
       if (section === activeSection) return;
       leaveGuard.requestLeave(() => setActiveSection(section));
     },
@@ -473,6 +472,18 @@ export const GestionDevis = ({
       setAllDevis(dataArr.map((d) => parseDevisRow(d, profilesMap, sourceDevisMap, sourceBcMap)));
     }
   }, []);
+
+  // Re-sync section when switching between devis / BC / BL routes (same component instance).
+  const prevSectionModeRef = useRef(sectionMode);
+  useEffect(() => {
+    if (prevSectionModeRef.current === sectionMode) return;
+    prevSectionModeRef.current = sectionMode;
+    const fallback = (initialSection as string) === 'ba' ? 'form' : (initialSection ?? 'form');
+    setActiveSection(readStoredDevisSection(sectionMode, defaultDevisType, fallback));
+    if (sectionMode === 'bc') setDocType('bc');
+    else if (sectionMode === 'devis') setDocType('devis');
+    if (initialDevisType) setDevisType(initialDevisType);
+  }, [sectionMode, initialSection, initialDevisType, defaultDevisType]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
   useSessionResumeReload(loadAll);
@@ -1066,6 +1077,47 @@ export const GestionDevis = ({
     : 'bg-emerald-600 text-white shadow-md';
   const tabBarClass = accentIsAchat ? 'bg-orange-500/10' : 'bg-emerald-500/10';
 
+  const leaveGuardDialog = (
+    <AlertDialog open={leaveGuard.dialogOpen} onOpenChange={(open) => !open && leaveGuard.cancelLeave()}>
+      <AlertDialogContent className="max-w-md">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Modifications non enregistrées</AlertDialogTitle>
+          <AlertDialogDescription>
+            Vous avez un {docType === 'bc' ? 'bon de commande' : 'devis'} en cours de saisie.
+            Enregistrez-le sur le serveur avant de quitter, ou quittez en conservant le brouillon
+            local automatique.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex flex-col gap-2 sm:flex-col sm:space-x-0">
+          <AlertDialogAction
+            className="w-full sm:w-full"
+            disabled={isSaving}
+            onClick={(e) => {
+              e.preventDefault();
+              void (async () => {
+                const ok = await saveDevis(undefined, { redirectAfterSave: false });
+                if (ok) leaveGuard.confirmLeave();
+              })();
+            }}
+          >
+            {isSaving ? 'Enregistrement…' : 'Enregistrer et quitter'}
+          </AlertDialogAction>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={leaveGuard.confirmLeave}
+          >
+            Quitter sans enregistrer
+          </Button>
+          <AlertDialogCancel className="w-full mt-0" onClick={leaveGuard.cancelLeave}>
+            Rester sur le formulaire
+          </AlertDialogCancel>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   if (sectionMode === 'bl') {
     return (
       <div className="space-y-6 animate-fade-in">
@@ -1128,6 +1180,7 @@ export const GestionDevis = ({
             </div>
           </DialogContent>
         </Dialog>
+        {leaveGuardDialog}
       </div>
     );
   }
@@ -1197,15 +1250,6 @@ export const GestionDevis = ({
             <span className="tabular-nums opacity-80">({bonsCommande.length})</span>
           </button>
         )}
-        <button
-          type="button"
-          title="Assistant import devis (PDF)"
-          onClick={() => requestSectionChange('helper')}
-          className={sectionTabClass(activeSection === 'helper')}
-        >
-          <Search className="w-3.5 h-3.5 shrink-0" />
-          Helper
-        </button>
       </div>
 
       {activeSection === 'form' && devisNumber && (
@@ -1285,10 +1329,6 @@ export const GestionDevis = ({
           showAddButton={false}
           defaultTypeFilter={initialDevisType ?? 'vente'}
         />
-      )}
-
-      {activeSection === 'helper' && (
-        <DevisHelper onTabChange={onTabChange} />
       )}
 
       {/* Edit Devis Dialog */}
@@ -1388,36 +1428,7 @@ export const GestionDevis = ({
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={leaveGuard.dialogOpen} onOpenChange={(open) => !open && leaveGuard.cancelLeave()}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Modifications non enregistrées</AlertDialogTitle>
-            <AlertDialogDescription>
-              Vous avez un {docType === 'bc' ? 'bon de commande' : 'devis'} en cours de saisie.
-              Enregistrez-le sur le serveur avant de quitter, ou quittez en conservant le brouillon
-              local automatique.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 sm:gap-0">
-            <AlertDialogCancel onClick={leaveGuard.cancelLeave}>Rester sur le formulaire</AlertDialogCancel>
-            <Button type="button" variant="outline" onClick={leaveGuard.confirmLeave}>
-              Quitter sans enregistrer
-            </Button>
-            <AlertDialogAction
-              disabled={isSaving}
-              onClick={(e) => {
-                e.preventDefault();
-                void (async () => {
-                  const ok = await saveDevis(undefined, { redirectAfterSave: false });
-                  if (ok) leaveGuard.confirmLeave();
-                })();
-              }}
-            >
-              {isSaving ? 'Enregistrement…' : 'Enregistrer et quitter'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {leaveGuardDialog}
 
     </div>
   );
