@@ -513,12 +513,27 @@ export const DevisForm = memo(({
 
       if (result.supplier) {
         setThirdPartyName(result.supplier.nom);
-        setThirdPartyAddress(result.supplier.location || '');
-        setThirdPartyTaxId(result.supplier.matricule_fiscale || '');
-        setThirdPartyPhone(formatPhonesDisplay(result.supplier.phone) || '');
         setSelectedThirdPartyId(result.supplier.id.toString());
       } else if (result.header.supplierName) {
         handleThirdPartyNameChange(result.header.supplierName);
+      }
+
+      if (result.header.taxId) {
+        setThirdPartyTaxId(result.header.taxId);
+      } else if (result.supplier?.matricule_fiscale) {
+        setThirdPartyTaxId(result.supplier.matricule_fiscale);
+      }
+
+      if (result.header.phone) {
+        setThirdPartyPhone(result.header.phone);
+      } else if (result.supplier?.phone) {
+        setThirdPartyPhone(formatPhonesDisplay(result.supplier.phone));
+      }
+
+      if (result.header.address) {
+        setThirdPartyAddress(result.header.address);
+      } else if (result.supplier?.location) {
+        setThirdPartyAddress(result.supplier.location);
       }
 
       if (result.header.documentDate) {

@@ -194,6 +194,12 @@ export function BcFournisseurPdfReader({
                   Date : {formatAppDate(preview.header.documentDate)}
                 </Badge>
               )}
+              {preview.header.taxId && (
+                <Badge variant="outline">Matricule fiscal : {preview.header.taxId}</Badge>
+              )}
+              {preview.header.phone && (
+                <Badge variant="outline">Tél. : {preview.header.phone}</Badge>
+              )}
               <Badge variant="outline">{preview.lines.length} ligne(s)</Badge>
             </div>
 

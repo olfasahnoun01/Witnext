@@ -95,10 +95,16 @@ export function detectSupplierFromDocument(
   }
 
   if (header.supplierName) {
-    const byName = fournisseurs.find(
-      (f) => f.nom.trim().toLowerCase() === header.supplierName!.trim().toLowerCase()
-    );
+    const needle = header.supplierName.trim().toLowerCase();
+    const byName = fournisseurs.find((f) => f.nom.trim().toLowerCase() === needle);
     if (byName) return byName;
+
+    const fuzzy = fournisseurs.find(
+      (f) =>
+        f.nom.trim().toLowerCase().includes(needle) ||
+        needle.includes(f.nom.trim().toLowerCase())
+    );
+    if (fuzzy) return fuzzy;
   }
 
   return null;

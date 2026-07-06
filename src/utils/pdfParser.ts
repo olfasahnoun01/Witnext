@@ -1,29 +1,24 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
+import type { ParsedDevisDocument, ParsedDevisHeader, ParsedDevisLine } from './pdfDevisTypes';
+import {
+  extractEmail,
+  extractMatriculeFiscale,
+  extractPhoneNumber,
+} from './pdfSupplierFields';
+import {
+  extractLinesFromSpatialRows,
+  extractSupplierHeaderFromItems,
+  groupItemsIntoRows,
+  type PdfTextItem,
+} from './pdfDevisSpatialParser';
+
+export type { ParsedDevisDocument, ParsedDevisHeader, ParsedDevisLine } from './pdfDevisTypes';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
-export interface ParsedDevisLine {
-  designation: string;
-  quantity: number;
-  unitPrice: number;
-  tvaRate: number;
-}
-
-export interface ParsedDevisHeader {
-  supplierName?: string;
-  taxId?: string;
-  documentDate?: string;
-  documentNumber?: string;
-}
-
-export interface ParsedDevisDocument {
-  lines: ParsedDevisLine[];
-  header: ParsedDevisHeader;
-  fullText: string;
-}
-
-const HEADER_NOISE = /^(TOTAL|HT|TTC|DATE|DEVIS|FACTURE|QUANT|PRIX|PAGE|CLIENT|FOURNISSEUR|MATRICULE|TVA|BON\s+DE\s+COMMANDE)/i;
+const HEADER_NOISE =
+  /^(TOTAL|HT|TTC|DATE|DEVIS|FACTURE|QUANT|PRIX|PAGE|CLIENT|FOURNISSEUR|MATRICULE|TVA|BON\s+DE\s+COMMANDE)/i;
 
 function parseDecimal(raw: string): number {
   const normalized = raw.replace(/\s/g, '').replace(',', '.');
@@ -122,10 +117,18 @@ function parseFrenchDateToIso(raw: string): string | undefined {
   return iso;
 }
 
+/** Used by OCR image import — shares MF / phone rules with PDF spatial parser. */
 export function parseDevisHeaderFromText(fullText: string): ParsedDevisHeader {
-  const header: ParsedDevisHeader = {};
-  const taxMatch = fullText.match(/\b(\d{6,7}\/[A-Za-z]\/[A-Za-z]\/[A-Za-z]\/\d{3})\b/);
-  if (taxMatch) header.taxId = taxMatch[1].toUpperCase();
+  const lines = fullText
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length >= 2 && l.length <= 140);
+
+  const header: ParsedDevisHeader = {
+    taxId: extractMatriculeFiscale(lines, fullText),
+    phone: extractPhoneNumber(lines, fullText),
+    email: extractEmail(lines, fullText),
+  };
 
   const dateMatch = fullText.match(
     /(?:date|le)\s*:?\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i
@@ -138,13 +141,7 @@ export function parseDevisHeaderFromText(fullText: string): ParsedDevisHeader {
   );
   if (numberMatch) header.documentNumber = numberMatch[1].trim();
 
-  const topLines = fullText
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length >= 4 && l.length <= 80)
-    .slice(0, 20);
-
-  for (const line of topLines) {
+  for (const line of lines.slice(0, 25)) {
     if (HEADER_NOISE.test(line)) continue;
     if (/\d{6,7}\/[A-Za-z]/.test(line)) continue;
     if (/^\d{1,2}[\/\-.]\d{1,2}/.test(line)) continue;
@@ -157,26 +154,70 @@ export function parseDevisHeaderFromText(fullText: string): ParsedDevisHeader {
   return header;
 }
 
-export async function extractDevisDocumentFromPdf(file: File): Promise<ParsedDevisDocument> {
+async function extractPdfTextItems(file: File): Promise<{
+  items: PdfTextItem[];
+  fullText: string;
+  pageHeight: number;
+}> {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const allLineTexts: string[] = [];
+  const allItems: PdfTextItem[] = [];
   const textChunks: string[] = [];
+  let pageHeight = 842;
 
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 1 });
+    if (i === 1) pageHeight = viewport.height;
+
     const textContent = await page.getTextContent();
-    const items = textContent.items as { str: string; transform: number[] }[];
-    allLineTexts.push(...buildLinesFromPdfItems(items));
-    textChunks.push(items.map((t) => t.str).join(' '));
+    const rawItems = textContent.items as {
+      str: string;
+      transform: number[];
+      width?: number;
+      height?: number;
+    }[];
+
+    for (const t of rawItems) {
+      const str = t.str?.trim();
+      if (!str) continue;
+      allItems.push({
+        str: t.str,
+        x: t.transform[4],
+        y: t.transform[5],
+        width: t.width ?? Math.max(str.length * 4, 8),
+        height: t.height ?? 10,
+        page: i,
+      });
+    }
+
+    textChunks.push(rawItems.map((t) => t.str).join(' '));
   }
 
-  const fullText = textChunks.join('\n');
-  return {
-    lines: parseDevisLinesFromPlainLines(allLineTexts),
-    header: parseDevisHeaderFromText(fullText),
-    fullText,
-  };
+  return { items: allItems, fullText: textChunks.join('\n'), pageHeight };
+}
+
+export async function extractDevisDocumentFromPdf(file: File): Promise<ParsedDevisDocument> {
+  const { items, fullText, pageHeight } = await extractPdfTextItems(file);
+  const rows = groupItemsIntoRows(items);
+
+  let lines = extractLinesFromSpatialRows(rows);
+
+  if (lines.length === 0) {
+    const plainLines = rows.map((row) =>
+      row.items
+        .map((i) => i.str.trim())
+        .filter(Boolean)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    );
+    lines = parseDevisLinesFromPlainLines(plainLines);
+  }
+
+  const header = extractSupplierHeaderFromItems(items, pageHeight, fullText);
+
+  return { lines, header, fullText };
 }
 
 /** @deprecated Prefer extractDevisDocumentFromPdf — kept for DevisHelper compatibility. */
