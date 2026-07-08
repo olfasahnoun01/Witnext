@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { WitnextWordmark } from '@/marketing/components/WitnextWordmark';
 
 const NAV_LINKS = [
   { href: '/', label: 'Accueil', exact: true },
@@ -41,17 +42,15 @@ export function MarketingNavbar() {
     cn(
       'relative rounded-lg px-3 py-2 text-sm font-medium transition-colors',
       isActive(location.pathname, href, exact)
-        ? 'text-primary bg-primary/10'
-        : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+        ? 'marketing-nav-active'
+        : 'text-slate-600 marketing-nav-hover'
     );
 
   return (
     <header
       className={cn(
-        'sticky top-0 z-50 transition-all duration-300',
-        scrolled
-          ? 'border-b border-border/80 bg-background/90 shadow-sm backdrop-blur-xl supports-[backdrop-filter]:bg-background/85'
-          : 'border-b border-transparent bg-background/70 backdrop-blur-md supports-[backdrop-filter]:bg-background/60'
+        'marketing-chrome sticky top-0 z-50 transition-all duration-300 border-b marketing-chrome-border',
+        scrolled ? 'shadow-sm' : 'border-transparent'
       )}
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
@@ -60,9 +59,7 @@ export function MarketingNavbar() {
           className="flex items-center gap-2.5 shrink-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <WitnextLogoBanner className="h-9 w-auto sm:h-10" />
-          <span className="font-bold text-lg sm:text-xl tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
-            Witnext
-          </span>
+          <WitnextWordmark className="text-lg sm:text-xl" />
         </Link>
 
         <nav className="hidden lg:flex items-center gap-0.5" aria-label="Navigation principale">
@@ -74,10 +71,10 @@ export function MarketingNavbar() {
         </nav>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
-          <ThemeToggle />
+          <ThemeToggle className="marketing-theme-toggle" />
 
           {session ? (
-            <Button asChild size="sm" className="hidden sm:inline-flex shadow-sm">
+            <Button asChild size="sm" className="hidden sm:inline-flex shadow-sm marketing-btn">
               <Link to="/dashboard">
                 <span className="hidden sm:inline">Accéder à l&apos;application</span>
                 <span className="sm:hidden">Application</span>
@@ -90,11 +87,11 @@ export function MarketingNavbar() {
                 asChild
                 variant="ghost"
                 size="sm"
-                className="hidden md:inline-flex text-muted-foreground"
+                className="hidden md:inline-flex text-slate-600 marketing-btn-ghost"
               >
                 <Link to="/auth">Connexion</Link>
               </Button>
-              <Button asChild size="sm" className="hidden sm:inline-flex shadow-md shadow-primary/20">
+              <Button asChild size="sm" className="hidden sm:inline-flex shadow-md marketing-btn">
                 <Link to="/trial">Essai gratuit</Link>
               </Button>
             </>
@@ -111,11 +108,11 @@ export function MarketingNavbar() {
                 {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[min(100vw-2rem,320px)]">
+            <SheetContent side="right" className="marketing-chrome w-[min(100vw-2rem,320px)] border-l marketing-chrome-border">
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2 text-left">
                   <WitnextLogoBanner className="h-8 w-auto" />
-                  Witnext
+                  <WitnextWordmark />
                 </SheetTitle>
               </SheetHeader>
               <nav className="mt-8 flex flex-col gap-1" aria-label="Navigation mobile">
@@ -126,25 +123,25 @@ export function MarketingNavbar() {
                     className={cn(
                       'rounded-lg px-4 py-3 text-base font-medium transition-colors',
                       isActive(location.pathname, link.href, link.exact)
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-foreground hover:bg-muted'
+                        ? 'marketing-nav-active'
+                        : 'text-slate-900 marketing-nav-hover'
                     )}
                   >
                     {link.label}
                   </Link>
                 ))}
               </nav>
-              <div className="mt-8 flex flex-col gap-3 border-t border-border pt-6">
+              <div className="mt-8 flex flex-col gap-3 border-t marketing-chrome-border pt-6">
                 {session ? (
-                  <Button asChild className="w-full">
+                  <Button asChild className="w-full marketing-btn">
                     <Link to="/dashboard">Accéder à l&apos;application</Link>
                   </Button>
                 ) : (
                   <>
-                    <Button asChild variant="outline" className="w-full">
+                    <Button asChild variant="outline" className="w-full marketing-btn-outline">
                       <Link to="/auth">Connexion</Link>
                     </Button>
-                    <Button asChild className="w-full">
+                    <Button asChild className="w-full marketing-btn">
                       <Link to="/trial">Essai gratuit</Link>
                     </Button>
                   </>

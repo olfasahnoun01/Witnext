@@ -3,6 +3,7 @@ import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { PRICING_PLANS } from '@/marketing/config/pricing';
+import { BRAND_GREEN_TW } from '@/marketing/config/brand';
 import { AnimateIn } from '@/marketing/components/AnimateIn';
 
 export function PricingCards() {
@@ -14,12 +15,12 @@ export function PricingCards() {
             className={cn(
               'relative flex flex-col h-full rounded-2xl border p-6 sm:p-8 transition-all duration-300',
               plan.highlighted
-                ? 'border-primary shadow-xl shadow-primary/10 ring-1 ring-primary/20 bg-primary/[0.03] scale-[1.02] lg:scale-105'
-                : 'border-border bg-card hover:border-primary/30 hover:shadow-lg'
+                ? `border-[hsl(${BRAND_GREEN_TW})/0.5] shadow-xl shadow-[hsl(${BRAND_GREEN_TW})/0.12] ring-1 ring-[hsl(${BRAND_GREEN_TW})/0.25] bg-[hsl(${BRAND_GREEN_TW})/0.04] scale-[1.02] lg:scale-105`
+                : `border-border bg-card hover:border-[hsl(${BRAND_GREEN_TW})/0.35] hover:shadow-lg`
             )}
           >
             {plan.priceNote && (
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-0.5 text-xs font-semibold text-primary-foreground shadow-md">
+              <span className={`absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[hsl(${BRAND_GREEN_TW})] px-3 py-0.5 text-xs font-semibold text-white shadow-md`}>
                 {plan.priceNote}
               </span>
             )}
@@ -29,16 +30,20 @@ export function PricingCards() {
             <ul className="mt-6 space-y-2.5 flex-1">
               {plan.features.map((f) => (
                 <li key={f} className="flex gap-2 text-sm">
-                  <Check className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <Check className="h-4 w-4 marketing-brand-text shrink-0 mt-0.5" />
                   <span>{f}</span>
                 </li>
               ))}
             </ul>
             <div className="mt-8 flex flex-col gap-2">
-              <Button asChild variant={plan.highlighted ? 'default' : 'outline'} className="w-full">
+              <Button
+                asChild
+                variant={plan.highlighted ? 'default' : 'outline'}
+                className={cn('w-full', plan.highlighted ? 'marketing-btn' : 'marketing-btn-outline')}
+              >
                 <Link to={`/trial?plan=${plan.code}`}>Demander un essai</Link>
               </Button>
-              <Button asChild variant="ghost" className="w-full">
+              <Button asChild variant="ghost" className="w-full marketing-btn-ghost">
                 <Link to={`/buy?plan=${plan.code}`}>Acheter une licence</Link>
               </Button>
             </div>

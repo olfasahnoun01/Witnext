@@ -1,4 +1,163 @@
-/* Marketing site animations — respects reduced motion */
+.marketing-chrome {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+.marketing-chrome-muted {
+  color: #475569;
+}
+
+.marketing-chrome-border {
+  border-color: #e2e8f0;
+}
+
+/* ── Brand green (logo) ───────────────────────────────────────── */
+.marketing-site {
+  --marketing-brand: 168 100% 39%;
+  --marketing-brand-dark: 168 100% 32%;
+  --marketing-brand-light: 168 100% 39% / 0.12;
+}
+
+.marketing-brand-text {
+  color: hsl(var(--marketing-brand));
+}
+
+.marketing-link {
+  transition: color 0.2s ease;
+}
+
+.marketing-link:hover {
+  color: hsl(var(--marketing-brand));
+}
+
+/* Primary CTA buttons */
+.marketing-site .marketing-btn {
+  background-color: hsl(var(--marketing-brand)) !important;
+  color: #fff !important;
+  border-color: hsl(var(--marketing-brand)) !important;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.marketing-site .marketing-btn:hover {
+  background-color: hsl(var(--marketing-brand-dark)) !important;
+  border-color: hsl(var(--marketing-brand-dark)) !important;
+  box-shadow: 0 8px 24px -6px hsl(var(--marketing-brand) / 0.45);
+}
+
+.marketing-site .marketing-btn-outline {
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.marketing-site .marketing-btn-outline:hover {
+  color: hsl(var(--marketing-brand)) !important;
+  border-color: hsl(var(--marketing-brand)) !important;
+  background-color: hsl(var(--marketing-brand-light)) !important;
+}
+
+.marketing-site .marketing-btn-ghost:hover {
+  color: hsl(var(--marketing-brand)) !important;
+  background-color: hsl(var(--marketing-brand-light)) !important;
+}
+
+.marketing-site .marketing-btn-secondary:hover {
+  color: hsl(var(--marketing-brand)) !important;
+  border-color: hsl(var(--marketing-brand) / 0.35) !important;
+  background-color: hsl(var(--marketing-brand-light)) !important;
+}
+
+/* Nav active state */
+.marketing-nav-active {
+  color: hsl(var(--marketing-brand)) !important;
+  background-color: hsl(var(--marketing-brand-light)) !important;
+}
+
+.marketing-nav-hover:hover {
+  color: hsl(var(--marketing-brand)) !important;
+  background-color: hsl(var(--marketing-brand-light)) !important;
+}
+
+/* Theme toggle — white icon on brand-green hover (marketing chrome) */
+.marketing-site .marketing-theme-toggle:hover {
+  background-color: hsl(var(--marketing-brand)) !important;
+}
+
+.marketing-site .marketing-theme-toggle:hover svg {
+  color: #fff !important;
+}
+
+/* ── Hero title animation ───────────────────────────────────── */
+.marketing-brand-title {
+  line-height: 1;
+}
+
+.marketing-brand-w-letter {
+  color: hsl(var(--marketing-brand));
+  opacity: 0;
+  animation:
+    marketing-brand-w-enter 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+    marketing-brand-w-glow 3s ease-in-out 0.9s infinite;
+}
+
+.marketing-brand-rest-letter {
+  opacity: 0;
+  animation: marketing-brand-reveal 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes marketing-brand-w-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.75) rotate(-8deg);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.12) rotate(0deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes marketing-brand-w-glow {
+  0%, 100% {
+    text-shadow: 0 0 0 transparent;
+    filter: brightness(1);
+  }
+  50% {
+    text-shadow: 0 0 28px hsl(var(--marketing-brand) / 0.55);
+    filter: brightness(1.08);
+  }
+}
+
+.marketing-brand-letter {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: marketing-brand-reveal 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes marketing-brand-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing-brand-w-letter,
+  .marketing-brand-rest-letter,
+  .marketing-brand-letter {
+    opacity: 1 !important;
+    animation: none !important;
+    transform: none !important;
+    filter: none !important;
+    text-shadow: none !important;
+  }
+}
+
 
 .marketing-reveal {
   opacity: 0;
@@ -145,9 +304,9 @@
 
 .marketing-hero-gradient {
   background:
-    radial-gradient(ellipse 80% 60% at 50% -20%, hsl(var(--primary) / 0.18), transparent),
-    radial-gradient(ellipse 50% 40% at 100% 0%, hsl(var(--primary) / 0.1), transparent),
-    radial-gradient(ellipse 40% 30% at 0% 100%, hsl(var(--primary) / 0.08), transparent);
+    radial-gradient(ellipse 80% 60% at 50% -20%, hsl(var(--marketing-brand) / 0.14), transparent),
+    radial-gradient(ellipse 50% 40% at 100% 0%, hsl(var(--marketing-brand) / 0.08), transparent),
+    radial-gradient(ellipse 40% 30% at 0% 100%, hsl(var(--marketing-brand) / 0.06), transparent);
 }
 
 .marketing-grid-pattern {

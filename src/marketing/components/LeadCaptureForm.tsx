@@ -156,7 +156,7 @@ export function LeadCaptureForm({ type, planCode, sourcePath, title, subtitle }:
         <Button
           type="button"
           variant="outline"
-          className="mt-6"
+          className="mt-6 marketing-btn-outline"
           onClick={() => setSuccess(false)}
         >
           Envoyer une autre demande
@@ -171,7 +171,7 @@ export function LeadCaptureForm({ type, planCode, sourcePath, title, subtitle }:
         <h2 className="text-2xl font-bold">{title}</h2>
         <p className="text-muted-foreground text-sm mt-1">{subtitle}</p>
         {plan && (
-          <p className="text-sm font-medium text-primary mt-2">
+          <p className="text-sm font-medium marketing-brand-text mt-2">
             Offre sélectionnée : {plan.name}
           </p>
         )}
@@ -315,7 +315,7 @@ export function LeadCaptureForm({ type, planCode, sourcePath, title, subtitle }:
           </div>
         )}
 
-        <Button type="submit" className="w-full sm:w-auto" disabled={submitting}>
+        <Button type="submit" className="w-full sm:w-auto marketing-btn" disabled={submitting}>
           {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {type === 'trial' ? 'Demander mon essai gratuit' : 'Demander un devis licence'}
         </Button>

@@ -29,7 +29,7 @@ export function PricingPage() {
         <AnimateIn animation="fade-up" delay={200}>
           <p className="text-center text-sm text-muted-foreground mt-10 sm:mt-14">
             Besoin d&apos;une configuration spécifique ?{' '}
-            <Link to="/buy" className="text-primary font-medium hover:underline">
+            <Link to="/buy" className="marketing-brand-text font-medium hover:underline">
               Contactez notre équipe commerciale
             </Link>
             .

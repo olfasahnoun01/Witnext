@@ -106,3 +106,9 @@ export const FinanceModule = lazyWithRetry(() =>
 export const MarketingLeadsAdmin = lazyWithRetry(() =>
   import('@/pages/admin/MarketingLeadsAdmin').then((m) => ({ default: m.MarketingLeadsAdmin }))
 );
+export const ReportingModule = lazyWithRetry(() =>
+  import('@/components/reporting/ReportingModule').then((m) => ({ default: m.ReportingModule }))
+);
+export const BarcodeLabelsPage = lazyWithRetry(() =>
+  import('@/components/inventory/BarcodeLabelsPage').then((m) => ({ default: m.BarcodeLabelsPage }))
+);

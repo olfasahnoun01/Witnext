@@ -22,6 +22,8 @@ import {
   Maintenance,
   PermissionsManager,
   MarketingLeadsAdmin,
+  ReportingModule,
+  BarcodeLabelsPage,
   PhotoGallery,
   Planning,
   PurchaseRequestManager,
@@ -67,6 +69,16 @@ export function ErpRoutes() {
           element={
             <SubsectionRoute subsectionId="dashboard">
               <DashboardPage />
+            </SubsectionRoute>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <SubsectionRoute subsectionId="finance-rapports">
+              <LazyRoute>
+                <ReportingModule />
+              </LazyRoute>
             </SubsectionRoute>
           }
         />
@@ -139,6 +151,16 @@ export function ErpRoutes() {
             <SubsectionRoute subsectionId="transactions">
               <LazyRoute>
                 <Transactions />
+              </LazyRoute>
+            </SubsectionRoute>
+          }
+        />
+        <Route
+          path="/inventory/barcode-labels"
+          element={
+            <SubsectionRoute subsectionId="barcode-labels">
+              <LazyRoute>
+                <BarcodeLabelsPage />
               </LazyRoute>
             </SubsectionRoute>
           }

@@ -5,7 +5,7 @@ import '@/marketing/styles/marketing.css';
 
 export function MarketingLayout() {
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground overflow-x-hidden">
+    <div className="marketing-site min-h-screen flex flex-col bg-background text-foreground overflow-x-hidden">
       <MarketingNavbar />
       <main className="flex-1">
         <Outlet />
