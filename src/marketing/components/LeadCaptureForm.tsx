@@ -166,7 +166,7 @@ export function LeadCaptureForm({ type, planCode, sourcePath, title, subtitle }:
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 sm:p-8 shadow-sm">
+    <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-lg shadow-black/5">
       <div className="mb-6">
         <h2 className="text-2xl font-bold">{title}</h2>
         <p className="text-muted-foreground text-sm mt-1">{subtitle}</p>
