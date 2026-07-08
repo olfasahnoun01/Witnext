@@ -13,6 +13,7 @@ import Auth from "./pages/Auth";
 import { AutoUpdateNotifier } from "@/components/AutoUpdateNotifier";
 import { SessionResumeHandler } from "@/components/SessionResumeHandler";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { isStaleChunkError, reloadOnceForStaleChunk } from "@/lib/lazyWithRetry";
 import { Loader2 } from "lucide-react";
 
 const isElectronTarget = import.meta.env.VITE_APP_TARGET === "electron";
@@ -80,11 +81,10 @@ const AppRoutes = () => {
 const App = () => {
   useEffect(() => {
     const handleRejection = (event: PromiseRejectionEvent) => {
-      const msg = String(event.reason?.message || event.reason || "");
-      if (msg.includes("Failed to fetch dynamically imported module") || msg.includes("dynamically imported module")) {
+      if (isStaleChunkError(event.reason)) {
         console.warn("Stale chunk detected, reloading...");
         event.preventDefault();
-        window.location.reload();
+        reloadOnceForStaleChunk();
       }
     };
     window.addEventListener("unhandledrejection", handleRejection);
