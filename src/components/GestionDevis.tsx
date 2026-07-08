@@ -687,7 +687,9 @@ export const GestionDevis = ({
         .select('*')
         .single();
 
-      if (error?.code === '23505') {
+      // Retry a few times on unique(devis_number) collisions — can still happen
+      // if another user saved between allocate and insert.
+      for (let attempt = 0; error?.code === '23505' && attempt < 3; attempt++) {
         const freshNumber = await allocateDevisNumber(devisType, numberMode);
         currentDevisNumber = freshNumber;
         devisNumberRef.current = freshNumber;
