@@ -59,6 +59,7 @@ export const SUBSECTION_ROUTES: Record<string, string> = {
   'vehicules-charges': '/vehicles/charges',
 
   accounts: '/users',
+  'admin-leads': '/admin/leads',
   settings: '/settings',
   'team-chat': '/messages',
 };
@@ -87,6 +88,7 @@ export function getSubsectionFromPath(pathname: string): string | null {
 export function getPageTitle(pathname: string): string {
   const subsectionId = getSubsectionFromPath(pathname);
   if (subsectionId === 'team-chat') return 'Chat Équipe';
+  if (subsectionId === 'admin-leads') return 'Demandes commerciales';
   if (subsectionId && SUBSECTION_LABELS[subsectionId]) {
     return SUBSECTION_LABELS[subsectionId];
   }

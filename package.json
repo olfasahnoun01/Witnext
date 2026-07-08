@@ -39,7 +39,7 @@
     "supabase:login": "supabase login",
     "supabase:link": "supabase link --project-ref rnujsdxbkndvppjqjkdu",
     "supabase:secrets:web": "supabase secrets set WEB_APP_ORIGINS=https://witnext.vercel.app",
-    "supabase:deploy-functions": "supabase functions deploy manage-users && supabase functions deploy sync-woocommerce-gallery"
+    "supabase:deploy-functions": "supabase functions deploy manage-users && supabase functions deploy sync-woocommerce-gallery && supabase functions deploy submit-marketing-lead"
   },
   "dependencies": {
     "@hcaptcha/react-hcaptcha": "^2.0.2",

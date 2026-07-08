@@ -103,3 +103,6 @@ export const AvoirFournisseurPage = lazyWithRetry(() =>
 export const FinanceModule = lazyWithRetry(() =>
   import('@/modules/finance/FinanceModule').then((m) => ({ default: m.FinanceModule }))
 );
+export const MarketingLeadsAdmin = lazyWithRetry(() =>
+  import('@/pages/admin/MarketingLeadsAdmin').then((m) => ({ default: m.MarketingLeadsAdmin }))
+);

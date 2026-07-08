@@ -10,6 +10,11 @@ import { AppCompanyProvider } from '@/contexts/AppCompanyContext';
 import { AppLayout } from '@/layouts/AppLayout';
 import { BossLayout } from '@/layouts/BossLayout';
 import Auth from "./pages/Auth";
+import { MarketingLayout } from '@/marketing/layouts/MarketingLayout';
+import { HomePage } from '@/marketing/pages/HomePage';
+import { PricingPage } from '@/marketing/pages/PricingPage';
+import { TrialPage } from '@/marketing/pages/TrialPage';
+import { BuyLicensePage } from '@/marketing/pages/BuyLicensePage';
 import { AutoUpdateNotifier } from "@/components/AutoUpdateNotifier";
 import { SessionResumeHandler } from "@/components/SessionResumeHandler";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -52,6 +57,12 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 const AppRoutes = () => {
   return (
     <Routes>
+      <Route element={<MarketingLayout />}>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/trial" element={<TrialPage />} />
+        <Route path="/buy" element={<BuyLicensePage />} />
+      </Route>
       <Route path="/login" element={<Navigate to="/auth" replace />} />
       <Route path="/auth" element={<Auth />} />
       <Route

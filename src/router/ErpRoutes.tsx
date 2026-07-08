@@ -21,6 +21,7 @@ import {
   Inventory,
   Maintenance,
   PermissionsManager,
+  MarketingLeadsAdmin,
   PhotoGallery,
   Planning,
   PurchaseRequestManager,
@@ -453,6 +454,17 @@ export function ErpRoutes() {
             <SubsectionRoute subsectionId="vehicules-charges">
               <LazyRoute>
                 <ChargesVehicule />
+              </LazyRoute>
+            </SubsectionRoute>
+          }
+        />
+
+        <Route
+          path="/admin/leads"
+          element={
+            <SubsectionRoute subsectionId="accounts" requireAdmin>
+              <LazyRoute>
+                <MarketingLeadsAdmin />
               </LazyRoute>
             </SubsectionRoute>
           }
