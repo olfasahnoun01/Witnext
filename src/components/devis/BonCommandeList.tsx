@@ -16,6 +16,7 @@ import {
   GitMerge,
   MoreHorizontal,
   Printer,
+  CalendarDays,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -59,6 +60,10 @@ import { useListPagination } from '@/hooks/useListPagination';
 import { ListPagination } from '@/components/shared/ListPagination';
 import { cn } from '@/lib/utils';
 import { ACHATS_EXCEL_TABLE_CLASS, VENTES_EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
+import {
+  exportBcListExcel,
+  matchesCommercialDocumentDay,
+} from '@/lib/exportCommercialDocuments';
 
 const BC_DATA_COL_COUNT = 15;
 
@@ -81,8 +86,8 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
   const [previewTitle, setPreviewTitle] = useState('');
   const [isGenerating, setIsGenerating] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [filterDay, setFilterDay] = useState('');
+  const [exportBusy, setExportBusy] = useState(false);
   const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>(defaultTypeFilter);
   const [procurementBC, setProcurementBC] = useState<UnifiedDocument | null>(null);
   const [bcIdsWithBl, setBcIdsWithBl] = useState<Set<number>>(new Set());
@@ -197,18 +202,41 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
     if (selectedType !== 'all') {
       result = result.filter(bc => bc.type === selectedType);
     }
-    if (dateFrom) {
-      result = result.filter((bc) => bc.devis_date >= dateFrom);
-    }
-    if (dateTo) {
-      result = result.filter((bc) => bc.devis_date <= dateTo);
+    if (filterDay) {
+      result = result.filter((bc) => matchesCommercialDocumentDay(bc.devis_date, filterDay));
     }
     return result;
-  }, [mergedBonsCommande, searchTerm, selectedType, dateFrom, dateTo]);
+  }, [mergedBonsCommande, searchTerm, selectedType, filterDay]);
+
+  const exportTypeScope = useMemo((): 'achat' | 'vente' | 'all' => {
+    if (selectedType !== 'all') return selectedType;
+    if (defaultTypeFilter && defaultTypeFilter !== 'all') return defaultTypeFilter;
+    return 'all';
+  }, [selectedType, defaultTypeFilter]);
+
+  const handleExportExcel = useCallback(async () => {
+    if (filteredBC.length === 0) {
+      toast.error('Aucun BC à exporter pour ces filtres');
+      return;
+    }
+    setExportBusy(true);
+    try {
+      await exportBcListExcel(filteredBC, {
+        typeScope: exportTypeScope,
+        filterDay,
+      });
+      toast.success(`${filteredBC.length} BC exporté${filteredBC.length > 1 ? 's' : ''}`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de l'export Excel");
+    } finally {
+      setExportBusy(false);
+    }
+  }, [filteredBC, exportTypeScope, filterDay]);
 
   const bcSorted = useMemo(() => sortDevisListRecentFirst(filteredBC), [filteredBC]);
 
-  const listResetKey = `${searchTerm}|${selectedType}|${dateFrom}|${dateTo}`;
+  const listResetKey = `${searchTerm}|${selectedType}|${filterDay}`;
   const {
     slice: bcPage,
     page,
@@ -563,20 +591,37 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                 <SelectItem value="vente">📤 Vente</SelectItem>
               </SelectContent>
             </Select>
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="h-9 w-36 bg-background"
-              title="Date début"
-            />
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="h-9 w-36 bg-background"
-              title="Date fin"
-            />
+            <div className="relative">
+              <CalendarDays className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="date"
+                value={filterDay}
+                onChange={(e) => setFilterDay(e.target.value)}
+                className="h-9 w-40 bg-background pl-9"
+                title="Filtrer par jour"
+              />
+              {filterDay && (
+                <button
+                  type="button"
+                  onClick={() => setFilterDay('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  title="Effacer le filtre jour"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5"
+              disabled={exportBusy || filteredBC.length === 0}
+              onClick={() => void handleExportExcel()}
+            >
+              {exportBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Exporter Excel
+            </Button>
             <span className="text-sm text-muted-foreground whitespace-nowrap">{filteredBC.length} BC</span>
             {canMergeBl && selectedBcIds.size >= 2 && (
               <Button
@@ -597,7 +642,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
         </div>
 
         <p className="text-xs text-muted-foreground mb-4">
-          Tous les bons de commande dans une seule liste (plus récent en haut), 10 par page.
+          Tous les bons de commande dans une seule liste (plus récent en haut), 10 par page. Sélectionnez un jour pour n&apos;afficher que les BC de cette date, puis exportez en Excel.
         </p>
 
         <div className={cn('overflow-x-auto rounded-lg border', listCardBorder, excelTableClass)}>

@@ -1,6 +1,6 @@
 import { memo, useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
-import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus, Truck, MoreHorizontal, Printer, GitMerge, CheckCircle2 } from 'lucide-react';
+import { History, Edit, Trash2, Eye, Download, Loader2, Search, X, List, Filter, Package, FileText, Plus, Truck, MoreHorizontal, Printer, GitMerge, CheckCircle2, CalendarDays } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CommercialAttachmentBadges } from '@/components/shared/CommercialAttachmentBadges';
 import { EchantillonModal } from './EchantillonModal';
@@ -41,6 +41,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { toast } from 'sonner';
+import {
+  exportDevisListExcel,
+  matchesCommercialDocumentDay,
+} from '@/lib/exportCommercialDocuments';
 
 const DEVIS_TABLE_COL_COUNT = 16;
 
@@ -100,8 +105,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   const [echantillonCounts, setEchantillonCounts] = useState<Record<number, number>>({});
   const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>(defaultTypeFilter || 'all');
   const [selectedConfirmation, setSelectedConfirmation] = useState<'all' | 'confirmed' | 'unconfirmed'>('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [filterDay, setFilterDay] = useState('');
+  const [exportBusy, setExportBusy] = useState(false);
   const [selectedDevisIds, setSelectedDevisIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -167,21 +172,44 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     } else if (selectedConfirmation === 'unconfirmed') {
       result = result.filter((d) => !isDevisConfirmed(d.status));
     }
-    if (dateFrom) {
-      result = result.filter((d) => d.devis_date >= dateFrom);
-    }
-    if (dateTo) {
-      result = result.filter((d) => d.devis_date <= dateTo);
+    if (filterDay) {
+      result = result.filter((d) => matchesCommercialDocumentDay(d.devis_date, filterDay));
     }
     return result;
-  }, [savedDevis, searchTerm, selectedFournisseur, selectedType, selectedConfirmation, dateFrom, dateTo]);
+  }, [savedDevis, searchTerm, selectedFournisseur, selectedType, selectedConfirmation, filterDay]);
+
+  const exportTypeScope = useMemo((): 'achat' | 'vente' | 'all' => {
+    if (selectedType !== 'all') return selectedType;
+    if (defaultTypeFilter && defaultTypeFilter !== 'all') return defaultTypeFilter;
+    return 'all';
+  }, [selectedType, defaultTypeFilter]);
+
+  const handleExportExcel = useCallback(async () => {
+    if (filteredDevis.length === 0) {
+      toast.error('Aucun devis à exporter pour ces filtres');
+      return;
+    }
+    setExportBusy(true);
+    try {
+      await exportDevisListExcel(filteredDevis, {
+        typeScope: exportTypeScope,
+        filterDay,
+      });
+      toast.success(`${filteredDevis.length} devis exporté${filteredDevis.length > 1 ? 's' : ''}`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de l'export Excel");
+    } finally {
+      setExportBusy(false);
+    }
+  }, [filteredDevis, exportTypeScope, filterDay]);
 
   const devisSorted = useMemo(
     () => sortDevisListRecentFirst(filteredDevis),
     [filteredDevis]
   );
 
-  const listResetKey = `${searchTerm}|${selectedFournisseur}|${selectedType}|${selectedConfirmation}|${dateFrom}|${dateTo}`;
+  const listResetKey = `${searchTerm}|${selectedFournisseur}|${selectedType}|${selectedConfirmation}|${filterDay}`;
   const {
     slice: devisPage,
     page,
@@ -558,20 +586,37 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 <SelectItem value="unconfirmed">Non confirmé</SelectItem>
               </SelectContent>
             </Select>
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="h-9 w-36 bg-background"
-              title="Date début"
-            />
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="h-9 w-36 bg-background"
-              title="Date fin"
-            />
+            <div className="relative">
+              <CalendarDays className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="date"
+                value={filterDay}
+                onChange={(e) => setFilterDay(e.target.value)}
+                className="h-9 w-40 bg-background pl-9"
+                title="Filtrer par jour"
+              />
+              {filterDay && (
+                <button
+                  type="button"
+                  onClick={() => setFilterDay('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  title="Effacer le filtre jour"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5"
+              disabled={exportBusy || filteredDevis.length === 0}
+              onClick={() => void handleExportExcel()}
+            >
+              {exportBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Exporter Excel
+            </Button>
             <span className="text-sm text-muted-foreground whitespace-nowrap">{filteredDevis.length} devis</span>
             {showMergeSelection && selectedDevisIds.size >= 2 && (
               <Button
@@ -587,7 +632,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
         </div>
 
         <p className="text-xs text-muted-foreground mb-4">
-          Tous les devis dans une seule liste (plus récent en haut), 10 par page. Statut : confirmé ou non confirmé.
+          Tous les devis dans une seule liste (plus récent en haut), 10 par page. Sélectionnez un jour pour n&apos;afficher que les devis de cette date, puis exportez en Excel.
         </p>
 
         <div className={cn('overflow-x-auto overflow-y-auto max-h-[min(65vh,36rem)] rounded-lg border', listCardBorder, excelTableClass)}>
