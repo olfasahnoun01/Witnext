@@ -3,7 +3,7 @@ import { parseAttachmentUrls } from '@/lib/commercialAttachments';
 import { mergeBlItems, validateBlMergeForFacture } from '@/lib/mergeCommercialDocuments';
 import type { BonLivraison } from '@/services/bonLivraisonService';
 import { supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
-import { computeDevisTotals } from '@/lib/devisPricing';
+import { computeSavedDocumentTotals } from '@/lib/devisPricing';
 import { requireActiveCompanyId } from '@/lib/activeCompany';
 
 const FACTURE_NUM_PREFIX = () => {
@@ -116,9 +116,12 @@ export async function createFactureFromBonLivraisonVente(bl: BonLivraison): Prom
     return { success: false, error: msg };
   }
 
-  const totals = computeDevisTotals(bl.items, false);
+  const totals = computeSavedDocumentTotals(bl);
+  const recomputed = Number(totals.totalFinal.toFixed(3));
+  // Recompute from lines (respects HT/TTC + FODEC); fall back to the stored
+  // amount only for legacy rows that have no line items to recompute from.
   const totalAmount =
-    Number(bl.total_amount) > 0 ? Number(bl.total_amount) : Number(totals.totalFinal.toFixed(3));
+    bl.items?.length ? recomputed : Number(bl.total_amount) > 0 ? Number(bl.total_amount) : recomputed;
 
   const dateCreation = (bl.devis_date || '').slice(0, 10) || new Date().toISOString().split('T')[0];
   const due = new Date(dateCreation);
@@ -186,7 +189,7 @@ export async function createFactureFromMultipleBonsLivraisonVente(
 
   const primary = blList[0];
   const mergedItems = mergeBlItems(blList);
-  const totals = computeDevisTotals(mergedItems, false);
+  const totals = computeSavedDocumentTotals({ ...primary, items: mergedItems });
   const totalAmount = totals.totalFinal;
 
   let numero: string;

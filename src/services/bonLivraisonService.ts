@@ -7,7 +7,7 @@ import {
 } from '@/lib/mergeCommercialDocuments';
 import { supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
 import type { BonCommande, Devis } from '@/types';
-import { computeDevisTotals } from '@/lib/devisPricing';
+import { computeSavedDocumentTotals } from '@/lib/devisPricing';
 import { isMissingDevisColumnError, resolveBcIdFromBlRow } from '@/modules/flux/services/devisFluxFields';
 import { requireActiveCompanyId } from '@/lib/activeCompany';
 
@@ -150,9 +150,12 @@ export async function createBonLivraisonFromBonCommandeVente(
     return { success: false, error: msg };
   }
 
-  const totals = computeDevisTotals(bc.items, false);
+  const totals = computeSavedDocumentTotals(bc);
+  const recomputed = Number(totals.totalFinal.toFixed(3));
+  // Recompute from lines (respects HT/TTC + FODEC); fall back to the stored
+  // amount only for legacy rows that have no line items to recompute from.
   const totalAmount =
-    Number(bc.total_amount) > 0 ? Number(bc.total_amount) : Number(totals.totalFinal.toFixed(3));
+    bc.items?.length ? recomputed : Number(bc.total_amount) > 0 ? Number(bc.total_amount) : recomputed;
 
   const { data: auth } = await supabase.auth.getUser();
   let companyId: string;
@@ -212,7 +215,7 @@ export async function createBonLivraisonFromMultipleBonsCommandeVente(
 
   const primary = bcList[0];
   const mergedItems = mergeBcItems(bcList);
-  const totals = computeDevisTotals(mergedItems, false);
+  const totals = computeSavedDocumentTotals({ ...primary, items: mergedItems });
   const totalAmount = totals.totalFinal;
   const mergedAttachments = bcList.flatMap((b) => parseAttachmentUrls(b.attachment_urls));
 

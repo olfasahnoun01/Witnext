@@ -212,6 +212,29 @@ export function computeDevisTotals(
   };
 }
 
+/**
+ * Totals for displaying a saved document (list rows, detail dialogs, PDF).
+ * Resolves devisType / docType / TVA / FODEC from the row itself so every
+ * view computes the same amount. `is_ttc === false` means HT mode (no TVA in totals).
+ */
+export function computeSavedDocumentTotals(doc: {
+  items: DevisItem[];
+  type: 'achat' | 'vente' | 'entrant' | 'sortant' | string;
+  is_ttc?: boolean | null;
+  is_bc?: boolean | null;
+  is_ba?: boolean | null;
+}): DevisTotals {
+  const devisType: 'achat' | 'vente' =
+    doc.type === 'achat' || doc.type === 'entrant' ? 'achat' : 'vente';
+  const docType: 'devis' | 'bc' | 'ba' = doc.is_bc ? 'bc' : doc.is_ba ? 'ba' : 'devis';
+  return computeDevisTotals(doc.items ?? [], false, {
+    devisType,
+    docType,
+    isTvaEnabled: doc.is_ttc ?? false,
+    isFodecEnabled: resolveFodecEnabled({ devisType, items: doc.items ?? [] }),
+  });
+}
+
 /** Clone line items for DB persistence; strip FODEC when the toggle is off. */
 export function prepareDevisItemsForPersistence(
   items: DevisItem[],

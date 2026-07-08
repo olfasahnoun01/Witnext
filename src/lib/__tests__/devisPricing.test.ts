@@ -3,6 +3,7 @@ import {
   computeArticleTableLineTotalHT,
   computeDevisLine,
   computeDevisTotals,
+  computeSavedDocumentTotals,
   prepareDevisItemsForPersistence,
   resolveFodecEnabled,
   round3,
@@ -169,6 +170,49 @@ describe('computeDevisTotals', () => {
       { devisType: 'achat', docType: 'bc', isFodecEnabled: false }
     );
     expect(t3.totalFodec).toBeUndefined();
+  });
+});
+
+describe('computeSavedDocumentTotals', () => {
+  it('HT document (is_ttc=false): ignores line TVA rates in totals', () => {
+    const totals = computeSavedDocumentTotals({
+      items: [item({ prix_ttc: 100, quantity: 2, tva: 19 })],
+      type: 'vente',
+      is_ttc: false,
+    });
+    expect(totals.totalTVA).toBe(0);
+    expect(totals.totalNet).toBeCloseTo(200, 3);
+    expect(totals.totalFinal).toBeCloseTo(200 + TIMBRE_FISCAL_DT, 3);
+  });
+
+  it('TTC document (is_ttc=true): includes line TVA in totals', () => {
+    const totals = computeSavedDocumentTotals({
+      items: [item({ prix_ttc: 100, quantity: 2, tva: 19 })],
+      type: 'vente',
+      is_ttc: true,
+    });
+    expect(totals.totalTVA).toBeCloseTo(38, 3);
+    expect(totals.totalFinal).toBeCloseTo(238 + TIMBRE_FISCAL_DT, 3);
+  });
+
+  it('treats missing is_ttc as HT (no implicit 19% TVA)', () => {
+    const totals = computeSavedDocumentTotals({
+      items: [item({ prix_ttc: 100, quantity: 1, tva: 19 })],
+      type: 'vente',
+    });
+    expect(totals.totalTVA).toBe(0);
+    expect(totals.totalFinal).toBeCloseTo(100 + TIMBRE_FISCAL_DT, 3);
+  });
+
+  it('achat document with persisted fodec lines applies FODEC', () => {
+    const totals = computeSavedDocumentTotals({
+      items: [item({ prix_ttc: 100, quantity: 1, tva: 19, fodec: 1 })],
+      type: 'achat',
+      is_ttc: true,
+      is_bc: true,
+    });
+    expect(totals.totalFodec).toBeCloseTo(1, 3);
+    expect(totals.totalTVA).toBeCloseTo(19.19, 3);
   });
 });
 

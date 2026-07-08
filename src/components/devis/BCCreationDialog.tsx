@@ -315,7 +315,7 @@ export const BCCreationDialog = ({
                         )}
                         <TableCell className="px-1">
                           <Select
-                            value={(item.tva ?? 19).toString()}
+                            value={(item.tva ?? 0).toString()}
                             onValueChange={(v) => updateItemTva(idx, parseInt(v))}
                           >
                             <SelectTrigger className="h-8 text-xs px-2">

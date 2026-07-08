@@ -7,7 +7,7 @@ import { EchantillonModal } from './EchantillonModal';
 import { Input } from '@/components/ui/input';
 import { Devis } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
-import { computeDevisLine, computeDevisTotals } from '@/lib/devisPricing';
+import { computeDevisLine, computeDevisTotals, computeSavedDocumentTotals } from '@/lib/devisPricing';
 import {
   buildDocumentPdfFileName,
   downloadDevisPDF,
@@ -451,7 +451,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
         </td>
         <td className="py-3 px-4 text-sm font-medium text-foreground">
           {(() => {
-            const totals = computeDevisTotals(d.items, false);
+            const totals = computeSavedDocumentTotals(d);
             return totals.totalFinal > 1 ? `${totals.totalFinal.toFixed(3)} TND` : '-';
           })()}
         </td>
@@ -699,16 +699,17 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                           <td className="py-2 px-3 text-right text-muted-foreground">{item.prix_achat != null && item.prix_achat > 0 ? `${item.prix_achat.toFixed(3)} TND` : '-'}</td>
                         )}
                         <td className="py-2 px-3 text-right text-muted-foreground">{item.remise > 0 ? `${item.remise}%` : '-'}</td>
-                        <td className="py-2 px-3 text-center text-muted-foreground">{(item as any).tva ?? 19}%</td>
-                        <td className="py-2 px-3 text-right font-medium text-foreground">{line.lineTTC.toFixed(3)} TND</td>
+                        <td className="py-2 px-3 text-center text-muted-foreground">{itemsDevis.is_ttc ? (item.tva ?? 0) : 0}%</td>
+                        <td className="py-2 px-3 text-right font-medium text-foreground">{(itemsDevis.is_ttc ? line.lineTTC : line.lineHT).toFixed(3)} TND</td>
                       </tr>
                     );
                   })}
                 </tbody>
                 <tfoot>
                   {(() => {
-                    const totals = computeDevisTotals(itemsDevis.items, false);
-                    const { totalHT, totalRemise, totalNet, totalTVA, totalTTC } = totals;
+                    const totals = computeSavedDocumentTotals(itemsDevis);
+                    const { totalHT, totalRemise, totalNet, totalTVA, totalFinal } = totals;
+                    const isTtc = !!itemsDevis.is_ttc;
                     const colSpan = itemsDevis.type === 'vente' ? 7 : 6;
                     return (
                       <>
@@ -729,16 +730,13 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                           <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Net HT</td>
                           <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalNet.toFixed(3)} TND</td>
                         </tr>
-                        <tr>
-                          <td colSpan={colSpan} />
-                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">TVA</td>
-                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalTVA.toFixed(3)} TND</td>
-                        </tr>
-                        <tr>
-                          <td colSpan={colSpan} />
-                          <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Total TTC</td>
-                          <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalTTC.toFixed(3)} TND</td>
-                        </tr>
+                        {isTtc && (
+                          <tr>
+                            <td colSpan={colSpan} />
+                            <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">TVA</td>
+                            <td className="py-1.5 px-3 text-right text-sm font-medium text-foreground whitespace-nowrap">{totalTVA.toFixed(3)} TND</td>
+                          </tr>
+                        )}
                         <tr>
                           <td colSpan={colSpan} />
                           <td className="py-1.5 px-3 text-right text-sm text-muted-foreground whitespace-nowrap">Timbre fiscal</td>
@@ -746,8 +744,8 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                         </tr>
                         <tr className="border-t border-border">
                           <td colSpan={colSpan} />
-                          <td className="py-2 px-3 text-right font-semibold text-foreground whitespace-nowrap">Total TTC</td>
-                          <td className="py-2 px-3 text-right font-bold text-primary whitespace-nowrap">{(totalTTC + 1).toFixed(3)} TND</td>
+                          <td className="py-2 px-3 text-right font-semibold text-foreground whitespace-nowrap">{isTtc ? 'Total TTC' : 'Total HT'}</td>
+                          <td className="py-2 px-3 text-right font-bold text-primary whitespace-nowrap">{totalFinal.toFixed(3)} TND</td>
                         </tr>
                       </>
                     );

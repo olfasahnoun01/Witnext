@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CommercialAttachmentBadges } from '@/components/shared/CommercialAttachmentBadges';
 import { COMMERCIAL_DOC_KIND_LABELS, classifyCommercialDoc } from '@/lib/commercialDocKind';
-import { computeDevisLine, computeDevisTotals } from '@/lib/devisPricing';
+import { computeDevisLine, computeSavedDocumentTotals } from '@/lib/devisPricing';
 import { pdfPreviewDialogContentClassName } from '@/lib/pdfPreviewDialog';
 import { loadBossDocumentDetail } from '@/services/bossCommercialService';
 import {
@@ -93,7 +93,7 @@ export function BossDocumentDetail() {
 
   const kind = useMemo(() => (doc ? classifyCommercialDoc(doc) : 'OTHER'), [doc]);
   const totals = useMemo(
-    () => (doc ? computeDevisTotals(doc.items, false) : null),
+    () => (doc ? computeSavedDocumentTotals(doc) : null),
     [doc]
   );
 
@@ -271,7 +271,9 @@ export function BossDocumentDetail() {
                       <th className="px-2 py-2 text-right font-medium text-muted-foreground">Prix achat</th>
                     )}
                     <th className="px-2 py-2 text-right font-medium text-muted-foreground">P.U HT</th>
-                    <th className="px-2 py-2 text-right font-medium text-muted-foreground">Sous-total TTC</th>
+                    <th className="px-2 py-2 text-right font-medium text-muted-foreground">
+                      {doc.is_ttc ? 'Sous-total TTC' : 'Sous-total HT'}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -290,7 +292,7 @@ export function BossDocumentDetail() {
                           </td>
                         )}
                         <td className="px-2 py-2 text-right">{line.unitHT.toFixed(3)}</td>
-                        <td className="px-2 py-2 text-right font-medium">{line.lineTTC.toFixed(3)}</td>
+                        <td className="px-2 py-2 text-right font-medium">{(doc.is_ttc ? line.lineTTC : line.lineHT).toFixed(3)}</td>
                       </tr>
                     );
                   })}
@@ -302,7 +304,7 @@ export function BossDocumentDetail() {
                         colSpan={doc.type === 'vente' ? 5 : 4}
                         className="px-2 py-2 text-right text-muted-foreground"
                       >
-                        Total TTC
+                        {doc.is_ttc ? 'Total TTC' : 'Total HT'}
                       </td>
                       <td className="px-2 py-2 text-right font-semibold">
                         {totals.totalFinal.toFixed(3)} TND

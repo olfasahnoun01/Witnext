@@ -161,7 +161,9 @@ function devisItemsToLines(items: DevisItem[], isTtc: boolean, isPurchase: boole
       description: item.designation || item.description || 'Article',
       quantity: item.quantity,
       unit_price_ht: pricing.unitAfterRemiseHT,
-      vat_rate: (item.tva ?? 19) as VatRate,
+      // Match the commercial pricing engine (resolveDevisLineTvaRate → 0 when unset)
+      // so the Finance draft total equals the devis/BC total the user already saw.
+      vat_rate: (item.tva ?? 0) as VatRate,
       subject_to_fodec: isPurchase,
     };
   });
@@ -200,7 +202,8 @@ export async function buildDraftFromDevis(devisId: number): Promise<CommercialIn
     lines:
       items.length > 0
         ? devisItemsToLines(items, !!data.is_ttc, invoiceType === 'achat')
-        : [{ description: `Reprise ${data.devis_number}`, quantity: 1, unit_price_ht: Number(data.total_amount) || 0, vat_rate: 19 }],
+        // total_amount is already the final amount — no VAT on top of it.
+        : [{ description: `Reprise ${data.devis_number}`, quantity: 1, unit_price_ht: Number(data.total_amount) || 0, vat_rate: 0 }],
     source_ref,
   };
 }
@@ -258,10 +261,12 @@ export async function buildDraftFromWarehouseDocument(documentId: string): Promi
             description: l.description || l.products?.name || 'Article',
             quantity: Number(l.quantity),
             unit_price_ht: Number(l.unit_price),
-            vat_rate: 19 as VatRate,
+            // document_lines carry no VAT rate; app-wide policy is "no implicit
+            // 19%" — the user sets the rate on the editable Finance draft.
+            vat_rate: 0 as VatRate,
             subject_to_fodec: invoiceType === 'achat',
           }))
-        : [{ description: `Reprise ${data.numero}`, quantity: 1, unit_price_ht: 0, vat_rate: 19 }],
+        : [{ description: `Reprise ${data.numero}`, quantity: 1, unit_price_ht: 0, vat_rate: 0 }],
     source_ref,
   };
 }

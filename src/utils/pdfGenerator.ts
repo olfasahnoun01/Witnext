@@ -974,7 +974,8 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   }
   totalsRows.push(
     ['Timbre fiscal', '1.000 TND'],
-    [showTvaTotals ? 'Total TTC' : 'Total HT', `${(showTvaTotals ? totals.totalFinal : totals.totalFinalHT).toFixed(3)} TND`],
+    // Distinct label: "Total TTC" above is before timbre; this row includes it.
+    ['Net à payer', `${(showTvaTotals ? totals.totalFinal : totals.totalFinalHT).toFixed(3)} TND`],
   );
 
   // Manual drawing of totals to guarantee right alignment

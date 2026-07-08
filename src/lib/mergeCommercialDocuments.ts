@@ -1,5 +1,5 @@
 import type { Devis, DevisItem } from '@/types';
-import { computeDevisTotals } from '@/lib/devisPricing';
+import { computeDevisTotals, resolveFodecEnabled } from '@/lib/devisPricing';
 
 export function normalizeThirdPartyKey(name: string | null | undefined): string {
   return (name || '').trim().toLowerCase();
@@ -47,7 +47,15 @@ export function buildMergedBcNotes(sourceDevis: Devis[]): string {
 }
 
 export function computeMergedTotals(devisList: Devis[], items: DevisItem[], isTtc: boolean) {
-  return computeDevisTotals(items, false);
+  const first = devisList[0];
+  const devisType: 'achat' | 'vente' =
+    first && (first.type === 'achat' || first.type === 'entrant') ? 'achat' : 'vente';
+  return computeDevisTotals(items, false, {
+    devisType,
+    docType: 'bc',
+    isTvaEnabled: isTtc,
+    isFodecEnabled: resolveFodecEnabled({ devisType, items }),
+  });
 }
 
 export function validateBcMergeForFacture(bcList: Devis[]): { ok: true } | { ok: false; error: string } {

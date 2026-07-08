@@ -492,7 +492,7 @@ export const BACreationDialog = ({
                             </TableCell>
                             <TableCell className="px-1">
                               <Select
-                                value={(item.tva ?? 19).toString()}
+                                value={(item.tva ?? 0).toString()}
                                 onValueChange={(v) => updateItemTva(item.localId, parseInt(v))}
                               >
                                 <SelectTrigger className="h-8 text-xs px-2">

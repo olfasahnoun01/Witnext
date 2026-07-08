@@ -5,7 +5,7 @@ import { Truck, Trash2, Download, Eye, Loader2, Search, X, Receipt, GitMerge } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BonLivraison } from '@/types';
-import { computeDevisTotals } from '@/lib/devisPricing';
+import { computeSavedDocumentTotals } from '@/lib/devisPricing';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
 import { pdfPreviewDialogContentClassName } from '@/lib/pdfPreviewDialog';
 import {
@@ -319,7 +319,7 @@ export const BonLivraisonList = memo(({
                       </td>
                       <td className="py-3 px-4 text-sm font-medium">
                         {(() => {
-                          const totals = computeDevisTotals(bl.items, false);
+                          const totals = computeSavedDocumentTotals(bl);
                           return totals.totalFinal > 1 ? `${totals.totalFinal.toFixed(3)} TND` : '-';
                         })()}
                       </td>

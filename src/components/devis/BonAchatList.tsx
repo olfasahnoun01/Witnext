@@ -4,7 +4,7 @@ import { FileSignature, Trash2, Download, Eye, Loader2, Search, X, Plus, Edit, P
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Devis, DevisItem } from '@/types';
-import { computeDevisTotals } from '@/lib/devisPricing';
+import { computeSavedDocumentTotals } from '@/lib/devisPricing';
 import { cn } from '@/lib/utils';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
 import { pdfPreviewDialogContentClassName } from '@/lib/pdfPreviewDialog';
@@ -236,7 +236,7 @@ export const BonAchatList = memo(({ bonsAchat, currentUserId, isAdminOrMod, onDe
                     </td>
                     <td className="py-3 px-4 text-sm font-medium text-foreground">
                       {(() => {
-                        const totals = computeDevisTotals(ba.items, false);
+                        const totals = computeSavedDocumentTotals(ba);
                         return totals.totalFinal > 1 ? `${totals.totalFinal.toFixed(3)} TND` : '-';
                       })()}
                     </td>
