@@ -53,7 +53,7 @@ import { getBcClientDisplayName, getBcFournisseurDisplayName } from '@/lib/bcLis
 import { fetchBcFournisseurDocumentsAsBonCommande } from '@/lib/bcFournisseurList';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CommercialAttachmentBadges } from '@/components/shared/CommercialAttachmentBadges';
-import { documentService } from '@/services/documentService';
+import { documentService } from '@/modules/commercial';
 import { sortDevisListRecentFirst } from '@/lib/devisListLayout';
 import { documentAuditTableHeadCells, DocumentAuditTableCells } from '@/components/devis/DocumentAuditTableColumns';
 import { useListPagination } from '@/hooks/useListPagination';

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Download, Upload, Database, Cloud, Info } from 'lucide-react';
-import { exportDatabase, importDatabase } from '@/services/dbService';
+import { exportDatabase, importDatabase } from '@/modules/inventory';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';

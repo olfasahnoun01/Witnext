@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { documentService } from '@/services/documentService';
+import { documentService } from '@/modules/commercial';
 import { CommercialAttachmentField } from '@/components/shared/CommercialAttachmentField';
 import { CommercialAttachmentBadges } from '@/components/shared/CommercialAttachmentBadges';
 import { uploadCommercialAttachments } from '@/lib/commercialAttachments';

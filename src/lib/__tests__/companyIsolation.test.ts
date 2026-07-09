@@ -73,11 +73,34 @@ describe('multi-company DB migrations', () => {
     }
   });
 
+  it('creates fuel_cards table with company isolation', () => {
+    const fuelCardsMigration = readMigration(MC_MIGRATION_FILES.fuelCards);
+    expect(fuelCardsMigration).toContain('CREATE TABLE IF NOT EXISTS public.fuel_cards');
+    expect(fuelCardsMigration).toContain("mc_setup_company_column('fuel_cards')");
+    expect(fuelCardsMigration).toContain("mc_make_company_unique('fuel_cards', 'num_carte')");
+  });
+
+  it('defines SaaS tenant provisioning RPCs', () => {
+    const tenantsMigration = readMigration(MC_MIGRATION_FILES.saasTenants);
+    expect(tenantsMigration).toContain('CREATE TABLE IF NOT EXISTS public.tenants');
+    expect(tenantsMigration).toContain('CREATE TABLE IF NOT EXISTS public.tenant_members');
+    expect(tenantsMigration).toContain('provision_my_tenant');
+    expect(tenantsMigration).toContain('get_my_tenant');
+    expect(tenantsMigration).toContain('grosafe_group');
+  });
+
   it('isolates child tables via parent EXISTS policies', () => {
+    const supplemental = [
+      MC_MIGRATION_FILES.fuelCardHistory,
+    ]
+      .filter((filename) => existsSync(join(MIGRATIONS_DIR, filename)))
+      .map((filename) => readMigration(filename))
+      .join('\n');
+    const combinedRls = `${rls}\n${supplemental}`;
     for (const { table, parent } of CHILD_COMPANY_SCOPED_TABLES) {
-      expect(rls, `${table} missing child RLS block`).toContain(`public.${table}`);
-      expect(rls, `${table} must reference parent ${parent}`).toContain(`public.${parent}`);
-      expect(rls, `${table} must use user_company_ids()`).toMatch(
+      expect(combinedRls, `${table} missing child RLS block`).toContain(`public.${table}`);
+      expect(combinedRls, `${table} must reference parent ${parent}`).toContain(`public.${parent}`);
+      expect(combinedRls, `${table} must use user_company_ids()`).toMatch(
         new RegExp(`${table}[\\s\\S]*user_company_ids\\(\\)`)
       );
     }

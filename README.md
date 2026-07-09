@@ -1,12 +1,12 @@
-# Alpha — Grosafe Inventory Hub
+# Witnext
 
-ERP for Grosafe: inventory, sales, purchases, finance, HR, and fleet management. Available as a **web app** (Vercel, internal staff) and a **Windows desktop app** (Electron).
+Web ERP for inventory, sales, purchases, finance, HR, and fleet management. Deployed on **Vercel** for internal staff.
 
 ## Stack
 
 - Vite + React + TypeScript
 - Supabase (auth, database, storage, edge functions)
-- Vercel (web hosting) + Electron (Windows desktop build)
+- Vercel (web hosting)
 - Tailwind CSS + shadcn/ui
 
 ## Local development
@@ -14,22 +14,26 @@ ERP for Grosafe: inventory, sales, purchases, finance, HR, and fleet management.
 ```sh
 npm install
 cp .env.example .env.local   # set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY
-npm run dev                    # web mode — http://localhost:5173
-npm run electron:dev           # Electron shell + Vite (HashRouter)
+npm run dev                  # http://localhost:5173
 ```
 
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Vite dev server (web target, BrowserRouter) |
-| `npm run build:web` | Production build for Vercel (`base: /`, BrowserRouter) |
-| `npm run build:electron` | Production build for Electron installer (`base: ./`, HashRouter) |
+| `npm run dev` | Vite dev server |
+| `npm run build:web` | Production build for Vercel |
 | `npm run build` | Alias for `build:web` |
 | `npm run preview` | Preview web build locally |
-| `npm run electron:dev` | Electron + Vite (dev) |
-| `npm run electron:build` | Windows NSIS installer |
 | `npm test` | Vitest unit tests |
+| `npm run test:e2e` | Playwright smoke tests (starts dev server if needed) |
+| `npm run test:e2e:install` | One-time: download Playwright Chromium browser |
+| `npm run lint` | ESLint |
+| `npm run types:supabase` | Regenerate Supabase TypeScript types |
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for module structure and PR checklist.
+
+Legacy Electron scripts (`electron:dev`, `electron:build`) remain in `package.json` but are **not actively maintained** — web is the primary platform.
 
 ## Web deployment (Vercel)
 
@@ -43,7 +47,7 @@ npm run electron:dev           # Electron shell + Vite (HashRouter)
 3. Enable **Deployment Protection** (password or SSO) on Production for internal staff access.
 4. `[vercel.json](vercel.json)` rewrites all routes to `index.html` for SPA routing.
 
-After the first deploy, note your production URL (e.g. `https://your-app.vercel.app`) for Supabase configuration below.
+After the first deploy, note your production URL (e.g. `https://witnext.vercel.app`) for Supabase configuration below.
 
 ## Supabase configuration
 
@@ -113,17 +117,23 @@ Required variables (see `.env.example`):
 
 Optional:
 
-- `VITE_APP_TARGET` — set automatically by build scripts (`web` or `electron`)
+- `VITE_APP_TARGET` — set automatically by build scripts (`web` by default)
 - `VITE_DEBUG_INGEST=true` — local debug ingest only (dev mode)
+- `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` — Playwright authenticated smoke tests
+
+## CI
+
+GitHub Actions runs on every push/PR to `main`/`master`:
+
+- `npm run lint`
+- `npm test`
+- `npm run build:web`
+- Playwright smoke (unauthenticated always; authenticated when repo secrets are set)
 
 ## Rollout checklist (web)
 
 1. Deploy to Vercel with Deployment Protection enabled.
 2. Configure Supabase Auth URLs and `WEB_APP_ORIGINS` secret; redeploy edge functions.
 3. Smoke-test in Chrome/Edge: login, dashboard, inventory, PDF viewer, document upload, user management, finance module.
-4. Share URL with staff; keep Electron installer available during transition.
+4. Share URL with staff.
 5. Monitor Supabase logs for RLS denials and edge function errors during the first week.
-
-## Electron releases
-
-Desktop builds use `npm run electron:build` or `npm run electron:build:release` (GitHub publish). Trigger on release tags, not on every web deploy.

@@ -7,7 +7,7 @@ import {
   CalendarIcon,
   X
 } from 'lucide-react';
-import { createTransaction, getProductById } from '@/services/dbService';
+import { createTransaction, getProductById } from '@/modules/inventory';
 import { Product } from '@/types';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';

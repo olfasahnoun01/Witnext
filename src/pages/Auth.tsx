@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import HCaptcha from '@hcaptcha/react-hcaptcha';
 import { supabase, supabaseProjectUrl } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -278,6 +278,13 @@ export default function Auth() {
               )}
             </Button>
           </form>
+
+          <p className="text-sm text-center text-muted-foreground mt-6">
+            Nouveau sur Witnext ?{' '}
+            <Link to="/signup" className="text-primary font-medium hover:underline">
+              Démarrer un essai gratuit
+            </Link>
+          </p>
         </div>
 
         <div className="text-center space-y-2 mt-6">

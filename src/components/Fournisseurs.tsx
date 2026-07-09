@@ -41,6 +41,7 @@ import { PhoneLinesEditor } from './shared/PhoneLinesEditor';
 import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { formatPhonesDisplay, parsePhoneListFromStorage, serializePhoneList } from '@/lib/phoneList';
 import { getActiveCompanyId } from '@/lib/activeCompany';
+import { fournisseurUpsertSchema } from '@/modules/commercial/schemas/partySchemas';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { toast } from 'sonner';
 import { SPECIALITES } from '@/constants/fournisseurs';
@@ -244,10 +245,17 @@ export const Fournisseurs = memo(() => {
       registre_commerce_url: rneUrl,
     };
 
+    const parsed = fournisseurUpsertSchema.safeParse(fournisseurData);
+    if (!parsed.success) {
+      toast.error(parsed.error.errors[0]?.message ?? 'Données fournisseur invalides');
+      return;
+    }
+    const validFournisseur = parsed.data;
+
     if (editingFournisseur) {
       const { error } = await supabase
         .from('fournisseurs')
-        .update(fournisseurData)
+        .update(validFournisseur)
         .eq('id', editingFournisseur.id);
 
       if (error) {
@@ -262,7 +270,7 @@ export const Fournisseurs = memo(() => {
     } else {
       const { error } = await supabase
         .from('fournisseurs')
-        .insert(fournisseurData);
+        .insert(validFournisseur);
 
       if (error) {
         toast.error('Erreur lors de l\'ajout');

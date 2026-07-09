@@ -1,4 +1,4 @@
-import { documentService } from '@/services/documentService';
+import { documentService } from '@/modules/commercial';
 import type { FluxStepKey } from '../types/dossierTypes';
 import {
   addDossierNote,

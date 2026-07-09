@@ -1,14 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { FileText, History, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Devis, DevisItem, BonCommande } from '@/types';
-import { buildProfilesMap, collectUserIdsForProfiles } from '@/lib/documentListAudit';
-import { formatAppDateTime } from '@/lib/formatAppDate';
 import { useAuth } from '@/hooks/useAuth';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
-import { getActiveCompanyId, requireActiveCompanyId } from '@/lib/activeCompany';
+import { getActiveCompanyId } from '@/lib/activeCompany';
 import { readStoredDevisSection, writeStoredDevisSection, type DevisActiveSection } from '@/lib/appNavigationStorage';
 import {
   clearDevisDraft,
@@ -17,30 +14,17 @@ import {
 } from '@/lib/devisDraftStorage';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { useDevisFormLeaveGuard } from '@/hooks/useDevisFormLeaveGuard';
-import { notifySessionInvalid } from '@/lib/sessionResume';
-import { debugLog } from '@/lib/debugLog';
-import { computeDevisTotals, resolveFodecEnabled, prepareDevisItemsForPersistence } from '@/lib/devisPricing';
-import { resolveDevisPartyTvaPersistence, type DevisFormCommitOptions } from '@/lib/devisTvaPolicy';
-import { parseAttachmentUrls, uploadCommercialAttachments, type CommercialAttachmentRecord } from '@/lib/commercialAttachments';
-import { buildMergedBcNotes, mergeDevisItemsFromSources, validateDevisMergeForBc } from '@/lib/mergeCommercialDocuments';
-import { ensureSuiviFromDevis } from '@/lib/partiesSuivi';
+import { resolveFodecEnabled } from '@/lib/devisPricing';
+import { useDevisDocumentList, useDevisPersistence } from '@/modules/commercial/quotations';
+import { parseAttachmentUrls, type CommercialAttachmentRecord } from '@/lib/commercialAttachments';
+import { mergeDevisItemsFromSources, validateDevisMergeForBc } from '@/lib/mergeCommercialDocuments';
 import { allocateDevisNumber } from '@/lib/devisNumbering';
-import {
-  ensureSupabaseSessionReady,
-  isAuthSessionError,
-  isJwtExpiredError,
-  SESSION_EXPIRED_USER_MESSAGE,
-  supabaseQueryWithAuthRetry,
-} from '@/lib/supabaseSession';
 import { DevisForm } from './devis/DevisForm';
 import { DevisHistory } from './devis/DevisHistory';
 import { BonCommandeList } from './devis/BonCommandeList';
 import { BonLivraisonList } from './devis/BonLivraisonList';
 import { BCCreationDialog } from './devis/BCCreationDialog';
 import { DevisToSupplierBCDialog } from './devis/DevisToSupplierBCDialog';
-import { documentService } from '@/services/documentService';
-import { createDossierForBc } from '@/modules/flux/services/dossierRepository';
-import { notifyDossierCreated } from '@/modules/flux/services/dossierNotifications';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -55,64 +39,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-
-const parseDevisRow = (
-  d: any,
-  profilesMap: Record<string, string>,
-  sourceDevisMap?: Record<number, string>,
-  sourceBcMap?: Record<number, string>
-): Devis => {
-  let parsedItems: DevisItem[] = [];
-  if (d.items) {
-    if (typeof d.items === 'string') {
-      try { parsedItems = JSON.parse(d.items); } catch { parsedItems = []; }
-    } else if (Array.isArray(d.items)) {
-      parsedItems = d.items as unknown as DevisItem[];
-    }
-  }
-  return {
-    ...d,
-    type: d.type as 'achat' | 'vente',
-    status: d.status as 'brouillon' | 'envoyé' | 'accepté' | 'refusé' | 'confirmé' | 'reçu' | 'intégré',
-    items: parsedItems,
-    total_amount: Number(d.total_amount) || 0,
-    is_bc: d.is_bc ?? false,
-    is_ba: d.is_ba ?? false,
-    is_bl: d.is_bl ?? false,
-    source_devis_id: d.source_devis_id ?? null,
-    source_bc_id: d.source_bc_id ?? null,
-    source_bc_ids: Array.isArray(d.source_bc_ids)
-      ? (d.source_bc_ids as number[]).filter((id) => typeof id === 'number')
-      : null,
-    source_bc_number: (() => {
-      const multi = Array.isArray(d.source_bc_ids)
-        ? (d.source_bc_ids as number[])
-            .map((id) => sourceBcMap?.[id])
-            .filter(Boolean)
-            .join(', ')
-        : '';
-      if (multi) return multi;
-      return d.source_bc_id && sourceBcMap ? sourceBcMap[d.source_bc_id] || null : null;
-    })(),
-    creator_name: d.created_by ? (profilesMap[d.created_by] || null) : null,
-    updated_by: d.updated_by ?? null,
-    modifier_name: d.updated_by ? (profilesMap[d.updated_by] || null) : null,
-    source_devis_number: (() => {
-      const multi = Array.isArray(d.source_devis_ids)
-        ? (d.source_devis_ids as number[])
-            .map((id) => sourceDevisMap?.[id])
-            .filter(Boolean)
-            .join(', ')
-        : '';
-      if (multi) return multi;
-      return d.source_devis_id && sourceDevisMap ? sourceDevisMap[d.source_devis_id] || null : null;
-    })(),
-    source_devis_ids: Array.isArray(d.source_devis_ids)
-      ? (d.source_devis_ids as number[]).filter((id) => typeof id === 'number')
-      : null,
-    attachment_urls: parseAttachmentUrls(d.attachment_urls),
-  };
-};
 
 interface GestionDevisProps {
   onTabChange?: (tab: string) => void;
@@ -138,7 +64,7 @@ export const GestionDevis = ({
     const fallback = (initialSection as string) === 'ba' ? 'form' : (initialSection ?? 'form');
     return readStoredDevisSection(sectionMode, defaultDevisType, fallback);
   });
-  const [allDevis, setAllDevis] = useState<Devis[]>([]);
+  const { allDevis, loadAll } = useDevisDocumentList();
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingDevis, setEditingDevis] = useState<Devis | null>(null);
   const [isBCReviewOpen, setIsBCReviewOpen] = useState(false);
@@ -390,90 +316,6 @@ export const GestionDevis = ({
   /** Hide "Liste BC" in nav only on locked Mes Devis pages (vente/achat); keep it on dedicated Liste BC routes (sectionMode bc). */
   const hideListBcTab = Boolean(sectionMode === 'devis' && lockDevisType);
 
-  const loadAll = useCallback(async () => {
-    const ready = await ensureSupabaseSessionReady();
-    debugLog('GestionDevis.tsx:loadAll', 'session ready check', { ready }, 'B');
-    if (!ready) {
-      notifySessionInvalid('Session expirée lors du chargement des devis');
-      toast.error(SESSION_EXPIRED_USER_MESSAGE);
-      return;
-    }
-
-    const activeCompanyId = getActiveCompanyId();
-    const { data, error } = await supabaseQueryWithAuthRetry(async () => {
-      let q: any = supabase.from('devis').select('*');
-      if (activeCompanyId) q = q.eq('company_id' as any, activeCompanyId);
-      return await q.order('created_at', { ascending: false }).limit(1000);
-    });
-
-    if (error) {
-      debugLog('GestionDevis.tsx:loadAll', 'devis query error', {
-        isJwt: isJwtExpiredError(error.message),
-        isAuth: isAuthSessionError(error.message),
-        errorMsg: error.message?.slice(0, 80),
-      }, 'E');
-      toast.error(
-        isJwtExpiredError(error.message) || isAuthSessionError(error.message)
-          ? SESSION_EXPIRED_USER_MESSAGE
-          : `Impossible de charger les documents : ${error.message}`
-      );
-      return;
-    }
-
-    debugLog('GestionDevis.tsx:loadAll', 'devis query success', {
-      rowCount: (data as any[])?.length ?? 0,
-    }, 'C');
-
-    if (data) {
-      const dataArr = data as any[];
-      const userIds = collectUserIdsForProfiles(dataArr);
-      let profilesMap: Record<string, string> = {};
-      if (userIds.length > 0) {
-        const { data: profiles, error: profilesError } = await supabaseQueryWithAuthRetry(async () =>
-          await supabase
-            .from('profiles')
-            .select('user_id, full_name, email')
-            .in('user_id', userIds)
-        );
-        if (profilesError) {
-          console.warn('[GestionDevis] profiles load failed:', profilesError.message);
-        } else if (profiles) {
-          profilesMap = buildProfilesMap(profiles as any[]);
-        }
-      }
-
-      const sourceIds = [
-        ...new Set(
-          dataArr.flatMap((d) => {
-            const ids: number[] = [];
-            if ((d as { source_devis_id?: number }).source_devis_id) {
-              ids.push((d as { source_devis_id: number }).source_devis_id);
-            }
-            const multi = (d as { source_devis_ids?: number[] }).source_devis_ids;
-            if (Array.isArray(multi)) ids.push(...multi.filter((id) => typeof id === 'number'));
-            return ids;
-          })
-        ),
-      ] as number[];
-      let sourceDevisMap: Record<number, string> = {};
-      const sourceBcMap: Record<number, string> = {};
-      if (sourceIds.length > 0) {
-        dataArr.forEach((d) => {
-          if (sourceIds.includes(d.id)) {
-            sourceDevisMap[d.id] = d.devis_number;
-          }
-        });
-      }
-      dataArr.forEach((d) => {
-        if ((d as { is_bc?: boolean }).is_bc) {
-          sourceBcMap[d.id] = d.devis_number;
-        }
-      });
-
-      setAllDevis(dataArr.map((d) => parseDevisRow(d, profilesMap, sourceDevisMap, sourceBcMap)));
-    }
-  }, []);
-
   // Re-sync section when switching between devis / BC / BL routes (same component instance).
   const prevSectionModeRef = useRef(sectionMode);
   useEffect(() => {
@@ -618,260 +460,14 @@ export const GestionDevis = ({
 
   const hasDocumentContent = devisItems.length > 0;
 
-  const saveDevis = useCallback(async (commit?: DevisFormCommitOptions, options?: { redirectAfterSave?: boolean }): Promise<boolean> => {
-    if (isSaving) return false;
-    if (!hasDocumentContent) {
-      toast.error('Ajoutez au moins une ligne d\'article');
-      return false;
-    }
-    let currentDevisNumber = devisNumberRef.current;
-    if (!currentDevisNumber) {
-      toast.error('Numéro de devis manquant, veuillez patienter');
-      return false;
-    }
-    const saveAsBc = docType === 'bc' || sectionMode === 'bc';
-    setIsSaving(true);
-    try {
-      const sourceItems = commit?.items ?? devisItems;
-      const sourceIsTtc = commit?.isTtc ?? isTtc;
-      const partyTva = await resolveDevisPartyTvaPersistence({
-        devisType,
-        thirdPartyName,
-        thirdPartyTaxId,
-        items: sourceItems,
-        isTtc: sourceIsTtc,
-        partyTvaStatus: commit?.partyTvaStatus,
-      });
-      const itemsForSave = partyTva.items;
-      const isTtcForSave = partyTva.isTtc;
-
-      const totals = computeDevisTotals(itemsForSave, false, {
-        devisType,
-        docType,
-        isTvaEnabled: isTtcForSave,
-        isFodecEnabled,
-      });
-      const totalAmount = totals.totalTTC;
-      const { data: { user } } = await supabase.auth.getUser();
-      const companyId = requireActiveCompanyId();
-      const numberMode = saveAsBc ? 'bc' : 'devis';
-      const persistedItems = prepareDevisItemsForPersistence(itemsForSave, { isFodecEnabled, isSortantTTC: false });
-
-      const buildInsertPayload = (devisNum: string) => ({
-        type: devisType,
-        company_id: companyId,
-        devis_number: devisNum,
-        devis_date: devisDate,
-        third_party_name: thirdPartyName || null,
-        third_party_address: thirdPartyAddress || null,
-        third_party_tax_id: thirdPartyTaxId || null,
-        third_party_phone: thirdPartyPhone || null,
-        items: JSON.parse(JSON.stringify(persistedItems)),
-        total_amount: totalAmount,
-        notes: notes || null,
-        created_by: user?.id,
-        is_ttc: isTtcForSave,
-        is_bc: saveAsBc,
-        is_ba: false,
-        status: saveAsBc ? documentStatus : 'brouillon',
-        attachment_urls: existingAttachments,
-        source_devis_id:
-          saveAsBc && importSourceDevisIds.length > 0 ? importSourceDevisIds[0] : null,
-        source_devis_ids:
-          saveAsBc && importSourceDevisIds.length > 1 ? importSourceDevisIds : null,
-      });
-
-      let { data: inserted, error } = await supabase
-        .from('devis')
-        .insert(buildInsertPayload(currentDevisNumber) as any)
-        .select('*')
-        .single();
-
-      // Retry a few times on unique(devis_number) collisions — can still happen
-      // if another user saved between allocate and insert.
-      for (let attempt = 0; error?.code === '23505' && attempt < 3; attempt++) {
-        const freshNumber = await allocateDevisNumber(devisType, numberMode);
-        currentDevisNumber = freshNumber;
-        devisNumberRef.current = freshNumber;
-        setDevisNumber(freshNumber);
-        ({ data: inserted, error } = await supabase
-          .from('devis')
-          .insert(buildInsertPayload(freshNumber) as any)
-          .select('*')
-          .single());
-      }
-
-      if (error || !inserted) {
-        const msg =
-          error?.code === '23505'
-            ? 'Ce numéro de devis existe déjà. Réessayez dans un instant.'
-            : 'Erreur lors de la sauvegarde';
-        toast.error(msg);
-        console.error(error);
-        return false;
-      } else {
-        const docId = (inserted as { id: number }).id;
-        const folderKind = saveAsBc ? 'bc' : 'devis';
-        let attachmentUrls = parseAttachmentUrls((inserted as { attachment_urls?: unknown }).attachment_urls);
-
-        if (pendingAttachmentFiles.length > 0) {
-          const uploaded = await uploadCommercialAttachments(
-            pendingAttachmentFiles,
-            `${folderKind}/${docId}`
-          );
-          attachmentUrls = [...attachmentUrls, ...uploaded];
-          await supabase.from('devis').update({ attachment_urls: attachmentUrls } as never).eq('id', docId);
-          (inserted as { attachment_urls: unknown }).attachment_urls = attachmentUrls;
-        }
-
-        if (!saveAsBc && (devisType === 'vente' || devisType === 'achat')) {
-          await ensureSuiviFromDevis(
-            {
-              type: devisType,
-              devis_number: currentDevisNumber,
-              devis_date: devisDate,
-              third_party_name: thirdPartyName || null,
-              third_party_phone: thirdPartyPhone || null,
-            },
-            user?.id ?? null
-          );
-        }
-
-        const created = parseDevisRow(inserted, {}, {}, {});
-        setPendingAttachmentFiles([]);
-        setExistingAttachments(attachmentUrls);
-        clearDevisDraft(companyId, devisType, docType);
-        setDraftSavedAt(null);
-        draftHydratedRef.current = true;
-
-        toast.success(saveAsBc ? 'Bon de commande enregistré' : 'Devis sauvegardé');
-        await loadAll();
-        setEditingDevis(null);
-        clearFormFields(true);
-        void refreshDevisNumber(devisType, saveAsBc ? 'bc' : 'devis');
-        if (options?.redirectAfterSave !== false) {
-          if (saveAsBc) {
-            setActiveSection('bc');
-          } else {
-            setActiveSection('history');
-          }
-        }
-        return true;
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error('Erreur lors de la sauvegarde');
-      return false;
-    } finally {
-      setIsSaving(false);
-    }
-  }, [isSaving, hasDocumentContent, devisType, devisDate, thirdPartyName, thirdPartyAddress, thirdPartyTaxId, thirdPartyPhone, notes, devisItems, isTtc, isFodecEnabled, docType, sectionMode, documentStatus, existingAttachments, pendingAttachmentFiles, importSourceDevisIds, loadAll, clearFormFields, refreshDevisNumber]);
-
-  const updateDevis = useCallback(async (commit?: DevisFormCommitOptions) => {
-    if (isSaving) return;
-    if (!editingDevis) return;
-    if (!hasDocumentContent) {
-      toast.error('Ajoutez au moins une ligne d\'article');
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const ready = await ensureSupabaseSessionReady();
-      if (!ready) {
-        notifySessionInvalid('session expired during devis update');
-        toast.error(SESSION_EXPIRED_USER_MESSAGE);
-        return;
-      }
-
-      const companyId = requireActiveCompanyId();
-      const { data: { user } } = await supabase.auth.getUser();
-      const sourceItems = commit?.items ?? devisItems;
-      const sourceIsTtc = commit?.isTtc ?? isTtc;
-      const partyTva = await resolveDevisPartyTvaPersistence({
-        devisType,
-        thirdPartyName,
-        thirdPartyTaxId,
-        items: sourceItems,
-        isTtc: sourceIsTtc,
-        partyTvaStatus: commit?.partyTvaStatus,
-      });
-      const itemsForSave = partyTva.items;
-      const isTtcForSave = partyTva.isTtc;
-      const persistedItems = prepareDevisItemsForPersistence(itemsForSave, { isFodecEnabled, isSortantTTC: false });
-      const totals = computeDevisTotals(persistedItems, false, {
-        devisType,
-        docType,
-        isTvaEnabled: isTtcForSave,
-        isFodecEnabled,
-      });
-      const totalAmount = totals.totalTTC;
-      const folderKind = docType === 'bc' || editingDevis.is_bc ? 'bc' : 'devis';
-
-      let attachmentUrls = existingAttachments;
-      if (pendingAttachmentFiles.length > 0) {
-        const uploaded = await uploadCommercialAttachments(
-          pendingAttachmentFiles,
-          `${folderKind}/${editingDevis.id}`
-        );
-        attachmentUrls = [...existingAttachments, ...uploaded];
-      }
-
-      const { data: updated, error } = await supabaseQueryWithAuthRetry(async () =>
-        await supabase
-          .from('devis')
-          .update({
-            type: devisType,
-            devis_number: devisNumber.trim() || editingDevis.devis_number,
-            devis_date: devisDate,
-            third_party_name: thirdPartyName || null,
-            third_party_address: thirdPartyAddress || null,
-            third_party_tax_id: thirdPartyTaxId || null,
-            third_party_phone: thirdPartyPhone || null,
-            items: JSON.parse(JSON.stringify(persistedItems)),
-            total_amount: totalAmount,
-            notes: notes || null,
-            is_ttc: isTtcForSave,
-            is_bc: editingDevis.is_bc && !editingDevis.is_bl,
-            is_bl: editingDevis.is_bl ?? false,
-            is_ba: editingDevis.is_ba ?? false,
-            status: docType === 'bc' ? documentStatus : editingDevis.status,
-            attachment_urls: attachmentUrls,
-            updated_by: user?.id ?? null,
-          } as any)
-          .eq('id', editingDevis.id)
-          .eq('company_id' as any, companyId)
-          .select('id')
-          .maybeSingle()
-      );
-
-      if (error) {
-        toast.error(`Erreur lors de la mise à jour : ${error.message}`);
-        return;
-      }
-      if (!updated) {
-        toast.error('Aucune ligne mise à jour (droits insuffisants ou document introuvable).');
-        return;
-      }
-
-      setPendingAttachmentFiles([]);
-      setExistingAttachments(attachmentUrls);
-      toast.success('Devis mis à jour');
-      await loadAll();
-      resetForm();
-    } catch (err) {
-      console.error(err);
-      toast.error('Erreur lors de la mise à jour');
-    } finally {
-      setIsSaving(false);
-    }
-  }, [
+  const { saveDevis, updateDevis, deleteDevis, confirmDevis, handleConfirmBC } = useDevisPersistence({
     isSaving,
-    editingDevis,
+    setIsSaving,
     hasDocumentContent,
-    docType,
-    devisType,
+    devisNumberRef,
     devisNumber,
+    setDevisNumber,
+    devisType,
     devisDate,
     thirdPartyName,
     thirdPartyAddress,
@@ -881,25 +477,28 @@ export const GestionDevis = ({
     devisItems,
     isTtc,
     isFodecEnabled,
+    docType,
+    sectionMode,
     documentStatus,
     existingAttachments,
     pendingAttachmentFiles,
+    importSourceDevisIds,
+    editingDevis,
+    devisListToConvert,
+    draftHydratedRef,
+    setPendingAttachmentFiles,
+    setExistingAttachments,
+    setDraftSavedAt,
+    setEditingDevis,
+    setActiveSection,
+    setIsBCReviewOpen,
+    setDevisListToConvert,
+    setBcPromptDevis,
     loadAll,
+    clearFormFields,
+    refreshDevisNumber,
     resetForm,
-  ]);
-
-  const deleteDevis = useCallback(async (devis: Devis) => {
-    const { error } = await supabase.from('devis').delete().eq('id', devis.id);
-    if (error) {
-      toast.error('Erreur lors de la suppression');
-    } else {
-      let msg = 'Devis supprimé';
-      if (devis.is_bl) msg = 'Bon de livraison supprimé';
-      else if (devis.is_bc) msg = 'Bon de commande supprimé';
-      toast.success(msg);
-      loadAll();
-    }
-  }, [loadAll]);
+  });
 
   const convertToBC = useCallback((devis: Devis) => {
     setDevisListToConvert([devis]);
@@ -919,123 +518,6 @@ export const GestionDevis = ({
   const convertToBCFournisseur = useCallback((devis: Devis) => {
     setDevisForSupplierBC(devis);
   }, []);
-
-  const confirmDevis = useCallback(async (devis: Devis) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { error } = await supabase.from('devis').update({
-        status: 'confirmé',
-        updated_by: user?.id ?? null,
-      } as never).eq('id', devis.id);
-      if (error) throw error;
-      toast.success(`Devis ${devis.devis_number} confirmé`);
-      await loadAll();
-      if (devis.type === 'vente') {
-        setBcPromptDevis({ ...devis, status: 'confirmé' });
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error('Impossible de confirmer le devis');
-    }
-  }, [loadAll]);
-
-  const handleConfirmBC = useCallback(async (modifiedItems: DevisItem[], bcStatus: 'brouillon' | 'envoyé' | 'confirmé') => {
-    if (devisListToConvert.length === 0) return;
-
-    const sources = devisListToConvert;
-    const primary = sources[0];
-    const isMerge = sources.length > 1;
-
-    const primaryIsTtc = primary.is_ttc ?? false;
-
-    try {
-      const bcNumber = await allocateDevisNumber(primary.type as 'achat' | 'vente', 'bc');
-      const { data: { user } } = await supabase.auth.getUser();
-      const partyTva = await resolveDevisPartyTvaPersistence({
-        devisType: primary.type as 'achat' | 'vente',
-        thirdPartyName: primary.third_party_name,
-        thirdPartyTaxId: primary.third_party_tax_id,
-        items: modifiedItems,
-        isTtc: primaryIsTtc,
-      });
-      const itemsForSave = partyTva.items;
-      const isTtcForSave = partyTva.isTtc;
-      const fodecEnabled = resolveFodecEnabled({
-        devisType: primary.type as 'achat' | 'vente',
-        items: itemsForSave,
-      });
-      const persistedItems = prepareDevisItemsForPersistence(itemsForSave, {
-        isFodecEnabled: fodecEnabled,
-        isSortantTTC: false,
-      });
-      const totals = computeDevisTotals(persistedItems, false, {
-        devisType: primary.type as 'achat' | 'vente',
-        docType: 'bc',
-        isTvaEnabled: isTtcForSave,
-        isFodecEnabled: fodecEnabled,
-      });
-      const totalAmount = totals.totalTTC;
-      const mergedAttachments = sources.flatMap((d) => parseAttachmentUrls(d.attachment_urls));
-
-      const { data: insertedBc, error } = await supabase.from('devis').insert({
-        devis_number: bcNumber,
-        company_id: requireActiveCompanyId(),
-        devis_date: new Date().toISOString().split('T')[0],
-        source_devis_id: primary.id,
-        source_devis_ids: isMerge ? sources.map((d) => d.id) : null,
-        type: primary.type as 'achat' | 'vente',
-        third_party_name: primary.third_party_name,
-        third_party_address: primary.third_party_address,
-        third_party_tax_id: primary.third_party_tax_id,
-        third_party_phone: primary.third_party_phone,
-        items: JSON.parse(JSON.stringify(persistedItems)),
-        total_amount: totalAmount,
-        notes: isMerge ? buildMergedBcNotes(sources) : primary.notes,
-        is_ttc: isTtcForSave,
-        is_bc: true,
-        created_by: user?.id,
-        status: bcStatus,
-        attachment_urls: mergedAttachments,
-      } as any).select('id').single();
-
-      if (error) {
-        toast.error('Erreur lors de la création du BC');
-        console.error(error);
-      } else {
-        const stamp = formatAppDateTime(new Date());
-        for (const src of sources) {
-          await documentService.appendLegacyDevisNote(
-            src.id,
-            `[${stamp}] BC client créé : ${bcNumber} (le devis reste dans la liste).`
-          );
-        }
-        const companyId = getActiveCompanyId();
-        if (companyId && primary.type === 'vente' && insertedBc?.id) {
-          try {
-            const dossier = await createDossierForBc({
-              companyId,
-              anchorBcDevisId: insertedBc.id,
-              clientName: primary.third_party_name,
-              anchorDevisId: primary.id,
-              bcReference: bcNumber,
-              devisReference: primary.devis_number,
-            });
-            await notifyDossierCreated(dossier.id, companyId);
-          } catch (dossierErr) {
-            console.warn('[flux] dossier creation:', dossierErr);
-          }
-        }
-        toast.success(`BC ${bcNumber} créé avec succès`);
-        setIsBCReviewOpen(false);
-        setDevisListToConvert([]);
-        await loadAll();
-        setActiveSection('bc');
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error('Erreur lors de la création');
-    }
-  }, [devisListToConvert, loadAll]);
 
   const startEdit = useCallback((d: Devis) => {
     setEditingDevis(d);

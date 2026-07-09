@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { CreditCard, Plus, History, RefreshCw, User, Wallet, MoreVertical, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,168 +34,160 @@ import {
 } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { formatAppDate, formatAppDateTime } from '@/lib/formatAppDate';
-
-interface FuelCard {
-  id: string;
-  numCarte: string;
-  conducteur: string;
-  solde: number;
-}
-
-type FuelCardHistoryType = 'creation' | 'recharge';
-
-interface FuelCardHistoryEntry {
-  id: string;
-  cardId: string;
-  type: FuelCardHistoryType;
-  amount: number;
-  balanceAfter: number;
-  createdAt: string;
-}
-
-const CARDS_STORAGE_KEY = 'grosafe_fuel_cards';
-const HISTORY_STORAGE_KEY = 'grosafe_fuel_card_history';
-
-function loadCards(): FuelCard[] {
-  try {
-    const saved = localStorage.getItem(CARDS_STORAGE_KEY);
-    return saved ? (JSON.parse(saved) as FuelCard[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function loadHistory(): FuelCardHistoryEntry[] {
-  try {
-    const saved = localStorage.getItem(HISTORY_STORAGE_KEY);
-    return saved ? (JSON.parse(saved) as FuelCardHistoryEntry[]) : [];
-  } catch {
-    return [];
-  }
-}
+import { formatAppDateTime } from '@/lib/formatAppDate';
+import { getActiveCompanyId } from '@/lib/activeCompany';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
+import { filterByCompanyId } from '@/modules/inventory/lib/companyQuery';
+import {
+  createFuelCard,
+  deleteFuelCard,
+  fetchFuelCardHistory,
+  fetchFuelCards,
+  importLegacyFuelCardsIfNeeded,
+  rechargeFuelCard,
+  type FuelCardHistoryView,
+  type FuelCardView,
+} from '@/lib/fuelCardRepository';
 
 export const CartesCarburant = () => {
-  const [cards, setCards] = useState<FuelCard[]>(loadCards);
-  const [history, setHistory] = useState<FuelCardHistoryEntry[]>(loadHistory);
+  const [cards, setCards] = useState<FuelCardView[]>([]);
+  const [history, setHistory] = useState<FuelCardHistoryView[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isNewCardDialogOpen, setIsNewCardDialogOpen] = useState(false);
   const [isRechargeDialogOpen, setIsRechargeDialogOpen] = useState(false);
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
-  const [selectedCard, setSelectedCard] = useState<FuelCard | null>(null);
+  const [selectedCard, setSelectedCard] = useState<FuelCardView | null>(null);
   const [rechargeAmount, setRechargeAmount] = useState('');
 
   const [employees, setEmployees] = useState<{ id: string; prenom: string; nom: string }[]>([]);
 
-  useEffect(() => {
-    const fetchEmployees = async () => {
-      const { data } = await supabase.from('employees').select('id, prenom, nom');
-      setEmployees(data || []);
-    };
-    void fetchEmployees();
-  }, []);
-
   const [newCardForm, setNewCardForm] = useState({
     numCarte: '',
-    conducteur: '',
+    conducteurId: '',
     solde: '',
   });
 
-  const saveCards = useCallback((newCards: FuelCard[]) => {
-    setCards(newCards);
-    localStorage.setItem(CARDS_STORAGE_KEY, JSON.stringify(newCards));
+  const loadCards = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const companyId = getActiveCompanyId();
+      if (!companyId) {
+        setEmployees([]);
+        setCards([]);
+        return;
+      }
+
+      let q = supabase.from('employees').select('id, prenom, nom').order('nom');
+      q = filterByCompanyId(q, companyId);
+      const { data: employeeList } = await q;
+      const employeesData = employeeList || [];
+      setEmployees(employeesData);
+
+      const importResult = await importLegacyFuelCardsIfNeeded(employeesData);
+      if (importResult.imported > 0) {
+        toast.success(`${importResult.imported} carte(s) importée(s) depuis l'ancien stockage local`);
+      }
+
+      const result = await fetchFuelCards();
+      if (!result.ok) {
+        toast.error(result.error ?? 'Erreur lors du chargement des cartes');
+        setCards([]);
+        return;
+      }
+      setCards(result.cards);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const saveHistory = useCallback((entries: FuelCardHistoryEntry[]) => {
-    setHistory(entries);
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(entries));
+  useCompanyChangeReload(loadCards);
+
+  useEffect(() => {
+    void loadCards();
+  }, [loadCards]);
+
+  const loadHistoryForCard = useCallback(async (card: FuelCardView) => {
+    const result = await fetchFuelCardHistory(card.id);
+    if (!result.ok) {
+      toast.error(result.error ?? 'Erreur lors du chargement de l\'historique');
+      setHistory([]);
+      return;
+    }
+    setHistory(result.entries);
   }, []);
 
-  const appendHistory = useCallback(
-    (entry: Omit<FuelCardHistoryEntry, 'id' | 'createdAt'>) => {
-      const next: FuelCardHistoryEntry = {
-        ...entry,
-        id: crypto.randomUUID(),
-        createdAt: new Date().toISOString(),
-      };
-      saveHistory([next, ...history]);
+  const openHistory = useCallback(
+    async (card: FuelCardView) => {
+      setSelectedCard(card);
+      setIsHistoryDialogOpen(true);
+      await loadHistoryForCard(card);
     },
-    [history, saveHistory]
+    [loadHistoryForCard]
   );
 
-  const openHistory = useCallback((card: FuelCard) => {
-    setSelectedCard(card);
-    setIsHistoryDialogOpen(true);
-  }, []);
+  const cardHistory = history;
 
-  const cardHistory = useMemo(() => {
-    if (!selectedCard) return [];
-    return history
-      .filter((h) => h.cardId === selectedCard.id)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [history, selectedCard]);
-
-  const handleCreateCard = useCallback(() => {
-    if (!newCardForm.numCarte || !newCardForm.conducteur) {
+  const handleCreateCard = useCallback(async () => {
+    if (!newCardForm.numCarte || !newCardForm.conducteurId) {
       toast.error('Veuillez remplir tous les champs');
       return;
     }
 
     const initialSolde = parseFloat(newCardForm.solde || '0');
-    const newCard: FuelCard = {
-      id: crypto.randomUUID(),
+    const result = await createFuelCard({
       numCarte: newCardForm.numCarte,
-      conducteur: newCardForm.conducteur,
-      solde: initialSolde,
-    };
-
-    saveCards([...cards, newCard]);
-    appendHistory({
-      cardId: newCard.id,
-      type: 'creation',
-      amount: initialSolde,
-      balanceAfter: initialSolde,
+      conducteurId: newCardForm.conducteurId,
+      solde: Number.isFinite(initialSolde) ? initialSolde : 0,
     });
-    setIsNewCardDialogOpen(false);
-    setNewCardForm({ numCarte: '', conducteur: '', solde: '' });
-    toast.success('Carte de carburant créée');
-  }, [newCardForm, cards, saveCards, appendHistory]);
 
-  const handleRecharge = useCallback(() => {
+    if (!result.ok || !result.card) {
+      toast.error(result.error ?? 'Impossible de créer la carte');
+      return;
+    }
+
+    setCards((prev) => [result.card!, ...prev]);
+    setIsNewCardDialogOpen(false);
+    setNewCardForm({ numCarte: '', conducteurId: '', solde: '' });
+    toast.success('Carte de carburant créée');
+  }, [newCardForm]);
+
+  const handleRecharge = useCallback(async () => {
     if (!selectedCard || !rechargeAmount || parseFloat(rechargeAmount) <= 0) {
       toast.error('Montant invalide');
       return;
     }
 
     const amount = parseFloat(rechargeAmount);
-    const balanceAfter = selectedCard.solde + amount;
-    const updatedCards = cards.map((c) =>
-      c.id === selectedCard.id ? { ...c, solde: balanceAfter } : c
-    );
+    const result = await rechargeFuelCard(selectedCard.id, amount);
+    if (!result.ok || !result.card) {
+      toast.error(result.error ?? 'Recharge impossible');
+      return;
+    }
 
-    saveCards(updatedCards);
-    appendHistory({
-      cardId: selectedCard.id,
-      type: 'recharge',
-      amount,
-      balanceAfter,
-    });
+    setCards((prev) => prev.map((c) => (c.id === result.card!.id ? result.card! : c)));
     toast.success(`Carte rechargée de ${amount} TND`);
     setIsRechargeDialogOpen(false);
     setRechargeAmount('');
     setSelectedCard(null);
-  }, [selectedCard, rechargeAmount, cards, saveCards, appendHistory]);
+  }, [selectedCard, rechargeAmount]);
 
   const handleDeleteCard = useCallback(
-    (id: string) => {
-      saveCards(cards.filter((c) => c.id !== id));
-      saveHistory(history.filter((h) => h.cardId !== id));
+    async (id: string) => {
+      const result = await deleteFuelCard(id);
+      if (!result.ok) {
+        toast.error(result.error ?? 'Suppression impossible');
+        return;
+      }
+
+      setCards((prev) => prev.filter((c) => c.id !== id));
       if (selectedCard?.id === id) {
         setSelectedCard(null);
         setIsHistoryDialogOpen(false);
+        setHistory([]);
       }
       toast.success('Carte supprimée');
     },
-    [cards, history, saveCards, saveHistory, selectedCard]
+    [selectedCard]
   );
 
   return (
@@ -215,7 +207,11 @@ export const CartesCarburant = () => {
         </Button>
       </div>
 
-      {cards.length === 0 ? (
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center rounded-3xl border border-muted bg-muted/10">
+          <p className="text-muted-foreground font-medium">Chargement des cartes…</p>
+        </div>
+      ) : cards.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center rounded-3xl border-2 border-dashed border-muted bg-muted/20">
           <div className="p-6 rounded-3xl bg-indigo-500/5 mb-6">
             <CreditCard className="w-12 h-12 text-indigo-600/30" />
@@ -248,12 +244,12 @@ export const CartesCarburant = () => {
                     <DropdownMenuContent align="end" className="rounded-xl border-slate-100 p-1">
                       <DropdownMenuItem
                         className="gap-2 text-slate-600 rounded-lg cursor-pointer"
-                        onClick={() => openHistory(card)}
+                        onClick={() => void openHistory(card)}
                       >
                         <History className="w-4 h-4" />
                         Historique complet
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleDeleteCard(card.id)} className="gap-2 text-rose-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer">
+                      <DropdownMenuItem onClick={() => void handleDeleteCard(card.id)} className="gap-2 text-rose-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer">
                         <Trash2 className="w-4 h-4" />
                         Supprimer la carte
                       </DropdownMenuItem>
@@ -303,7 +299,7 @@ export const CartesCarburant = () => {
                     variant="secondary"
                     size="sm"
                     className="rounded-2xl h-10 gap-2 bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    onClick={() => openHistory(card)}
+                    onClick={() => void openHistory(card)}
                   >
                     <History className="w-3.5 h-3.5" />
                     Historique
@@ -315,7 +311,6 @@ export const CartesCarburant = () => {
         </div>
       )}
 
-      {/* History Dialog */}
       <Dialog open={isHistoryDialogOpen} onOpenChange={setIsHistoryDialogOpen}>
         <DialogContent className="sm:max-w-lg rounded-3xl">
           <DialogHeader>
@@ -373,7 +368,6 @@ export const CartesCarburant = () => {
         </DialogContent>
       </Dialog>
 
-      {/* New Card Dialog */}
       <Dialog open={isNewCardDialogOpen} onOpenChange={setIsNewCardDialogOpen}>
         <DialogContent className="sm:max-w-md rounded-3xl p-0 overflow-hidden">
           <DialogHeader className="p-8 bg-indigo-600 text-white">
@@ -397,8 +391,8 @@ export const CartesCarburant = () => {
               <div className="space-y-2">
                 <Label htmlFor="conducteur" className="text-sm font-bold text-slate-600 uppercase tracking-tight">Nom du Conducteur</Label>
                 <Select
-                  value={newCardForm.conducteur}
-                  onValueChange={(v) => setNewCardForm({ ...newCardForm, conducteur: v })}
+                  value={newCardForm.conducteurId}
+                  onValueChange={(v) => setNewCardForm({ ...newCardForm, conducteurId: v })}
                 >
                   <SelectTrigger className="rounded-2xl border-slate-200 h-12">
                     <SelectValue placeholder="Sélectionner un employé" />
@@ -408,7 +402,7 @@ export const CartesCarburant = () => {
                       <div className="p-2 text-xs text-muted-foreground text-center italic">Aucun employé enregistré</div>
                     ) : (
                       employees.map((emp) => (
-                        <SelectItem key={emp.id} value={`${emp.prenom} ${emp.nom}`}>
+                        <SelectItem key={emp.id} value={emp.id}>
                           {emp.prenom} {emp.nom}
                         </SelectItem>
                       ))
@@ -436,14 +430,13 @@ export const CartesCarburant = () => {
             <Button variant="ghost" onClick={() => setIsNewCardDialogOpen(false)} className="rounded-2xl h-12 px-6">
               Annuler
             </Button>
-            <Button onClick={handleCreateCard} className="bg-indigo-600 hover:bg-indigo-700 rounded-2xl h-12 px-8 shadow-lg shadow-indigo-200">
+            <Button onClick={() => void handleCreateCard()} className="bg-indigo-600 hover:bg-indigo-700 rounded-2xl h-12 px-8 shadow-lg shadow-indigo-200">
               Créer la Carte
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Recharge Dialog */}
       <Dialog open={isRechargeDialogOpen} onOpenChange={setIsRechargeDialogOpen}>
         <DialogContent className="sm:max-w-md rounded-3xl p-0 overflow-hidden">
           <DialogHeader className="p-8 bg-green-600 text-white">
@@ -480,7 +473,7 @@ export const CartesCarburant = () => {
             <Button variant="ghost" onClick={() => setIsRechargeDialogOpen(false)} className="rounded-2xl h-12 px-6">
               Annuler
             </Button>
-            <Button onClick={handleRecharge} className="bg-green-600 hover:bg-green-700 rounded-2xl h-12 px-8 shadow-lg shadow-green-200">
+            <Button onClick={() => void handleRecharge()} className="bg-green-600 hover:bg-green-700 rounded-2xl h-12 px-8 shadow-lg shadow-green-200">
               Confirmer la Recharge
             </Button>
           </DialogFooter>

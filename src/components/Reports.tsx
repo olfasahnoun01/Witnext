@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getAllProducts, getLowStockProducts } from '@/services/dbService';
+import { getAllProducts, getLowStockProducts } from '@/modules/inventory';
 import { Product } from '@/types';
 import { StandardReports } from '@/components/reports/StandardReports';
 import { WarehouseDocumentsReports } from '@/components/reports/WarehouseDocumentsReports';

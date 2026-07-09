@@ -3,7 +3,7 @@ import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/form
 import { ArrowLeft, Plus, RefreshCw, Edit, Trash2, Package, Upload, FileText, Eye, FileDown, X } from 'lucide-react';
 import { ProductGroup, Product, StockStatus } from '@/types';
 import { getVariantsByGroupId, createVariant } from '@/services/productGroupService';
-import { updateProduct, deleteProduct, applyProductQuantityChange } from '@/services/dbService';
+import { updateProduct, deleteProduct, applyProductQuantityChange } from '@/modules/inventory';
 import { fetchProductImageRef } from '@/lib/productImageStorage';
 import { supabase } from '@/integrations/supabase/client';
 import { buildCompanyStoragePath } from '@/lib/storagePaths';

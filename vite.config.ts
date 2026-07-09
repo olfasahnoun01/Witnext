@@ -99,7 +99,7 @@ export default defineConfig(({ mode }) => {
               manifest: {
                 name: "Witnext — Suivi commercial",
                 short_name: "Witnext",
-                description: "Suivi quotidien de l'activité commerciale Grosafe",
+                description: "Witnext — système de gestion d'entreprise",
                 theme_color: "#FFFFFF",
                 background_color: "#FFFFFF",
                 display: "standalone",

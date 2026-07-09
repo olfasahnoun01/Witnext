@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Devis } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
-import { documentService } from '@/services/documentService';
+import { documentService } from '@/modules/commercial';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

@@ -22,7 +22,7 @@ import {
 import { Plus, Trash2, FileText, Download, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Product, UnifiedDocumentType } from '@/types';
-import { documentService } from '@/services/documentService';
+import { documentService } from '@/modules/commercial';
 import { toast } from 'sonner';
 import { CategoryProductSelector } from '../shared/CategoryProductSelector';
 import { downloadUnifiedDocumentPDF } from '@/utils/pdfGenerator';

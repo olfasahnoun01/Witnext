@@ -7,7 +7,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
 } from 'lucide-react';
-import { getDashboardStats, getRecentTransactions } from '@/services/dbService';
+import { getDashboardStats, getRecentTransactions } from '@/modules/inventory';
 import { DashboardStats, Transaction } from '@/types';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
 import { useProductGroupCategoryStats } from '@/hooks/useProductGroupCategoryStats';

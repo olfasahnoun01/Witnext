@@ -47,6 +47,7 @@ import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { formatPhonesDisplay, parsePhoneListFromStorage, serializePhoneList } from '@/lib/phoneList';
 import { generateNextEntityCode } from '@/lib/entityCode';
 import { getActiveCompanyId } from '@/lib/activeCompany';
+import { clientUpsertSchema } from '@/modules/commercial/schemas/partySchemas';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { CLIENT_TVA_STATUS_OPTIONS, clientTvaStatusLabel, type ClientTvaStatus } from '@/config/sectionThemes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -263,10 +264,17 @@ export const Clients = memo(() => {
       attestation_exoneration_url: attestationExonerationUrl
     };
 
+    const parsed = clientUpsertSchema.safeParse(clientData);
+    if (!parsed.success) {
+      toast.error(parsed.error.errors[0]?.message ?? 'Données client invalides');
+      return;
+    }
+    const validClient = parsed.data;
+
     if (editingClient) {
       const { error } = await supabase
         .from('clients')
-        .update(clientData)
+        .update(validClient)
         .eq('id', editingClient.id);
 
       if (error) {
@@ -281,7 +289,7 @@ export const Clients = memo(() => {
     } else {
       const { error } = await supabase
         .from('clients')
-        .insert(clientData);
+        .insert(validClient);
 
       if (error) {
         if (error.code === '23505') {

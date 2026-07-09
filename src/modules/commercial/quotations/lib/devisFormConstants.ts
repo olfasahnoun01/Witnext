@@ -1,0 +1,48 @@
+export const DEVIS_DEFAULT_CATEGORIES = [
+  'Pantalons',
+  'Blousons',
+  'Bordequin',
+  'Accessoires',
+  'Gants',
+  'Casques',
+  'Gilets',
+  'Polos & T-shirts',
+  'Parkas et manteaux',
+  'Non catégorisé',
+] as const;
+
+export const DEVIS_ARTICLE_SIZES = [
+  'XS',
+  'S',
+  'M',
+  'L',
+  'XL',
+  'XXL',
+  '38',
+  '39',
+  '40',
+  '41',
+  '42',
+  '43',
+  '44',
+  '45',
+  '46',
+  '47',
+  '48',
+  '49',
+  '50',
+  'Unique',
+] as const;
+
+export const DEVIS_ARTICLE_COLORS = [
+  'Noir',
+  'Blanc',
+  'Bleu',
+  'Rouge',
+  'Vert',
+  'Jaune',
+  'Orange',
+  'Gris',
+  'Marron',
+  'Beige',
+] as const;

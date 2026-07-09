@@ -20,6 +20,10 @@ import {
 } from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getActiveCompanyId } from '@/lib/activeCompany';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
+import { loadMaintenanceRecords } from '@/lib/vehicleMaintenanceStorage';
+import { loadVehicleCharges } from '@/lib/vehicleChargesStorage';
 
 const CHART_COLORS = ['#10b981', '#f97316', '#3b82f6', '#ec4899', '#8b5cf6', '#eab308', '#06b6d4', '#64748b', '#ef4444', '#84cc16'];
 
@@ -47,25 +51,26 @@ export const VehiculeStats = () => {
   const [charges, setCharges] = useState<any[]>([]);
 
   const loadLocalVehicleData = useCallback(() => {
-    try {
-      setMaintenances(JSON.parse(localStorage.getItem('grosafe_maintenances') || '[]'));
-      setCharges(JSON.parse(localStorage.getItem('grosafe_charges_vehicules') || '[]'));
-    } catch {
-      setMaintenances([]);
-      setCharges([]);
-    }
+    const companyId = getActiveCompanyId();
+    setMaintenances(loadMaintenanceRecords(companyId));
+    setCharges(loadVehicleCharges(companyId));
   }, []);
 
   useEffect(() => {
     loadLocalVehicleData();
+    const companyId = getActiveCompanyId();
+    const maintenanceKey = `grosafe_maintenances_${companyId ?? 'global'}`;
+    const chargesKey = `grosafe_charges_vehicules_${companyId ?? 'global'}`;
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'grosafe_maintenances' || e.key === 'grosafe_charges_vehicules') {
+      if (e.key === maintenanceKey || e.key === chargesKey) {
         loadLocalVehicleData();
       }
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, [loadLocalVehicleData]);
+
+  useCompanyChangeReload(loadLocalVehicleData);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -104,10 +109,12 @@ export const VehiculeStats = () => {
 
     const filteredBons = bons.filter((b: any) => filterVehicule(b.vehicule_id) && isWithinDateRange(b.date as string));
     const filteredMaintenances = maintenances.filter((m: any) => {
-      // Maintenances still use vehicle name string
+      const inRange = isWithinDateRange(m.dateDebut as string);
+      if (selectedVehicule === 'all') return inRange;
+      if (m.vehiculeId) return m.vehiculeId === selectedVehicule && inRange;
       const veh = vehicules.find((v: any) => v.id === selectedVehicule);
       const vehName = veh ? `${veh.modele} (${veh.matricule})` : '';
-      return (selectedVehicule === 'all' || m.vehicule === vehName) && isWithinDateRange(m.dateDebut as string);
+      return m.vehicule === vehName && inRange;
     });
     const filteredCharges = charges.filter((c: any) => {
       const veh = vehicules.find((v: any) => v.id === selectedVehicule);

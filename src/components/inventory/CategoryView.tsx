@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ArrowLeft, Plus, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Product, StockStatus } from '@/types';
-import { createProduct, updateProduct, deleteProduct, applyProductQuantityChange } from '@/services/dbService';
+import { createProduct, updateProduct, deleteProduct, applyProductQuantityChange } from '@/modules/inventory';
 import { fetchProductImageRef } from '@/lib/productImageStorage';
 import { Button } from '@/components/ui/button';
 import { InventoryFilters } from './InventoryFilters';

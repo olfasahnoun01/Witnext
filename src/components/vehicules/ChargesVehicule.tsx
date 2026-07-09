@@ -22,46 +22,52 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { getActiveCompanyId } from '@/lib/activeCompany';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { isReminderDue, localDateIso } from '@/lib/vehicleReminders';
-
-interface Charge {
-  id: string;
-  vehicule: string;
-  type: 'visite_technique' | 'assurance' | 'vignette' | 'leasing';
-  dateEcheance: string;
-  montant: string;
-  notes: string;
-  provider?: string;
-  contractNumber?: string;
-  reminderDate?: string;
-  valeurTotale?: string;
-  montantPaye?: string;
-}
+import {
+  type VehicleChargeRecord,
+  loadVehicleCharges,
+  saveVehicleCharges,
+} from '@/lib/vehicleChargesStorage';
 
 export const ChargesVehicule = () => {
-  const [charges, setCharges] = useState<Charge[]>(() => {
-    const saved = localStorage.getItem('grosafe_charges_vehicules');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [charges, setCharges] = useState<VehicleChargeRecord[]>(() =>
+    loadVehicleCharges(getActiveCompanyId())
+  );
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'assurance' | 'vignette' | 'visite_technique' | 'leasing'>('assurance');
   
   // Load vehicles from Supabase
   const [vehicles, setVehicles] = useState<any[]>([]);
 
-  useEffect(() => {
-    const fetchVehicles = async () => {
-      const { data } = await supabase.from('vehicles').select('id, modele, matricule');
-      setVehicles(data || []);
-    };
-    fetchVehicles();
+  const fetchVehicles = useCallback(async () => {
+    const companyId = getActiveCompanyId();
+    let q = supabase.from('vehicles').select('id, modele, matricule').order('modele');
+    if (companyId) q = q.eq('company_id', companyId);
+    const { data } = await q;
+    setVehicles(data || []);
   }, []);
-  
+
   useEffect(() => {
-    localStorage.setItem('grosafe_charges_vehicules', JSON.stringify(charges));
-  }, [charges]);
-  
-  const [form, setForm] = useState<Partial<Charge>>({
+    void fetchVehicles();
+  }, [fetchVehicles]);
+
+  const reloadCharges = useCallback(() => {
+    setCharges(loadVehicleCharges(getActiveCompanyId()));
+  }, []);
+
+  useCompanyChangeReload(() => {
+    void fetchVehicles();
+    reloadCharges();
+  });
+
+  const persistCharges = useCallback((nextCharges: VehicleChargeRecord[]) => {
+    setCharges(nextCharges);
+    saveVehicleCharges(getActiveCompanyId(), nextCharges);
+  }, []);
+
+  const [form, setForm] = useState<Partial<VehicleChargeRecord>>({
     vehicule: '',
     type: 'assurance',
     dateEcheance: '',
@@ -106,22 +112,22 @@ export const ChargesVehicule = () => {
       return;
     }
 
-    const newCharge: Charge = {
+    const newCharge: VehicleChargeRecord = {
       id: crypto.randomUUID(),
-      ...(form as any),
+      ...(form as VehicleChargeRecord),
     };
 
-    setCharges((prev) => [...prev, newCharge]);
+    persistCharges([...charges, newCharge]);
     setIsDialogOpen(false);
     toast.success('Charge enregistrée avec succès');
-  }, [form]);
+  }, [charges, form, persistCharges]);
 
   const deleteCharge = (id: string) => {
-    setCharges(prev => prev.filter(c => c.id !== id));
+    persistCharges(charges.filter((c) => c.id !== id));
     toast.success('Charge supprimée');
   };
 
-  const getChargeIcon = (type: Charge['type']) => {
+  const getChargeIcon = (type: VehicleChargeRecord['type']) => {
     switch (type) {
       case 'visite_technique': return <FileCheck className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />;
       case 'assurance': return <Shield className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />;
@@ -130,7 +136,7 @@ export const ChargesVehicule = () => {
     }
   };
 
-  const getChargeLabel = (type: Charge['type']) => {
+  const getChargeLabel = (type: VehicleChargeRecord['type']) => {
     switch (type) {
       case 'visite_technique': return 'Visite Technique';
       case 'assurance': return 'Assurance / Contrat';
@@ -147,7 +153,7 @@ export const ChargesVehicule = () => {
 
   const filteredCharges = charges.filter(charge => charge.type === activeTab);
 
-  const renderChargeCard = (charge: Charge) => (
+  const renderChargeCard = (charge: VehicleChargeRecord) => (
     <Card key={charge.id} className={`rounded-[2rem] border-none shadow-lg overflow-hidden transition-all hover:scale-[1.02] ${isExpired(charge.dateEcheance) ? 'bg-rose-500/10 ring-1 ring-rose-500/20' : 'bg-card'}`}>
       <CardContent className="p-0">
         <div className="p-6 flex items-start justify-between">

@@ -10,6 +10,8 @@ import { AppCompanyProvider } from '@/contexts/AppCompanyContext';
 import { AppLayout } from '@/layouts/AppLayout';
 import { BossLayout } from '@/layouts/BossLayout';
 import Auth from "./pages/Auth";
+import Signup from "./pages/Signup";
+import { TenantBootstrapGate } from '@/components/layout/TenantBootstrapGate';
 import { AutoUpdateNotifier } from "@/components/AutoUpdateNotifier";
 import { SessionResumeHandler } from "@/components/SessionResumeHandler";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -54,12 +56,15 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/login" element={<Navigate to="/auth" replace />} />
       <Route path="/auth" element={<Auth />} />
+      <Route path="/signup" element={<Signup />} />
       <Route
         path="/boss/*"
         element={
           <ProtectedRoute>
             <AppCompanyProvider>
-              <BossLayout />
+              <TenantBootstrapGate>
+                <BossLayout />
+              </TenantBootstrapGate>
             </AppCompanyProvider>
           </ProtectedRoute>
         }
@@ -69,7 +74,9 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <AppCompanyProvider>
-              <AppLayout />
+              <TenantBootstrapGate>
+                <AppLayout />
+              </TenantBootstrapGate>
             </AppCompanyProvider>
           </ProtectedRoute>
         }

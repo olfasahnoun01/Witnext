@@ -2,7 +2,7 @@
   "name": "vite_react_shadcn_ts",
   "private": true,
   "version": "5.2.7",
-  "description": "Witnext - systeme de gestion d'entreprise (ERP)",
+  "description": "Witnext — ERP web (inventory, sales, finance, HR, fleet)",
   "author": "Witnext",
   "repository": {
     "type": "git",
@@ -19,6 +19,9 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
+    "types:supabase": "supabase gen types typescript --project-id rnujsdxbkndvppjqjkdu > src/integrations/supabase/types.ts",
     "preview": "vite preview",
     "electron:dev": "concurrently -k -n vite,electron \"cross-env VITE_APP_TARGET=electron vite\" \"wait-on http-get://127.0.0.1:5173/index.html && cross-env NODE_ENV=development electron .\"",
     "assets:branding": "node scripts/generate-app-assets.mjs",
@@ -98,10 +101,12 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "tesseract.js": "^7.0.0",
-    "vaul": "^0.9.9"
+    "vaul": "^0.9.9",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.16.5",
     "@types/react": "^18.3.23",

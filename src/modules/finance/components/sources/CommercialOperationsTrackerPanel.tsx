@@ -35,7 +35,7 @@ import { cn } from '@/lib/utils';
 import { paginateList, OPERATIONS_PAGE_SIZE } from '../../lib/pagination';
 import { FinanceListPagination } from '../shared/FinanceListPagination';
 import { pdfPreviewDialogContentClassName } from '@/lib/pdfPreviewDialog';
-import { documentService } from '@/services/documentService';
+import { documentService } from '@/modules/commercial';
 import {
   generateOfficialPDF,
   getDevisPDFBlobUrl,

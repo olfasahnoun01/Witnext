@@ -12,7 +12,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { PackageCheck, Truck, AlertTriangle } from 'lucide-react';
-import { documentService } from '@/services/documentService';
+import { documentService } from '@/modules/commercial';
 import { toast } from 'sonner';
 
 interface ReceptionDialogProps {

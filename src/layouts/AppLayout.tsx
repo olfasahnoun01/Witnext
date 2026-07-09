@@ -15,6 +15,7 @@ import {
 import { isSubsectionVisibleForCompany } from '@/config/navigation';
 import { useAppCompany } from '@/contexts/AppCompanyContext';
 import { readStoredActiveTab } from '@/lib/appNavigationStorage';
+import { TrialBanner } from '@/components/layout/TrialBanner';
 
 const LEGACY_ROUTE_MIGRATION_KEY = 'grosafe_legacy_tab_route_migrated';
 
@@ -97,6 +98,7 @@ export function AppLayout() {
               onToggle={() => setSidebarOpen(!sidebarOpen)}
               sidebarOpen={sidebarOpen}
             />
+            <TrialBanner />
             <main
               className={cn(
                 'flex min-h-0 flex-1 flex-col',
