@@ -17,6 +17,7 @@ import { waitForSupabaseSession } from '@/lib/waitForSupabaseSession';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import { useAppCompany, useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { InventoryCategoryChartsCards } from '@/components/inventory/InventoryCategoryChartsCards';
+import { ExecutiveDashboard } from '@/components/executive/ExecutiveDashboard';
 
 // Memoized KPI Card component
 const KPICard = memo(({ 
@@ -219,7 +220,13 @@ export const Dashboard = memo(() => {
   ], [stats]);
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-8 animate-fade-in">
+      <ExecutiveDashboard />
+
+      <div className="border-t border-border pt-6">
+        <h2 className="text-lg font-semibold text-foreground mb-4">Magasin & stock</h2>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpiCards.map((card, index) => (

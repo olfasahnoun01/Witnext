@@ -31,7 +31,7 @@
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 152 69% 31%;
+    --success: 168 100% 39%;
     --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
@@ -60,7 +60,7 @@
     /* Gradients */
     --gradient-primary: linear-gradient(135deg, hsl(222 47% 11%), hsl(222 40% 20%));
     --gradient-accent: linear-gradient(135deg, hsl(168 100% 39%), hsl(168 85% 45%));
-    --gradient-success: linear-gradient(135deg, hsl(152 69% 31%), hsl(152 69% 40%));
+    --gradient-success: linear-gradient(135deg, hsl(168 100% 39%), hsl(168 85% 45%));
     --gradient-danger: linear-gradient(135deg, hsl(0 72% 51%), hsl(0 72% 58%));
     --gradient-warning: linear-gradient(135deg, hsl(38 92% 50%), hsl(38 92% 60%));
     --gradient-slate: linear-gradient(180deg, hsl(222 47% 11%), hsl(222 47% 8%));
@@ -98,7 +98,7 @@
     --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 152 69% 38%;
+    --success: 168 100% 42%;
     --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 55%;

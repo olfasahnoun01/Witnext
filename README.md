@@ -1,6 +1,28 @@
 # Witnext
 
-Web ERP for inventory, sales, purchases, finance, HR, and fleet management. Deployed on **Vercel** for internal staff.
+ERP for inventory, sales, purchases, finance, HR, and fleet management. Available as a **web app** (Vercel) with a **public marketing site** and **protected ERP**. Legacy Electron scripts remain in `package.json` but are **not actively maintained** — web is the primary platform.
+
+## Public marketing site
+
+Anonymous visitors can browse:
+
+| Route | Purpose |
+|-------|---------|
+| `/` | Landing — discover Witnext modules |
+| `/pricing` | Licence plans (Essentiel, Pro, Entreprise) |
+| `/trial` | Free trial request form |
+| `/buy` | Licence purchase inquiry form |
+| `/auth` | Staff login |
+| `/signup` | Self-serve trial signup (creates tenant + admin) |
+
+Trial and licence forms submit to Supabase via the `submit-marketing-lead` edge function. Admins triage requests at **`/admin/leads`** (link also on the Users page).
+
+### Deploy checklist (marketing)
+
+1. Apply migration: `npx supabase db push` (includes `marketing_leads` table).
+2. Set secrets: `HCAPTCHA_SECRET_KEY`, `WEB_APP_ORIGINS` (your Vercel URL).
+3. Deploy functions: `npm run supabase:deploy-functions`
+4. **Vercel Deployment Protection:** if enabled, it blocks anonymous visitors from `/`, `/pricing`, `/trial`, and `/buy`. Either disable protection for production or configure exceptions so the marketing pages stay public while the ERP remains staff-only after login.
 
 ## Stack
 
@@ -44,7 +66,7 @@ Legacy Electron scripts (`electron:dev`, `electron:build`) remain in `package.js
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_PUBLISHABLE_KEY`
    - `VITE_APP_TARGET=web`
-3. Enable **Deployment Protection** (password or SSO) on Production for internal staff access.
+3. **Vercel Deployment Protection** (optional): use password/SSO if you want to restrict who can reach the app URL before login. Note: full-site protection also blocks the public marketing pages — see [Public marketing site](#public-marketing-site).
 4. `[vercel.json](vercel.json)` rewrites all routes to `index.html` for SPA routing.
 
 After the first deploy, note your production URL (e.g. `https://witnext.vercel.app`) for Supabase configuration below.

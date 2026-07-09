@@ -11,6 +11,7 @@ const COLORS = ['Noir', 'Blanc', 'Bleu', 'Rouge', 'Vert', 'Jaune', 'Orange', 'Gr
 export interface ProductFormData {
   name: string;
   sku: string;
+  barcode?: string;
   category: string;
   fournisseur: string;
   size: string;
@@ -158,6 +159,17 @@ export const ProductModal = memo(({
                 onChange={(e) => onFormDataChange({ ...formData, sku: e.target.value })}
                 className="form-input"
                 placeholder="Ex: PAN-001"
+              />
+            </div>
+
+            <div>
+              <label className="form-label">Code-barres</label>
+              <input
+                type="text"
+                value={formData.barcode ?? ''}
+                onChange={(e) => onFormDataChange({ ...formData, barcode: e.target.value })}
+                className="form-input"
+                placeholder="EAN / Code128 (optionnel)"
               />
             </div>
 

@@ -31,6 +31,7 @@ import {
   TrendingUp,
   TableProperties,
   UserCheck,
+  ScanBarcode,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -78,6 +79,15 @@ export interface BigSection {
 
 export const BIG_SECTIONS: BigSection[] = [
   {
+    id: 'direction',
+    label: 'Direction',
+    icon: LayoutDashboard,
+    subsections: [
+      { id: 'dashboard', label: 'Vue d\'ensemble', icon: LayoutDashboard },
+      { id: 'finance-rapports', label: 'Rapports & Analyses', icon: FileBarChart },
+    ],
+  },
+  {
     id: 'commercial',
     label: 'Commercial',
     icon: Briefcase,
@@ -117,7 +127,6 @@ export const BIG_SECTIONS: BigSection[] = [
     label: 'Magasin & Stock',
     icon: Package,
     subsections: [
-      { id: 'dashboard', label: 'Tableau de Bord', icon: LayoutDashboard, group: "Vue d'ensemble" },
       { id: 'demande-achat-magasin', label: 'Demandes magasin', icon: FileSignature, group: 'Achats magasin' },
       { id: 'inventory', label: 'Inventaire', icon: Package, group: 'Stock' },
       { id: 'be-magasin', label: "Bons d'Entrée", icon: PackageCheck, group: 'Stock' },
@@ -125,6 +134,7 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'bl-magasin', label: 'Bons de Livraison', icon: Truck, group: 'Stock' },
       { id: 'comparison', label: 'Comparaison Prix', icon: GitCompare, group: 'Analyse' },
       { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight, group: 'Analyse' },
+      { id: 'barcode-labels', label: 'Étiquettes code-barres', icon: ScanBarcode, group: 'Analyse' },
       { id: 'reports', label: 'Rapports & Documents', icon: FileText, group: 'Analyse' },
     ],
   },

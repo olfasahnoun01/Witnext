@@ -8,7 +8,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-export const ThemeToggle = () => {
+import { cn } from '@/lib/utils';
+
+type Props = {
+  className?: string;
+};
+
+export const ThemeToggle = ({ className }: Props) => {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -43,7 +49,10 @@ export const ThemeToggle = () => {
           variant="ghost"
           size="icon"
           onClick={toggleTheme}
-          className="h-9 w-9 rounded-lg relative overflow-hidden group hover:bg-muted transition-all duration-300"
+          className={cn(
+            'h-9 w-9 rounded-lg relative overflow-hidden group hover:bg-muted transition-all duration-300',
+            className
+          )}
           aria-label={isDark ? 'Activer le mode clair' : 'Activer le mode sombre'}
         >
           {/* Sun icon - visible in dark mode */}

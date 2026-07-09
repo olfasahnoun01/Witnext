@@ -12,7 +12,9 @@ import { Product } from '@/types';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
-import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
+import { useAppCompany, useCompanyChangeReload } from '@/contexts/AppCompanyContext';
+import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
+import { findProductByBarcode } from '@/services/barcodeService';
 import { ensureSupabaseSessionReady } from '@/lib/supabaseSession';
 import { notifySessionInvalid } from '@/lib/sessionResume';
 import { Calendar } from '@/components/ui/calendar';
@@ -36,6 +38,7 @@ interface TransactionsProps {
 export const Transactions = memo(({ onTabChange }: TransactionsProps) => {
   const { navigateToSubsection } = useSubsectionNavigate();
   const { isAdmin } = useAuth();
+  const { currentCompanyId } = useAppCompany();
   const [activeTab, setActiveTab] = useState<TabType>('in');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [groupVariantIds, setGroupVariantIds] = useState<number[]>([]);
@@ -57,6 +60,21 @@ export const Transactions = memo(({ onTabChange }: TransactionsProps) => {
     setSelectedProduct(null);
     setGroupVariantIds([]);
     setError('');
+  });
+
+  useBarcodeScanner({
+    enabled: Boolean(currentCompanyId),
+    onScan: (code) => {
+      if (!currentCompanyId) return;
+      void findProductByBarcode(code, currentCompanyId).then((product) => {
+        if (product) {
+          setSelectedProduct(product);
+          toast.success(`Produit scanné : ${product.name}`);
+        } else {
+          toast.error(`Aucun produit pour le code : ${code}`);
+        }
+      });
+    },
   });
 
   const handleSubmit = async (e: React.FormEvent) => {

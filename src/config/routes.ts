@@ -6,6 +6,7 @@ import { SUBSECTION_LABELS, SUBSECTION_TO_SECTION } from '@/config/navigation';
  */
 export const SUBSECTION_ROUTES: Record<string, string> = {
   dashboard: '/dashboard',
+  'finance-rapports': '/reports',
 
   // Magasin & stock → /inventory/*
   inventory: '/inventory/products',
@@ -15,6 +16,7 @@ export const SUBSECTION_ROUTES: Record<string, string> = {
   'bl-magasin': '/inventory/delivery-notes',
   comparison: '/inventory/price-comparison',
   transactions: '/inventory/stock',
+  'barcode-labels': '/inventory/barcode-labels',
   reports: '/inventory/reports',
 
   // Ventes → /sales/*
@@ -59,6 +61,7 @@ export const SUBSECTION_ROUTES: Record<string, string> = {
   'vehicules-charges': '/vehicles/charges',
 
   accounts: '/users',
+  'admin-leads': '/admin/leads',
   settings: '/settings',
   'team-chat': '/messages',
 };
@@ -87,6 +90,8 @@ export function getSubsectionFromPath(pathname: string): string | null {
 export function getPageTitle(pathname: string): string {
   const subsectionId = getSubsectionFromPath(pathname);
   if (subsectionId === 'team-chat') return 'Chat Équipe';
+  if (subsectionId === 'admin-leads') return 'Demandes commerciales';
+  if (subsectionId === 'finance-rapports') return 'Rapports & Analyses';
   if (subsectionId && SUBSECTION_LABELS[subsectionId]) {
     return SUBSECTION_LABELS[subsectionId];
   }

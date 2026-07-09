@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import {
   Shield,
@@ -13,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   Mail,
+  Inbox,
   Lock,
   Building2,
   Truck,
@@ -986,10 +988,18 @@ export const PermissionsManager = () => {
             </div>
           </div>
           {canManageAccounts && (
-            <Button onClick={() => openModal()}>
-              <UserPlus className="w-4 h-4 mr-2" />
-              Ajouter
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" asChild>
+                <Link to="/admin/leads">
+                  <Inbox className="w-4 h-4 mr-2" />
+                  Demandes commerciales
+                </Link>
+              </Button>
+              <Button onClick={() => openModal()}>
+                <UserPlus className="w-4 h-4 mr-2" />
+                Ajouter
+              </Button>
+            </div>
           )}
         </div>
 

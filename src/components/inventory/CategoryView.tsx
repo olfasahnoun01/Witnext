@@ -37,6 +37,7 @@ const ITEMS_PER_PAGE = 15;
 const emptyFormData: ProductFormData = {
   name: '',
   sku: '',
+  barcode: '',
   category: '',
   fournisseur: '',
   size: '',
@@ -244,6 +245,7 @@ export const CategoryView = ({ category, onBack }: CategoryViewProps) => {
       setFormData({
         name: product.name,
         sku: product.sku,
+        barcode: product.barcode ?? '',
         category: product.category,
         fournisseur: product.fournisseur || '',
         size: product.size || '',
