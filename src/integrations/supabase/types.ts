@@ -2042,6 +2042,58 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_platform_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      platform_list_tenants: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          tenant_id: string
+          tenant_name: string
+          slug: string
+          plan: string
+          status: string
+          trial_ends_at: string | null
+          max_companies: number
+          max_users: number
+          created_at: string
+          company_count: number
+          member_count: number
+        }[]
+      }
+      platform_set_tenant_status: {
+        Args: { p_tenant_id: string; p_status: string }
+        Returns: undefined
+      }
+      platform_create_tenant_shell: {
+        Args: {
+          p_company_name: string
+          p_plan?: string
+          p_max_companies?: number
+          p_max_users?: number
+          p_trial_days?: number
+        }
+        Returns: Json
+      }
+      get_my_tenant: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          tenant_id: string
+          tenant_name: string
+          slug: string
+          plan: string
+          status: string
+          trial_ends_at: string | null
+          max_companies: number
+          max_users: number
+          member_role: string
+        }[]
+      }
+      provision_my_tenant: {
+        Args: { p_company_name: string; p_full_name?: string | null }
+        Returns: Json
+      }
       update_product_fiche_technique: {
         Args: { _fiche_technique_url?: string; _product_id: number }
         Returns: undefined

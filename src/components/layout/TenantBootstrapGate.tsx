@@ -11,7 +11,7 @@ import { BootstrapErrorPanel } from '@/components/layout/BootstrapErrorPanel';
  * before entering the ERP shell.
  */
 export function TenantBootstrapGate({ children }: { children: React.ReactNode }) {
-  const { session, isLoading: authLoading } = useAuth();
+  const { session, isLoading: authLoading, isPlatformAdmin, rolesReady } = useAuth();
   const { companies, loading: companyLoading, reload: reloadCompanies } = useAppCompany();
   const { tenant, loading: tenantLoading, loadError, ensureProvisioned, reload } = useTenant();
   const [provisioning, setProvisioning] = useState(false);
@@ -37,25 +37,33 @@ export function TenantBootstrapGate({ children }: { children: React.ReactNode })
   }, [ensureProvisioned, reloadCompanies]);
 
   useEffect(() => {
-    if (authLoading || tenantLoading || companyLoading || !session) return;
+    if (authLoading || !rolesReady || tenantLoading || companyLoading || !session) return;
+    if (isPlatformAdmin) return;
     if (tenant || companies.length > 0) return;
     void tryProvision();
   }, [
     authLoading,
+    rolesReady,
     tenantLoading,
     companyLoading,
     session,
+    isPlatformAdmin,
     tenant,
     companies.length,
     tryProvision,
   ]);
 
-  if (authLoading || tenantLoading || companyLoading || provisioning) {
+  if (authLoading || !rolesReady || tenantLoading || companyLoading || provisioning) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
+  }
+
+  // Platform operators can open the console without belonging to a customer tenant.
+  if (isPlatformAdmin) {
+    return <>{children}</>;
   }
 
   if (loadError) {

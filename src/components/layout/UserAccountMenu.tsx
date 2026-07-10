@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LogOut, Settings, User, Users } from 'lucide-react';
+import { LogOut, Settings, Shield, User, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -19,12 +19,13 @@ import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
 
 export const UserAccountMenu = () => {
-  const { user, signOut, isAdmin } = useAuth();
+  const { user, signOut, isAdmin, isPlatformAdmin } = useAuth();
   const [fullName, setFullName] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
 
   const accountsPath = getPathForSubsection('accounts');
   const settingsPath = getPathForSubsection('settings');
+  const platformPath = getPathForSubsection('platform-console');
 
   const email = user?.email ?? '';
   const position =
@@ -91,6 +92,25 @@ export const UserAccountMenu = () => {
             <User className="w-4 h-4 mr-2" />
             Mon profil
           </DropdownMenuItem>
+          {isPlatformAdmin ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                Plateforme
+              </DropdownMenuLabel>
+              <DropdownMenuItem asChild>
+                <NavLink
+                  to={platformPath}
+                  className={({ isActive }) =>
+                    cn('flex items-center', isActive && 'bg-accent')
+                  }
+                >
+                  <Shield className="w-4 h-4 mr-2" />
+                  Console plateforme
+                </NavLink>
+              </DropdownMenuItem>
+            </>
+          ) : null}
           {isAdmin ? (
             <>
               <DropdownMenuSeparator />

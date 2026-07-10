@@ -142,12 +142,23 @@ Deno.serve(async (req) => {
       })
     }
 
+    // First bootstrap admin is also the platform operator (admin of admins).
+    const { error: platformError } = await supabaseAdmin.from('platform_admins').upsert(
+      { user_id: newUser.user.id, notes: 'Bootstrap via setup-admin' },
+      { onConflict: 'user_id' }
+    )
+    if (platformError) {
+      console.error('Error assigning platform admin:', platformError.code)
+      // Non-fatal if migration not applied yet — tenant admin role still works.
+    }
+
     console.log('Admin user created successfully:', email)
 
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Compte administrateur créé avec succès',
+        platform_admin: !platformError,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

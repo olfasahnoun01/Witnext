@@ -25,6 +25,10 @@ interface AuthContextType {
   isLoading: boolean;
   isAdmin: boolean;
   isModerator: boolean;
+  /** Witnext operator — can provision tenants / customer admins. UI only; RPCs enforce. */
+  isPlatformAdmin: boolean;
+  /** True after the first role check for the current user (or when logged out). */
+  rolesReady: boolean;
   signOut: () => Promise<void>;
   sessionExpired: boolean;
 }
@@ -35,24 +39,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
  * SECURITY NOTE - IMPORTANT
  * =========================
  * 
- * The `isAdmin` and `isModerator` flags in this hook are for UI/UX purposes ONLY.
+ * The `isAdmin`, `isModerator`, and `isPlatformAdmin` flags are for UI/UX purposes ONLY.
  * They control which UI elements are displayed to the user.
- * 
- * ACTUAL AUTHORIZATION is enforced at the database level through Row-Level Security (RLS) policies.
- * All sensitive operations (INSERT, UPDATE, DELETE) are protected by RLS policies that verify
- * the user's role server-side using the `has_role()` database function.
- * 
+ *
+ * ACTUAL AUTHORIZATION is enforced at the database level through Row-Level Security (RLS) policies
+ * and Edge Functions. Sensitive operations verify roles server-side (`has_role()`,
+ * `is_platform_admin()`, tenant membership).
+ *
  * DO NOT rely solely on these client-side flags for security decisions.
- * Any attempt to manipulate these values client-side will result in RLS policy violations
- * when trying to perform unauthorized database operations.
- * 
- * The security model:
- * 1. Client-side: isAdmin/isModerator → Controls UI visibility (shows/hides buttons)
- * 2. Server-side: RLS policies → Enforces actual permissions (blocks unauthorized operations)
- * 
- * If a user manipulates the client-side flags, they will see admin UI elements but:
- * - Database operations will fail with "permission denied" errors
- * - The user cannot actually modify protected data
  */
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -60,6 +54,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [rolesReady, setRolesReady] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const userRef = useRef<User | null>(null);
   const sessionExpiredRef = useRef(false);
@@ -96,6 +92,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(null);
       setIsAdmin(false);
       setIsModerator(false);
+      setIsPlatformAdmin(false);
+      setRolesReady(true);
 
       // Sign out globally – this revokes the refresh token on Supabase
       try {
@@ -170,6 +168,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         deferredRolesUserId = null;
         setIsAdmin(false);
         setIsModerator(false);
+        setIsPlatformAdmin(false);
+        setRolesReady(true);
         removeSessionChannel();
         return;
       }
@@ -188,7 +188,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       void (async () => {
         if (cancelled) return;
-        if (shouldLoadRoles) await checkUserRoles(userId);
+        if (shouldLoadRoles) {
+          setRolesReady(false);
+          await checkUserRoles(userId);
+          if (!cancelled && userRef.current?.id === userId) setRolesReady(true);
+        }
         if (cancelled || userRef.current?.id !== userId) return;
         if (options?.announceLogin) void setupSessionTracking(userId, true);
         else void setupSessionTracking(userId, false);
@@ -466,21 +470,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
   };
 
-  const applyRoleFlags = (userId: string, admin: boolean, moderator: boolean) => {
+  const applyRoleFlags = (
+    userId: string,
+    admin: boolean,
+    moderator: boolean,
+    platformAdmin: boolean
+  ) => {
     if (userRef.current?.id !== userId) return;
     setIsAdmin(admin);
     setIsModerator(moderator);
+    setIsPlatformAdmin(platformAdmin);
   };
 
   const checkUserRoles = async (userId: string) => {
     try {
-      const { data: adminData, error: adminError } = await supabase.rpc('has_role', {
-        _user_id: userId,
-        _role: 'admin',
-      });
+      const [{ data: platformData }, { data: adminData, error: adminError }] = await Promise.all([
+        supabase.rpc('is_platform_admin'),
+        supabase.rpc('has_role', { _user_id: userId, _role: 'admin' }),
+      ]);
+
+      const platformAdmin = !!platformData;
 
       if (!adminError && adminData) {
-        applyRoleFlags(userId, true, true);
+        applyRoleFlags(userId, true, true, platformAdmin);
         return;
       }
 
@@ -490,17 +502,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
       if (!modError && modData) {
-        applyRoleFlags(userId, false, true);
+        applyRoleFlags(userId, false, true, platformAdmin);
         return;
       }
 
-      applyRoleFlags(userId, false, false);
+      // Platform operators may not have a tenant app_role — still mark platform access.
+      applyRoleFlags(userId, false, false, platformAdmin);
     } catch (error) {
       // Check if error is due to session expiration
       if (error instanceof Error && isAuthSessionError(error.message)) {
         await handleSessionExpired('Erreur d\'authentification');
       }
-      applyRoleFlags(userId, false, false);
+      applyRoleFlags(userId, false, false, false);
     }
   };
 
@@ -514,11 +527,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSession(null);
     setIsAdmin(false);
     setIsModerator(false);
+    setIsPlatformAdmin(false);
+    setRolesReady(true);
     setSessionExpired(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, isAdmin, isModerator, signOut, sessionExpired }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        isLoading,
+        isAdmin,
+        isModerator,
+        isPlatformAdmin,
+        rolesReady,
+        signOut,
+        sessionExpired,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

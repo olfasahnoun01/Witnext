@@ -119,6 +119,7 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'commerciale-fournisseurs', label: 'Fournisseurs', icon: Building2 },
       { id: 'devis-achat', label: "Devis fournisseurs", icon: ClipboardList },
       { id: 'bc-achat', label: "BC fournisseurs", icon: FileText },
+      { id: 'factures-achat', label: 'Factures Fournisseur', icon: Receipt },
       { id: 'avoir-fournisseur', label: 'Avoir Fournisseur', icon: FileMinus },
     ],
   },

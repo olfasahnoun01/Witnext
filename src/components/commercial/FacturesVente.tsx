@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
+import { formatAppDate } from '@/lib/formatAppDate';
 import { Search, FileText, CheckCircle, Clock, XCircle, FileEdit, Trash2, Eye, Download, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Facture } from '@/types';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
 import { getActiveCompanyCode } from '@/lib/factureCompanyBrand';
 import { pdfPreviewDialogContentClassName } from '@/lib/pdfPreviewDialog';
@@ -16,7 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { deleteFactureVente } from '@/services/factureService';
+import { deleteFactureByType } from '@/services/factureService';
 import { useListPagination } from '@/hooks/useListPagination';
 import { ListPagination } from '@/components/shared/ListPagination';
 import {
@@ -32,10 +30,12 @@ import {
 
 const REFRESH_EVENT = 'grosafe:factures-refresh';
 
-const toFacturePDFData = (facture: Facture): DevisPDFData => ({
+type FactureFlow = 'vente' | 'achat';
+
+const toFacturePDFData = (facture: Facture, flow: FactureFlow): DevisPDFData => ({
   devis_number: facture.numero,
   devis_date: facture.date_creation,
-  type: 'sortant',
+  type: flow === 'vente' ? 'sortant' : 'entrant',
   third_party_name: facture.third_party_name,
   third_party_address: facture.third_party_address,
   third_party_tax_id: facture.third_party_tax_id,
@@ -51,7 +51,8 @@ const toFacturePDFData = (facture: Facture): DevisPDFData => ({
   company_code: getActiveCompanyCode(),
 });
 
-export const FacturesVente = () => {
+function FacturesCommercial({ flow }: { flow: FactureFlow }) {
+  const isVente = flow === 'vente';
   const [factures, setFactures] = useState<Facture[]>([]);
   const [bcNumberById, setBcNumberById] = useState<Map<number, string>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -68,7 +69,7 @@ export const FacturesVente = () => {
       const { data, error } = await (supabase as any)
         .from('factures')
         .select('*')
-        .eq('type', 'vente')
+        .eq('type', flow)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -104,10 +105,10 @@ export const FacturesVente = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [flow]);
 
   useEffect(() => {
-    fetchFactures();
+    void fetchFactures();
   }, [fetchFactures]);
 
   useEffect(() => {
@@ -124,37 +125,43 @@ export const FacturesVente = () => {
     setPreviewTitle('');
   }, [previewUrl]);
 
-  const handlePreview = useCallback(async (facture: Facture) => {
-    setBusyFactureId(facture.id);
-    try {
-      const url = await getDevisPDFBlobUrl(toFacturePDFData(facture));
-      setPreviewTitle(`Facture ${facture.numero}`);
-      setPreviewUrl(url);
-    } catch (err) {
-      console.error('Error generating facture preview:', err);
-      toast.error('Impossible de générer l\'aperçu de la facture');
-    } finally {
-      setBusyFactureId(null);
-    }
-  }, []);
+  const handlePreview = useCallback(
+    async (facture: Facture) => {
+      setBusyFactureId(facture.id);
+      try {
+        const url = await getDevisPDFBlobUrl(toFacturePDFData(facture, flow));
+        setPreviewTitle(`Facture ${facture.numero}`);
+        setPreviewUrl(url);
+      } catch (err) {
+        console.error('Error generating facture preview:', err);
+        toast.error("Impossible de générer l'aperçu de la facture");
+      } finally {
+        setBusyFactureId(null);
+      }
+    },
+    [flow]
+  );
 
-  const handleDownload = useCallback(async (facture: Facture) => {
-    setBusyFactureId(facture.id);
-    try {
-      await downloadDevisPDF(toFacturePDFData(facture));
-    } catch (err) {
-      console.error('Error downloading facture PDF:', err);
-      toast.error('Impossible de télécharger la facture');
-    } finally {
-      setBusyFactureId(null);
-    }
-  }, []);
+  const handleDownload = useCallback(
+    async (facture: Facture) => {
+      setBusyFactureId(facture.id);
+      try {
+        await downloadDevisPDF(toFacturePDFData(facture, flow));
+      } catch (err) {
+        console.error('Error downloading facture PDF:', err);
+        toast.error('Impossible de télécharger la facture');
+      } finally {
+        setBusyFactureId(null);
+      }
+    },
+    [flow]
+  );
 
   const handleConfirmDelete = useCallback(async () => {
     if (!deleteConfirm) return;
     setIsDeleting(true);
     try {
-      const result = await deleteFactureVente(deleteConfirm.id);
+      const result = await deleteFactureByType(deleteConfirm.id, flow);
       if (!result.success) {
         toast.error(result.error || 'Erreur lors de la suppression');
         return;
@@ -166,20 +173,40 @@ export const FacturesVente = () => {
     } finally {
       setIsDeleting(false);
     }
-  }, [deleteConfirm, fetchFactures]);
+  }, [deleteConfirm, fetchFactures, flow]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'payée':
-        return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-success/10 text-success border border-success/20"><CheckCircle className="w-3.5 h-3.5" /> Payée</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-success/10 text-success border border-success/20">
+            <CheckCircle className="w-3.5 h-3.5" /> Payée
+          </span>
+        );
       case 'envoyée':
-        return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20"><FileText className="w-3.5 h-3.5" /> Envoyée</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+            <FileText className="w-3.5 h-3.5" /> Envoyée
+          </span>
+        );
       case 'retard':
-        return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-destructive/10 text-destructive border border-destructive/20"><Clock className="w-3.5 h-3.5" /> En Retard</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-destructive/10 text-destructive border border-destructive/20">
+            <Clock className="w-3.5 h-3.5" /> En Retard
+          </span>
+        );
       case 'annulée':
-        return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border"><XCircle className="w-3.5 h-3.5" /> Annulée</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
+            <XCircle className="w-3.5 h-3.5" /> Annulée
+          </span>
+        );
       default:
-        return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-secondary text-secondary-foreground border border-border"><FileEdit className="w-3.5 h-3.5" /> Brouillon</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-secondary text-secondary-foreground border border-border">
+            <FileEdit className="w-3.5 h-3.5" /> Brouillon
+          </span>
+        );
     }
   };
 
@@ -189,8 +216,10 @@ export const FacturesVente = () => {
         (f) =>
           f.numero?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           f.third_party_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          ((f.source_bl_id && (bcNumberById.get(f.source_bl_id) || '').toLowerCase().includes(searchQuery.toLowerCase())) ||
-            (f.source_bc_id && (bcNumberById.get(f.source_bc_id) || '').toLowerCase().includes(searchQuery.toLowerCase())))
+          (f.source_bl_id &&
+            (bcNumberById.get(f.source_bl_id) || '').toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (f.source_bc_id &&
+            (bcNumberById.get(f.source_bc_id) || '').toLowerCase().includes(searchQuery.toLowerCase()))
       ),
     [factures, searchQuery, bcNumberById]
   );
@@ -205,18 +234,24 @@ export const FacturesVente = () => {
     setPage,
   } = useListPagination(filteredFactures, searchQuery);
 
+  const partyLabel = isVente ? 'Client' : 'Fournisseur';
+  const title = isVente ? 'Factures de Vente' : 'Factures Fournisseur';
+  const searchPlaceholder = isVente
+    ? 'N° facture, client, N° BL…'
+    : 'N° facture, fournisseur, N° BL…';
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Factures de Vente</h2>
+          <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
         </div>
 
         <div className="relative flex-1 md:w-72 w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder="N° facture, client, N° BC…"
+            placeholder={searchPlaceholder}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
@@ -231,7 +266,7 @@ export const FacturesVente = () => {
               <tr>
                 <th className="px-6 py-4 font-medium">N° Facture</th>
                 <th className="px-6 py-4 font-medium">BL source</th>
-                <th className="px-6 py-4 font-medium">Client</th>
+                <th className="px-6 py-4 font-medium">{partyLabel}</th>
                 <th className="px-6 py-4 font-medium">Date</th>
                 <th className="px-6 py-4 font-medium">Échéance</th>
                 <th className="px-6 py-4 font-medium text-right">Montant TTC</th>
@@ -258,9 +293,7 @@ export const FacturesVente = () => {
               ) : (
                 facturesPage.map((facture) => (
                   <tr key={facture.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4 font-medium text-foreground">
-                      {facture.numero}
-                    </td>
+                    <td className="px-6 py-4 font-medium text-foreground">{facture.numero}</td>
                     <td className="px-6 py-4 text-sm text-muted-foreground">
                       {(() => {
                         const blId = facture.source_bl_id ?? facture.source_bc_id;
@@ -268,9 +301,7 @@ export const FacturesVente = () => {
                         return bcNumberById.get(blId) || `BL #${blId}`;
                       })()}
                     </td>
-                    <td className="px-6 py-4">
-                      {facture.third_party_name || '-'}
-                    </td>
+                    <td className="px-6 py-4">{facture.third_party_name || '-'}</td>
                     <td className="px-6 py-4 text-muted-foreground">
                       {formatAppDate(facture.date_creation)}
                     </td>
@@ -278,11 +309,12 @@ export const FacturesVente = () => {
                       {facture.date_echeance ? formatAppDate(facture.date_echeance) : '-'}
                     </td>
                     <td className="px-6 py-4 text-right font-medium">
-                      {facture.total_amount.toLocaleString('fr-TN', { style: 'currency', currency: 'TND' })}
+                      {facture.total_amount.toLocaleString('fr-TN', {
+                        style: 'currency',
+                        currency: 'TND',
+                      })}
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      {getStatusBadge(facture.status)}
-                    </td>
+                    <td className="px-6 py-4 text-center">{getStatusBadge(facture.status)}</td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
@@ -336,7 +368,12 @@ export const FacturesVente = () => {
         )}
       </div>
 
-      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
+      <AlertDialog
+        open={!!deleteConfirm}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirm(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer la facture ?</AlertDialogTitle>
@@ -363,7 +400,12 @@ export const FacturesVente = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={!!previewUrl} onOpenChange={(open) => { if (!open) closePreview(); }}>
+      <Dialog
+        open={!!previewUrl}
+        onOpenChange={(open) => {
+          if (!open) closePreview();
+        }}
+      >
         <DialogContent className={pdfPreviewDialogContentClassName}>
           <DialogHeader className="flex-shrink-0 flex flex-row items-center justify-between">
             <DialogTitle>{previewTitle}</DialogTitle>
@@ -389,4 +431,8 @@ export const FacturesVente = () => {
       </Dialog>
     </div>
   );
-};
+}
+
+export const FacturesVente = () => <FacturesCommercial flow="vente" />;
+
+export const FacturesFournisseur = () => <FacturesCommercial flow="achat" />;

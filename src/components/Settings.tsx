@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_VERSION, BUILD_DATE_FORMATTED } from '@/lib/version';
+import { MfaSettingsCard } from '@/components/auth/MfaSettingsCard';
 
 export const Settings = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -117,6 +118,18 @@ export const Settings = () => {
           </p>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Sécurité du compte</CardTitle>
+          <CardDescription>
+            Activez la double authentification (MFA) pour protéger l&apos;accès administrateur.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <MfaSettingsCard />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

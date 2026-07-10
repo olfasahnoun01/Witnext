@@ -81,22 +81,32 @@ export function BootstrapGate({ children }: { children: React.ReactNode }) {
 interface SubsectionRouteProps {
   subsectionId: string;
   requireAdmin?: boolean;
+  requirePlatformAdmin?: boolean;
   children: React.ReactNode;
 }
 
-export function SubsectionRoute({ subsectionId, requireAdmin, children }: SubsectionRouteProps) {
-  const { isAdmin } = useAuth();
+export function SubsectionRoute({
+  subsectionId,
+  requireAdmin,
+  requirePlatformAdmin,
+  children,
+}: SubsectionRouteProps) {
+  const { isAdmin, isPlatformAdmin } = useAuth();
   const { canAccessSubsection } = usePermissions();
   const { currentCompany } = useAppCompany();
 
   const isPublic =
     subsectionId === 'dashboard' || subsectionId === 'team-chat' || subsectionId === 'messages';
 
+  if (requirePlatformAdmin && !isPlatformAdmin) {
+    return <AccessDenied />;
+  }
+
   if (requireAdmin && !isAdmin) {
     return <AccessDenied />;
   }
 
-  if (!isPublic && !canAccessSubsection(subsectionId)) {
+  if (!isPublic && !requirePlatformAdmin && !canAccessSubsection(subsectionId)) {
     return <AccessDenied />;
   }
 

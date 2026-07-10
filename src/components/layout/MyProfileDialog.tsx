@@ -19,6 +19,7 @@ import {
   PASSWORD_LENGTH_HINT,
   validatePasswordLength,
 } from '@/lib/passwordPolicy';
+import { MfaSettingsCard } from '@/components/auth/MfaSettingsCard';
 
 interface MyProfileDialogProps {
   open: boolean;
@@ -118,10 +119,10 @@ export const MyProfileDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Mon profil</DialogTitle>
-          <DialogDescription>Modifiez vos informations personnelles</DialogDescription>
+          <DialogDescription>Modifiez vos informations personnelles et la sécurité</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSave} className="space-y-4">
@@ -187,6 +188,10 @@ export const MyProfileDialog = ({
             </Button>
           </DialogFooter>
         </form>
+
+        <div className="border-t border-border pt-4">
+          <MfaSettingsCard compact />
+        </div>
       </DialogContent>
     </Dialog>
   );

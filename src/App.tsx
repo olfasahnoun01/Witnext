@@ -12,6 +12,7 @@ import { BossLayout } from '@/layouts/BossLayout';
 import Auth from "./pages/Auth";
 import Signup from "./pages/Signup";
 import { TenantBootstrapGate } from '@/components/layout/TenantBootstrapGate';
+import { MfaGate } from '@/components/layout/MfaGate';
 import { MarketingLayout } from '@/marketing/layouts/MarketingLayout';
 import { HomePage } from '@/marketing/pages/HomePage';
 import { PricingPage } from '@/marketing/pages/PricingPage';
@@ -72,11 +73,13 @@ const AppRoutes = () => {
         path="/boss/*"
         element={
           <ProtectedRoute>
-            <AppCompanyProvider>
-              <TenantBootstrapGate>
-                <BossLayout />
-              </TenantBootstrapGate>
-            </AppCompanyProvider>
+            <MfaGate>
+              <AppCompanyProvider>
+                <TenantBootstrapGate>
+                  <BossLayout />
+                </TenantBootstrapGate>
+              </AppCompanyProvider>
+            </MfaGate>
           </ProtectedRoute>
         }
       />
@@ -84,11 +87,13 @@ const AppRoutes = () => {
         path="/*"
         element={
           <ProtectedRoute>
-            <AppCompanyProvider>
-              <TenantBootstrapGate>
-                <AppLayout />
-              </TenantBootstrapGate>
-            </AppCompanyProvider>
+            <MfaGate>
+              <AppCompanyProvider>
+                <TenantBootstrapGate>
+                  <AppLayout />
+                </TenantBootstrapGate>
+              </AppCompanyProvider>
+            </MfaGate>
           </ProtectedRoute>
         }
       />

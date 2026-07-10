@@ -89,6 +89,15 @@ describe('multi-company DB migrations', () => {
     expect(tenantsMigration).toContain('grosafe_group');
   });
 
+  it('defines platform admin (admin-of-admins) foundation', () => {
+    const platformMigration = readMigration(MC_MIGRATION_FILES.platformAdmins);
+    expect(platformMigration).toContain('CREATE TABLE IF NOT EXISTS public.platform_admins');
+    expect(platformMigration).toContain('is_platform_admin');
+    expect(platformMigration).toContain('platform_list_tenants');
+    expect(platformMigration).toContain('platform_create_tenant_shell');
+    expect(platformMigration).toContain('platform_set_tenant_status');
+  });
+
   it('isolates child tables via parent EXISTS policies', () => {
     const supplemental = [
       MC_MIGRATION_FILES.fuelCardHistory,

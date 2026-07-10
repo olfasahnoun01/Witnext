@@ -102,4 +102,5 @@ export const MC_MIGRATION_FILES = {
   fuelCards: '20260709130000_create_fuel_cards_table.sql',
   fuelCardHistory: '20260709140000_fuel_cards_conducteur_and_history.sql',
   saasTenants: '20260709160000_saas_tenants_foundation.sql',
+  platformAdmins: '20260710120000_platform_admins.sql',
 } as const;

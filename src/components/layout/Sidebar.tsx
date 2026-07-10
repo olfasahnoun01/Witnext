@@ -171,13 +171,13 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
         style={{ backgroundColor: 'hsl(var(--sidebar-background))' }}
       >
         <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between border-b border-sidebar-border/50 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-sidebar-border/50 bg-white px-4 py-3 dark:bg-white">
             <div className="flex min-w-0 flex-1 items-center justify-center lg:justify-start">
               <WitnextLogoBanner variant="app" />
             </div>
             <button
               onClick={onToggle}
-              className="rounded-lg p-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50 lg:hidden"
+              className="rounded-lg p-2 text-neutral-700 transition-colors hover:bg-neutral-100 lg:hidden"
             >
               <X className="h-5 w-5" />
             </button>

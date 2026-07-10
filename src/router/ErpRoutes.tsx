@@ -11,6 +11,7 @@ import {
   Dashboard,
   DriverControlPlanning,
   FacturesVente,
+  FacturesFournisseur,
   AvoirClientPage,
   AvoirFournisseurPage,
   FinanceModule,
@@ -21,6 +22,7 @@ import {
   Inventory,
   Maintenance,
   PermissionsManager,
+  PlatformConsole,
   MarketingLeadsAdmin,
   ReportingModule,
   BarcodeLabelsPage,
@@ -304,6 +306,16 @@ export function ErpRoutes() {
           }
         />
         <Route
+          path="/purchases/invoices"
+          element={
+            <SubsectionRoute subsectionId="factures-achat">
+              <LazyRoute>
+                <FacturesFournisseur />
+              </LazyRoute>
+            </SubsectionRoute>
+          }
+        />
+        <Route
           path="/purchases/avoir-fournisseur"
           element={
             <SubsectionRoute subsectionId="avoir-fournisseur">
@@ -487,6 +499,17 @@ export function ErpRoutes() {
             <SubsectionRoute subsectionId="accounts" requireAdmin>
               <LazyRoute>
                 <MarketingLeadsAdmin />
+              </LazyRoute>
+            </SubsectionRoute>
+          }
+        />
+
+        <Route
+          path="/platform"
+          element={
+            <SubsectionRoute subsectionId="platform-console" requirePlatformAdmin>
+              <LazyRoute>
+                <PlatformConsole />
               </LazyRoute>
             </SubsectionRoute>
           }

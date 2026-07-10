@@ -40,10 +40,6 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
-import { Filter } from 'lucide-react';
-import {
   createBonLivraisonFromBonCommandeVente,
   createBonLivraisonFromMultipleBonsCommandeVente,
   fetchBcIdsHavingBonLivraisonVente,
@@ -88,7 +84,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDay, setFilterDay] = useState('');
   const [exportBusy, setExportBusy] = useState(false);
-  const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>(defaultTypeFilter);
+  const selectedType = defaultTypeFilter;
   const [procurementBC, setProcurementBC] = useState<UnifiedDocument | null>(null);
   const [bcIdsWithBl, setBcIdsWithBl] = useState<Set<number>>(new Set());
   const [blBusyId, setBlBusyId] = useState<number | null>(null);
@@ -127,10 +123,6 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
     window.addEventListener('grosafe:bl-refresh', onBlRefresh);
     return () => window.removeEventListener('grosafe:bl-refresh', onBlRefresh);
   }, [refreshBcIdsWithBl]);
-
-  useEffect(() => {
-    setSelectedType(defaultTypeFilter);
-  }, [defaultTypeFilter]);
 
   const startProcurement = useCallback(async (bc: BonCommande) => {
     if (bc.type === 'vente') {
@@ -580,24 +572,13 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
                 </button>
               )}
             </div>
-            <Select value={selectedType} onValueChange={v => { setSelectedType(v as any); }}>
-              <SelectTrigger className="h-9 w-32 bg-background">
-                <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent className="bg-popover z-50">
-                <SelectItem value="all">Tous types</SelectItem>
-                <SelectItem value="achat">📥 Achat</SelectItem>
-                <SelectItem value="vente">📤 Vente</SelectItem>
-              </SelectContent>
-            </Select>
             <div className="relative">
               <CalendarDays className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="date"
                 value={filterDay}
                 onChange={(e) => setFilterDay(e.target.value)}
-                className="h-9 w-40 bg-background pl-9"
+                className="h-9 w-48 bg-background pl-9 pr-8"
                 title="Filtrer par jour"
               />
               {filterDay && (

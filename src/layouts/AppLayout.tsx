@@ -30,7 +30,6 @@ export function AppLayout() {
 
   const pathname = location.pathname;
   const subsectionId = getSubsectionFromPath(pathname);
-  const isMessages = pathname === '/messages' || subsectionId === 'team-chat';
   const pageTitle = getPageTitle(pathname);
 
   useEffect(() => {
@@ -57,6 +56,7 @@ export function AppLayout() {
   useEffect(() => {
     if (companyLoading) return;
     if (!subsectionId || subsectionId === 'dashboard' || subsectionId === 'team-chat') return;
+    if (subsectionId === 'platform-console') return;
     if (!isSubsectionVisibleForCompany(subsectionId, currentCompany?.code)) {
       navigate('/dashboard', { replace: true });
     }
@@ -82,7 +82,7 @@ export function AppLayout() {
   }, [subsectionId]);
 
   return (
-    <TeamChatProvider isPageOpen={isMessages}>
+    <TeamChatProvider>
       <AppLayoutProvider sidebarOpen={sidebarOpen}>
         <div className="flex min-h-screen flex-col bg-background">
           <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
@@ -99,12 +99,7 @@ export function AppLayout() {
               sidebarOpen={sidebarOpen}
             />
             <TrialBanner />
-            <main
-              className={cn(
-                'flex min-h-0 flex-1 flex-col',
-                isMessages ? 'overflow-hidden p-3 sm:p-4' : 'p-6'
-              )}
-            >
+            <main className="flex min-h-0 flex-1 flex-col p-6">
               <ErpRoutes />
             </main>
           </div>

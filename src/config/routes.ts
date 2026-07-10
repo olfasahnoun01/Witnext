@@ -32,6 +32,7 @@ export const SUBSECTION_ROUTES: Record<string, string> = {
   'commerciale-fournisseurs': '/purchases/suppliers',
   'devis-achat': '/purchases/quotations',
   'bc-achat': '/purchases/orders',
+  'factures-achat': '/purchases/invoices',
   'avoir-fournisseur': '/purchases/avoir-fournisseur',
 
   // Commercial
@@ -62,6 +63,7 @@ export const SUBSECTION_ROUTES: Record<string, string> = {
 
   accounts: '/users',
   'admin-leads': '/admin/leads',
+  'platform-console': '/platform',
   settings: '/settings',
   'team-chat': '/messages',
 };
@@ -91,6 +93,7 @@ export function getPageTitle(pathname: string): string {
   const subsectionId = getSubsectionFromPath(pathname);
   if (subsectionId === 'team-chat') return 'Chat Équipe';
   if (subsectionId === 'admin-leads') return 'Demandes commerciales';
+  if (subsectionId === 'platform-console') return 'Console plateforme';
   if (subsectionId === 'finance-rapports') return 'Rapports & Analyses';
   if (subsectionId && SUBSECTION_LABELS[subsectionId]) {
     return SUBSECTION_LABELS[subsectionId];

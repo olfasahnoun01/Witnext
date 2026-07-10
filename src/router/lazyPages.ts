@@ -83,6 +83,9 @@ export const FluxSuiviHub = lazyWithRetry(() =>
 export const PermissionsManager = lazyWithRetry(() =>
   import('@/components/PermissionsManager').then((m) => ({ default: m.PermissionsManager }))
 );
+export const PlatformConsole = lazyWithRetry(() =>
+  import('@/pages/admin/PlatformConsole').then((m) => ({ default: m.PlatformConsole }))
+);
 export const RDV = lazyWithRetry(() =>
   import('@/components/commercial/RDV').then((m) => ({ default: m.RDV }))
 );
@@ -91,6 +94,9 @@ export const SuiviPartiesHub = lazyWithRetry(() =>
 );
 export const FacturesVente = lazyWithRetry(() =>
   import('@/components/commercial/FacturesVente').then((m) => ({ default: m.FacturesVente }))
+);
+export const FacturesFournisseur = lazyWithRetry(() =>
+  import('@/components/commercial/FacturesVente').then((m) => ({ default: m.FacturesFournisseur }))
 );
 export const AvoirClientPage = lazyWithRetry(() =>
   import('@/components/commercial/CommercialAvoirPage').then((m) => ({ default: m.AvoirClientPage }))

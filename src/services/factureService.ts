@@ -252,12 +252,20 @@ export async function createFactureFromMultipleBonsLivraisonVente(
 
 export type DeleteFactureResult = { success: true } | { success: false; error: string };
 
-/** Supprime une facture de vente par identifiant. */
-export async function deleteFactureVente(factureId: string): Promise<DeleteFactureResult> {
-  const { error } = await supabase.from('factures').delete().eq('id', factureId).eq('type', 'vente');
+/** Supprime une facture commerciale par type (vente / achat). */
+export async function deleteFactureByType(
+  factureId: string,
+  type: 'vente' | 'achat'
+): Promise<DeleteFactureResult> {
+  const { error } = await supabase.from('factures').delete().eq('id', factureId).eq('type', type);
 
   if (error) {
     return { success: false, error: error.message };
   }
   return { success: true };
+}
+
+/** Supprime une facture de vente par identifiant. */
+export async function deleteFactureVente(factureId: string): Promise<DeleteFactureResult> {
+  return deleteFactureByType(factureId, 'vente');
 }

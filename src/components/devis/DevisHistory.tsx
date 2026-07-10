@@ -103,15 +103,11 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
   const [selectedFournisseur, setSelectedFournisseur] = useState('all');
   const [echantillonDevis, setEchantillonDevis] = useState<{ id: number; number: string } | null>(null);
   const [echantillonCounts, setEchantillonCounts] = useState<Record<number, number>>({});
-  const [selectedType, setSelectedType] = useState<'all' | 'achat' | 'vente'>(defaultTypeFilter || 'all');
+  const selectedType = (defaultTypeFilter || 'all') as 'all' | 'achat' | 'vente';
   const [selectedConfirmation, setSelectedConfirmation] = useState<'all' | 'confirmed' | 'unconfirmed'>('all');
   const [filterDay, setFilterDay] = useState('');
   const [exportBusy, setExportBusy] = useState(false);
   const [selectedDevisIds, setSelectedDevisIds] = useState<Set<number>>(new Set());
-
-  useEffect(() => {
-    if (defaultTypeFilter) setSelectedType(defaultTypeFilter);
-  }, [defaultTypeFilter]);
 
   // Fetch envoyé echantillon counts for all vente devis
   useEffect(() => {
@@ -554,16 +550,6 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 </button>
               )}
             </div>
-            <Select value={selectedType} onValueChange={v => { setSelectedType(v as any); }}>
-              <SelectTrigger className="h-9 w-32 bg-background">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent className="bg-popover z-50">
-                <SelectItem value="all">Tous types</SelectItem>
-                <SelectItem value="achat">📥 Achat</SelectItem>
-                <SelectItem value="vente">📤 Vente</SelectItem>
-              </SelectContent>
-            </Select>
             <Select value={selectedFournisseur} onValueChange={v => { setSelectedFournisseur(v); }}>
               <SelectTrigger className="h-9 w-44 bg-background">
                 <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
@@ -592,7 +578,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
                 type="date"
                 value={filterDay}
                 onChange={(e) => setFilterDay(e.target.value)}
-                className="h-9 w-40 bg-background pl-9"
+                className="h-9 w-48 bg-background pl-9 pr-8"
                 title="Filtrer par jour"
               />
               {filterDay && (
