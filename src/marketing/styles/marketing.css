@@ -1,5 +1,5 @@
 .marketing-chrome {
-  background-color: #ffffff;
+  background-color: #ffffff !important;
   color: #0f172a;
 }
 
@@ -9,6 +9,20 @@
 
 .marketing-chrome-border {
   border-color: #e2e8f0;
+}
+
+/* Sheet portals outside .marketing-site; keep chrome readable in dark mode */
+.dark .marketing-chrome {
+  background-color: hsl(var(--card)) !important;
+  color: hsl(var(--foreground));
+}
+
+.dark .marketing-chrome-muted {
+  color: hsl(var(--muted-foreground));
+}
+
+.dark .marketing-chrome-border {
+  border-color: hsl(var(--border));
 }
 
 /* ── Brand green (logo) ───────────────────────────────────────── */

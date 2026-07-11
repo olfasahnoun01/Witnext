@@ -34,7 +34,7 @@ export function WitnextWordmark({ className, variant = 'inline' }: Props) {
   return (
     <span className={cn('inline-flex items-baseline font-bold tracking-tight', className)} aria-label="Witnext">
       <span className="marketing-brand-text">W</span>
-      <span className="text-slate-900">itnext</span>
+      <span className="text-slate-900 dark:text-white">itnext</span>
     </span>
   );
 }

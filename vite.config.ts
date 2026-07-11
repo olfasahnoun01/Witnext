@@ -123,8 +123,14 @@ export default defineConfig(({ mode }) => {
               },
               workbox: {
                 globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+                cleanupOutdatedCaches: true,
                 navigateFallback: "/index.html",
-                navigateFallbackDenylist: [/^\/functions\//, /^\/rest\//, /^\/auth\/v1\//],
+                navigateFallbackDenylist: [
+                  /^\/assets\//,
+                  /^\/functions\//,
+                  /^\/rest\//,
+                  /^\/auth\/v1\//,
+                ],
               },
             }),
           ]),

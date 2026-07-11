@@ -28,7 +28,7 @@ export function MarketingFooter() {
             </p>
           </AnimateIn>
           <AnimateIn animation="fade-up" delay={80}>
-            <h4 className="font-semibold text-sm mb-4 text-slate-900">Produit</h4>
+            <h4 className="font-semibold text-sm mb-4 text-slate-900 dark:text-slate-100">Produit</h4>
             <ul className="space-y-2.5 text-sm marketing-chrome-muted">
               <li><Link to="/pricing" className="marketing-link">Tarifs</Link></li>
               <li><Link to="/trial" className="marketing-link">Essai gratuit</Link></li>
@@ -36,7 +36,7 @@ export function MarketingFooter() {
             </ul>
           </AnimateIn>
           <AnimateIn animation="fade-up" delay={160}>
-            <h4 className="font-semibold text-sm mb-4 text-slate-900">Accès</h4>
+            <h4 className="font-semibold text-sm mb-4 text-slate-900 dark:text-slate-100">Accès</h4>
             <ul className="space-y-2.5 text-sm marketing-chrome-muted">
               <li><Link to="/auth" className="marketing-link">Connexion</Link></li>
               <li><Link to="/" className="marketing-link">Accueil</Link></li>
@@ -49,7 +49,7 @@ export function MarketingFooter() {
             <p className="text-xs font-semibold uppercase tracking-wider marketing-brand-text mb-3">
               Développement
             </p>
-            <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-4 sm:gap-8 text-sm text-slate-700">
+            <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-4 sm:gap-8 text-sm text-slate-700 dark:text-slate-300">
               <span className="inline-flex items-center gap-2">
                 <User className="h-4 w-4 marketing-brand-text shrink-0" />
                 {DEVELOPER.name}

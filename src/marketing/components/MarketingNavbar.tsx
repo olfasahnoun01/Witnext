@@ -43,7 +43,7 @@ export function MarketingNavbar() {
       'relative rounded-lg px-3 py-2 text-sm font-medium transition-colors',
       isActive(location.pathname, href, exact)
         ? 'marketing-nav-active'
-        : 'text-slate-600 marketing-nav-hover'
+        : 'text-slate-600 dark:text-slate-300 marketing-nav-hover'
     );
 
   return (
@@ -87,7 +87,7 @@ export function MarketingNavbar() {
                 asChild
                 variant="ghost"
                 size="sm"
-                className="hidden md:inline-flex text-slate-600 marketing-btn-ghost"
+                className="hidden md:inline-flex text-slate-600 dark:text-slate-300 marketing-btn-ghost"
               >
                 <Link to="/auth">Connexion</Link>
               </Button>
@@ -108,9 +108,12 @@ export function MarketingNavbar() {
                 {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="marketing-chrome w-[min(100vw-2rem,320px)] border-l marketing-chrome-border">
+            <SheetContent
+              side="right"
+              className="marketing-chrome w-[min(100vw-2rem,320px)] border-l marketing-chrome-border [&>button]:text-current [&>button]:opacity-80 [&>button]:hover:opacity-100"
+            >
               <SheetHeader>
-                <SheetTitle className="flex items-center gap-2 text-left">
+                <SheetTitle className="flex items-center gap-2 text-left text-current">
                   <WitnextLogoBanner className="h-8 w-auto" />
                   <WitnextWordmark />
                 </SheetTitle>
@@ -124,7 +127,7 @@ export function MarketingNavbar() {
                       'rounded-lg px-4 py-3 text-base font-medium transition-colors',
                       isActive(location.pathname, link.href, link.exact)
                         ? 'marketing-nav-active'
-                        : 'text-slate-900 marketing-nav-hover'
+                        : 'text-slate-900 dark:text-slate-100 marketing-nav-hover'
                     )}
                   >
                     {link.label}
@@ -138,7 +141,11 @@ export function MarketingNavbar() {
                   </Button>
                 ) : (
                   <>
-                    <Button asChild variant="outline" className="w-full marketing-btn-outline">
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="w-full marketing-btn-outline border-border text-foreground"
+                    >
                       <Link to="/auth">Connexion</Link>
                     </Button>
                     <Button asChild className="w-full marketing-btn">

@@ -224,7 +224,7 @@ function TeamChatFloatingWidget() {
         aria-hidden={!isOpen}
         className={cn(
           'pointer-events-auto flex w-[min(100vw-1.5rem,24rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl ring-1 ring-black/5 dark:ring-white/10',
-          'origin-bottom-right transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+          'origin-bottom-right transition-[opacity,transform] duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
           'h-[min(70vh,32rem)]',
           isOpen
             ? 'translate-y-0 scale-100 opacity-100'
@@ -317,7 +317,7 @@ function TeamChatFloatingWidget() {
         aria-controls="team-chat-panel"
         aria-label={isOpen ? 'Fermer le chat équipe' : 'Ouvrir le chat équipe'}
         className={cn(
-          'pointer-events-auto relative h-14 w-14 rounded-full shadow-lg transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+          'pointer-events-auto relative h-14 w-14 rounded-full shadow-lg transition-all duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
           'hover:scale-105 active:scale-95',
           isOpen
             ? 'bg-muted text-foreground hover:bg-muted/80'
