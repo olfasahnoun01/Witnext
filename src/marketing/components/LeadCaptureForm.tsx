@@ -13,7 +13,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { MODULE_OPTIONS, getPlanByCode } from '@/marketing/config/pricing';
+import {
+  MODULE_OPTIONS,
+  formatPlanPrice,
+  getPlanByCode,
+} from '@/marketing/config/pricing';
+import { TRUST_BULLETS } from '@/marketing/config/strategy';
 import {
   submitMarketingLead,
   type MarketingLeadDeployment,
@@ -60,14 +65,13 @@ const emptyForm = (): FormState => ({
 export function LeadCaptureForm({ type, planCode, sourcePath, title, subtitle }: Props) {
   const { toast } = useToast();
   const captchaRef = useRef<HCaptcha>(null);
+  const plan = getPlanByCode(planCode);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [selectedModules, setSelectedModules] = useState<string[]>([]);
+  const [selectedModules, setSelectedModules] = useState<string[]>(() => plan?.modules ?? []);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
-
-  const plan = getPlanByCode(planCode);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -171,10 +175,31 @@ export function LeadCaptureForm({ type, planCode, sourcePath, title, subtitle }:
         <h2 className="text-2xl font-bold">{title}</h2>
         <p className="text-muted-foreground text-sm mt-1">{subtitle}</p>
         {plan && (
-          <p className="text-sm font-medium marketing-brand-text mt-2">
-            Offre sélectionnée : {plan.name}
-          </p>
+          <div className="mt-3 rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-sm">
+            <p className="font-medium marketing-brand-text">
+              Offre : {plan.name}
+              {plan.monthlyPriceHt != null && (
+                <span className="text-foreground font-normal">
+                  {' '}
+                  — {formatPlanPrice(plan, 'monthly').primary}
+                  <span className="text-muted-foreground"> / mois HT</span>
+                </span>
+              )}
+              {plan.monthlyPriceHt == null && (
+                <span className="text-muted-foreground font-normal"> — sur devis</span>
+              )}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">{plan.tagline}</p>
+          </div>
         )}
+        <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+          {TRUST_BULLETS.slice(0, 3).map((b) => (
+            <li key={b} className="text-xs text-muted-foreground flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3 marketing-brand-text shrink-0" />
+              {b}
+            </li>
+          ))}
+        </ul>
       </div>
 
       <form onSubmit={onSubmit} className="space-y-4">

@@ -12,13 +12,14 @@ import { WitnextWordmark } from '@/marketing/components/WitnextWordmark';
 const NAV_LINKS = [
   { href: '/', label: 'Accueil', exact: true },
   { href: '/pricing', label: 'Tarifs', exact: false },
-  { href: '/trial', label: 'Essai gratuit', exact: false },
+  { href: '/trial?plan=pro', label: 'Essai gratuit', exact: false },
   { href: '/buy', label: 'Licences', exact: false },
 ] as const;
 
 function isActive(pathname: string, href: string, exact: boolean) {
-  if (exact) return pathname === href;
-  return pathname === href || pathname.startsWith(`${href}/`);
+  const path = href.split('?')[0] ?? href;
+  if (exact) return pathname === path;
+  return pathname === path || pathname.startsWith(`${path}/`);
 }
 
 export function MarketingNavbar() {
@@ -92,7 +93,7 @@ export function MarketingNavbar() {
                 <Link to="/auth">Connexion</Link>
               </Button>
               <Button asChild size="sm" className="hidden sm:inline-flex shadow-md marketing-btn">
-                <Link to="/trial">Essai gratuit</Link>
+                <Link to="/trial?plan=pro">Essai gratuit</Link>
               </Button>
             </>
           )}
@@ -149,7 +150,7 @@ export function MarketingNavbar() {
                       <Link to="/auth">Connexion</Link>
                     </Button>
                     <Button asChild className="w-full marketing-btn">
-                      <Link to="/trial">Essai gratuit</Link>
+                      <Link to="/trial?plan=pro">Essai gratuit</Link>
                     </Button>
                   </>
                 )}

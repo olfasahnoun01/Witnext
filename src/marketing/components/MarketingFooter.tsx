@@ -31,7 +31,7 @@ export function MarketingFooter() {
             <h4 className="font-semibold text-sm mb-4 text-slate-900 dark:text-slate-100">Produit</h4>
             <ul className="space-y-2.5 text-sm marketing-chrome-muted">
               <li><Link to="/pricing" className="marketing-link">Tarifs</Link></li>
-              <li><Link to="/trial" className="marketing-link">Essai gratuit</Link></li>
+              <li><Link to="/trial?plan=pro" className="marketing-link">Essai gratuit</Link></li>
               <li><Link to="/buy" className="marketing-link">Acheter une licence</Link></li>
             </ul>
           </AnimateIn>
