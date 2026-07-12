@@ -39,6 +39,42 @@ export interface InterAccountTransfer {
   createdAt: string;
 }
 
+/** Identifiant opération TEJ (TEJRSCodesOperations_v1.0). */
+export type TejIdTypeOperation = string;
+
+/** Bénéficiaire du certificat — champs exigés par TEJ. */
+export interface WithholdingBeneficiaire {
+  categorieContribuable: 'PM' | 'PP';
+  /** 1 = résident TN, 0 = non-résident. */
+  resident: '0' | '1';
+  adresse: string;
+  activite?: string | null;
+  email: string;
+  tel: string;
+}
+
+/** Ligne d'opération TEJ / certificat. */
+export interface WithholdingOperationLine {
+  factureNumero: string;
+  /** Année de facturation (YYYY). */
+  anneeFacturation: string;
+  /** Code TEJ IdTypeOperation. */
+  idTypeOperation: TejIdTypeOperation;
+  montantHt: number;
+  montantTva: number;
+  montantTtc: number;
+  /** Assiette de calcul RS conservée pour les contrôles métier (non exportée par le XSD). */
+  assiette: number;
+  taux: number;
+  montantRetenue: number;
+  /** Taux TVA appliqué (0 | 7 | 13 | 19…). */
+  tauxTva: number;
+  /** Convention non double imposition : 0 = droit commun. */
+  cnpc?: '0' | '1';
+  /** Retenue prise en charge : 0 = non. */
+  pCharge?: '0' | '1';
+}
+
 /** Certificat de retenue à la source généré à l'enregistrement. */
 export interface WithholdingCertificate {
   id: string;
@@ -48,13 +84,12 @@ export interface WithholdingCertificate {
   counterpartyName: string;
   matriculeFiscal: string | null;
   paymentId: string | null;
-  lignes: Array<{
-    factureNumero: string;
-    montantTtc: number;
-    assiette: number;
-    taux: number;
-    montantRetenue: number;
-  }>;
+  /** Date paiement YYYY-MM-DD (TEJ DatePayement). */
+  paymentDate: string;
+  /** Ref_certif_chez_declarant (casse exacte du XSD TEJ). */
+  refCertif: string;
+  beneficiaire: WithholdingBeneficiaire | null;
+  lignes: WithholdingOperationLine[];
   totalRetenue: number;
   createdAt: string;
 }

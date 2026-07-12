@@ -193,9 +193,13 @@ export function calculerNetAPayer(montantBrut: number, montantRs: number): numbe
 export function creerCertificatRetenue(
   partial: Omit<WithholdingCertificate, 'id' | 'createdAt'>
 ): WithholdingCertificate {
+  const id = `rs-${Date.now()}`;
   return {
     ...partial,
-    id: `rs-${Date.now()}`,
+    id,
+    refCertif: partial.refCertif || id,
+    paymentDate: partial.paymentDate || new Date().toISOString().slice(0, 10),
+    beneficiaire: partial.beneficiaire ?? null,
     createdAt: new Date().toISOString(),
   };
 }

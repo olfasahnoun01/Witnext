@@ -67,14 +67,36 @@ export async function fetchUserFinanceCompanies(): Promise<FinanceCompanyRow[]> 
 
   const { data: companies, error: e2 } = await supabase
     .from('companies')
-    .select('id, code, name, created_at')
+    .select('id, code, name, created_at, matricule_fiscal, categorie_contribuable')
     .in('id', ids)
     .order('name');
 
   if (e2) {
-    throw new Error(formatSupabaseError(e2));
+    // Colonnes TEJ absentes tant que la migration n'est pas appliquée.
+    const { data: fallback, error: e3 } = await supabase
+      .from('companies')
+      .select('id, code, name, created_at')
+      .in('id', ids)
+      .order('name');
+    if (e3) throw new Error(formatSupabaseError(e3));
+    return (fallback ?? []) as FinanceCompanyRow[];
   }
   return (companies ?? []) as FinanceCompanyRow[];
+}
+
+/** Met à jour le matricule fiscal déclarant (TEJ) d'une société. */
+export async function updateCompanyTejDeclarant(
+  companyId: string,
+  input: { matriculeFiscal: string; categorieContribuable: 'PM' | 'PP' }
+): Promise<void> {
+  const { error } = await supabase
+    .from('companies')
+    .update({
+      matricule_fiscal: input.matriculeFiscal,
+      categorie_contribuable: input.categorieContribuable,
+    } as never)
+    .eq('id', companyId);
+  if (error) throw new Error(formatSupabaseError(error));
 }
 
 export async function listInvoices(companyId: string): Promise<InvoiceRow[]> {

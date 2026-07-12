@@ -30,12 +30,24 @@ export const BANQUES_TUNISIE = [
 
 export type BanqueTunisie = (typeof BANQUES_TUNISIE)[number];
 
-/** Taux de retenue à la source (régime tunisien). */
+/** Taux de retenue à la source proposés par l'ERP (la nature TEJ est choisie séparément). */
 export const TAUX_RETENUE_SOURCE = [
-  { value: 1, label: '1 % — Achats courants' },
-  { value: 1.5, label: '1,5 % — Personne physique' },
-  { value: 3, label: '3 % — Honoraires régime réel' },
-  { value: 10, label: `10 % — ${FISCAL_LABELS.retenueSourceLoyers}` },
+  {
+    value: 1,
+    label: '1 % — Achats (IS 15 %)',
+  },
+  {
+    value: 1.5,
+    label: '1,5 % — Achats (IS hors 10/15 %)',
+  },
+  {
+    value: 3,
+    label: '3 % — Honoraires régime réel',
+  },
+  {
+    value: 10,
+    label: `10 % — ${FISCAL_LABELS.retenueSourceLoyers}`,
+  },
 ] as const;
 
 /** Types de frais bancaires prédéfinis. */

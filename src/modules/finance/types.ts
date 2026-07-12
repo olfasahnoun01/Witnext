@@ -7,6 +7,10 @@ export interface FinanceCompanyRow {
   code: CompanyCode;
   name: string;
   created_at: string;
+  /** Matricule fiscal TEJ (7 chiffres + clé), ex. 0001238L. */
+  matricule_fiscal?: string | null;
+  /** PM | PP — catégorie déclarant TEJ. */
+  categorie_contribuable?: 'PM' | 'PP' | null;
 }
 
 export interface FinanceCapabilities {

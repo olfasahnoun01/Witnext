@@ -220,6 +220,9 @@ export type Database = {
           matricule_fiscal: string | null
           mode: string
           payment_id: string | null
+          payment_date: string | null
+          ref_certif: string | null
+          beneficiaire: Json
           total_retenue: number
         }
         Insert: {
@@ -232,6 +235,9 @@ export type Database = {
           matricule_fiscal?: string | null
           mode: string
           payment_id?: string | null
+          payment_date?: string | null
+          ref_certif?: string | null
+          beneficiaire?: Json
           total_retenue?: number
         }
         Update: {
@@ -244,6 +250,9 @@ export type Database = {
           matricule_fiscal?: string | null
           mode?: string
           payment_id?: string | null
+          payment_date?: string | null
+          ref_certif?: string | null
+          beneficiaire?: Json
           total_retenue?: number
         }
         Relationships: []
@@ -1500,18 +1509,24 @@ export type Database = {
           code: string
           name: string
           created_at: string
+          matricule_fiscal: string | null
+          categorie_contribuable: string | null
         }
         Insert: {
           id?: string
           code: string
           name: string
           created_at?: string
+          matricule_fiscal?: string | null
+          categorie_contribuable?: string | null
         }
         Update: {
           id?: string
           code?: string
           name?: string
           created_at?: string
+          matricule_fiscal?: string | null
+          categorie_contribuable?: string | null
         }
         Relationships: []
       }

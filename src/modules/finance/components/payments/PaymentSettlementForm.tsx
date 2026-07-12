@@ -18,7 +18,8 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { BANQUES_TUNISIE } from '../../lib/constants';
 import { FISCAL_LABELS } from '../../lib/fiscalTerminology';
-import { formatMontantDt, parseMontantInput } from '../../lib/money';
+import { formatMontantDt, parseMontantInput, round3 } from '../../lib/money';
+import { TEJ_OPERATION_CODES } from '../../lib/tej';
 import { FinanceAmount } from '../shared/FinanceAmount';
 import type { CounterpartyOption, ModeReglement, ReglementStatus, SettlementDirection } from '../../types/paymentTypes';
 import type { LetterageLine, TreasuryAccount } from '../../types/financeDomain';
@@ -85,6 +86,7 @@ export function PaymentSettlementForm({
   const [letterageLines, setLetterageLines] = useState<LetterageLine[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [withholdingRate, setWithholdingRate] = useState('1');
+  const [withholdingOperationCode, setWithholdingOperationCode] = useState('RS7_000002');
   const [busy, setBusy] = useState(false);
   const [caisseError, setCaisseError] = useState<string | null>(null);
 
@@ -155,9 +157,17 @@ export function PaymentSettlementForm({
   const retenueMontant = useMemo(() => {
     if (direction !== 'fournisseur' || !isRetenueSourceRequise(factureBrut)) return 0;
     const taux = Number(withholdingRate) || 1;
-    return letterageLines
+    return round3(letterageLines
       .filter((l) => l.kind === 'FACTURE' && l.selected && l.montantAImputer > 0)
-      .reduce((s, l) => s + calculerMontantRs(l.montantAImputer, taux), 0);
+      .reduce((s, l) => {
+        if (!l.invoice || Number(l.invoice.total_ttc) <= 0) {
+          return s + calculerMontantRs(l.montantAImputer, taux);
+        }
+        const ratio = Math.min(1, l.montantAImputer / Number(l.invoice.total_ttc));
+        const ttcHorsTimbre =
+          (Number(l.invoice.total_ht) + Number(l.invoice.vat_amount)) * ratio;
+        return s + ttcHorsTimbre * (taux / 100);
+      }, 0));
   }, [letterageLines, factureBrut, withholdingRate, direction]);
 
   const totals = useMemo(
@@ -319,6 +329,7 @@ export function PaymentSettlementForm({
         userNotes: notes,
         withholdingAmount: retenueMontant,
         withholdingRate: Number(withholdingRate),
+        withholdingOperationCode,
         allocations,
       });
       toast.success(`${title} enregistré — ${numeroPiece}`);
@@ -494,7 +505,7 @@ export function PaymentSettlementForm({
           )}
 
           {direction === 'fournisseur' && isRetenueSourceRequise(factureBrut) && (
-            <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5">
+            <div className="grid gap-3 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 md:grid-cols-2">
               <Badge variant="outline">{FISCAL_LABELS.retenueSourceFournisseur}</Badge>
               <Select value={withholdingRate} onValueChange={setWithholdingRate}>
                 <SelectTrigger className="w-[200px]">
@@ -507,6 +518,24 @@ export function PaymentSettlementForm({
                   <SelectItem value="10">10 % — {FISCAL_LABELS.retenueSourceLoyers}</SelectItem>
                 </SelectContent>
               </Select>
+              <div className="space-y-1 md:col-span-2">
+                <Label>Nature de l'opération TEJ *</Label>
+                <Select value={withholdingOperationCode} onValueChange={setWithholdingOperationCode}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.values(TEJ_OPERATION_CODES).map((operation) => (
+                      <SelectItem key={operation.code} value={operation.code}>
+                        {operation.code} — {operation.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Le code dépend de la nature fiscale et du régime du bénéficiaire, pas uniquement du taux.
+                </p>
+              </div>
               <span className="text-sm tabular-nums">
                 {FISCAL_LABELS.retenueSourceFournisseur} :{' '}
                 <strong>{formatMontantDt(retenueMontant)}</strong> — Net :{' '}

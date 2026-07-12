@@ -301,22 +301,32 @@ export async function loadWithholdingCertificates(companyId: string): Promise<Wi
     .eq('company_id', companyId)
     .order('created_at', { ascending: false });
   if (error) fail(error, 'Chargement des certificats de retenue impossible');
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    companyId: r.company_id,
-    mode: r.mode as WithholdingCertificate['mode'],
-    counterpartyId: Number(r.counterparty_id),
-    counterpartyName: r.counterparty_name,
-    matriculeFiscal: r.matricule_fiscal,
-    paymentId: r.payment_id,
-    lignes: (r.lignes as WithholdingCertificate['lignes']) ?? [],
-    totalRetenue: Number(r.total_retenue),
-    createdAt: r.created_at,
-  }));
+  return (data ?? []).map((r) => {
+    const row = r as Record<string, unknown>;
+    const paymentDate =
+      (row.payment_date as string | null) ||
+      (typeof r.created_at === 'string' ? r.created_at.slice(0, 10) : '');
+    return {
+      id: r.id,
+      companyId: r.company_id,
+      mode: r.mode as WithholdingCertificate['mode'],
+      counterpartyId: Number(r.counterparty_id),
+      counterpartyName: r.counterparty_name,
+      matriculeFiscal: r.matricule_fiscal,
+      paymentId: r.payment_id,
+      paymentDate,
+      refCertif: (row.ref_certif as string | null) || r.id,
+      beneficiaire:
+        ((row.beneficiaire as unknown) as WithholdingCertificate['beneficiaire']) ?? null,
+      lignes: ((r.lignes as unknown) as WithholdingCertificate['lignes']) ?? [],
+      totalRetenue: Number(r.total_retenue),
+      createdAt: r.created_at,
+    };
+  });
 }
 
 export async function insertWithholdingCertificate(cert: WithholdingCertificate): Promise<void> {
-  const { error } = await supabase.from('withholding_certificates').insert({
+  const base = {
     id: cert.id,
     company_id: cert.companyId,
     mode: cert.mode,
@@ -324,9 +334,36 @@ export async function insertWithholdingCertificate(cert: WithholdingCertificate)
     counterparty_name: cert.counterpartyName,
     matricule_fiscal: cert.matriculeFiscal,
     payment_id: cert.paymentId,
-    lignes: cert.lignes,
+    lignes: cert.lignes as unknown as import('@/integrations/supabase/types').Json,
     total_retenue: cert.totalRetenue,
     created_at: cert.createdAt,
-  });
-  if (error) fail(error, 'Enregistrement du certificat de retenue impossible');
+  };
+  const enriched = {
+    ...base,
+    payment_date: cert.paymentDate || null,
+    ref_certif: cert.refCertif || cert.id,
+    beneficiaire: (cert.beneficiaire ?? {}) as unknown as import('@/integrations/supabase/types').Json,
+  };
+  const { error } = await supabase.from('withholding_certificates').insert(enriched as never);
+  if (!error) return;
+  // Migration TEJ pas encore appliquée : fallback colonnes de base.
+  const { error: fallbackErr } = await supabase
+    .from('withholding_certificates')
+    .insert(base as never);
+  if (fallbackErr) fail(fallbackErr, 'Enregistrement du certificat de retenue impossible');
+}
+
+/** Persiste les corrections TEJ faites avant export (bénéficiaire + nature des opérations). */
+export async function updateWithholdingCertificateTejData(
+  cert: Pick<WithholdingCertificate, 'id' | 'companyId' | 'beneficiaire' | 'lignes'>
+): Promise<void> {
+  const { error } = await supabase
+    .from('withholding_certificates')
+    .update({
+      beneficiaire: (cert.beneficiaire ?? {}) as unknown as import('@/integrations/supabase/types').Json,
+      lignes: cert.lignes as unknown as import('@/integrations/supabase/types').Json,
+    })
+    .eq('id', cert.id)
+    .eq('company_id', cert.companyId);
+  if (error) fail(error, 'Mise à jour des données TEJ impossible');
 }

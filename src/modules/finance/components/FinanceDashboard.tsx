@@ -107,6 +107,21 @@ export function FinanceDashboard() {
 
   const { company, capabilities, requestCompanyPicker, companies, canSwitchCompany } = useFinanceCompany();
 
+  const [tejCompanyPatch, setTejCompanyPatch] = useState<{
+    matricule_fiscal: string;
+    categorie_contribuable: 'PM' | 'PP';
+  } | null>(null);
+
+  const companyForTej = useMemo(() => {
+    if (!company) return null;
+    if (!tejCompanyPatch) return company;
+    return { ...company, ...tejCompanyPatch };
+  }, [company, tejCompanyPatch]);
+
+  useEffect(() => {
+    setTejCompanyPatch(null);
+  }, [company?.id]);
+
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
 
   const [invoiceLines, setInvoiceLines] = useState<InvoiceLineRow[]>([]);
@@ -645,9 +660,11 @@ export function FinanceDashboard() {
               <VatDeclarationDashboard companyId={company.id} companyName={company.name} />
             )}
 
-            {fiscalSub === 'withholding' && capabilities.supplierWithholding && (
+            {fiscalSub === 'withholding' && capabilities.supplierWithholding && companyForTej && (
 
               <CertificatRetenuePanel
+
+                company={companyForTej}
 
                 clients={clientsOptions}
 
@@ -660,6 +677,8 @@ export function FinanceDashboard() {
                   montantHt: Number(inv.total_ht),
 
                 }))}
+
+                onCompanyTejUpdated={setTejCompanyPatch}
 
               />
 

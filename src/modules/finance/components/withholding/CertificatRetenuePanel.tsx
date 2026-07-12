@@ -24,13 +24,20 @@ import { TAUX_RETENUE_SOURCE } from '../../lib/constants';
 import { formatMontantDt } from '../../lib/money';
 import { computeWithholdingLine } from '../../services/paymentService';
 import type { CounterpartyOption } from '../../types/paymentTypes';
+import type { FinanceCompanyRow } from '../../types';
 import { CounterpartyCombobox } from '../payments/CounterpartyCombobox';
+import { TejExportPanel } from './TejExportPanel';
 import { toast } from 'sonner';
 
 interface CertificatRetenuePanelProps {
+  company: FinanceCompanyRow;
   clients: CounterpartyOption[];
   fournisseurs: CounterpartyOption[];
   sampleInvoices?: Array<{ numero: string; montantHt: number }>;
+  onCompanyTejUpdated?: (patch: {
+    matricule_fiscal: string;
+    categorie_contribuable: 'PM' | 'PP';
+  }) => void;
 }
 
 type CertificatMode = 'PAYEUR' | 'BENEFICIAIRE';
@@ -46,9 +53,11 @@ type LineDraft = {
  * Certificat de retenue à la source — assiette = montant brut HT.
  */
 export function CertificatRetenuePanel({
+  company,
   clients,
   fournisseurs,
   sampleInvoices = [],
+  onCompanyTejUpdated,
 }: CertificatRetenuePanelProps) {
   const [mode, setMode] = useState<CertificatMode>('PAYEUR');
   const [tiers, setTiers] = useState<CounterpartyOption | null>(null);
@@ -130,6 +139,12 @@ export function CertificatRetenuePanel({
 
   return (
     <div className="space-y-6">
+      <TejExportPanel
+        company={company}
+        counterparties={fournisseurs}
+        onCompanyTejUpdated={onCompanyTejUpdated}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>{panelTitle}</CardTitle>

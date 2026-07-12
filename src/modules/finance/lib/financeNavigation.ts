@@ -211,7 +211,7 @@ export function getFiscalSubsections(caps: FinanceCapabilities): FinanceNavItem[
     items.push({
       id: 'withholding',
       label: 'Attestations de retenue',
-      description: 'Retenues fournisseurs, clients et loyers',
+      description: 'Retenues fournisseurs, clients et export XML TEJ',
     });
   }
   items.push(

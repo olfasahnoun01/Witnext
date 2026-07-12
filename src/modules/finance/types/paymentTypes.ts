@@ -39,6 +39,8 @@ export interface PaymentFinanceMeta {
   counterpartyType?: 'client' | 'fournisseur';
   withholdingAmount?: number;
   withholdingRate?: number;
+  /** Nature légale de l'opération selon TEJRSCodesOperations_v1.0. */
+  withholdingOperationCode?: string;
   treasuryAccountId?: string;
 }
 
@@ -48,6 +50,10 @@ export interface CounterpartyOption {
   raisonSociale: string;
   matriculeFiscal: string | null;
   adresse?: string | null;
+  email?: string | null;
+  tel?: string | null;
+  /** PM | PP — défaut PM si inconnu. */
+  categorieContribuable?: 'PM' | 'PP' | null;
 }
 
 export interface InvoiceLetterageRow {

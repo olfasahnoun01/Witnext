@@ -26,7 +26,7 @@ import {
   computeInvoiceReversalOnImpaye,
 } from './paymentService';
 import type { TraiteAction } from '../types/paymentTypes';
-import type { LetterageDocumentKind } from '../types/financeDomain';
+import type { LetterageDocumentKind, WithholdingOperationLine } from '../types/financeDomain';
 import {
   applyBalanceDelta,
   creerCertificatRetenue,
@@ -38,6 +38,8 @@ import {
 import { loadTreasuryAccounts } from './treasuryStorage';
 import { movementAccountTag } from './treasurySyncApi';
 import { applyAvoirCredit } from './avoirApi';
+import { isKnownTejOperationCode } from '../lib/tej/tejCodes';
+import { listInvoices } from './financeApi';
 
 function formatSupabaseError(err: { message?: string }): string {
   return err.message || 'Erreur Supabase';
@@ -47,7 +49,7 @@ function formatSupabaseError(err: { message?: string }): string {
 export async function fetchClientsForSettlement(companyId: string): Promise<CounterpartyOption[]> {
   const { data, error } = await supabase
     .from('clients')
-    .select('id, nom, matricule_fiscale, location')
+    .select('id, nom, matricule_fiscale, location, phone, email')
     .eq('company_id', companyId)
     .order('nom');
   if (error) throw new Error(formatSupabaseError(error));
@@ -57,6 +59,9 @@ export async function fetchClientsForSettlement(companyId: string): Promise<Coun
     raisonSociale: c.nom,
     matriculeFiscal: c.matricule_fiscale,
     adresse: c.location,
+    tel: (c as { phone?: string | null }).phone ?? null,
+    email: (c as { email?: string | null }).email ?? null,
+    categorieContribuable: 'PM',
   }));
 }
 
@@ -64,7 +69,7 @@ export async function fetchClientsForSettlement(companyId: string): Promise<Coun
 export async function fetchFournisseursForSettlement(companyId: string): Promise<CounterpartyOption[]> {
   const { data, error } = await supabase
     .from('fournisseurs')
-    .select('id, nom, matricule_fiscale, location')
+    .select('id, nom, matricule_fiscale, location, phone, email')
     .eq('company_id', companyId)
     .order('nom');
   if (error) throw new Error(formatSupabaseError(error));
@@ -74,6 +79,9 @@ export async function fetchFournisseursForSettlement(companyId: string): Promise
     raisonSociale: f.nom,
     matriculeFiscal: f.matricule_fiscale,
     adresse: f.location,
+    tel: (f as { phone?: string | null }).phone ?? null,
+    email: (f as { email?: string | null }).email ?? null,
+    categorieContribuable: 'PM',
   }));
 }
 
@@ -131,6 +139,7 @@ export interface SubmitSettlementInput {
   userNotes?: string;
   withholdingAmount?: number;
   withholdingRate?: number;
+  withholdingOperationCode?: string;
   allocations: Array<{ documentId: string; kind: LetterageDocumentKind; amount: number }>;
 }
 
@@ -140,6 +149,13 @@ export interface SubmitSettlementInput {
  * — Espèces : contrôle solde caisse en sortie fournisseur.
  */
 export async function submitSettlement(input: SubmitSettlementInput): Promise<string> {
+  if (
+    input.direction === 'fournisseur' &&
+    Number(input.withholdingAmount) > 0 &&
+    !isKnownTejOperationCode(input.withholdingOperationCode)
+  ) {
+    throw new Error("Sélectionnez une nature d'opération TEJ valide avant d'enregistrer la retenue.");
+  }
   const accounts = await loadTreasuryAccounts(input.companyId);
   const targetAccount = resolveTreasuryTargetAccount(
     accounts,
@@ -186,6 +202,7 @@ export async function submitSettlement(input: SubmitSettlementInput): Promise<st
     counterpartyType: input.direction === 'client' ? 'client' : 'fournisseur',
     withholdingAmount: input.withholdingAmount,
     withholdingRate: input.withholdingRate,
+    withholdingOperationCode: input.withholdingOperationCode,
     treasuryAccountId: targetAccount.id,
   };
 
@@ -253,6 +270,43 @@ export async function submitSettlement(input: SubmitSettlementInput): Promise<st
     input.withholdingAmount > 0 &&
     input.direction === 'fournisseur'
   ) {
+    const factureAllocs = input.allocations.filter((a) => a.kind === 'FACTURE' && a.amount > 0);
+    const invoices = await listInvoices(input.companyId);
+    const byId = new Map(invoices.map((inv) => [inv.id, inv]));
+    const taux = input.withholdingRate ?? 1;
+    const idTypeOperation = input.withholdingOperationCode!;
+    const paymentYear = (input.paymentDate || '').slice(0, 4) || String(new Date().getFullYear());
+
+    const lignes: WithholdingOperationLine[] = factureAllocs.map((a) => {
+      const inv = byId.get(a.documentId);
+      const ratio =
+        inv && Number(inv.total_ttc) > 0 ? Math.min(1, a.amount / Number(inv.total_ttc)) : 1;
+      const montantHt = round3(Number(inv?.total_ht ?? a.amount) * ratio);
+      const montantTva = round3(Number(inv?.vat_amount ?? 0) * ratio);
+      // Le timbre fiscal n'a pas de balise dédiée dans le CCT-RS : TTC TEJ = HT + TVA.
+      const montantTtc = round3(montantHt + montantTva);
+      const assiette = montantTtc;
+      const montantRetenue = round3(assiette * (taux / 100));
+      const tauxTva =
+        montantHt > 0 ? round3((montantTva / montantHt) * 100) : Number(inv ? 19 : 0);
+      return {
+        factureNumero: inv?.numero ?? a.documentId,
+        anneeFacturation: (inv?.issue_date || input.paymentDate || paymentYear).slice(0, 4),
+        idTypeOperation,
+        montantHt,
+        montantTva,
+        montantTtc,
+        assiette,
+        taux,
+        montantRetenue,
+        tauxTva,
+        cnpc: '0',
+        pCharge: '0',
+      };
+    });
+
+    const sumLines = round3(lignes.reduce((s, l) => s + l.montantRetenue, 0));
+
     const cert = creerCertificatRetenue({
       companyId: input.companyId,
       mode: 'PAYEUR',
@@ -260,16 +314,18 @@ export async function submitSettlement(input: SubmitSettlementInput): Promise<st
       counterpartyName: input.counterparty.raisonSociale,
       matriculeFiscal: input.counterparty.matriculeFiscal,
       paymentId: payment.id,
-      lignes: input.allocations
-        .filter((a) => a.kind === 'FACTURE')
-        .map((a) => ({
-          factureNumero: a.documentId,
-          montantTtc: a.amount,
-          assiette: 0,
-          taux: input.withholdingRate ?? 1,
-          montantRetenue: 0,
-        })),
-      totalRetenue: input.withholdingAmount,
+      paymentDate: input.paymentDate,
+      refCertif: meta.numeroPiece,
+      beneficiaire: {
+        categorieContribuable: input.counterparty.categorieContribuable ?? 'PM',
+        resident: '1',
+        adresse: input.counterparty.adresse?.trim() || '',
+        activite: null,
+        email: input.counterparty.email?.trim() || '',
+        tel: input.counterparty.tel?.trim() || '',
+      },
+      lignes,
+      totalRetenue: sumLines,
     });
     await enregistrerCertificatRetenue(input.companyId, cert);
   }
