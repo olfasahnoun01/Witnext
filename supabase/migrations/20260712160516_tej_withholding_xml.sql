@@ -1,0 +1,3 @@
+-- No-op migration retained because this version is already recorded in the
+-- remote Supabase migration history. The actual TEJ schema changes are in
+-- 20260712170000_tej_withholding_xml.sql.
