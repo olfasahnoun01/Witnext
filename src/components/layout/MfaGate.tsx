@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { needsMfaVerification } from '@/lib/mfa';
@@ -10,31 +10,51 @@ import { WitnextLogoBanner } from '@/components/WitnextLogoBanner';
 /**
  * Blocks the ERP shell until MFA is verified when the user has enrolled factors.
  * Password-only sessions (aal1 with nextLevel aal2) must complete TOTP first.
+ *
+ * Important: do not re-run a blocking check on every session object change
+ * (TOKEN_REFRESHED on tab focus). That unmounted the whole ERP tree and wiped forms.
  */
 export function MfaGate({ children }: { children: React.ReactNode }) {
   const { session, isLoading: authLoading } = useAuth();
+  const userId = session?.user?.id ?? null;
   const [checking, setChecking] = useState(true);
   const [requiresMfa, setRequiresMfa] = useState(false);
+  const checkedUserIdRef = useRef<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    if (!session) {
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!userId) {
+      checkedUserIdRef.current = null;
       setRequiresMfa(false);
       setChecking(false);
       return;
     }
-    setChecking(true);
-    try {
-      const needed = await needsMfaVerification();
-      setRequiresMfa(needed);
-    } finally {
-      setChecking(false);
-    }
-  }, [session]);
 
-  useEffect(() => {
-    if (authLoading) return;
-    void refresh();
-  }, [authLoading, refresh]);
+    // Same user after token refresh / tab wake — keep children mounted.
+    if (checkedUserIdRef.current === userId) {
+      setChecking(false);
+      return;
+    }
+
+    let cancelled = false;
+    setChecking(true);
+
+    void (async () => {
+      try {
+        const needed = await needsMfaVerification();
+        if (cancelled) return;
+        setRequiresMfa(needed);
+        checkedUserIdRef.current = userId;
+      } finally {
+        if (!cancelled) setChecking(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, userId]);
 
   if (authLoading || checking) {
     return (
@@ -59,6 +79,7 @@ export function MfaGate({ children }: { children: React.ReactNode }) {
             <MfaChallengeForm
               onVerified={() => {
                 setRequiresMfa(false);
+                if (userId) checkedUserIdRef.current = userId;
               }}
               onCancel={() => {
                 void supabase.auth.signOut({ scope: 'global' });

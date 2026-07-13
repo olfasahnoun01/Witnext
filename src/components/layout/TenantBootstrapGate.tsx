@@ -12,6 +12,7 @@ import { BootstrapErrorPanel } from '@/components/layout/BootstrapErrorPanel';
  */
 export function TenantBootstrapGate({ children }: { children: React.ReactNode }) {
   const { session, isLoading: authLoading, isPlatformAdmin, rolesReady } = useAuth();
+  const userId = session?.user?.id ?? null;
   const { companies, loading: companyLoading, reload: reloadCompanies } = useAppCompany();
   const { tenant, loading: tenantLoading, loadError, ensureProvisioned, reload } = useTenant();
   const [provisioning, setProvisioning] = useState(false);
@@ -37,7 +38,7 @@ export function TenantBootstrapGate({ children }: { children: React.ReactNode })
   }, [ensureProvisioned, reloadCompanies]);
 
   useEffect(() => {
-    if (authLoading || !rolesReady || tenantLoading || companyLoading || !session) return;
+    if (authLoading || !rolesReady || tenantLoading || companyLoading || !userId) return;
     if (isPlatformAdmin) return;
     if (tenant || companies.length > 0) return;
     void tryProvision();
@@ -46,7 +47,7 @@ export function TenantBootstrapGate({ children }: { children: React.ReactNode })
     rolesReady,
     tenantLoading,
     companyLoading,
-    session,
+    userId,
     isPlatformAdmin,
     tenant,
     companies.length,

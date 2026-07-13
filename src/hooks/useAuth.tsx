@@ -253,8 +253,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }, 'D');
             sessionExpiredRef.current = false;
             setSessionExpired(false);
-            setSession(nextSession);
-            setUser(nextSession?.user ?? null);
+            // Keep previous session object when the access token is unchanged so
+            // consumers depending on `session` identity do not remount the shell.
+            setSession((prev) =>
+              prev?.access_token === nextSession?.access_token ? prev : nextSession
+            );
+            setUser((prev) => {
+              if (!nextSession?.user) return null;
+              return prev?.id === nextSession.user.id ? prev : nextSession.user;
+            });
             return;
           }
 
@@ -353,6 +360,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
     };
 
+    // focus + visibilitychange + pageshow often fire together on tab return.
+    let resumeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleResumeAfterIdle = () => {
+      if (resumeDebounceTimer) clearTimeout(resumeDebounceTimer);
+      resumeDebounceTimer = setTimeout(() => {
+        resumeDebounceTimer = null;
+        resumeAfterIdle();
+      }, 250);
+    };
+
     const sessionCheckInterval = setInterval(() => {
       void validateOrRefreshSession().then(({ ok, refreshed }) => {
         if (ok && refreshed) notifySessionResume();
@@ -361,13 +378,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        resumeAfterIdle();
+        scheduleResumeAfterIdle();
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('focus', resumeAfterIdle);
-    window.addEventListener('online', resumeAfterIdle);
-    window.addEventListener('pageshow', resumeAfterIdle);
+    window.addEventListener('focus', scheduleResumeAfterIdle);
+    window.addEventListener('online', scheduleResumeAfterIdle);
+    window.addEventListener('pageshow', scheduleResumeAfterIdle);
 
     const onSessionInvalid = (event: Event) => {
       const reason = (event as CustomEvent<{ reason?: string }>).detail?.reason;
@@ -393,10 +410,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       subscription.unsubscribe();
       clearInterval(sessionCheckInterval);
       clearInterval(epochCheckInterval);
+      if (resumeDebounceTimer) clearTimeout(resumeDebounceTimer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('focus', resumeAfterIdle);
-      window.removeEventListener('online', resumeAfterIdle);
-      window.removeEventListener('pageshow', resumeAfterIdle);
+      window.removeEventListener('focus', scheduleResumeAfterIdle);
+      window.removeEventListener('online', scheduleResumeAfterIdle);
+      window.removeEventListener('pageshow', scheduleResumeAfterIdle);
       window.removeEventListener('app:session-invalid', onSessionInvalid);
       window.removeEventListener('storage', onEpochStorage);
       roleChannel.unsubscribe();
