@@ -2,7 +2,7 @@ import type { Product } from '@/types';
 
 /** Lightweight product columns (no image blob). */
 export const PRODUCT_COLUMNS_LIGHT =
-  'id,name,sku,category,fournisseur,size,color,quantity,price,remise,prix_ttc,min_stock,product_group_id' as const;
+  'id,name,sku,category,fournisseur,size,color,quantity,price,remise,prix_ttc,min_stock,product_group_id,subject_to_fodec' as const;
 
 export type ProductRowLight = {
   id: number;
@@ -18,6 +18,7 @@ export type ProductRowLight = {
   remise: number | null;
   min_stock: number;
   product_group_id: number | null;
+  subject_to_fodec?: boolean | null;
   image?: string | null;
 };
 
@@ -37,5 +38,6 @@ export function mapProductRow(p: ProductRowLight, includeImage = false): Product
     image: includeImage ? (p.image || null) : null,
     color: p.color || null,
     product_group_id: p.product_group_id,
+    subject_to_fodec: Boolean(p.subject_to_fodec),
   };
 }

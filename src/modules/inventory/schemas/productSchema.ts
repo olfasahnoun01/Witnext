@@ -12,6 +12,7 @@ export const productCreateSchema = z.object({
   color: z.string().nullable().optional(),
   image: z.string().nullable().optional(),
   quantity: z.number().int().nonnegative().optional().default(0),
+  subject_to_fodec: z.boolean().optional().default(false),
 });
 
 export type ProductCreateInput = z.infer<typeof productCreateSchema>;

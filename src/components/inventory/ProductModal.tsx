@@ -22,6 +22,7 @@ export interface ProductFormData {
   image: string | null;
   color: string;
   fiche_technique_url?: string | null;
+  subject_to_fodec?: boolean;
 }
 
 interface ProductModalProps {
@@ -40,6 +41,9 @@ import { ClientDocumentPreviewDialog } from '@/components/shared/ClientDocumentP
 import { LazyProductImage } from '@/components/shared/LazyProductImage';
 import { useClientDocumentPreview } from '@/hooks/useClientDocumentPreview';
 import { DecimalInput } from '@/components/ui/decimal-input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { DEVIS_FODEC_RATE, round3 } from '@/lib/devisPricing';
 
 export const ProductModal = memo(({
   isOpen,
@@ -237,6 +241,33 @@ export const ProductModal = memo(({
                 allowEmptyZero
                 className="form-input"
                 placeholder="0"
+              />
+            </div>
+
+            <div className="sm:col-span-2 flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2.5">
+              <div className="space-y-0.5">
+                <Label htmlFor="product_subject_to_fodec" className="text-sm font-medium">
+                  FODEC (1 %)
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Prix HT hors FODEC — appliqué sur le devis / BC achat
+                </p>
+                {formData.subject_to_fodec && formData.price > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    FODEC unitaire :{' '}
+                    {round3(
+                      formData.price * (1 - (formData.remise || 0) / 100) * DEVIS_FODEC_RATE
+                    ).toFixed(3)}{' '}
+                    TND
+                  </p>
+                )}
+              </div>
+              <Switch
+                id="product_subject_to_fodec"
+                checked={Boolean(formData.subject_to_fodec)}
+                onCheckedChange={(checked) =>
+                  onFormDataChange({ ...formData, subject_to_fodec: checked })
+                }
               />
             </div>
 

@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS public.products (
   remise numeric DEFAULT 0,
   prix_ttc numeric DEFAULT 0, -- Will be updated by trigger or app logic
   fiche_technique_url text,
+  subject_to_fodec boolean NOT NULL DEFAULT false,
   CONSTRAINT products_pkey PRIMARY KEY (id)
 );
 

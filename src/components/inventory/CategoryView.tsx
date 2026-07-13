@@ -46,7 +46,8 @@ const emptyFormData: ProductFormData = {
   remise: 0,
   min_stock: 5,
   image: null,
-  color: ''
+  color: '',
+  subject_to_fodec: false,
 };
 
 const getStockStatus = (product: Product): StockStatus => {
@@ -254,7 +255,8 @@ export const CategoryView = ({ category, onBack }: CategoryViewProps) => {
         remise: product.remise || 0,
         min_stock: product.min_stock,
         image: imageRef,
-        color: product.color || ''
+        color: product.color || '',
+        subject_to_fodec: Boolean(product.subject_to_fodec),
       });
     } else {
       setEditingProduct(null);

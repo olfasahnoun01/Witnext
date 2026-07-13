@@ -192,6 +192,7 @@ export const getVariantsByGroupId = async (groupId: number): Promise<Product[]> 
       product_group_id: p.product_group_id,
       fiche_technique_url: p.fiche_technique_url || null,
       created_at: p.created_at ?? null,
+      subject_to_fodec: Boolean(p.subject_to_fodec),
     }));
   } catch (error) {
     console.error('Error fetching variants:', error);
@@ -346,6 +347,7 @@ export const createVariant = async (groupId: number, variant: {
   quantity: number;
   price: number;
   remise?: number;
+  subject_to_fodec?: boolean;
 }): Promise<{ success: boolean; id?: number; error?: string }> => {
   try {
     // Get the group to copy base data
@@ -374,6 +376,7 @@ export const createVariant = async (groupId: number, variant: {
         image: group.image,
         product_group_id: groupId,
         company_id: requireActiveCompanyId(),
+        subject_to_fodec: variant.subject_to_fodec ?? false,
       } as any)
       .select()
       .single();

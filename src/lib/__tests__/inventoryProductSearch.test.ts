@@ -62,6 +62,27 @@ describe('mapLightRowToProduct', () => {
     expect(product.image).toBeNull();
     expect(product.prix_achat_ht).toBe(70);
     expect(product.prix_ttc).toBe(119);
+    expect(product.subject_to_fodec).toBe(false);
+  });
+
+  it('maps subject_to_fodec when set', () => {
+    const product = mapLightRowToProduct({
+      id: 3,
+      name: 'Machine',
+      sku: 'MAC-01',
+      category: 'Machines',
+      fournisseur: 'F1',
+      size: null,
+      color: null,
+      price: 1000,
+      prix_ttc: null,
+      remise: 0,
+      quantity: 1,
+      min_stock: 0,
+      product_group_id: 1,
+      subject_to_fodec: true,
+    });
+    expect(product.subject_to_fodec).toBe(true);
   });
 
   it('computes prix_ttc from price and remise when prix_ttc missing', () => {

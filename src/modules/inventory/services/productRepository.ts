@@ -110,6 +110,7 @@ export async function createProduct(
           min_stock: valid.min_stock,
           image: null,
           color: valid.color || null,
+          subject_to_fodec: valid.subject_to_fodec ?? false,
         })
       )
       .select()
@@ -177,6 +178,7 @@ export async function updateProduct(id: number, product: Partial<Product>): Prom
   if (product.price !== undefined) updateData.price = product.price;
   if (product.remise !== undefined) updateData.remise = product.remise;
   if (product.min_stock !== undefined) updateData.min_stock = product.min_stock;
+  if (product.subject_to_fodec !== undefined) updateData.subject_to_fodec = product.subject_to_fodec;
   if (product.image !== undefined) {
     try {
       updateData.image = product.image

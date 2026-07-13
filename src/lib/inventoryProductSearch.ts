@@ -2,7 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Product } from '@/types';
 
 const SELECT_LIGHT =
-  'id, name, sku, category, fournisseur, size, color, price, prix_ttc, remise, quantity, min_stock, product_group_id';
+  'id, name, sku, category, fournisseur, size, color, price, prix_ttc, remise, quantity, min_stock, product_group_id, subject_to_fodec';
 
 type ProductRow = {
   id: number;
@@ -18,6 +18,7 @@ type ProductRow = {
   quantity: number;
   min_stock: number | null;
   product_group_id: number | null;
+  subject_to_fodec?: boolean | null;
   /** Résolu via product_group_fournisseurs (batch) */
   prix_achat_ht?: number;
 };
@@ -162,6 +163,7 @@ export function mapLightRowToProduct(p: ProductRow): Product {
     price: Number(p.price),
     min_stock: p.min_stock ?? 0,
     product_group_id: p.product_group_id,
+    subject_to_fodec: Boolean(p.subject_to_fodec),
     ...(p.prix_achat_ht !== undefined ? { prix_achat_ht: p.prix_achat_ht } : {}),
   };
 }

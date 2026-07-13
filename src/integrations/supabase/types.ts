@@ -1280,6 +1280,7 @@ export type Database = {
           remise: number | null
           size: string | null
           sku: string
+          subject_to_fodec: boolean
           updated_at: string
         }
         Insert: {
@@ -1299,6 +1300,7 @@ export type Database = {
           remise?: number | null
           size?: string | null
           sku: string
+          subject_to_fodec?: boolean
           updated_at?: string
         }
         Update: {
@@ -1318,6 +1320,7 @@ export type Database = {
           remise?: number | null
           size?: string | null
           sku?: string
+          subject_to_fodec?: boolean
           updated_at?: string
         }
         Relationships: [

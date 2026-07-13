@@ -8,7 +8,7 @@ import {
   type DevisFormCommitOptions,
 } from '@/lib/devisTvaPolicy';
 import { type ClientTvaStatus } from '@/config/sectionThemes';
-import { Devis, DevisItem } from '@/types';
+import { Devis, DevisItem, Product } from '@/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatPhonesDisplay } from '@/lib/phoneList';
@@ -107,10 +107,30 @@ export const DevisForm = memo(({
     setItemTva,
     itemFodec,
     setItemFodec,
-    selectExistingProduct,
+    selectExistingProduct: selectExistingProductBase,
     clearCatalogSelection,
     cancelPendingAchatPriceLoad,
   } = catalog;
+
+  const selectExistingProduct = useCallback(
+    (product: Product) => {
+      selectExistingProductBase(product);
+      if (isAchat && product.subject_to_fodec) {
+        setIsFodecEnabled(true);
+        setItemFodec(null);
+      } else if (isAchat && isFodecEnabled && !product.subject_to_fodec) {
+        // Keep document FODEC on, but this line must not get 1 %
+        setItemFodec(0);
+      }
+    },
+    [
+      selectExistingProductBase,
+      isAchat,
+      isFodecEnabled,
+      setIsFodecEnabled,
+      setItemFodec,
+    ]
+  );
 
   const filteredThirdParties = useMemo(() => {
     const query = thirdPartyName.trim().toLowerCase();
@@ -364,7 +384,15 @@ export const DevisForm = memo(({
     const detailDescription = itemDescription.trim();
     const catalogSku = selectedProduct?.sku?.trim();
     const showFodecColumn = isAchat && isFodecEnabled && !partyExonereDeTva;
-    const fodecExtra = showFodecColumn && itemFodec !== null ? { fodec: itemFodec } : {};
+    let fodecExtra: { fodec?: number } = {};
+    if (showFodecColumn) {
+      if (itemFodec !== null) {
+        fodecExtra = { fodec: itemFodec };
+      } else if (articleMode === 'search' && selectedProduct && !selectedProduct.subject_to_fodec) {
+        fodecExtra = { fodec: 0 };
+      }
+      // subject_to_fodec product with itemFodec null → omit fodec → auto 1 % of line HT
+    }
 
     const newItems: DevisItem[] =
       articleMode === 'search' && selectedProduct

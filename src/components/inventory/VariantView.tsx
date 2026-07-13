@@ -20,6 +20,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { DecimalInput } from '@/components/ui/decimal-input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
 import { useAuth } from '@/hooks/useAuth';
@@ -30,6 +31,7 @@ import {
   downloadFicheTechniquesAsPdf,
   parseFicheTechniqueUrls,
 } from '@/lib/clientDocumentStorage';
+import { DEVIS_FODEC_RATE, round3 } from '@/lib/devisPricing';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -72,13 +74,23 @@ interface VariantFormData {
   quantity: number;
   price: number;
   remise: number;
+  subject_to_fodec: boolean;
   image: string | null;
   fiche_urls: string[];
 }
 
 const emptyFormData: VariantFormData = {
-  sku: '', size: '', color: '', quantity: 0, price: 0, remise: 0, image: null, fiche_urls: []
+  sku: '', size: '', color: '', quantity: 0, price: 0, remise: 0, subject_to_fodec: false, image: null, fiche_urls: []
 };
+
+function variantNetHt(price: number, remise: number): number {
+  return price * (1 - (remise || 0) / 100);
+}
+
+function variantFodecAmount(price: number, remise: number, subjectToFodec: boolean): number {
+  if (!subjectToFodec) return 0;
+  return round3(variantNetHt(price, remise) * DEVIS_FODEC_RATE);
+}
 
 export const VariantView = ({ group, onBack }: VariantViewProps) => {
   const { isModerator } = useAuth();
@@ -138,6 +150,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
         quantity: variant.quantity,
         price: variant.price,
         remise: variant.remise || 0,
+        subject_to_fodec: Boolean(variant.subject_to_fodec),
         image: imageRef,
         fiche_urls: parseFicheTechniqueUrls(variant.fiche_technique_url)
       });
@@ -288,6 +301,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           color: formData.color || undefined,
           price: formData.price,
           remise: formData.remise,
+          subject_to_fodec: formData.subject_to_fodec,
           image: formData.image
         });
         await supabase.rpc('update_product_fiche_technique', {
@@ -302,7 +316,8 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
           color: formData.color,
           quantity: formData.quantity,
           price: formData.price,
-          remise: formData.remise
+          remise: formData.remise,
+          subject_to_fodec: formData.subject_to_fodec,
         });
         
         if (!result.success) {
@@ -458,6 +473,7 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                 <TableHead className="text-right">Prix</TableHead>
                 <TableHead className="text-right">Remise %</TableHead>
                 <TableHead className="text-right">Net HT</TableHead>
+                <TableHead className="text-right">FODEC 1%</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead>Fiches Techniques</TableHead>
                 {isModerator && <TableHead className="text-right">Actions</TableHead>}
@@ -480,7 +496,12 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                     <TableCell className="text-right font-medium">{variant.quantity}</TableCell>
                     <TableCell className="text-right">{variant.price.toFixed(3)} TND</TableCell>
                     <TableCell className="text-right">{variant.remise ? `${variant.remise}%` : '-'}</TableCell>
-                    <TableCell className="text-right">{(variant.price * (1 - (variant.remise || 0) / 100)).toFixed(3)} TND</TableCell>
+                    <TableCell className="text-right">{variantNetHt(variant.price, variant.remise || 0).toFixed(3)} TND</TableCell>
+                    <TableCell className="text-right">
+                      {variant.subject_to_fodec
+                        ? `${variantFodecAmount(variant.price, variant.remise || 0, true).toFixed(3)} TND`
+                        : '—'}
+                    </TableCell>
                     <TableCell>
                       <Badge className={`${style.bg} ${style.text} border-0`}>{style.label}</Badge>
                     </TableCell>
@@ -630,6 +651,30 @@ export const VariantView = ({ group, onBack }: VariantViewProps) => {
                     onValueChange={(val) => setFormData(prev => ({ ...prev, remise: val }))}
                     allowEmptyZero
                     placeholder="0"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2.5">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="subject_to_fodec" className="text-sm font-medium">
+                      FODEC (1 %)
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Prix HT hors FODEC — appliqué automatiquement sur le devis / BC achat
+                    </p>
+                    {formData.subject_to_fodec && formData.price > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        FODEC unitaire :{' '}
+                        {variantFodecAmount(formData.price, formData.remise, true).toFixed(3)} TND
+                      </p>
+                    )}
+                  </div>
+                  <Switch
+                    id="subject_to_fodec"
+                    checked={formData.subject_to_fodec}
+                    onCheckedChange={(checked) =>
+                      setFormData((prev) => ({ ...prev, subject_to_fodec: checked }))
+                    }
                   />
                 </div>
               </>

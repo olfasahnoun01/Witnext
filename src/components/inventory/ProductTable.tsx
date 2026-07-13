@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Edit2, Trash2 } from 'lucide-react';
 import { Product, StockStatus } from '@/types';
 import { priceTtcFromHt } from '@/lib/tva';
+import { DEVIS_FODEC_RATE, round3 } from '@/lib/devisPricing';
 import { EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
 import { LazyProductImage } from '@/components/shared/LazyProductImage';
 import {
@@ -31,6 +32,12 @@ const statusLabels: Record<StockStatus, { label: string; class: string }> = {
   low_stock: { label: 'Stock Faible', class: 'status-badge-warning' },
   out_of_stock: { label: 'Rupture', class: 'status-badge-danger' }
 };
+
+function productFodecDisplay(product: Product): string {
+  if (!product.subject_to_fodec) return '—';
+  const netHt = product.price * (1 - (product.remise || 0) / 100);
+  return `${round3(netHt * DEVIS_FODEC_RATE).toFixed(3)}`;
+}
 
 export const ProductTable = memo(({ products, onEdit, onDelete, isLoading }: ProductTableProps) => {
   if (isLoading) {
@@ -63,6 +70,7 @@ export const ProductTable = memo(({ products, onEdit, onDelete, isLoading }: Pro
             <TableHead className="text-right">Quantité</TableHead>
             <TableHead className="text-right">Prix HT</TableHead>
             <TableHead className="text-right">Net HT</TableHead>
+            <TableHead className="text-right">FODEC 1%</TableHead>
             <TableHead className="text-right">Prix TTC</TableHead>
             <TableHead>Statut</TableHead>
             <TableHead className="w-[100px]">Actions</TableHead>
@@ -90,6 +98,7 @@ export const ProductTable = memo(({ products, onEdit, onDelete, isLoading }: Pro
                 <TableCell className="text-right font-medium">{product.quantity}</TableCell>
                 <TableCell className="text-right font-medium">{product.price.toFixed(3)}</TableCell>
                 <TableCell className="text-right font-medium text-muted-foreground">{(product.price * (1 - (product.remise || 0) / 100)).toFixed(3)}</TableCell>
+                <TableCell className="text-right font-medium text-muted-foreground">{productFodecDisplay(product)}</TableCell>
                 <TableCell className="text-right font-medium">{priceTtcFromHt(product.price, product.remise || 0).toFixed(3)}</TableCell>
                 <TableCell>
                   <span className={`status-badge ${statusInfo.class}`}>

@@ -19,6 +19,8 @@ export interface Product {
   fiche_technique_url?: string | null;
   /** When this product row (variant) was created */
   created_at?: string | null;
+  /** Soumis au FODEC 1 % — prix catalogue = HT hors FODEC */
+  subject_to_fodec?: boolean;
 }
 
 export interface ProductGroupFournisseur {
