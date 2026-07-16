@@ -1,6 +1,6 @@
 import type { Json } from '@/integrations/supabase/types';
 
-export type CompanyCode = 'grosafe' | 'granisafe' | 'safe_team';
+export type CompanyCode = 'grosafe' | 'granisafe' | 'safe_team' | (string & {});
 
 export interface FinanceCompanyRow {
   id: string;
@@ -11,6 +11,15 @@ export interface FinanceCompanyRow {
   matricule_fiscal?: string | null;
   /** PM | PP — catégorie déclarant TEJ. */
   categorie_contribuable?: 'PM' | 'PP' | null;
+  logo_url?: string | null;
+  legal_name?: string | null;
+  address?: string | null;
+  tel_fax?: string | null;
+  rib?: string | null;
+  code_tva?: string | null;
+  brand_primary_color?: string | null;
+  brand_header_color?: string | null;
+  brand_table_color?: string | null;
 }
 
 export interface FinanceCapabilities {

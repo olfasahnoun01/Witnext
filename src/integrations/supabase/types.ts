@@ -1514,6 +1514,16 @@ export type Database = {
           created_at: string
           matricule_fiscal: string | null
           categorie_contribuable: string | null
+          tenant_id: string | null
+          logo_url: string | null
+          legal_name: string | null
+          address: string | null
+          tel_fax: string | null
+          rib: string | null
+          code_tva: string | null
+          brand_primary_color: string
+          brand_header_color: string
+          brand_table_color: string
         }
         Insert: {
           id?: string
@@ -1522,6 +1532,16 @@ export type Database = {
           created_at?: string
           matricule_fiscal?: string | null
           categorie_contribuable?: string | null
+          tenant_id?: string | null
+          logo_url?: string | null
+          legal_name?: string | null
+          address?: string | null
+          tel_fax?: string | null
+          rib?: string | null
+          code_tva?: string | null
+          brand_primary_color?: string
+          brand_header_color?: string
+          brand_table_color?: string
         }
         Update: {
           id?: string
@@ -1530,6 +1550,16 @@ export type Database = {
           created_at?: string
           matricule_fiscal?: string | null
           categorie_contribuable?: string | null
+          tenant_id?: string | null
+          logo_url?: string | null
+          legal_name?: string | null
+          address?: string | null
+          tel_fax?: string | null
+          rib?: string | null
+          code_tva?: string | null
+          brand_primary_color?: string
+          brand_header_color?: string
+          brand_table_color?: string
         }
         Relationships: []
       }

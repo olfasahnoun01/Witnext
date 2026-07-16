@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_VERSION, BUILD_DATE_FORMATTED } from '@/lib/version';
 import { MfaSettingsCard } from '@/components/auth/MfaSettingsCard';
+import { CompanyBrandingCard } from '@/components/settings/CompanyBrandingCard';
 
 export const Settings = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -114,10 +115,12 @@ export const Settings = () => {
         <div>
           <h2 className="text-xl font-semibold text-foreground">Paramètres</h2>
           <p className="text-sm text-muted-foreground">
-            Sauvegarde, restauration et informations de l&apos;application
+            Identité sur les factures, sauvegarde et informations de l&apos;application
           </p>
         </div>
       </div>
+
+      <CompanyBrandingCard />
 
       <Card>
         <CardHeader>

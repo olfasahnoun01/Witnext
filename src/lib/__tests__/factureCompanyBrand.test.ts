@@ -1,11 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach } from 'vitest';
 import {
   getFactureCompanyBrand,
   resolveFactureCompanyCode,
   setActiveCompanyCode,
 } from '../factureCompanyBrand';
+import { setCompanyBrandingCache } from '../companyBranding';
 
 describe('factureCompanyBrand', () => {
+  beforeEach(() => {
+    setCompanyBrandingCache([]);
+    setActiveCompanyCode(null);
+  });
   it('defaults to granisafe (reference template)', () => {
     setActiveCompanyCode(null);
     expect(resolveFactureCompanyCode()).toBe('granisafe');

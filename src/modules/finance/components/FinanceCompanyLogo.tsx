@@ -1,10 +1,10 @@
 import { cn } from '@/lib/utils';
 import { getFinanceCompanyLogo } from '../lib/companyLogos';
-import type { CompanyCode } from '../types';
 
 interface FinanceCompanyLogoProps {
-  code: CompanyCode | string;
+  code: string;
   companyName: string;
+  logoUrl?: string | null;
   className?: string;
   imageClassName?: string;
 }
@@ -12,10 +12,11 @@ interface FinanceCompanyLogoProps {
 export function FinanceCompanyLogo({
   code,
   companyName,
+  logoUrl,
   className,
   imageClassName,
 }: FinanceCompanyLogoProps) {
-  const src = getFinanceCompanyLogo(code);
+  const src = logoUrl?.trim() || getFinanceCompanyLogo(code);
 
   if (!src) return null;
 

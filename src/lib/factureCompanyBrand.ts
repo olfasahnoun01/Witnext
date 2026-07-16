@@ -1,15 +1,21 @@
 /**
  * Facture PDF branding per société.
  * Layout is identical for all companies; only name, colors, logo and legal lines differ.
+ * Legacy brands (grosafe / granisafe / safe_team) are hardcoded; new tenants use DB branding.
  */
 
 import grosafeLogo from '@/assets/grosafe-logo.webp';
 import safeteamLogo from '@/assets/safeteam-logo.svg';
+import {
+  brandFromCompanyRow,
+  getCachedBrandingByCode,
+  shouldUseDbBranding,
+} from '@/lib/companyBranding';
 
-export type FactureCompanyCode = 'granisafe' | 'grosafe' | 'safe_team';
+export type FactureCompanyCode = 'granisafe' | 'grosafe' | 'safe_team' | (string & {});
 
 export interface FactureCompanyBrand {
-  code: FactureCompanyCode;
+  code: string;
   /** Full legal name shown in header bar and logo caption. */
   legalName: string;
   /** Short display name (header bar). */
@@ -118,8 +124,14 @@ export function resolveFactureCompanyCode(code?: string | null): FactureCompanyC
   return 'granisafe';
 }
 
-/** Branding for the active (or explicit) company. Defaults to Granisafe template. */
+/** Branding for the active (or explicit) company. */
 export function getFactureCompanyBrand(code?: string | null): FactureCompanyBrand {
+  const effectiveCode = code ?? activeCompanyCode;
+  const cached = getCachedBrandingByCode(effectiveCode);
+  const actualCode = (effectiveCode ?? cached?.code ?? 'granisafe').toLowerCase();
+  if (shouldUseDbBranding(cached, actualCode)) {
+    return brandFromCompanyRow(cached!);
+  }
   return BRANDS[resolveFactureCompanyCode(code)];
 }
 

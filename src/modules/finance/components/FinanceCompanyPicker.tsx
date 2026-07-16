@@ -57,6 +57,7 @@ export function FinanceCompanyPicker({
                 <FinanceCompanyLogo
                   code={c.code}
                   companyName={c.name}
+                  logoUrl={c.logo_url}
                   className="h-16 w-full"
                   imageClassName="max-h-12"
                 />

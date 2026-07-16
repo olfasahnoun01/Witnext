@@ -271,6 +271,7 @@ export function FinanceDashboard() {
           <FinanceCompanyLogo
             code={company.code}
             companyName={company.name}
+            logoUrl={company.logo_url}
             className="h-14 w-14 p-1.5"
             imageClassName="h-full max-h-10"
           />

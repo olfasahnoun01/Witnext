@@ -3,12 +3,23 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { getActiveCompanyId, setActiveCompanyId, resolveActiveCompanyId, ACTIVE_COMPANY_STORAGE_KEY, applyActiveCompanyFromStorage, onActiveCompanyChange } from '@/lib/activeCompany';
 import { setActiveCompanyCode } from '@/lib/factureCompanyBrand';
+import { setCompanyBrandingCache, type CompanyBrandingRow } from '@/lib/companyBranding';
 import { ensureSupabaseSessionReady, supabaseQueryWithAuthRetry } from '@/lib/supabaseSession';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
+
 export interface AppCompany {
   id: string;
   code: string;
   name: string;
+  logo_url?: string | null;
+  legal_name?: string | null;
+  address?: string | null;
+  tel_fax?: string | null;
+  rib?: string | null;
+  code_tva?: string | null;
+  brand_primary_color?: string | null;
+  brand_header_color?: string | null;
+  brand_table_color?: string | null;
 }
 
 interface AppCompanyContextValue {
@@ -40,6 +51,7 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
   const load = useCallback(async (opts?: { background?: boolean }) => {
     if (!userId) {
       setCompanies([]);
+      setCompanyBrandingCache([]);
       setCurrentCompanyId(null);
       setActiveCompanyId(null);
       setActiveCompanyCode(null);
@@ -71,6 +83,7 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
       if (!error) {
         const rows = (data ?? []) as AppCompany[];
         setCompanies(rows);
+        setCompanyBrandingCache(rows as CompanyBrandingRow[]);
         loadedForUserRef.current = userId;
 
         const next = resolveActiveCompanyId(rows, getActiveCompanyId());
@@ -92,6 +105,7 @@ export function AppCompanyProvider({ children }: { children: ReactNode }) {
       return;
     }
     setCompanies([]);
+    setCompanyBrandingCache([]);
     setCurrentCompanyId(null);
     setActiveCompanyId(null);
     setActiveCompanyCode(null);
