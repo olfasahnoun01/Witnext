@@ -83,8 +83,8 @@ export const WarehouseDocumentManager = ({
         key={refreshKey}
         title={title}
         documentTypes={[type]}
-        onEdit={type === 'BL_CLIENT' ? handleEditDocument : undefined}
-        editableTypes={type === 'BL_CLIENT' ? ['BL_CLIENT'] : undefined}
+        onEdit={['BE', 'BS', 'BL_CLIENT'].includes(type) ? handleEditDocument : undefined}
+        editableTypes={['BE', 'BS', 'BL_CLIENT']}
       />
 
       <DocumentCreationDialog 

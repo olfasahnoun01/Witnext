@@ -182,6 +182,8 @@ export const UnifiedDocumentList = ({
       if (isAdmin || isModerator) return true;
       if (user?.id && doc.created_by === user.id) return true;
       if (doc.type === 'BL_CLIENT') return canAccessSubsection('bl-magasin');
+      if (doc.type === 'BE') return canAccessSubsection('be-magasin');
+      if (doc.type === 'BS') return canAccessSubsection('bs-magasin');
       return false;
     },
     [onEdit, editableTypes, invoicedBlIds, isAdmin, isModerator, user?.id, canAccessSubsection]

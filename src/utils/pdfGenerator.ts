@@ -398,20 +398,9 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   const pageHeight = doc.internal.pageSize.getHeight();
   
   const logo = await getCompanyLogoForPdf();
-  const logoWidth = drawPdfCompanyLogo(doc, logo);
+  drawPdfCompanyLogo(doc, logo);
 
-  // Company name next to logo
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 58, 95);
-  doc.text('GROSAFE ÉQUIPEMENT', 14 + logoWidth + 6, 20);
-  
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 100, 100);
-  doc.text('RIB : 03 700 019 0115 008703 50', 14 + logoWidth + 6, 26);
-  
-  // Horizontal line under header
+  // Horizontal line under header (logo only — no company title)
   doc.setDrawColor(199, 62, 62);
   doc.setLineWidth(1);
   doc.line(14, 32, pageWidth - 14, 32);
@@ -556,7 +545,7 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 58, 95);
-  doc.text('Signature et cachet Grosafe équipement', 16, finalY + 23);
+  doc.text('Signature et cachet', 16, finalY + 23);
   doc.text(`Signature et cachet ${thirdPartyLabel}`, pageWidth - 92, finalY + 23);
   
   // Footer section
@@ -603,18 +592,34 @@ function unifiedDocumentToPdfParams(doc: UnifiedDocument) {
 
   const docType = typeMap[doc.type] || 'bon_livraison';
 
-  const docItems: DocumentItem[] = (doc.lines || []).map((l) => ({
-    product_id: l.product_id || 0,
-    ref: (l as { products?: { sku?: string; name?: string } }).products?.sku || '',
-    designation:
-      (l as { products?: { sku?: string; name?: string } }).products?.name ||
-      l.description ||
-      'Article',
-    description: l.description || '',
-    quantity: l.quantity,
-    price: l.unit_price,
-    total: l.total_price,
-  }));
+  const docItems: DocumentItem[] = (doc.lines || []).map((l) => {
+    const product = (l as { products?: { sku?: string; name?: string } }).products;
+    const rawDescription = l.description || '';
+    let designation = product?.name || '';
+    let description = rawDescription;
+
+    if (!designation && rawDescription) {
+      const sep = ' — ';
+      const idx = rawDescription.indexOf(sep);
+      if (idx >= 0) {
+        designation = rawDescription.slice(0, idx).trim();
+        description = rawDescription.slice(idx + sep.length).trim();
+      } else {
+        designation = rawDescription;
+        description = '';
+      }
+    }
+
+    return {
+      product_id: l.product_id || 0,
+      ref: product?.sku || '',
+      designation: designation || 'Article',
+      description,
+      quantity: l.quantity,
+      price: l.unit_price,
+      total: l.total_price,
+    };
+  });
 
   const metadata = doc.metadata as Record<string, unknown> | undefined;
 

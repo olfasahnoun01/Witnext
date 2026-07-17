@@ -34,10 +34,38 @@ type DocumentLine = {
   lineKey: string;
   product_id: number | null;
   product_name: string;
+  /** Free-text details (sizes, colors, etc.). */
+  description: string;
   sku: string;
   quantity: number;
   unit_price: number;
 };
+
+const MANUAL_LINE_SEP = ' — ';
+
+/** Encode designation + details into document_lines.description (manual lines). */
+function encodeManualLineDescription(name: string, details: string): string {
+  const n = name.trim();
+  const d = details.trim();
+  if (!n) return d;
+  if (!d) return n;
+  return `${n}${MANUAL_LINE_SEP}${d}`;
+}
+
+/** Decode document_lines.description for a manual (no product) line. */
+function decodeManualLineDescription(raw: string | null | undefined): {
+  product_name: string;
+  description: string;
+} {
+  const text = (raw ?? '').trim();
+  if (!text) return { product_name: 'Article', description: '' };
+  const idx = text.indexOf(MANUAL_LINE_SEP);
+  if (idx < 0) return { product_name: text, description: '' };
+  return {
+    product_name: text.slice(0, idx).trim() || 'Article',
+    description: text.slice(idx + MANUAL_LINE_SEP.length).trim(),
+  };
+}
 
 type TierRecord = {
   id: number;
@@ -89,11 +117,13 @@ export const DocumentCreationDialog = ({
   const [partyAddress, setPartyAddress] = useState('');
   const [partyTaxId, setPartyTaxId] = useState('');
   const [partyPhone, setPartyPhone] = useState('');
+  const [partySuggestionsOpen, setPartySuggestionsOpen] = useState(false);
   const [blPurpose, setBlPurpose] = useState<BlPurpose>('client');
   const [sourceMagasin, setSourceMagasin] = useState('');
   const [destinationMagasin, setDestinationMagasin] = useState('');
   const [articleMode, setArticleMode] = useState<ArticleMode>('search');
   const [manualDesignation, setManualDesignation] = useState('');
+  const [manualDescription, setManualDescription] = useState('');
   const [manualSku, setManualSku] = useState('');
   const [manualQuantity, setManualQuantity] = useState(1);
   const [manualUnitPrice, setManualUnitPrice] = useState(0);
@@ -108,7 +138,11 @@ export const DocumentCreationDialog = ({
     const q = partyName.trim().toLowerCase();
     if (!q) return [];
     return tierList
-      .filter((t) => (t.nom || t.raison_sociale || '').toLowerCase().includes(q))
+      .filter((t) => {
+        const name = (t.nom || t.raison_sociale || '').trim().toLowerCase();
+        // Hide exact match so the list closes after a selection (same as Devis).
+        return name.includes(q) && name !== q;
+      })
       .slice(0, 8);
   }, [partyName, tierList]);
 
@@ -117,6 +151,7 @@ export const DocumentCreationDialog = ({
     setPartyAddress(tier.adresse || tier.location || '');
     setPartyTaxId(tier.matricule_fiscal || tier.tax_id || '');
     setPartyPhone(tier.telephone || tier.phone || '');
+    setPartySuggestionsOpen(false);
     if (type === 'BE') {
       setFournisseurId(tier.id);
       setClientId(null);
@@ -128,6 +163,7 @@ export const DocumentCreationDialog = ({
 
   const handlePartyNameChange = (value: string) => {
     setPartyName(value);
+    setPartySuggestionsOpen(true);
     if (type === 'BE') {
       setFournisseurId(null);
     } else {
@@ -153,11 +189,13 @@ export const DocumentCreationDialog = ({
         setPartyAddress('');
         setPartyTaxId('');
         setPartyPhone('');
+        setPartySuggestionsOpen(false);
         setArticleMode('search');
         setLines([{
           lineKey: newLineKey(),
           product_id: initialData.productId,
           product_name: initialData.productName,
+          description: '',
           sku: initialData.sku,
           quantity: initialData.quantity,
           unit_price: initialData.unitPrice,
@@ -182,17 +220,29 @@ export const DocumentCreationDialog = ({
     setDestinationMagasin(String(meta.destination_magasin ?? ''));
     setArticleMode('search');
     setLines(
-      (doc.lines ?? []).map((line) => ({
-        lineKey: String(line.id ?? newLineKey()),
-        product_id: line.product_id,
-        product_name:
-          line.product_id != null
-            ? (line.product_name ?? line.description ?? 'Article')
-            : (line.description ?? line.product_name ?? 'Article'),
-        sku: line.product_sku ?? '',
-        quantity: line.quantity,
-        unit_price: line.unit_price,
-      }))
+      (doc.lines ?? []).map((line) => {
+        if (line.product_id != null) {
+          return {
+            lineKey: String(line.id ?? newLineKey()),
+            product_id: line.product_id,
+            product_name: line.product_name ?? 'Article',
+            description: line.description ?? '',
+            sku: line.product_sku ?? '',
+            quantity: line.quantity,
+            unit_price: line.unit_price,
+          };
+        }
+        const decoded = decodeManualLineDescription(line.description ?? line.product_name);
+        return {
+          lineKey: String(line.id ?? newLineKey()),
+          product_id: null,
+          product_name: decoded.product_name,
+          description: decoded.description,
+          sku: line.product_sku ?? '',
+          quantity: line.quantity,
+          unit_price: line.unit_price,
+        };
+      })
     );
   };
 
@@ -253,11 +303,13 @@ export const DocumentCreationDialog = ({
     setPartyAddress('');
     setPartyTaxId('');
     setPartyPhone('');
+    setPartySuggestionsOpen(false);
     setBlPurpose('client');
     setSourceMagasin(currentCompany?.name ?? '');
     setDestinationMagasin('');
     setArticleMode('search');
     setManualDesignation('');
+    setManualDescription('');
     setManualSku('');
     setManualQuantity(1);
     setManualUnitPrice(0);
@@ -281,6 +333,7 @@ export const DocumentCreationDialog = ({
         lineKey: newLineKey(),
         product_id: product.id,
         product_name: product.name,
+        description: '',
         sku: product.sku || '',
         quantity: 1,
         unit_price: product.price || 0,
@@ -300,12 +353,14 @@ export const DocumentCreationDialog = ({
         lineKey: newLineKey(),
         product_id: null,
         product_name: name,
+        description: manualDescription.trim(),
         sku: manualSku.trim(),
         quantity: Math.max(1, manualQuantity),
         unit_price: manualUnitPrice,
       },
     ]);
     setManualDesignation('');
+    setManualDescription('');
     setManualSku('');
     setManualQuantity(1);
     setManualUnitPrice(0);
@@ -395,7 +450,10 @@ export const DocumentCreationDialog = ({
           product_id: l.product_id,
           quantity: l.quantity,
           unit_price: l.unit_price,
-          description: l.product_id == null ? l.product_name.trim() : undefined,
+          description:
+            l.product_id == null
+              ? encodeManualLineDescription(l.product_name, l.description)
+              : (l.description.trim() || undefined),
         })),
       };
 
@@ -427,8 +485,8 @@ export const DocumentCreationDialog = ({
               quantity: l.quantity,
               unit_price: l.unit_price,
               total_price: l.quantity * l.unit_price,
-              description: l.product_id == null ? l.product_name : null,
-              products: l.product_id != null ? { name: l.product_name, sku: l.sku } : undefined,
+              description: l.description.trim() || null,
+              products: { name: l.product_name, sku: l.sku },
             })),
             client_name: type === 'BL_CLIENT' || type === 'BS' ? partyName.trim() : null,
             fournisseur_name: type === 'BE' ? partyName.trim() : null,
@@ -523,12 +581,15 @@ export const DocumentCreationDialog = ({
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Réf. Transport</Label>
+              <Label className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Immatriculation voiture (transporteur)
+              </Label>
               <Input 
-                placeholder="Ex: TUN-1234" 
+                placeholder="Saisie libre — ex: 123 TUN 4567" 
                 value={transportRef}
                 onChange={(e) => setTransportRef(e.target.value)}
                 className="bg-background"
+                autoComplete="off"
               />
             </div>
             <div className="space-y-2">
@@ -564,6 +625,7 @@ export const DocumentCreationDialog = ({
                     setPartyAddress('');
                     setPartyTaxId('');
                     setPartyPhone('');
+                    setPartySuggestionsOpen(false);
                     if (!sourceMagasin.trim() && currentCompany?.name) {
                       setSourceMagasin(currentCompany.name);
                     }
@@ -637,19 +699,33 @@ export const DocumentCreationDialog = ({
                           placeholder={`Nom du ${partyLabel.toLowerCase()}…`}
                           value={partyName}
                           onChange={(e) => handlePartyNameChange(e.target.value)}
+                          onFocus={() => {
+                            if (partyName.trim()) setPartySuggestionsOpen(true);
+                          }}
+                          onBlur={() => {
+                            // Delay so suggestion onMouseDown can fire first.
+                            window.setTimeout(() => setPartySuggestionsOpen(false), 150);
+                          }}
                           autoComplete="off"
                           className="bg-background"
                         />
                         <DevisAnchoredDropdown
                           anchorRef={partyInputRef}
-                          open={tierSuggestions.length > 0 && !!partyName.trim()}
+                          open={
+                            partySuggestionsOpen &&
+                            tierSuggestions.length > 0 &&
+                            !!partyName.trim()
+                          }
                           className="max-h-44"
                         >
                           {tierSuggestions.map((item) => (
                             <button
                               key={item.id}
                               type="button"
-                              onMouseDown={() => applyTierSelection(item)}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                applyTierSelection(item);
+                              }}
                               className="w-full px-3 py-2 text-left text-sm hover:bg-muted border-b border-border last:border-b-0"
                             >
                               <span className="font-medium">{item.nom || item.raison_sociale}</span>
@@ -753,44 +829,56 @@ export const DocumentCreationDialog = ({
                   onSelect={(product) => addLine(product)}
                 />
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                  <div className="md:col-span-5 space-y-1">
-                    <Label className="text-xs text-muted-foreground">Désignation</Label>
-                    <Input
-                      value={manualDesignation}
-                      onChange={(e) => setManualDesignation(e.target.value)}
-                      placeholder="Saisie libre — article…"
-                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), commitManualLine())}
-                    />
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                    <div className="md:col-span-5 space-y-1">
+                      <Label className="text-xs text-muted-foreground">Désignation</Label>
+                      <Input
+                        value={manualDesignation}
+                        onChange={(e) => setManualDesignation(e.target.value)}
+                        placeholder="Saisie libre — nom de l'article…"
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), commitManualLine())}
+                      />
+                    </div>
+                    <div className="md:col-span-2 space-y-1">
+                      <Label className="text-xs text-muted-foreground">Réf.</Label>
+                      <Input
+                        value={manualSku}
+                        onChange={(e) => setManualSku(e.target.value)}
+                        placeholder="SKU (opt.)"
+                      />
+                    </div>
+                    <div className="md:col-span-2 space-y-1">
+                      <Label className="text-xs text-muted-foreground">Qté</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={manualQuantity}
+                        onChange={(e) => setManualQuantity(Math.max(1, Number(e.target.value) || 1))}
+                      />
+                    </div>
+                    <div className="md:col-span-2 space-y-1">
+                      <Label className="text-xs text-muted-foreground">Prix HT</Label>
+                      <DecimalInput
+                        value={manualUnitPrice}
+                        onValueChange={setManualUnitPrice}
+                      />
+                    </div>
+                    <div className="md:col-span-1">
+                      <Button type="button" onClick={commitManualLine} className="w-full gap-1">
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="md:col-span-2 space-y-1">
-                    <Label className="text-xs text-muted-foreground">Réf.</Label>
-                    <Input
-                      value={manualSku}
-                      onChange={(e) => setManualSku(e.target.value)}
-                      placeholder="SKU (opt.)"
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Description (tailles, couleurs, détails…)</Label>
+                    <textarea
+                      value={manualDescription}
+                      onChange={(e) => setManualDescription(e.target.value)}
+                      placeholder="Ex: Taille L, couleur bleue, lot 2026…"
+                      rows={2}
+                      className="w-full p-2 rounded-md border bg-background text-sm resize-y min-h-[2.5rem] focus:ring-2 focus:ring-primary focus:outline-none"
                     />
-                  </div>
-                  <div className="md:col-span-2 space-y-1">
-                    <Label className="text-xs text-muted-foreground">Qté</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={manualQuantity}
-                      onChange={(e) => setManualQuantity(Math.max(1, Number(e.target.value) || 1))}
-                    />
-                  </div>
-                  <div className="md:col-span-2 space-y-1">
-                    <Label className="text-xs text-muted-foreground">Prix HT</Label>
-                    <DecimalInput
-                      value={manualUnitPrice}
-                      onValueChange={setManualUnitPrice}
-                    />
-                  </div>
-                  <div className="md:col-span-1">
-                    <Button type="button" onClick={commitManualLine} className="w-full gap-1">
-                      <Plus className="w-4 h-4" />
-                    </Button>
                   </div>
                 </div>
               )}
@@ -807,7 +895,7 @@ export const DocumentCreationDialog = ({
                   <table className="w-full text-sm">
                     <thead className="bg-muted/50 border-b">
                       <tr>
-                        <th className="p-4 text-left font-bold text-muted-foreground uppercase tracking-wider text-xs">Produit</th>
+                        <th className="p-4 text-left font-bold text-muted-foreground uppercase tracking-wider text-xs">Produit / Description</th>
                         <th className="p-4 text-center font-bold text-muted-foreground uppercase tracking-wider text-xs w-32">Quantité</th>
                         <th className="p-4 text-right font-bold text-muted-foreground uppercase tracking-wider text-xs w-32">Prix Unitaire</th>
                         <th className="p-4 text-right font-bold text-muted-foreground uppercase tracking-wider text-xs w-32">Total HT</th>
@@ -819,11 +907,19 @@ export const DocumentCreationDialog = ({
                         <tr key={line.lineKey} className="hover:bg-muted/30 transition-colors">
                           <td className="p-4">
                             {line.product_id == null ? (
-                              <div className="space-y-1">
+                              <div className="space-y-1.5">
                                 <Input
                                   value={line.product_name}
                                   onChange={(e) => updateLine(line.lineKey, 'product_name', e.target.value)}
                                   className="font-semibold"
+                                  placeholder="Nom de l'article"
+                                />
+                                <textarea
+                                  value={line.description}
+                                  onChange={(e) => updateLine(line.lineKey, 'description', e.target.value)}
+                                  placeholder="Description — tailles, couleurs, détails…"
+                                  rows={2}
+                                  className="w-full p-2 rounded-md border bg-background text-xs resize-y min-h-[2.25rem] focus:ring-2 focus:ring-primary focus:outline-none"
                                 />
                                 <Input
                                   value={line.sku}
@@ -834,10 +930,17 @@ export const DocumentCreationDialog = ({
                                 <span className="text-[10px] text-muted-foreground">Saisie libre</span>
                               </div>
                             ) : (
-                              <>
+                              <div className="space-y-1.5">
                                 <div className="font-semibold text-base">{line.product_name}</div>
                                 <div className="text-xs font-mono text-primary/70">{line.sku}</div>
-                              </>
+                                <textarea
+                                  value={line.description}
+                                  onChange={(e) => updateLine(line.lineKey, 'description', e.target.value)}
+                                  placeholder="Description — tailles, couleurs, détails…"
+                                  rows={2}
+                                  className="w-full p-2 rounded-md border bg-background text-xs resize-y min-h-[2.25rem] focus:ring-2 focus:ring-primary focus:outline-none"
+                                />
+                              </div>
                             )}
                           </td>
                           <td className="p-4">
