@@ -26,7 +26,6 @@ import {
   MarketingLeadsAdmin,
   ReportingModule,
   BarcodeLabelsPage,
-  PhotoGallery,
   Planning,
   PurchaseRequestManager,
   RDV,
@@ -337,16 +336,7 @@ export function ErpRoutes() {
             </SubsectionRoute>
           }
         />
-        <Route
-          path="/commercial/gallery"
-          element={
-            <SubsectionRoute subsectionId="gallery">
-              <LazyRoute>
-                <PhotoGallery />
-              </LazyRoute>
-            </SubsectionRoute>
-          }
-        />
+        <Route path="/commercial/gallery" element={<Navigate to="/commercial/parties" replace />} />
         <Route
           path="/commercial/appointments"
           element={

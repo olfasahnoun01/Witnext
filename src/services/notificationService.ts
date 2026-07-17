@@ -131,6 +131,7 @@ const REMINDER_LABELS: Record<string, string> = {
   assurance: 'Assurance',
   leasing: 'Leasing',
   visite_technique: 'Visite technique',
+  vidange: 'Vidange moteur',
 };
 
 /** Rappels véhicules dus : notifier tous les comptes avec accès section Véhicules (+ admins). */
@@ -144,7 +145,7 @@ export async function syncVehicleReminderNotifications() {
   const [{ data: reminders, error: rErr }, sectionRecipientIds] = await Promise.all([
     supabase
       .from('vehicle_reminders')
-      .select('id, reminder_type, due_date, remind_at, vehicle:vehicles(modele, matricule)')
+      .select('id, reminder_type, due_date, remind_at, note, vehicle:vehicles(modele, matricule)')
       .eq('is_done', false)
       .lte('remind_at', today),
     resolveUserIdsWithSectionAccess('vehicules'),
@@ -165,11 +166,15 @@ export async function syncVehicleReminderNotifications() {
     const label = REMINDER_LABELS[row.reminder_type] || row.reminder_type;
     const vehLabel = `${v?.modele || 'Véhicule'} (${v?.matricule || '-'})`;
     const due = formatAppDate(row.due_date);
+    const body =
+      row.reminder_type === 'vidange' && row.note
+        ? `${vehLabel} — ${row.note}.`
+        : `${vehLabel} — échéance le ${due}.`;
 
     await dispatch(recipientIds, {
       type: 'vehicle_reminder',
       title: `Rappel ${label}`,
-      body: `${vehLabel} — échéance le ${due}.`,
+      body,
       link_tab: 'flotte',
       entity_type: 'vehicle_reminder',
       entity_id: row.id,

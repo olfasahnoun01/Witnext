@@ -39,7 +39,6 @@ export const SUBSECTION_ROUTES: Record<string, string> = {
   'suivi-parties': '/commercial/parties',
   'suivi-clients': '/commercial/parties',
   'suivi-fournisseurs': '/commercial/parties',
-  gallery: '/commercial/gallery',
   rdv: '/commercial/appointments',
 
   // RH → /hr/*

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
+import { formatAppDate, formatAppDateTime } from '@/lib/formatAppDate';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { COMMERCIAL_EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
@@ -23,7 +23,8 @@ import {
   MoreHorizontal,
   Download, 
   Filter,
-  Table as TableIcon
+  Table as TableIcon,
+  X,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { 
@@ -69,6 +70,10 @@ import { getActiveCompanyId } from '@/lib/activeCompany';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { useSessionResumeReload } from '@/hooks/useSessionResumeReload';
 import { userDisplayName } from '@/lib/userDisplay';
+import { useListPagination } from '@/hooks/useListPagination';
+import { ListPagination } from '@/components/shared/ListPagination';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { exportReportCsv } from '@/lib/reportExport';
 
 interface RDV {
   id: string;
@@ -100,6 +105,35 @@ interface RDVFormData {
   notes: string;
   besoin: string;
   pieceJointe: 'envoyé' | 'non envoyé';
+}
+
+type RdvListFilters = {
+  societe: string;
+  pieceJointe: 'all' | 'envoyé' | 'non envoyé';
+  dateFrom: string;
+  dateTo: string;
+};
+
+const defaultRdvFilters = (): RdvListFilters => ({
+  societe: '',
+  pieceJointe: 'all',
+  dateFrom: '',
+  dateTo: '',
+});
+
+function parseRdvNumeroSeq(numero: string): number {
+  const match = /^RDV-(\d+)$/i.exec(String(numero ?? '').trim());
+  return match ? parseInt(match[1], 10) : 0;
+}
+
+function sortRdvsByNumeroDesc(a: RDV, b: RDV): number {
+  const byNumero = parseRdvNumeroSeq(b.numero) - parseRdvNumeroSeq(a.numero);
+  if (byNumero !== 0) return byNumero;
+  try {
+    return parseISO(b.dateRDV).getTime() - parseISO(a.dateRDV).getTime();
+  } catch {
+    return b.numero.localeCompare(a.numero);
+  }
 }
 
 const createEmptyFormData = (): RDVFormData => ({
@@ -145,6 +179,8 @@ async function generateNextRdvNumero(companyId: string): Promise<string> {
 export const RDV = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<RdvListFilters>(defaultRdvFilters);
+  const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
   const [rdvs, setRdvs] = useState<RDV[]>([]);
   const [chargeDisplayByRaw, setChargeDisplayByRaw] = useState<Record<string, string>>({});
   const [currentUserDisplay, setCurrentUserDisplay] = useState('');
@@ -162,7 +198,7 @@ export const RDV = () => {
       const companyId = getActiveCompanyId();
       let query = (supabase as any).from('rdvs').select('*');
       if (companyId) query = query.eq('company_id', companyId);
-      const { data, error } = await query.order('date_rdv', { ascending: false });
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -368,22 +404,118 @@ export const RDV = () => {
   }, []);
 
   const filteredRdvs = useMemo(() => {
-    return rdvs.filter(rdv => 
-      Object.values(rdv).some(val => 
-        val.toString().toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    );
-  }, [rdvs, searchQuery]);
+    const numeroQuery = searchQuery.trim().toLowerCase();
+
+    return [...rdvs]
+      .filter((rdv) => {
+        if (numeroQuery && !rdv.numero.toLowerCase().includes(numeroQuery)) {
+          return false;
+        }
+        if (filters.societe.trim()) {
+          const societeQ = filters.societe.trim().toLowerCase();
+          if (!rdv.societe.toLowerCase().includes(societeQ)) return false;
+        }
+        if (filters.pieceJointe !== 'all' && rdv.pieceJointe !== filters.pieceJointe) {
+          return false;
+        }
+        if (filters.dateFrom) {
+          try {
+            if (parseISO(rdv.dateRDV) < parseISO(filters.dateFrom)) return false;
+          } catch {
+            return false;
+          }
+        }
+        if (filters.dateTo) {
+          try {
+            const end = parseISO(filters.dateTo);
+            end.setHours(23, 59, 59, 999);
+            if (parseISO(rdv.dateRDV) > end) return false;
+          } catch {
+            return false;
+          }
+        }
+        return true;
+      })
+      .sort(sortRdvsByNumeroDesc);
+  }, [rdvs, searchQuery, filters]);
+
+  const filterResetKey = `${searchQuery}|${filters.societe}|${filters.pieceJointe}|${filters.dateFrom}|${filters.dateTo}`;
+
+  const {
+    slice: rdvsPage,
+    page,
+    totalPages,
+    total,
+    from,
+    to,
+    setPage,
+  } = useListPagination(filteredRdvs, filterResetKey);
+
+  const hasActiveFilters =
+    Boolean(filters.societe.trim()) ||
+    filters.pieceJointe !== 'all' ||
+    Boolean(filters.dateFrom) ||
+    Boolean(filters.dateTo);
+
+  const resetFilters = () => {
+    setFilters(defaultRdvFilters());
+    setFilterPopoverOpen(false);
+  };
+
+  const handleDownloadCsv = () => {
+    if (filteredRdvs.length === 0) {
+      toast.error('Aucun rendez-vous à exporter');
+      return;
+    }
+
+    exportReportCsv({
+      title: 'Rendez-vous commerciaux',
+      filenameBase: `rendez-vous_${format(new Date(), 'yyyy-MM-dd')}`,
+      headers: [
+        'N° RDV',
+        'Date création',
+        'Société',
+        'Activité',
+        'Adresse',
+        'Téléphone',
+        'Email',
+        'Contact',
+        'Date RDV',
+        'Besoin',
+        'Pièce jointe',
+        'Compte utilisateur',
+        'Notes',
+      ],
+      rows: filteredRdvs.map((rdv) => [
+        rdv.numero,
+        rdv.dateCreation,
+        rdv.societe,
+        rdv.activite,
+        rdv.adresse,
+        formatPhonesDisplay(rdv.telephone),
+        rdv.email,
+        rdv.personneContactee,
+        rdv.dateRDV ? formatAppDateTime(rdv.dateRDV) : '',
+        rdv.besoin,
+        rdv.pieceJointe,
+        chargeDisplayByRaw[rdv.charge] ?? rdv.charge,
+        rdv.notes,
+      ]),
+    });
+    toast.success(`${filteredRdvs.length} rendez-vous exporté(s) en CSV`);
+  };
 
   const rdvsOnSelectedDate = useMemo(() => {
     if (!selectedDate) return [];
-    return rdvs.filter(rdv => {
-      try {
-        return isSameDay(parseISO(rdv.dateRDV), selectedDate);
-      } catch {
-        return false;
-      }
-    });
+    return rdvs
+      .filter((rdv) => {
+        try {
+          return isSameDay(parseISO(rdv.dateRDV), selectedDate);
+        } catch {
+          return false;
+        }
+      })
+      .sort(sortRdvsByNumeroDesc);
   }, [rdvs, selectedDate]);
 
   const appointmentsDates = useMemo(() => {
@@ -616,19 +748,94 @@ export const RDV = () => {
               Répertoire des Rendez-vous
             </CardTitle>
             <div className="flex items-center gap-2">
-              <div className="relative w-full md:w-80">
+              <div className="relative w-full md:w-56">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Rechercher un RDV..." 
+                  placeholder="Filtrer par N° RDV…" 
                   className="pl-10 bg-background/50 border-muted"
                   value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <Button variant="outline" size="icon" className="shrink-0">
-                <Filter className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="icon" className="shrink-0">
+              <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={hasActiveFilters ? 'secondary' : 'outline'}
+                    size="icon"
+                    className="shrink-0"
+                    title="Filtres avancés"
+                    aria-label="Filtres avancés"
+                  >
+                    <Filter className="w-4 h-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 space-y-4" align="end">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">Filtres</p>
+                    {hasActiveFilters && (
+                      <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={resetFilters}>
+                        <X className="w-3 h-3" />
+                        Réinitialiser
+                      </Button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="filter-societe">Société</Label>
+                    <Input
+                      id="filter-societe"
+                      placeholder="Nom de société…"
+                      value={filters.societe}
+                      onChange={(e) => setFilters((f) => ({ ...f, societe: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Pièce jointe</Label>
+                    <Select
+                      value={filters.pieceJointe}
+                      onValueChange={(val) =>
+                        setFilters((f) => ({ ...f, pieceJointe: val as RdvListFilters['pieceJointe'] }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Toutes</SelectItem>
+                        <SelectItem value="envoyé">Envoyé</SelectItem>
+                        <SelectItem value="non envoyé">Non envoyé</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="filter-date-from">Date RDV du</Label>
+                      <Input
+                        id="filter-date-from"
+                        type="date"
+                        value={filters.dateFrom}
+                        onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="filter-date-to">au</Label>
+                      <Input
+                        id="filter-date-to"
+                        type="date"
+                        value={filters.dateTo}
+                        onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Button
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                title="Exporter en CSV"
+                aria-label="Exporter en CSV"
+                onClick={handleDownloadCsv}
+              >
                 <Download className="w-4 h-4" />
               </Button>
             </div>
@@ -667,7 +874,7 @@ export const RDV = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredRdvs.map((rdv) => (
+                    rdvsPage.map((rdv) => (
                       <tr key={rdv.id}>
                         <td className="font-mono text-xs font-bold text-rose-700 dark:text-rose-300">{rdv.numero}</td>
                         <td className="text-xs whitespace-nowrap">{rdv.dateCreation}</td>
@@ -736,6 +943,16 @@ export const RDV = () => {
                   )}
                 </tbody>
               </table>
+              <div className="px-4 pb-4">
+                <ListPagination
+                  page={page}
+                  totalPages={totalPages}
+                  total={total}
+                  from={from}
+                  to={to}
+                  onPageChange={setPage}
+                />
+              </div>
             </div>
           ) : (
             <div className="flex flex-col md:flex-row h-[600px]">

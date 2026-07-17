@@ -171,23 +171,49 @@ export const documentService = {
   },
 
   /**
-   * Fetches a document with its lines
+   * Fetches a document with its lines and product info (for edit forms).
    */
   async getDocument(id: string): Promise<UnifiedDocument | null> {
     const { data, error } = await supabase
       .from('documents')
       .select(`
         *,
-        document_lines (*)
+        document_lines (
+          *,
+          products ( name, sku )
+        )
       `)
       .eq('id', id)
       .maybeSingle();
 
     if (error || !data) return null;
+    const lines = (data.document_lines ?? []).map((line: Record<string, unknown>) => {
+      const products = line.products as { name?: string; sku?: string } | null;
+      return {
+        ...line,
+        product_name: products?.name,
+        product_sku: products?.sku,
+      };
+    });
     return {
       ...data,
-      lines: data.document_lines
+      lines,
     } as UnifiedDocument;
+  },
+
+  /** BL ids that already have a linked FACTURE child document. */
+  async fetchBlIdsWithInvoice(blIds: string[]): Promise<Set<string>> {
+    if (blIds.length === 0) return new Set();
+    const { data, error } = await supabase
+      .from('documents')
+      .select('parent_id')
+      .eq('type', 'FACTURE')
+      .in('parent_id', blIds);
+    if (error) {
+      console.warn('[documentService] fetchBlIdsWithInvoice:', error.message);
+      return new Set();
+    }
+    return new Set((data ?? []).map((r) => r.parent_id).filter(Boolean) as string[]);
   },
 
   /**
@@ -904,8 +930,6 @@ export const documentService = {
    */
   async deleteDocument(id: string) {
     try {
-      // document_lines has a foreign key with ON DELETE CASCADE in most schemas,
-      // but we'll be explicit if needed or just delete from documents.
       const { error } = await supabase
         .from('documents')
         .delete()
@@ -915,6 +939,85 @@ export const documentService = {
       return { success: true };
     } catch (error: any) {
       console.error('Error in deleteDocument:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Updates a warehouse document header and replaces its lines.
+   * BL_CLIENT cannot be edited once a FACTURE child exists.
+   */
+  async updateDocument(
+    id: string,
+    params: {
+      clientId?: number | null;
+      fournisseurId?: number | null;
+      notes?: string;
+      metadata?: Record<string, unknown>;
+      lines: Array<{
+        product_id: number | null;
+        quantity: number;
+        unit_price: number;
+        description?: string;
+      }>;
+    }
+  ) {
+    try {
+      const existing = await this.getDocument(id);
+      if (!existing) {
+        return { success: false, error: 'Document introuvable.' };
+      }
+
+      if (existing.type === 'BL_CLIENT') {
+        const invoiced = await this.fetchBlIdsWithInvoice([id]);
+        if (invoiced.has(id)) {
+          return {
+            success: false,
+            error: 'Ce bon de livraison est déjà facturé et ne peut plus être modifié.',
+          };
+        }
+      }
+
+      const { error: docError } = await supabase
+        .from('documents')
+        .update({
+          client_id: params.clientId ?? null,
+          fournisseur_id: params.fournisseurId ?? null,
+          notes: params.notes ?? null,
+          metadata: params.metadata ?? {},
+        })
+        .eq('id', id);
+
+      if (docError) throw docError;
+
+      const { error: deleteLinesError } = await supabase
+        .from('document_lines')
+        .delete()
+        .eq('document_id', id);
+
+      if (deleteLinesError) throw deleteLinesError;
+
+      if (params.lines.length > 0) {
+        const linesToInsert = params.lines.map((line) => ({
+          document_id: id,
+          product_id: line.product_id ?? null,
+          quantity: line.quantity,
+          unit_price: line.unit_price,
+          total_price: line.quantity * line.unit_price,
+          description: line.description || null,
+        }));
+
+        const { error: linesError } = await supabase
+          .from('document_lines')
+          .insert(linesToInsert);
+
+        if (linesError) throw linesError;
+      }
+
+      const updated = await this.getDocument(id);
+      return { success: true, document: updated };
+    } catch (error: any) {
+      console.error('Error in updateDocument:', error);
       return { success: false, error: error.message };
     }
   },

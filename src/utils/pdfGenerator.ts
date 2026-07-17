@@ -606,7 +606,10 @@ function unifiedDocumentToPdfParams(doc: UnifiedDocument) {
   const docItems: DocumentItem[] = (doc.lines || []).map((l) => ({
     product_id: l.product_id || 0,
     ref: (l as { products?: { sku?: string; name?: string } }).products?.sku || '',
-    designation: (l as { products?: { sku?: string; name?: string } }).products?.name || 'Produit',
+    designation:
+      (l as { products?: { sku?: string; name?: string } }).products?.name ||
+      l.description ||
+      'Article',
     description: l.description || '',
     quantity: l.quantity,
     price: l.unit_price,

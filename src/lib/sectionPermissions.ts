@@ -3,7 +3,7 @@ export interface PermissionRow {
   subsection_key: string;
 }
 
-const COMMERCIAL_SUBSECTIONS = new Set(['gallery', 'rdv']);
+const COMMERCIAL_SUBSECTIONS = new Set(['rdv']);
 const FLUX_ALIASES = new Set(['flux-suivi', 'flux-suivi-magasin']);
 
 /** Galerie & RDV were under ventes; keep access for legacy permission rows. */

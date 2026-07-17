@@ -3,7 +3,7 @@ import { UnifiedDocumentList } from '../devis/UnifiedDocumentList';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { DocumentCreationDialog } from './DocumentCreationDialog';
-import { UnifiedDocumentType } from '@/types';
+import { UnifiedDocument, UnifiedDocumentType } from '@/types';
 import {
   readPendingWarehouseDocument,
   type PendingWarehouseDocument,
@@ -20,6 +20,7 @@ export const WarehouseDocumentManager = ({
   title,
 }: WarehouseDocumentManagerProps) => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editDocumentId, setEditDocumentId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [pendingFromTransaction, setPendingFromTransaction] =
     useState<PendingWarehouseDocument | null>(null);
@@ -35,6 +36,7 @@ export const WarehouseDocumentManager = ({
 
   const handleSuccess = () => {
     setPendingFromTransaction(null);
+    setEditDocumentId(null);
     setRefreshKey(prev => prev + 1);
   };
 
@@ -46,7 +48,18 @@ export const WarehouseDocumentManager = ({
     setIsCreateOpen(open);
     if (!open) {
       setPendingFromTransaction(null);
+      setEditDocumentId(null);
     }
+  };
+
+  const handleEditDocument = (doc: UnifiedDocument) => {
+    setEditDocumentId(doc.id);
+    setIsCreateOpen(true);
+  };
+
+  const handleCreateClick = () => {
+    setEditDocumentId(null);
+    setIsCreateOpen(true);
   };
 
   return (
@@ -60,7 +73,7 @@ export const WarehouseDocumentManager = ({
       )}
 
       <div className="flex justify-end">
-        <Button onClick={() => setIsCreateOpen(true)} className="gap-2">
+        <Button onClick={handleCreateClick} className="gap-2">
           <Plus className="w-4 h-4" />
           Nouveau Document
         </Button>
@@ -70,6 +83,8 @@ export const WarehouseDocumentManager = ({
         key={refreshKey}
         title={title}
         documentTypes={[type]}
+        onEdit={type === 'BL_CLIENT' ? handleEditDocument : undefined}
+        editableTypes={type === 'BL_CLIENT' ? ['BL_CLIENT'] : undefined}
       />
 
       <DocumentCreationDialog 
@@ -79,6 +94,7 @@ export const WarehouseDocumentManager = ({
         onSuccess={handleSuccess}
         initialData={pendingFromTransaction}
         mandatory={!!pendingFromTransaction}
+        editDocumentId={editDocumentId}
       />
     </div>
   );

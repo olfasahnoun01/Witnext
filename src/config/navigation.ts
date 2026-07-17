@@ -13,7 +13,6 @@ import {
   FileText,
   ClipboardList,
   FileSignature,
-  ImageIcon,
   CalendarClock,
   CalendarDays,
   FileBarChart,
@@ -93,7 +92,6 @@ export const BIG_SECTIONS: BigSection[] = [
     icon: Briefcase,
     subsections: [
       { id: 'suivi-parties', label: 'Suivi client / fournisseur', icon: UserCheck },
-      { id: 'gallery', label: 'Galerie commerciale', icon: ImageIcon },
       { id: 'rdv', label: 'Rendez-vous', icon: CalendarClock },
     ],
   },

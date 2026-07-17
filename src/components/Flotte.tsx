@@ -31,6 +31,8 @@ import {
   buildVehicleReminderRows,
   isReminderDue,
   localDateIso,
+  markVidangeServiceDone,
+  syncVidangeReminderForVehicle,
   upsertVehicleRemindersForVehicle,
 } from '@/lib/vehicleReminders';
 import { syncVehicleReminderNotifications } from '@/services/notificationService';
@@ -46,6 +48,7 @@ import {
 
 interface Vehicle {
   id: string;
+  company_id?: string | null;
   modele: string; // Type commercial / nom voiture
   matricule: string;
   constructeur?: string | null;
@@ -65,6 +68,8 @@ interface Vehicle {
   vignette_remind_at?: string | null;
   visite_technique_end_date?: string | null;
   visite_technique_remind_at?: string | null;
+  vidange_interval_km?: number | null;
+  vidange_last_km?: number | null;
   contract_holder_name?: string | null;
   contract_document_url?: string | null;
   statut?: 'disponible' | 'en_fonction' | 'en_panne' | 'en_maintenance';
@@ -88,7 +93,7 @@ const normalizeRole = (value?: string | null) =>
 interface VehicleReminder {
   id: string;
   vehicle_id: string;
-  reminder_type: 'vignette' | 'assurance' | 'leasing' | 'visite_technique';
+  reminder_type: 'vignette' | 'assurance' | 'leasing' | 'visite_technique' | 'vidange';
   due_date: string;
   remind_at: string;
   is_done: boolean;
@@ -101,6 +106,7 @@ const reminderLabel: Record<VehicleReminder['reminder_type'], string> = {
   assurance: 'Assurance',
   leasing: 'Leasing',
   visite_technique: 'Visite technique',
+  vidange: 'Vidange moteur',
 };
 
 const CONSTRUCTEURS = [
@@ -157,6 +163,8 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
     vignette_remind_at: '',
     visite_technique_end_date: '',
     visite_technique_remind_at: '',
+    vidange_interval_km: '',
+    vidange_last_km: '',
     contract_holder_name: '',
     contract_document_url: '',
   });
@@ -198,6 +206,25 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
       if (driversRes.error) throw driversRes.error;
       setVehicles((vehiclesRes.data || []) as Vehicle[]);
       setReminders((remindersRes.data || []) as unknown as VehicleReminder[]);
+      const vehicleRows = (vehiclesRes.data || []) as Vehicle[];
+      await Promise.all(
+        vehicleRows
+          .filter((v) => v.vidange_interval_km && v.vidange_interval_km > 0)
+          .map((v) => syncVidangeReminderForVehicle(v))
+      );
+
+      const { data: refreshedReminders, error: refreshRemindersErr } = await supabase
+        .from('vehicle_reminders')
+        .select('*, vehicle:vehicles(modele, matricule)')
+        .eq('is_done', false)
+        .lte('remind_at', today)
+        .order('remind_at', { ascending: true });
+
+      if (!refreshRemindersErr && refreshedReminders) {
+        setReminders(refreshedReminders as unknown as VehicleReminder[]);
+      }
+
+      void syncVehicleReminderNotifications();
       const allEmployees = (driversRes.data || []) as Driver[];
       const chauffeurs = allEmployees.filter((emp) => {
         const role = normalizeRole(emp.role);
@@ -253,6 +280,8 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
       vignette_remind_at: '',
       visite_technique_end_date: '',
       visite_technique_remind_at: '',
+      vidange_interval_km: '',
+      vidange_last_km: '',
       contract_holder_name: '',
       contract_document_url: '',
     });
@@ -282,6 +311,9 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
       vignette_remind_at: vehicle.vignette_remind_at || '',
       visite_technique_end_date: vehicle.visite_technique_end_date || '',
       visite_technique_remind_at: vehicle.visite_technique_remind_at || '',
+      vidange_interval_km:
+        vehicle.vidange_interval_km != null ? String(vehicle.vidange_interval_km) : '',
+      vidange_last_km: vehicle.vidange_last_km != null ? String(vehicle.vidange_last_km) : '',
       contract_holder_name: vehicle.contract_holder_name || '',
       contract_document_url: vehicle.contract_document_url || '',
     });
@@ -299,12 +331,21 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
     }
     setIsSubmitting(true);
     try {
+      const vidangeInterval = form.vidange_interval_km ? Number(form.vidange_interval_km) : null;
+      let vidangeLastKm = form.vidange_last_km ? Number(form.vidange_last_km) : null;
+      const currentKm = form.kilometrage_actuel ? Number(form.kilometrage_actuel) : 0;
+      if (vidangeInterval && vidangeInterval > 0 && vidangeLastKm == null) {
+        vidangeLastKm = currentKm;
+      }
+
       const payload: Record<string, unknown> = {
         constructeur: form.constructeur || null,
         modele: form.modele.trim(),
         matricule: form.matricule.trim(),
         type_carburant: form.type_carburant || 'gasoil',
-        kilometrage_actuel: form.kilometrage_actuel ? Number(form.kilometrage_actuel) : 0,
+        kilometrage_actuel: currentKm,
+        vidange_interval_km: vidangeInterval && vidangeInterval > 0 ? vidangeInterval : null,
+        vidange_last_km: vidangeInterval && vidangeInterval > 0 ? vidangeLastKm : null,
         leasing_company: form.leasing_company.trim() || null,
         leasing_contract_number: form.leasing_contract_number.trim() || null,
         company_owner: form.company_owner.trim() || null,
@@ -339,6 +380,10 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
       if (vehicleId) {
         const reminderResult = await upsertVehicleRemindersForVehicle({
           id: vehicleId,
+          company_id: getActiveCompanyId(),
+          kilometrage_actuel: currentKm,
+          vidange_interval_km: vidangeInterval,
+          vidange_last_km: vidangeLastKm,
           vignette_due_date: form.vignette_due_date || null,
           vignette_remind_at: form.vignette_remind_at || null,
           assurance_due_date: form.assurance_due_date || null,
@@ -483,14 +528,20 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
     Boolean(activeMaintenanceForVehicle(maintenanceRecords, vehicle.id));
 
   const handleCreateReminders = async (vehicle: Vehicle) => {
-    const rows = buildVehicleReminderRows(vehicle);
-    if (rows.length === 0) {
+    const rows = buildVehicleReminderRows({
+      ...vehicle,
+      company_id: vehicle.company_id ?? getActiveCompanyId(),
+    });
+    if (rows.length === 0 && !(vehicle.vidange_interval_km && vehicle.vidange_interval_km > 0)) {
       toast.error('Renseignez au moins une date d\'échéance ou une date de rappel');
       return;
     }
-    const result = await upsertVehicleRemindersForVehicle(vehicle);
+    const result = await upsertVehicleRemindersForVehicle({
+      ...vehicle,
+      company_id: vehicle.company_id ?? getActiveCompanyId(),
+    });
     if (!result.ok) {
-      toast.error('Erreur création rappels');
+      toast.error(result.error || 'Erreur création rappels');
       return;
     }
     void syncVehicleReminderNotifications();
@@ -498,13 +549,27 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
     fetchVehicles();
   };
 
-  const markReminderDone = async (id: string) => {
-    const { error } = await supabase.from('vehicle_reminders').update({ is_done: true }).eq('id', id);
+  const markReminderDone = async (reminder: VehicleReminder) => {
+    if (reminder.reminder_type === 'vidange') {
+      const vehicle = vehicles.find((v) => v.id === reminder.vehicle_id);
+      const currentKm = vehicle?.kilometrage_actuel ?? 0;
+      const result = await markVidangeServiceDone(reminder.vehicle_id, currentKm);
+      if (!result.ok) {
+        toast.error('Erreur mise à jour vidange');
+        return;
+      }
+      void syncVehicleReminderNotifications();
+      toast.success('Vidange enregistrée — prochain rappel recalculé');
+      await fetchVehicles();
+      return;
+    }
+
+    const { error } = await supabase.from('vehicle_reminders').update({ is_done: true }).eq('id', reminder.id);
     if (error) {
       toast.error('Erreur mise à jour rappel');
       return;
     }
-    setReminders((prev) => prev.filter((r) => r.id !== id));
+    setReminders((prev) => prev.filter((r) => r.id !== reminder.id));
   };
 
   const renderVehicleActionsMenu = (v: Vehicle) => (
@@ -600,17 +665,26 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
                 }`}
               >
                 <div className="text-sm">
-                  <span className="font-medium">{reminderLabel[r.reminder_type]}</span>
+                  <span className="font-medium">{reminderLabel[r.reminder_type] ?? r.reminder_type}</span>
                   {' · '}
                   {(r.vehicle?.modele || 'Véhicule')} ({r.vehicle?.matricule || '-'})
-                  {' · Rappel: '}
-                  {formatAppDate(r.remind_at)}
-                  {' · Échéance: '}
-                  {formatAppDate(r.due_date)}
+                  {r.reminder_type === 'vidange' && r.note ? (
+                    <>
+                      {' · '}
+                      {r.note}
+                    </>
+                  ) : (
+                    <>
+                      {' · Rappel: '}
+                      {formatAppDate(r.remind_at)}
+                      {' · Échéance: '}
+                      {formatAppDate(r.due_date)}
+                    </>
+                  )}
                 </div>
-                <Button size="sm" variant="outline" onClick={() => markReminderDone(r.id)} className="gap-1">
+                <Button size="sm" variant="outline" onClick={() => void markReminderDone(r)} className="gap-1">
                   <CheckCircle2 className="w-3 h-3" />
-                  Traité
+                  {r.reminder_type === 'vidange' ? 'Vidange faite' : 'Traité'}
                 </Button>
               </div>
             ))}
@@ -892,6 +966,39 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
                 <div className="grid gap-2"><Label>Date rappel assurance</Label><Input type="date" value={form.assurance_remind_at} onChange={(e) => setForm((f) => ({ ...f, assurance_remind_at: e.target.value }))} /></div>
                 <div className="grid gap-2"><Label>Vignettes</Label><Input type="date" value={form.vignette_due_date} onChange={(e) => setForm((f) => ({ ...f, vignette_due_date: e.target.value }))} /></div>
                 <div className="grid gap-2"><Label>Date rappel vignette</Label><Input type="date" value={form.vignette_remind_at} onChange={(e) => setForm((f) => ({ ...f, vignette_remind_at: e.target.value }))} /></div>
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-border p-3">
+              <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Wrench className="w-4 h-4 text-primary" />
+                Rappel vidange (huile moteur)
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                Définissez un intervalle en kilomètres. Un rappel apparaît lorsque le kilométrage actuel atteint le seuil.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <Label>Intervalle vidange (km)</Label>
+                  <Input
+                    type="number"
+                    min="1000"
+                    step="1000"
+                    placeholder="Ex: 10000"
+                    value={form.vidange_interval_km}
+                    onChange={(e) => setForm((f) => ({ ...f, vidange_interval_km: e.target.value }))}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>KM au dernier vidange</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder={form.kilometrage_actuel || 'KM actuelle si vide'}
+                    value={form.vidange_last_km}
+                    onChange={(e) => setForm((f) => ({ ...f, vidange_last_km: e.target.value }))}
+                  />
+                </div>
               </div>
             </div>
 

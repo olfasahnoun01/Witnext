@@ -10,7 +10,8 @@ import {
   ReceiptText,
   FileText,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Pencil,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { UnifiedDocument, UnifiedDocumentStatus, UnifiedDocumentType } from '@/types';
@@ -25,6 +26,8 @@ import { ReceptionDialog } from './ReceptionDialog';
 import { 
   downloadUnifiedDocumentPDF 
 } from '@/utils/pdfGenerator';
+import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,6 +62,9 @@ interface UnifiedDocumentListProps {
   title?: string;
   documentTypes?: UnifiedDocumentType[];
   metadataFilter?: { key: string; value: string };
+  /** When provided, shows an edit action for matching document types. */
+  onEdit?: (doc: UnifiedDocument) => void;
+  editableTypes?: UnifiedDocumentType[];
 }
 
 const DEFAULT_DOCUMENT_TYPES: UnifiedDocumentType[] = [
@@ -76,13 +82,18 @@ export const UnifiedDocumentList = ({
   title = 'Gestion des Achats & Ventes',
   documentTypes = DEFAULT_DOCUMENT_TYPES,
   metadataFilter,
+  onEdit,
+  editableTypes = ['BL_CLIENT'],
 }: UnifiedDocumentListProps) => {
+  const { user, isAdmin, isModerator } = useAuth();
+  const { canAccessSubsection } = usePermissions();
   const [documents, setDocuments] = useState<UnifiedDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [receptionBC, setReceptionBC] = useState<UnifiedDocument | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [invoicedBlIds, setInvoicedBlIds] = useState<Set<string>>(new Set());
 
   const loadDocuments = useCallback(async () => {
     setLoading(true);
@@ -144,6 +155,14 @@ export const UnifiedDocumentList = ({
       }
 
       setDocuments(mapped);
+
+      if (documentTypes.includes('BL_CLIENT')) {
+        const blIds = mapped.filter((d) => d.type === 'BL_CLIENT').map((d) => d.id);
+        const invoiced = await documentService.fetchBlIdsWithInvoice(blIds);
+        setInvoicedBlIds(invoiced);
+      } else {
+        setInvoicedBlIds(new Set());
+      }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       toast.error(
@@ -154,7 +173,19 @@ export const UnifiedDocumentList = ({
     } finally {
       setLoading(false);
     }
-  }, [documentTypes]);
+  }, [documentTypes, metadataFilter]);
+
+  const canEditDocument = useCallback(
+    (doc: UnifiedDocument): boolean => {
+      if (!onEdit || !editableTypes.includes(doc.type)) return false;
+      if (doc.type === 'BL_CLIENT' && invoicedBlIds.has(doc.id)) return false;
+      if (isAdmin || isModerator) return true;
+      if (user?.id && doc.created_by === user.id) return true;
+      if (doc.type === 'BL_CLIENT') return canAccessSubsection('bl-magasin');
+      return false;
+    },
+    [onEdit, editableTypes, invoicedBlIds, isAdmin, isModerator, user?.id, canAccessSubsection]
+  );
 
   useEffect(() => {
     loadDocuments();
@@ -385,6 +416,17 @@ export const UnifiedDocumentList = ({
               </div>
 
               <div className="pt-2 space-y-2">
+                {canEditDocument(doc) && (
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2"
+                    onClick={() => onEdit?.(doc)}
+                  >
+                    <Pencil className="w-4 h-4" />
+                    MODIFIER
+                  </Button>
+                )}
+
                 <Button 
                   variant="outline" 
                   className="w-full gap-2"
@@ -394,6 +436,18 @@ export const UnifiedDocumentList = ({
                   TÉLÉCHARGER PDF
                 </Button>
 
+                {doc.type === 'BL_CLIENT' && (
+                  <Button 
+                    variant="default" 
+                    className="w-full gap-2 bg-indigo-600 hover:bg-indigo-700"
+                    disabled={invoicedBlIds.has(doc.id)}
+                    onClick={() => handleCreateFacture(doc.id)}
+                  >
+                    <ReceiptText className="w-4 h-4" />
+                    {invoicedBlIds.has(doc.id) ? 'DÉJÀ FACTURÉ' : 'GÉNÉRER FACTURE'}
+                  </Button>
+                )}
+
                 {doc.type === 'BC_CLIENT' && doc.status === 'VALIDATED' && (
                   <Button 
                     variant="default" 
@@ -402,17 +456,6 @@ export const UnifiedDocumentList = ({
                   >
                     <Truck className="w-4 h-4" />
                     LANCER LIVRAISON
-                  </Button>
-                )}
-
-                {doc.type === 'BL_CLIENT' && (
-                  <Button 
-                    variant="default" 
-                    className="w-full gap-2 bg-indigo-600 hover:bg-indigo-700"
-                    onClick={() => handleCreateFacture(doc.id)}
-                  >
-                    <ReceiptText className="w-4 h-4" />
-                    GÉNÉRER FACTURE
                   </Button>
                 )}
 

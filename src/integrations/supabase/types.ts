@@ -1933,6 +1933,7 @@ export type Database = {
         Row: {
           id: string
           vehicle_id: string
+          company_id: string
           reminder_type: string
           due_date: string
           remind_at: string
@@ -1945,6 +1946,7 @@ export type Database = {
         Insert: {
           id?: string
           vehicle_id: string
+          company_id?: string
           reminder_type: string
           due_date: string
           remind_at: string
@@ -1957,6 +1959,7 @@ export type Database = {
         Update: {
           id?: string
           vehicle_id?: string
+          company_id?: string
           reminder_type?: string
           due_date?: string
           remind_at?: string
@@ -1999,6 +2002,8 @@ export type Database = {
           vignette_remind_at: string | null
           visite_technique_end_date: string | null
           visite_technique_remind_at: string | null
+          vidange_interval_km: number | null
+          vidange_last_km: number | null
           contract_holder_name: string | null
           contract_document_url: string | null
           created_at: string
@@ -2028,6 +2033,8 @@ export type Database = {
           vignette_remind_at?: string | null
           visite_technique_end_date?: string | null
           visite_technique_remind_at?: string | null
+          vidange_interval_km?: number | null
+          vidange_last_km?: number | null
           contract_holder_name?: string | null
           contract_document_url?: string | null
           created_at?: string
@@ -2057,6 +2064,8 @@ export type Database = {
           vignette_remind_at?: string | null
           visite_technique_end_date?: string | null
           visite_technique_remind_at?: string | null
+          vidange_interval_km?: number | null
+          vidange_last_km?: number | null
           contract_holder_name?: string | null
           contract_document_url?: string | null
           created_at?: string
