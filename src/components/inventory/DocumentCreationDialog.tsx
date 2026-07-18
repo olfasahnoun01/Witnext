@@ -479,6 +479,7 @@ export const DocumentCreationDialog = ({
         if (generatePDF && result.document) {
           const docForPDF = {
             ...result.document,
+            notes: notes.trim() || result.document.notes || null,
             metadata: payload.metadata,
             lines: lines.map((l) => ({
               product_id: l.product_id,

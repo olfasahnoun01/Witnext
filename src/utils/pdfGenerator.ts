@@ -385,17 +385,40 @@ interface OfficialPDFParams {
   thirdPartyAddress: string;
   thirdPartyTaxId: string;
   docItems: DocumentItem[];
+  notes?: string;
 }
 
 export const generateOfficialPDF = async (params: OfficialPDFParams, options?: { returnBlob?: boolean }): Promise<jsPDF | void> => {
   const {
     docType, docNumber, docDate, docValidity, transportRef,
-    thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems
+    thirdPartyName, thirdPartyAddress, thirdPartyTaxId, docItems,
+    notes = '',
   } = params;
   
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
+  /** Space reserved at bottom so footer text is never clipped. */
+  const FOOTER_HEIGHT = 26;
+
+  const drawOfficialFooter = () => {
+    const footerBase = pageHeight - 18;
+    doc.setDrawColor(199, 62, 62);
+    doc.setLineWidth(0.5);
+    doc.line(14, footerBase - 5, pageWidth - 14, footerBase - 5);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text('Société Grosafe Equipment', 14, footerBase);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80, 80, 80);
+    doc.text('Adresse : Immeuble Salma Dar Fadhal Aouina, Tunis', 14, footerBase + 4);
+    doc.text('Email : contact@grosafe.net', 14, footerBase + 9);
+    doc.text('Tel : +216 22219219 ; +216 27277777', pageWidth / 2, footerBase + 9, { align: 'center' });
+    doc.text('Code TVA : 1752965/M/A/M', pageWidth - 14, footerBase + 9, { align: 'right' });
+  };
   
   const logo = await getCompanyLogoForPdf();
   drawPdfCompanyLogo(doc, logo);
@@ -519,54 +542,80 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
     alternateRowStyles: {
       fillColor: [245, 247, 250]
     },
-    margin: { left: 14, right: 14, bottom: 30 },
+    margin: { left: 14, right: 14, bottom: FOOTER_HEIGHT },
     didDrawPage: (data) => {
       officialTableEndY = data.cursor?.y || officialTableEndY;
+      drawOfficialFooter();
     }
   });
   
+  let cursorY = officialTableEndY + 8;
+
   // Add total for documents with price
   if (showPrice && docItems.length > 0) {
     const grandTotal = docItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+    if (cursorY > pageHeight - FOOTER_HEIGHT - 12) {
+      doc.addPage();
+      cursorY = 25;
+      drawOfficialFooter();
+    }
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 58, 95);
-    doc.text(`Total Général : ${grandTotal.toFixed(3)} TND`, pageWidth - 14, officialTableEndY + 8, { align: 'right' });
+    doc.text(`Total Général : ${grandTotal.toFixed(3)} TND`, pageWidth - 14, cursorY, { align: 'right' });
+    cursorY += 10;
+  }
+
+  // Notes / Observations
+  const notesText = notes.trim();
+  if (notesText) {
+    if (cursorY > pageHeight - FOOTER_HEIGHT - 40) {
+      doc.addPage();
+      cursorY = 25;
+      drawOfficialFooter();
+    }
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 95);
+    doc.text('Notes / Observations', 14, cursorY);
+    cursorY += 6;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(60, 60, 60);
+    const noteLines = doc.splitTextToSize(notesText, pageWidth - 28) as string[];
+    for (const line of noteLines) {
+      if (cursorY > pageHeight - FOOTER_HEIGHT - 8) {
+        doc.addPage();
+        cursorY = 25;
+        drawOfficialFooter();
+      }
+      doc.text(line, 14, cursorY);
+      cursorY += 5;
+    }
+    cursorY += 6;
   }
   
-  // Signature boxes
-  const finalY = Math.max(officialTableEndY, 180);
+  // Signature boxes — keep above footer
+  if (cursorY + 45 > pageHeight - FOOTER_HEIGHT) {
+    doc.addPage();
+    cursorY = 25;
+    drawOfficialFooter();
+  }
+  const finalY = cursorY;
   
   doc.setDrawColor(30, 58, 95);
   doc.setLineWidth(0.5);
-  doc.roundedRect(14, finalY + 15, 80, 30, 2, 2);
-  doc.roundedRect(pageWidth - 94, finalY + 15, 80, 30, 2, 2);
+  doc.roundedRect(14, finalY, 80, 30, 2, 2);
+  doc.roundedRect(pageWidth - 94, finalY, 80, 30, 2, 2);
   
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 58, 95);
-  doc.text('Signature et cachet', 16, finalY + 23);
-  doc.text(`Signature et cachet ${thirdPartyLabel}`, pageWidth - 92, finalY + 23);
-  
-  // Footer section
-  const footerY = pageHeight - 10;
-  
-  doc.setDrawColor(199, 62, 62);
-  doc.setLineWidth(0.5);
-  doc.line(14, footerY - 5, pageWidth - 14, footerY - 5);
-  
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 58, 95);
-  doc.text('Société Grosafe Equipment', 14, footerY);
-  
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(80, 80, 80);
-  doc.text('Adresse : Immeuble Salma Dar Fadhal Aouina, Tunis', 14, footerY + 5);
-  doc.text('Email : contact@grosafe.net', 14, footerY + 10);
-  doc.text('Tel : +216 22219219 ; +216 27277777', pageWidth / 2, footerY + 10, { align: 'center' });
-  doc.text('Code TVA : 1752965/M/A/M', pageWidth - 14, footerY + 10, { align: 'right' });
-  
+  doc.text('Signature et cachet', 16, finalY + 8);
+  doc.text(`Signature et cachet ${thirdPartyLabel}`, pageWidth - 92, finalY + 8);
+
+  // Ensure footer on last page (autoTable already drew it on table pages)
+  drawOfficialFooter();
   
   if (options?.returnBlob) {
     return doc;
@@ -634,6 +683,7 @@ function unifiedDocumentToPdfParams(doc: UnifiedDocument) {
     thirdPartyAddress: (metadata?.third_party_address as string) || '',
     thirdPartyTaxId: (metadata?.third_party_tax_id as string) || '',
     docItems,
+    notes: doc.notes || '',
   };
 }
 
