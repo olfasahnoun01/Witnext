@@ -23,6 +23,7 @@ import { CategoryProductSelector } from '../shared/CategoryProductSelector';
 import { downloadUnifiedDocumentPDF } from '@/utils/pdfGenerator';
 import { PendingWarehouseDocument, clearPendingWarehouseDocument, readPendingWarehouseDocument } from '@/lib/appNavigationStorage';
 import { getActiveCompanyIdForQuery } from '@/lib/activeCompany';
+import { filterByCompanyId } from '@/modules/inventory/lib/companyQuery';
 import { useAppCompany } from '@/contexts/AppCompanyContext';
 import { DevisAnchoredDropdown } from '../devis/DevisAnchoredDropdown';
 import { DevisSegmentedGrid, DevisSegmentedOption } from '../devis/DevisFormUi';
@@ -281,9 +282,16 @@ export const DocumentCreationDialog = ({
   };
 
   const loadTiers = async () => {
+    const companyId = getActiveCompanyIdForQuery();
+    let clientsQuery = supabase.from('clients').select('*');
+    let fournisseursQuery = supabase.from('fournisseurs').select('*');
+    if (companyId) {
+      clientsQuery = filterByCompanyId(clientsQuery, companyId);
+      fournisseursQuery = filterByCompanyId(fournisseursQuery, companyId);
+    }
     const [cRes, fRes] = await Promise.all([
-      supabase.from('clients').select('*').order('nom'),
-      supabase.from('fournisseurs').select('*').order('nom'),
+      clientsQuery.order('nom'),
+      fournisseursQuery.order('nom'),
     ]);
     const nextClients = cRes.data ?? [];
     const nextFournisseurs = fRes.data ?? [];

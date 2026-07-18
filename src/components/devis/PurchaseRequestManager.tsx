@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -372,6 +372,9 @@ export const PurchaseRequestManager = () => {
               <DialogContent className="w-[98vw] max-w-7xl max-h-[94vh] overflow-y-auto p-5 sm:p-8">
                 <DialogHeader>
                   <DialogTitle>Créer une demande d'achat</DialogTitle>
+                  <DialogDescription className="sr-only">
+                    Formulaire de création d&apos;une demande d&apos;achat.
+                  </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-6 py-2">

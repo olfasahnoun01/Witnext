@@ -412,6 +412,16 @@ export const documentService = {
     }>;
   }) {
     try {
+      let companyId: string;
+      try {
+        companyId = requireActiveCompanyId();
+      } catch {
+        return {
+          success: false,
+          error: 'Aucune société active sélectionnée. Choisissez une société avant de créer la demande d\'achat.',
+        };
+      }
+
       const numero = await this.generateNextNumber('DEMANDE_ACHAT');
       const {
         data: { user },
@@ -425,6 +435,7 @@ export const documentService = {
           status: 'PENDING',
           notes: params.notes || null,
           created_by: user?.id ?? null,
+          company_id: companyId,
           metadata: {
             workflow_stage: params.targetRole === 'responsable_achat' ? 'sent_to_purchasing' : 'submitted',
             stock_review: params.targetRole === 'responsable_achat' ? 'bypassed' : 'pending',

@@ -10,7 +10,8 @@ import {
   isPartyExonereDeTva,
 } from '@/lib/devisTvaPolicy';
 import { getDevisItemArticleCode, getDevisItemDetailDescription } from '@/lib/devisItemPdf';
-import companyLogo from '@/assets/grosafe-logo.webp';
+import { getFactureCompanyBrand } from '@/lib/factureCompanyBrand';
+import grosafeLogoFallback from '@/assets/grosafe-logo.webp';
 
 /** Company logo bounds in PDF headers (mm). */
 const PDF_LOGO_MAX_HEIGHT = 18;
@@ -148,8 +149,8 @@ export const documentTypes: { value: DocumentType; label: string; color: string 
   { value: 'bon_entree', label: "Bon d'Entrée", color: 'success' }
 ];
 
-/** Load company logo (webp) and convert to PNG for jsPDF embedding. */
-const getCompanyLogoForPdf = (): Promise<PdfLogoAsset | null> => {
+/** Load company logo from brand URL (webp/png/svg) and convert to PNG for jsPDF. */
+const getCompanyLogoForPdf = (logoUrl?: string | null): Promise<PdfLogoAsset | null> => {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'Anonymous';
@@ -164,7 +165,11 @@ const getCompanyLogoForPdf = (): Promise<PdfLogoAsset | null> => {
       canvas.width = img.width;
       canvas.height = img.height;
       const ctx = canvas.getContext('2d');
-      ctx?.drawImage(img, 0, 0);
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+      }
       const aspect = img.width / img.height;
       let heightMm = PDF_LOGO_MAX_HEIGHT;
       let widthMm = heightMm * aspect;
@@ -182,7 +187,8 @@ const getCompanyLogoForPdf = (): Promise<PdfLogoAsset | null> => {
       console.warn('Could not load company logo for PDF');
       finish(null);
     };
-    img.src = companyLogo;
+    const brand = getFactureCompanyBrand();
+    img.src = logoUrl?.trim() || brand.logoUrl || grosafeLogoFallback;
     setTimeout(() => finish(null), 3000);
   });
 };
@@ -401,30 +407,42 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   /** Space reserved at bottom so footer text is never clipped. */
   const FOOTER_HEIGHT = 26;
 
+  const brand = getFactureCompanyBrand();
+  const accentRgb = brand.primaryRgb;
+  const headerRgb = brand.secondaryRgb;
+
   const drawOfficialFooter = () => {
     const footerBase = pageHeight - 18;
-    doc.setDrawColor(199, 62, 62);
+    doc.setDrawColor(...accentRgb);
     doc.setLineWidth(0.5);
     doc.line(14, footerBase - 5, pageWidth - 14, footerBase - 5);
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(30, 58, 95);
-    doc.text('Société Grosafe Equipment', 14, footerBase);
+    doc.setTextColor(...headerRgb);
+    doc.text(`Société ${brand.legalName || brand.displayName}`, 14, footerBase);
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(80, 80, 80);
-    doc.text('Adresse : Immeuble Salma Dar Fadhal Aouina, Tunis', 14, footerBase + 4);
-    doc.text('Email : contact@grosafe.net', 14, footerBase + 9);
-    doc.text('Tel : +216 22219219 ; +216 27277777', pageWidth / 2, footerBase + 9, { align: 'center' });
-    doc.text('Code TVA : 1752965/M/A/M', pageWidth - 14, footerBase + 9, { align: 'right' });
+    const address = brand.address?.trim() || '';
+    if (address) {
+      doc.text(`Adresse : ${address}`, 14, footerBase + 4);
+    }
+    const tel = brand.telFax?.trim() || '';
+    const tva = brand.codeTva?.trim() || '';
+    if (tel) {
+      doc.text(`Tel : ${tel}`, 14, footerBase + 9);
+    }
+    if (tva) {
+      doc.text(`Code TVA : ${tva}`, pageWidth - 14, footerBase + 9, { align: 'right' });
+    }
   };
   
-  const logo = await getCompanyLogoForPdf();
+  const logo = await getCompanyLogoForPdf(brand.logoUrl);
   drawPdfCompanyLogo(doc, logo);
 
   // Horizontal line under header (logo only — no company title)
-  doc.setDrawColor(199, 62, 62);
+  doc.setDrawColor(...accentRgb);
   doc.setLineWidth(1);
   doc.line(14, 32, pageWidth - 14, 32);
   
@@ -432,11 +450,11 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   const typeInfo = documentTypes.find(t => t.value === docType)!;
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 58, 95);
+  doc.setTextColor(...headerRgb);
   doc.text(typeInfo.label.toUpperCase(), pageWidth / 2, 45, { align: 'center' });
   
   // Document number and date box
-  doc.setDrawColor(30, 58, 95);
+  doc.setDrawColor(...headerRgb);
   doc.setLineWidth(0.5);
   doc.roundedRect(pageWidth - 75, 52, 61, 22, 2, 2);
   
@@ -459,7 +477,7 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 58, 95);
+  doc.setTextColor(...headerRgb);
   doc.text(thirdPartyLabel, 14, 82);
   
   doc.setFontSize(10);
@@ -472,7 +490,7 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   // Delivery details section
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 58, 95);
+  doc.setTextColor(...headerRgb);
   doc.text('Détails de la livraison', 14, 120);
   
   doc.setFontSize(10);
@@ -528,7 +546,8 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
     theme: 'grid',
     tableWidth,
     headStyles: {
-      fillColor: [30, 58, 95],
+      fillColor: headerRgb,
+      textColor: 255,
       fontSize: 10,
       fontStyle: 'bold',
       halign: 'center',
@@ -561,7 +580,7 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
     }
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(30, 58, 95);
+    doc.setTextColor(...headerRgb);
     doc.text(`Total Général : ${grandTotal.toFixed(3)} TND`, pageWidth - 14, cursorY, { align: 'right' });
     cursorY += 10;
   }
@@ -576,7 +595,7 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
     }
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(30, 58, 95);
+    doc.setTextColor(...headerRgb);
     doc.text('Notes / Observations', 14, cursorY);
     cursorY += 6;
     doc.setFontSize(9);
@@ -603,14 +622,14 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   }
   const finalY = cursorY;
   
-  doc.setDrawColor(30, 58, 95);
+  doc.setDrawColor(...headerRgb);
   doc.setLineWidth(0.5);
   doc.roundedRect(14, finalY, 80, 30, 2, 2);
   doc.roundedRect(pageWidth - 94, finalY, 80, 30, 2, 2);
   
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 58, 95);
+  doc.setTextColor(...headerRgb);
   doc.text('Signature et cachet', 16, finalY + 8);
   doc.text(`Signature et cachet ${thirdPartyLabel}`, pageWidth - 92, finalY + 8);
 
@@ -830,26 +849,31 @@ const buildDevisPDF = async (devis: DevisPDFData): Promise<jsPDF> => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const logo = await getCompanyLogoForPdf();
+  const brand = getFactureCompanyBrand(devis.company_code);
+  const logo = await getCompanyLogoForPdf(brand.logoUrl);
   drawPdfCompanyLogo(doc, logo);
 
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 58, 95);
-  doc.text('Grosafe Équipement', pageWidth - 14, 14, { align: 'right' });
+  doc.setTextColor(...brand.secondaryRgb);
+  doc.text(brand.displayName, pageWidth - 14, 14, { align: 'right' });
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 100, 100);
-  doc.text('Sécurité & Équipement Professionnel', pageWidth - 14, 20, { align: 'right' });
+  if (brand.address) {
+    doc.text(brand.address, pageWidth - 14, 20, { align: 'right' });
+  }
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 58, 95);
-  doc.text('RIB : 03 700 019 0115 008703 50', pageWidth - 14, 27, { align: 'right' });
+  doc.setTextColor(...brand.secondaryRgb);
+  if (brand.rib) {
+    doc.text(`RIB : ${brand.rib}`, pageWidth - 14, 27, { align: 'right' });
+  }
 
-  // Blue separator
-  doc.setDrawColor(30, 58, 95);
+  // Brand separator
+  doc.setDrawColor(...brand.primaryRgb);
   doc.setLineWidth(1);
   doc.line(14, 32, pageWidth - 14, 32);
 
