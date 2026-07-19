@@ -22,7 +22,10 @@ describe('factureCompanyBrand', () => {
     const safeTeam = getFactureCompanyBrand('safe_team');
     const granisafe = getFactureCompanyBrand('granisafe');
 
-    expect(grosafe.displayName).toBe('GROSAFE ÉQUIPEMENT');
+    expect(grosafe.displayName).toBe('Grosafe Equipements');
+    expect(grosafe.legalName).toBe('Grosafe Equipements');
+    expect(grosafe.telFax).toContain('+216');
+    expect(grosafe.email).toBe('contact@grosafe.net');
     expect(safeTeam.displayName).toBe('SAFE TEAM TRAINING');
     expect(granisafe.displayName).toBe('GRANI SAFE SOLUTION');
     expect(grosafe.logoUrl).toBeTruthy();

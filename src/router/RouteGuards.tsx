@@ -96,7 +96,10 @@ export function SubsectionRoute({
   const { currentCompany } = useAppCompany();
 
   const isPublic =
-    subsectionId === 'dashboard' || subsectionId === 'team-chat' || subsectionId === 'messages';
+    subsectionId === 'dashboard' ||
+    subsectionId === 'team-chat' ||
+    subsectionId === 'messages' ||
+    subsectionId === 'profile';
 
   if (requirePlatformAdmin && !isPlatformAdmin) {
     return <AccessDenied />;

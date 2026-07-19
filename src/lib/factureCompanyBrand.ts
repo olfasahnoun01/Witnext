@@ -31,6 +31,8 @@ export interface FactureCompanyBrand {
   codeTva: string;
   address: string;
   telFax: string;
+  /** Optional contact email (warehouse PDF footer). */
+  email?: string;
   rib: string;
   /** Logo URL (public path or bundled asset). */
   logoUrl: string;
@@ -54,15 +56,16 @@ const GRANISAFE_BRAND: FactureCompanyBrand = {
 
 const GROSAFE_BRAND: FactureCompanyBrand = {
   code: 'grosafe',
-  legalName: 'GROSAFE ÉQUIPEMENT',
-  displayName: 'GROSAFE ÉQUIPEMENT',
+  legalName: 'Grosafe Equipements',
+  displayName: 'Grosafe Equipements',
   primaryRgb: [13, 44, 68],
   secondaryRgb: [13, 44, 68],
   headerBarRgb: [190, 214, 236], // blue name box
   tableHeadRgb: [220, 232, 244],
-  codeTva: '',
-  address: '',
-  telFax: '',
+  codeTva: '1752965/M/A/M',
+  address: 'Immeuble Salma Dar Fadhal Aouina, Tunis',
+  telFax: '+216 22219219 ; +216 27277777',
+  email: 'contact@grosafe.net',
   rib: '03 700 019 0115 008703 50',
   logoUrl: grosafeLogo,
 };
@@ -129,10 +132,29 @@ export function getFactureCompanyBrand(code?: string | null): FactureCompanyBran
   const effectiveCode = code ?? activeCompanyCode;
   const cached = getCachedBrandingByCode(effectiveCode);
   const actualCode = (effectiveCode ?? cached?.code ?? 'granisafe').toLowerCase();
+  const legacy = BRANDS[resolveFactureCompanyCode(actualCode)];
+
   if (shouldUseDbBranding(cached, actualCode)) {
-    return brandFromCompanyRow(cached!);
+    const fromDb = brandFromCompanyRow(cached!);
+    // Legacy companies: keep hardcoded contact/legal defaults when DB fields are empty
+    // (e.g. logo uploaded without filling address/phone).
+    if (legacy && (actualCode === 'grosafe' || actualCode === 'granisafe' || actualCode === 'safe_team')) {
+      const explicitLegal = cached!.legal_name?.trim();
+      return {
+        ...fromDb,
+        legalName: explicitLegal || legacy.legalName,
+        displayName: explicitLegal || legacy.displayName,
+        address: fromDb.address || legacy.address,
+        telFax: fromDb.telFax || legacy.telFax,
+        email: fromDb.email || legacy.email,
+        codeTva: fromDb.codeTva || legacy.codeTva,
+        rib: fromDb.rib || legacy.rib,
+        logoUrl: fromDb.logoUrl || legacy.logoUrl,
+      };
+    }
+    return fromDb;
   }
-  return BRANDS[resolveFactureCompanyCode(code)];
+  return legacy;
 }
 
 /** All company brands (same layout, different logo/theme). */

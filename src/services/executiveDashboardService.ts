@@ -3,6 +3,7 @@ import { fetchFiscalPeriodSummary } from '@/modules/finance/services/fiscalPerio
 import { listInvoices, listPayments } from '@/modules/finance/services/financeApi';
 import { round3 } from '@/modules/finance/lib/money';
 import { loadMaintenanceRecords } from '@/lib/vehicleMaintenanceStorage';
+import { loadVehicleCharges } from '@/lib/vehicleChargesStorage';
 
 export interface CommercialActivitySummary {
   devisEnCours: number;
@@ -50,16 +51,13 @@ function inCurrentMonth(isoDate: string, mois: number, annee: number): boolean {
   return d.getFullYear() === annee && d.getMonth() + 1 === mois;
 }
 
-function sumVehicleChargesLocalStorage(mois: number, annee: number): number {
+async function sumVehicleChargesForMonth(
+  companyId: string,
+  mois: number,
+  annee: number
+): Promise<number> {
   try {
-    const raw = localStorage.getItem('grosafe_charges_vehicules');
-    if (!raw) return 0;
-    const charges = JSON.parse(raw) as Array<{
-      dateEcheance?: string;
-      montant?: string;
-      montantPaye?: string;
-    }>;
-    if (!Array.isArray(charges)) return 0;
+    const charges = await loadVehicleCharges(companyId);
     return round3(
       charges.reduce((s, c) => {
         const date = c.dateEcheance;
@@ -74,12 +72,12 @@ function sumVehicleChargesLocalStorage(mois: number, annee: number): number {
   }
 }
 
-function sumMaintenanceLocalStorage(
+async function sumMaintenanceForMonth(
   companyId: string,
   mois: number,
   annee: number
-): number {
-  const records = loadMaintenanceRecords(companyId);
+): Promise<number> {
+  const records = await loadMaintenanceRecords(companyId);
   return round3(
     records.reduce((s, r) => {
       if (r.status === 'annule') return s;
@@ -186,8 +184,10 @@ export async function fetchExecutiveDashboardSummary(
   const carburantMois = round3(
     (fuelRes.data ?? []).reduce((s, r) => s + Number(r.montant ?? 0), 0)
   );
-  const maintenanceMois = sumMaintenanceLocalStorage(companyId, mois, annee);
-  const chargesVehiculeMois = sumVehicleChargesLocalStorage(mois, annee);
+  const [maintenanceMois, chargesVehiculeMois] = await Promise.all([
+    sumMaintenanceForMonth(companyId, mois, annee),
+    sumVehicleChargesForMonth(companyId, mois, annee),
+  ]);
   const facturesAchatsMois = round3(
     achatMois.reduce((s, i) => s + Number(i.total_ttc ?? 0), 0)
   );

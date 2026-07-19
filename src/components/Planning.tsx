@@ -35,6 +35,12 @@ import {
 import './planningPrint.css';
 import { printPlanningSection } from './planningPrint';
 import { formatAppDate } from '@/lib/formatAppDate';
+import { getActiveCompanyId } from '@/lib/activeCompany';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
+import {
+  addPlanningSavedName,
+  loadPlanningSavedNames,
+} from '@/lib/planningSavedNames';
 
 // ── Types ──────────────────────────────────────────────────────────────
 interface EmployeeRow {
@@ -274,31 +280,51 @@ export const Planning = () => {
 
   const tableRef = useRef<HTMLDivElement>(null);
 
-  // Saved data from LocalStorage
-  const [savedCompanies, setSavedCompanies] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem('grosafe_companies') || '[]'); } catch { return []; }
-  });
-  const [savedSites, setSavedSites] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem('grosafe_sites') || '[]'); } catch { return []; }
+  // Saved company/site names (DB, company-scoped; migrates from localStorage once)
+  const [savedCompanies, setSavedCompanies] = useState<string[]>([]);
+  const [savedSites, setSavedSites] = useState<string[]>([]);
+
+  const reloadSavedNames = useCallback(async () => {
+    const companyId = getActiveCompanyId();
+    const [companies, sites] = await Promise.all([
+      loadPlanningSavedNames(companyId, 'company'),
+      loadPlanningSavedNames(companyId, 'site'),
+    ]);
+    setSavedCompanies(companies);
+    setSavedSites(sites);
+  }, []);
+
+  useEffect(() => {
+    void reloadSavedNames();
+  }, [reloadSavedNames]);
+
+  useCompanyChangeReload(() => {
+    void reloadSavedNames();
   });
 
-  const handleSaveCompany = useCallback(() => {
+  const handleSaveCompany = useCallback(async () => {
     const trimmed = companyName.trim();
-    if (trimmed && !savedCompanies.includes(trimmed)) {
-      const updated = [...savedCompanies, trimmed];
+    if (!trimmed || savedCompanies.includes(trimmed)) return;
+    try {
+      const updated = await addPlanningSavedName(getActiveCompanyId(), 'company', trimmed);
       setSavedCompanies(updated);
-      localStorage.setItem('grosafe_companies', JSON.stringify(updated));
       toast.success('تم حفظ الشركة بنجاح');
+    } catch (err) {
+      console.error(err);
+      toast.error('تعذر حفظ الشركة');
     }
   }, [companyName, savedCompanies]);
 
-  const handleSaveSite = useCallback(() => {
+  const handleSaveSite = useCallback(async () => {
     const trimmed = siteName.trim();
-    if (trimmed && !savedSites.includes(trimmed)) {
-      const updated = [...savedSites, trimmed];
+    if (!trimmed || savedSites.includes(trimmed)) return;
+    try {
+      const updated = await addPlanningSavedName(getActiveCompanyId(), 'site', trimmed);
       setSavedSites(updated);
-      localStorage.setItem('grosafe_sites', JSON.stringify(updated));
       toast.success('تم حفظ الموقع بنجاح');
+    } catch (err) {
+      console.error(err);
+      toast.error('تعذر حفظ الموقع');
     }
   }, [siteName, savedSites]);
 

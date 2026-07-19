@@ -28,6 +28,7 @@ import { ProductGroup, ProductGroupFournisseur } from '@/types';
 import { compressImage, formatBytes, getBase64Size } from '@/lib/imageCompression';
 import { MultiFournisseurInput } from './MultiFournisseurInput';
 import { createVariant } from '@/services/productGroupService';
+import { requireActiveCompanyId } from '@/lib/activeCompany';
 
 // Default categories as fallback
 const DEFAULT_CATEGORIES = [
@@ -334,7 +335,8 @@ export const ProductGroupModal = ({
             fournisseur: primaryFournisseur,
             min_stock: formData.min_stock,
             image: formData.image,
-          })
+            company_id: requireActiveCompanyId(),
+          } as never)
           .select('id')
           .single();
 

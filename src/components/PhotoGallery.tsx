@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchInventoryCategoryNames } from '@/lib/inventoryCategoryNames';
 import { buildCompanyStoragePath } from '@/lib/storagePaths';
+import { getActiveCompanyId, requireActiveCompanyId } from '@/lib/activeCompany';
 import { GalleryPhotoImage } from '@/components/GalleryPhotoImage';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -175,10 +176,13 @@ export const PhotoGallery = () => {
   }, []);
 
   const fetchItems = useCallback(async () => {
-    const { data, error } = await supabase
+    const companyId = getActiveCompanyId();
+    let query = supabase
       .from('gallery_items')
       .select(GALLERY_ITEM_COLUMNS)
       .order('created_at', { ascending: false });
+    if (companyId) query = query.eq('company_id' as never, companyId);
+    const { data, error } = await query;
 
     if (!error && data) {
       setItems(
@@ -527,7 +531,11 @@ export const PhotoGallery = () => {
     } else {
       const { error } = await supabase
         .from('gallery_items')
-        .insert({ ...payload, created_by: (await supabase.auth.getUser()).data.user?.id });
+        .insert({
+          ...payload,
+          created_by: (await supabase.auth.getUser()).data.user?.id,
+          company_id: requireActiveCompanyId(),
+        } as never);
 
       if (error) {
         toast({ variant: 'destructive', title: 'Erreur', description: error.message });

@@ -30,6 +30,7 @@ import {
   TrendingUp,
   TableProperties,
   UserCheck,
+  User,
   ScanBarcode,
   type LucideIcon,
 } from 'lucide-react';
@@ -176,6 +177,7 @@ export const BIG_SECTIONS: BigSection[] = [
     icon: Settings,
     sidebarHidden: true,
     subsections: [
+      { id: 'profile', label: 'Mon profil', icon: User },
       { id: 'accounts', label: 'Gestion des Comptes', icon: UsersIcon },
       { id: 'settings', label: 'Paramètres', icon: Settings },
     ],

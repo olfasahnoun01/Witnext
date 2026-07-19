@@ -1,11 +1,9 @@
 import { memo, useMemo, useState } from 'react';
-import { FileText, Download, AlertTriangle, Filter, FileJson, LayoutGrid } from 'lucide-react';
+import { FileText, Download, AlertTriangle, Filter, LayoutGrid } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Product } from '@/types';
 import { generateInventoryPDF, generateLowStockPDF } from '@/utils/pdfGenerator';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 
 interface StandardReportsProps {
   products: Product[];
@@ -82,23 +80,10 @@ const areSupplierNamesEquivalent = (left: string, right: string) => {
   return getLevenshteinDistance(compactLeft, compactRight) <= distanceThreshold;
 };
 
-const downloadJSON = (data: any, filename: string) => {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
-
 export const StandardReports = memo(({ products, lowStockProducts }: StandardReportsProps) => {
   const totalValue = products.reduce((s, p) => s + p.price * (1 - (p.remise || 0) / 100) * p.quantity, 0);
   const [selectedFournisseur, setSelectedFournisseur] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [isExportingTransactions, setIsExportingTransactions] = useState(false);
 
   const supplierOptions = useMemo(() => {
     const groups: Array<{ value: string; label: string; aliases: Set<string> }> = [];
@@ -173,42 +158,6 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
   }, [products, selectedCategory]);
 
   const categoryValue = filteredByCategoryProducts.reduce((s, p) => s + p.price * (1 - (p.remise || 0) / 100) * p.quantity, 0);
-
-  const exportInventoryJSON = () => {
-    const date = new Date().toISOString().split('T')[0];
-    downloadJSON(products, `inventaire_${date}.json`);
-    toast.success(`${products.length} produits exportés en JSON`);
-  };
-
-  const exportTransactionsJSON = async () => {
-    setIsExportingTransactions(true);
-    try {
-      const allData: any[] = [];
-      const PAGE_SIZE = 1000;
-      let from = 0;
-      while (true) {
-        const { data, error } = await supabase
-          .from('transactions')
-          .select('*')
-          .order('date', { ascending: false })
-          .range(from, from + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allData.push(...data);
-        if (data.length < PAGE_SIZE) break;
-        from += PAGE_SIZE;
-      }
-      const date = new Date().toISOString().split('T')[0];
-      downloadJSON(allData, `transactions_${date}.json`);
-      toast.success(`${allData.length} transactions exportées en JSON`);
-    } catch {
-      toast.error("Erreur lors de l'export des transactions");
-    } finally {
-      setIsExportingTransactions(false);
-    }
-  };
-
-
 
   return (
     <div className="space-y-6">
@@ -332,52 +281,6 @@ export const StandardReports = memo(({ products, lowStockProducts }: StandardRep
             </div>
           </div>
         </div>
-      </div>
-
-      {/* JSON Export Section */}
-      <h3 className="text-lg font-semibold text-foreground">Export JSON (pour application bureau)</h3>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Export Inventory JSON */}
-        <div className="bg-card rounded-xl border border-border p-6">
-          <div className="flex items-start gap-4">
-            <div className="p-3 rounded-xl bg-primary/10">
-              <FileJson className="w-8 h-8 text-primary" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-foreground">Inventaire (JSON)</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Exporte tous les produits au format JSON.
-              </p>
-              <p className="text-xs text-muted-foreground mt-2">
-                {products.length} produits
-              </p>
-              <Button onClick={exportInventoryJSON} variant="outline" className="mt-4">
-                <FileJson className="w-4 h-4 mr-2" />
-                Exporter JSON
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Export Transactions JSON */}
-        <div className="bg-card rounded-xl border border-border p-6">
-          <div className="flex items-start gap-4">
-            <div className="p-3 rounded-xl bg-success/10">
-              <FileJson className="w-8 h-8 text-success" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-foreground">Transactions (JSON)</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Exporte tout l'historique des transactions.
-              </p>
-              <Button onClick={exportTransactionsJSON} variant="outline" className="mt-4" disabled={isExportingTransactions}>
-                <FileJson className="w-4 h-4 mr-2" />
-                {isExportingTransactions ? 'Export...' : 'Exporter JSON'}
-              </Button>
-            </div>
-          </div>
-        </div>
-
       </div>
     </div>
   );

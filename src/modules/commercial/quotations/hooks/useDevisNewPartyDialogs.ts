@@ -272,13 +272,18 @@ export function useDevisNewPartyDialogs({
     }
 
     const locationValue = `${newFournisseurCity}, ${newFournisseurGovernorate}`;
+    const companyId = getActiveCompanyId();
+    if (!companyId) {
+      toast.error('Aucune société active');
+      return;
+    }
 
     const { data, error } = await supabase.from('fournisseurs').insert({
       nom: newFournisseurName.trim(),
       code: newFournisseurCode.trim(),
       matricule_fiscale: newFournisseurMatricule.trim(),
       specialite: newFournisseurSpecialite,
-      company_id: getActiveCompanyId() || undefined,
+      company_id: companyId,
       phone: phoneStored,
       location: locationValue,
       patente_url: newFournisseurPatenteUrl,

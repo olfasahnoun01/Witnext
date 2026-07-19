@@ -417,10 +417,11 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
     doc.setLineWidth(0.5);
     doc.line(14, footerBase - 5, pageWidth - 14, footerBase - 5);
 
+    const companyName = (brand.legalName || brand.displayName || '').trim();
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...headerRgb);
-    doc.text(`Société ${brand.legalName || brand.displayName}`, 14, footerBase);
+    doc.text(`Société ${companyName}`, 14, footerBase);
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(80, 80, 80);
@@ -428,13 +429,20 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
     if (address) {
       doc.text(`Adresse : ${address}`, 14, footerBase + 4);
     }
+
+    // Third line: Email (left) | Tel (center) | Code TVA (right)
+    const email = brand.email?.trim() || '';
     const tel = brand.telFax?.trim() || '';
     const tva = brand.codeTva?.trim() || '';
+    const detailY = footerBase + 9;
+    if (email) {
+      doc.text(`Email : ${email}`, 14, detailY);
+    }
     if (tel) {
-      doc.text(`Tel : ${tel}`, 14, footerBase + 9);
+      doc.text(`Tel : ${tel}`, pageWidth / 2, detailY, { align: 'center' });
     }
     if (tva) {
-      doc.text(`Code TVA : ${tva}`, pageWidth - 14, footerBase + 9, { align: 'right' });
+      doc.text(`Code TVA : ${tva}`, pageWidth - 14, detailY, { align: 'right' });
     }
   };
   

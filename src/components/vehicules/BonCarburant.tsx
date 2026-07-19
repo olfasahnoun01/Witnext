@@ -42,7 +42,7 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { getActiveCompanyId } from '@/lib/activeCompany';
+import { getActiveCompanyId, requireActiveCompanyId } from '@/lib/activeCompany';
 import { getFuelVoucherStatusDisplay, fuelVoucherStatusBadgeClass } from '@/lib/fuelVoucherStatus';
 import { useListPagination } from '@/hooks/useListPagination';
 import { ListPagination } from '@/components/shared/ListPagination';
@@ -246,7 +246,7 @@ export const BonCarburant = () => {
         vehicule_id: form.vehiculeId,
         type_carburant: form.typeCarburant,
         notes: form.notes.trim() || null,
-        company_id: getActiveCompanyId() || undefined,
+        company_id: requireActiveCompanyId(),
         ...(editingVoucherId
           ? {
               km: kmFinal,

@@ -14,6 +14,12 @@ import {
 import { toast } from 'sonner';
 import { formatAppDateTime } from '@/lib/formatAppDate';
 
+/** Prefer parent document company, else active company (required). */
+function resolveDocumentCompanyId(parent?: { company_id?: string | null } | null): string {
+  if (parent?.company_id) return parent.company_id;
+  return requireActiveCompanyId();
+}
+
 /**
  * Service for the new Unified Document Engine (v2)
  */
@@ -77,6 +83,7 @@ export const documentService = {
     if (existing) return existing.id;
 
     // Promote legacy BC to modern documents table
+    const companyId = resolveDocumentCompanyId(sourceDoc);
     const { data: newDoc, error: promoError } = await supabase
       .from('documents')
       .insert({
@@ -86,6 +93,7 @@ export const documentService = {
         client_id: sourceDoc.client_id,
         fournisseur_id: sourceDoc.fournisseur_id,
         notes: sourceDoc.notes,
+        company_id: companyId,
         metadata: {
           ...(sourceDoc.metadata || {}),
           legacy_id: sourceDoc.id,
@@ -252,6 +260,7 @@ export const documentService = {
       }
 
       // 2. Create the Supplier Quotes linked to the modern parentId
+      const companyId = resolveDocumentCompanyId(existingSource);
       for (const allocation of allocations) {
         const numero = await this.generateNextNumber('DEVIS_FOURNISSEUR');
         
@@ -263,6 +272,7 @@ export const documentService = {
             status: 'PENDING',
             fournisseur_id: allocation.fournisseur_id,
             parent_id: parentId,
+            company_id: companyId,
           })
           .select()
           .single();
@@ -347,6 +357,7 @@ export const documentService = {
       for (const allocation of allocations) {
         const numero = await this.generateNextNumber('BC_FOURNISSEUR');
         const fournisseurLabel = allocation.fournisseur_name?.trim() || undefined;
+        const companyId = resolveDocumentCompanyId(sourceDoc);
 
         const { data: doc, error: docError } = await supabase
           .from('documents')
@@ -356,6 +367,7 @@ export const documentService = {
             status: 'PENDING',
             fournisseur_id: allocation.fournisseur_id,
             parent_id: parentId,
+            company_id: companyId,
             metadata: {
               source_bc_client_name: clientLabel || undefined,
               source_fournisseur_name: fournisseurLabel,
@@ -584,6 +596,7 @@ export const documentService = {
       const bcId = await this.ensureModernDocument(sourceBC);
       const bc = await this.getDocument(bcId);
       if (!bc) throw new Error('BC non trouvé');
+      const companyId = resolveDocumentCompanyId(bc);
 
       // 1. Create BL_FOURNISSEUR
       const blNumero = await this.generateNextNumber('BL_FOURNISSEUR');
@@ -595,6 +608,7 @@ export const documentService = {
           status: 'VALIDATED', // BL is just a reference
           fournisseur_id: bc.fournisseur_id,
           parent_id: bcId,
+          company_id: companyId,
         })
         .select().single();
       if (blError) throw blError;
@@ -609,6 +623,7 @@ export const documentService = {
           status: 'PENDING',
           fournisseur_id: bc.fournisseur_id,
           parent_id: bcId,
+          company_id: companyId,
         })
         .select().single();
       if (beError) throw beError;
@@ -715,6 +730,7 @@ export const documentService = {
       }
 
       // 2. Create BL_CLIENT (Status: VALIDATED)
+      const companyId = resolveDocumentCompanyId(bc);
       const blNumero = await this.generateNextNumber('BL_CLIENT');
       const { data: bl, error: blError } = await supabase
         .from('documents')
@@ -724,6 +740,7 @@ export const documentService = {
           status: 'VALIDATED',
           client_id: bc.client_id,
           parent_id: bcId,
+          company_id: companyId,
         })
         .select().single();
       if (blError) throw blError;
@@ -738,6 +755,7 @@ export const documentService = {
           status: 'PENDING',
           client_id: bc.client_id,
           parent_id: bcId,
+          company_id: companyId,
         })
         .select().single();
       if (bsError) throw bsError;
@@ -821,6 +839,7 @@ export const documentService = {
           status: 'PENDING',
           client_id: bl.client_id,
           parent_id: bl.id,
+          company_id: resolveDocumentCompanyId(bl),
           metadata: bl.metadata
         })
         .select().single();
@@ -907,6 +926,7 @@ export const documentService = {
           status: 'PENDING' as UnifiedDocumentStatus,
           fournisseur_id: quote.fournisseur_id,
           parent_id: quote.parent_id,
+          company_id: resolveDocumentCompanyId(quote),
           metadata: { ...quote.metadata, accepted_quote_id: quoteId }
         })
         .select()

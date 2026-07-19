@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
+import { requireActiveCompanyId } from '@/lib/activeCompany';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -41,6 +42,9 @@ import { ADMIN_ONLY_SECTION_ID } from '@/lib/sectionPermissions';
 import { posteHasAllFinanceCompanies } from '@/lib/userPositions';
 import { formatError } from '@/lib/formatError';
 import { MIN_PASSWORD_LENGTH, validatePasswordLength } from '@/lib/passwordPolicy';
+import { AvatarUploadField } from '@/components/profile/AvatarUploadField';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { userInitials } from '@/lib/userDisplay';
 
 function allCompanyIdSet(list: CompanyRow[]): Set<string> {
   return new Set(list.map((c) => c.id));
@@ -79,6 +83,7 @@ interface ManagedUser {
   id: string;            // auth user id
   email: string;
   full_name: string;
+  avatar_url?: string | null;
   position?: string;
   created_at: string;
   role: Role;
@@ -183,7 +188,7 @@ function pickHigherRole(current: Role | undefined, next: Role): Role {
 async function loadUsersFromDbFallback(): Promise<ManagedUser[]> {
   const [{ data: profiles, error: pe }, { data: roles, error: re }, { data: employees, error: ee }] =
     await Promise.all([
-      supabase.from('profiles').select('user_id, email, full_name, created_at').order('created_at', { ascending: true }),
+      supabase.from('profiles').select('user_id, email, full_name, avatar_url, created_at').order('created_at', { ascending: true }),
       supabase.from('user_roles').select('user_id, role'),
       supabase.from('employees').select('user_id, role').not('user_id', 'is', null),
     ]);
@@ -205,10 +210,17 @@ async function loadUsersFromDbFallback(): Promise<ManagedUser[]> {
     if (uid && pos) positionByUser.set(uid, pos);
   }
 
-  return (profiles ?? []).map((p: { user_id: string; email: string | null; full_name: string | null; created_at: string }) => ({
+  return (profiles ?? []).map((p: {
+    user_id: string;
+    email: string | null;
+    full_name: string | null;
+    avatar_url?: string | null;
+    created_at: string;
+  }) => ({
     id: p.user_id,
     email: p.email ?? '',
     full_name: p.full_name ?? '',
+    avatar_url: p.avatar_url ?? null,
     position: positionByUser.get(p.user_id),
     created_at: p.created_at,
     role: roleByUser.get(p.user_id) ?? 'user',
@@ -248,6 +260,7 @@ export const PermissionsManager = () => {
   const [selectedCategory, setSelectedCategory] = useState<AccountTab | null>(null);
   const [mobilePhone, setMobilePhone] = useState('');
   const [mobileCin, setMobileCin] = useState('');
+  const [modalAvatarUrl, setModalAvatarUrl] = useState<string | null>(null);
 
   const getAuthToken = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -301,7 +314,22 @@ export const PermissionsManager = () => {
           );
         }
       } else {
-        setUsers(usersRes.data?.users ?? []);
+        const listed = (usersRes.data?.users ?? []) as ManagedUser[];
+        const { data: avatarRows } = await supabase
+          .from('profiles')
+          .select('user_id, avatar_url');
+        const avatarByUser = new Map(
+          ((avatarRows ?? []) as { user_id: string; avatar_url: string | null }[]).map((r) => [
+            r.user_id,
+            r.avatar_url,
+          ])
+        );
+        setUsers(
+          listed.map((u) => ({
+            ...u,
+            avatar_url: u.avatar_url ?? avatarByUser.get(u.id) ?? null,
+          }))
+        );
       }
 
       const map: Record<string, Set<string>> = {};
@@ -482,6 +510,7 @@ export const PermissionsManager = () => {
       setEditingUser(user);
       setEmail(user.email);
       setFullName(user.full_name ?? '');
+      setModalAvatarUrl(user.avatar_url ?? null);
       setPosition(user.position || 'Operateur');
       setRole(user.role);
       setPassword('');
@@ -500,6 +529,7 @@ export const PermissionsManager = () => {
       setEmail('');
       setPassword('');
       setFullName('');
+      setModalAvatarUrl(null);
       setMobilePhone('');
       setMobileCin('');
       setModalPerms(new Set());
@@ -524,6 +554,7 @@ export const PermissionsManager = () => {
     setEmail('');
     setPassword('');
     setFullName('');
+    setModalAvatarUrl(null);
     setPosition('Operateur');
     setRole('user');
     setMobilePhone('');
@@ -649,6 +680,7 @@ export const PermissionsManager = () => {
             cin: mobileCin.trim() || null,
             role: position,
             user_id: targetUserId,
+            company_id: requireActiveCompanyId(),
           } as never);
           if (empErr) {
             console.warn('[PermissionsManager] employees insert:', empErr.message);
@@ -1084,7 +1116,15 @@ export const PermissionsManager = () => {
                               toggleExpandedUser(u.id);
                             }}
                           >
-                            <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <Avatar className="h-9 w-9 border border-border shrink-0">
+                                {u.avatar_url ? (
+                                  <AvatarImage src={u.avatar_url} alt={u.full_name || u.email} />
+                                ) : null}
+                                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                                  {userInitials(u.full_name, u.email)}
+                                </AvatarFallback>
+                              </Avatar>
                               <CardTitle className="text-base truncate">{u.email}</CardTitle>
                               {getRoleBadge(u.role)}
                             </div>
@@ -1168,6 +1208,22 @@ export const PermissionsManager = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {editingUser ? (
+                <AvatarUploadField
+                  userId={editingUser.id}
+                  fullName={fullName}
+                  email={email}
+                  avatarUrl={modalAvatarUrl}
+                  size="md"
+                  onAvatarChange={(url) => {
+                    setModalAvatarUrl(url);
+                    setUsers((prev) =>
+                      prev.map((u) => (u.id === editingUser.id ? { ...u, avatar_url: url } : u))
+                    );
+                    setEditingUser((prev) => (prev ? { ...prev, avatar_url: url } : prev));
+                  }}
+                />
+              ) : null}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email *</Label>

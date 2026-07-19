@@ -14,6 +14,7 @@ export const Reports = lazyWithRetry(() =>
 export const Settings = lazyWithRetry(() =>
   import('@/components/Settings').then((m) => ({ default: m.Settings }))
 );
+export const MyProfilePage = lazyWithRetry(() => import('@/components/MyProfilePage'));
 export const SupplierComparison = lazyWithRetry(() =>
   import('@/components/SupplierComparison').then((m) => ({ default: m.SupplierComparison }))
 );

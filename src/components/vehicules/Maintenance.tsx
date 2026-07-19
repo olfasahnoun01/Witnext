@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
-import { Wrench, Plus, Calendar, Car, AlertTriangle, CheckCircle2, Clock, Banknote, Pencil } from 'lucide-react';
+import { Wrench, Plus, Calendar, Car, AlertTriangle, CheckCircle2, Clock, Banknote, Pencil, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -86,9 +86,7 @@ async function releaseVehicleIfNoActiveMaintenance(
 }
 
 export const Maintenance = () => {
-  const [records, setRecords] = useState<VehicleMaintenanceRecord[]>(() =>
-    loadMaintenanceRecords(getActiveCompanyId())
-  );
+  const [records, setRecords] = useState<VehicleMaintenanceRecord[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [vehicles, setVehicles] = useState<Array<{ id: string; modele: string; matricule: string }>>([]);
@@ -106,16 +104,28 @@ export const Maintenance = () => {
     void fetchVehicles();
   }, [fetchVehicles]);
 
-  const reloadMaintenanceRecords = useCallback(() => {
-    setRecords(loadMaintenanceRecords(getActiveCompanyId()));
+  const reloadMaintenanceRecords = useCallback(async () => {
+    setRecords(await loadMaintenanceRecords(getActiveCompanyId()));
   }, []);
 
-  useCompanyChangeReload(reloadMaintenanceRecords);
+  useEffect(() => {
+    void reloadMaintenanceRecords();
+  }, [reloadMaintenanceRecords]);
 
-  const persistRecords = useCallback((nextRecords: VehicleMaintenanceRecord[]) => {
+  useCompanyChangeReload(() => {
+    void reloadMaintenanceRecords();
+  });
+
+  const persistRecords = useCallback(async (nextRecords: VehicleMaintenanceRecord[]) => {
     setRecords(nextRecords);
-    saveMaintenanceRecords(getActiveCompanyId(), nextRecords);
-  }, []);
+    try {
+      await saveMaintenanceRecords(getActiveCompanyId(), nextRecords);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erreur lors de l’enregistrement de la maintenance');
+      await reloadMaintenanceRecords();
+    }
+  }, [reloadMaintenanceRecords]);
 
   const resetDialog = useCallback(() => {
     setEditingId(null);
@@ -169,7 +179,7 @@ export const Maintenance = () => {
       ? records.map((r) => (r.id === editingId ? payload : r))
       : [payload, ...records];
 
-    persistRecords(nextRecords);
+    await persistRecords(nextRecords);
     setIsDialogOpen(false);
     resetDialog();
 
@@ -211,6 +221,87 @@ export const Maintenance = () => {
     }
   };
 
+  const activeRecords = useMemo(
+    () => records.filter((r) => r.status === 'en_cours'),
+    [records]
+  );
+  const historyRecords = useMemo(
+    () =>
+      records
+        .filter((r) => r.status === 'termine' || r.status === 'annule')
+        .sort((a, b) => b.dateDebut.localeCompare(a.dateDebut)),
+    [records]
+  );
+
+  const renderRecordCard = (record: VehicleMaintenanceRecord) => (
+    <div
+      key={record.id}
+      className="group bg-card p-6 rounded-3xl border border-border shadow-sm hover:shadow-md transition-all"
+    >
+      <div className="flex items-start justify-between mb-4 gap-3">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
+            <Car className="w-6 h-6" />
+          </div>
+          <div className="min-w-0">
+            <h4 className="font-bold text-foreground truncate">{record.vehicule}</h4>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold mt-1">
+              <Calendar className="w-3 h-3 shrink-0" />
+              {formatAppDate(record.dateDebut)}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Badge
+            variant="outline"
+            className={`rounded-xl px-3 py-1 font-bold uppercase text-[10px] tracking-wider ${getTypeStyles(record.type)}`}
+          >
+            {record.type}
+          </Badge>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-9 w-9 rounded-xl"
+            onClick={() => openEditDialog(record)}
+            title="Modifier"
+          >
+            <Pencil className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      <h5 className="text-lg font-bold text-foreground mb-2">{record.description}</h5>
+      {record.notes ? (
+        <p className="text-sm text-muted-foreground mb-6 bg-muted/30 p-4 rounded-2xl whitespace-pre-wrap">
+          {record.notes}
+        </p>
+      ) : (
+        <p className="text-sm text-muted-foreground mb-6 italic">Aucune note supplémentaire.</p>
+      )}
+
+      <div className="flex items-center justify-between pt-4 border-t border-border">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-full bg-muted/50">{getStatusIcon(record.status)}</div>
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-tight">
+            {record.status === 'en_cours'
+              ? 'Intervention en cours'
+              : record.status === 'termine'
+                ? 'Terminée'
+                : 'Annulée'}
+          </span>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] font-bold text-muted-foreground uppercase mb-0.5">Coût Estimé</p>
+          <p className="font-black text-foreground text-lg">
+            {parseFloat(record.coutEstime || '0').toLocaleString('fr-FR')}{' '}
+            <span className="text-xs opacity-50">TND</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-8 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -241,9 +332,7 @@ export const Maintenance = () => {
                   <Clock className="w-5 h-5 text-amber-500" />
                   <span className="font-semibold text-amber-600 dark:text-amber-400">En cours</span>
                 </div>
-                <span className="text-xl font-black text-amber-500">
-                  {records.filter((r) => r.status === 'en_cours').length}
-                </span>
+                <span className="text-xl font-black text-amber-500">{activeRecords.length}</span>
               </div>
               <div className="flex items-center justify-between p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
                 <div className="flex items-center gap-3">
@@ -251,94 +340,60 @@ export const Maintenance = () => {
                   <span className="font-semibold text-rose-600 dark:text-rose-400">Urgent</span>
                 </div>
                 <span className="text-xl font-black text-rose-500">
-                  {records.filter((r) => r.type === 'urgent').length}
+                  {records.filter((r) => r.type === 'urgent' && r.status === 'en_cours').length}
                 </span>
+              </div>
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                <div className="flex items-center gap-3">
+                  <History className="w-5 h-5 text-emerald-500" />
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">Historique</span>
+                </div>
+                <span className="text-xl font-black text-emerald-500">{historyRecords.length}</span>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="lg:col-span-2 space-y-4">
-          {records.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center rounded-3xl bg-muted/20 border-2 border-dashed border-border">
-              <div className="w-20 h-20 rounded-full bg-card flex items-center justify-center shadow-sm mb-6">
-                <Wrench className="w-10 h-10 text-muted-foreground/30" />
-              </div>
-              <h3 className="text-lg font-bold text-foreground">Aucun historique de maintenance</h3>
-              <p className="text-muted-foreground max-w-xs mt-2">
-                Enregistrez vos premières interventions pour commencer le suivi.
-              </p>
+        <div className="lg:col-span-2 space-y-8">
+          <section className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-amber-500" />
+              <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
+                Interventions en cours
+              </h3>
             </div>
-          ) : (
-            records.map((record) => (
-              <div
-                key={record.id}
-                className="group bg-card p-6 rounded-3xl border border-border shadow-sm hover:shadow-md transition-all"
-              >
-                <div className="flex items-start justify-between mb-4 gap-3">
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
-                      <Car className="w-6 h-6" />
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="font-bold text-foreground truncate">{record.vehicule}</h4>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold mt-1">
-                        <Calendar className="w-3 h-3 shrink-0" />
-                        {formatAppDate(record.dateDebut)}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge
-                      variant="outline"
-                      className={`rounded-xl px-3 py-1 font-bold uppercase text-[10px] tracking-wider ${getTypeStyles(record.type)}`}
-                    >
-                      {record.type}
-                    </Badge>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="h-9 w-9 rounded-xl"
-                      onClick={() => openEditDialog(record)}
-                      title="Modifier"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                  </div>
+            {activeRecords.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center rounded-3xl bg-muted/20 border-2 border-dashed border-border">
+                <div className="w-16 h-16 rounded-full bg-card flex items-center justify-center shadow-sm mb-4">
+                  <Wrench className="w-8 h-8 text-muted-foreground/30" />
                 </div>
-
-                <h5 className="text-lg font-bold text-foreground mb-2">{record.description}</h5>
-                {record.notes ? (
-                  <p className="text-sm text-muted-foreground mb-6 bg-muted/30 p-4 rounded-2xl whitespace-pre-wrap">
-                    {record.notes}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground mb-6 italic">Aucune note supplémentaire.</p>
-                )}
-
-                <div className="flex items-center justify-between pt-4 border-t border-border">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-full bg-muted/50">{getStatusIcon(record.status)}</div>
-                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-tight">
-                      {record.status === 'en_cours'
-                        ? 'Intervention en cours'
-                        : record.status === 'termine'
-                          ? 'Terminée'
-                          : 'Annulée'}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase mb-0.5">Coût Estimé</p>
-                    <p className="font-black text-foreground text-lg">
-                      {parseFloat(record.coutEstime || '0').toLocaleString('fr-FR')}{' '}
-                      <span className="text-xs opacity-50">TND</span>
-                    </p>
-                  </div>
-                </div>
+                <h3 className="text-lg font-bold text-foreground">Aucune intervention en cours</h3>
+                <p className="text-muted-foreground max-w-xs mt-2">
+                  Lancez une maintenance pour suivre les véhicules immobilisés.
+                </p>
               </div>
-            ))
-          )}
+            ) : (
+              activeRecords.map(renderRecordCard)
+            )}
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4 text-emerald-500" />
+              <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
+                Historique maintenance
+              </h3>
+            </div>
+            {historyRecords.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center rounded-3xl bg-muted/10 border border-dashed border-border">
+                <p className="text-sm text-muted-foreground">
+                  Les interventions terminées ou annulées apparaîtront ici.
+                </p>
+              </div>
+            ) : (
+              historyRecords.map(renderRecordCard)
+            )}
+          </section>
         </div>
       </div>
 

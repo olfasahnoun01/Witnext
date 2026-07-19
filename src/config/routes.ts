@@ -61,6 +61,7 @@ export const SUBSECTION_ROUTES: Record<string, string> = {
   'vehicules-charges': '/vehicles/charges',
 
   accounts: '/users',
+  profile: '/profile',
   'admin-leads': '/admin/leads',
   'platform-console': '/platform',
   settings: '/settings',

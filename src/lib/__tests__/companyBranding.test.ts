@@ -55,6 +55,6 @@ describe('companyBranding', () => {
       { id: '1', code: 'grosafe', name: 'Grosafe Equipements' },
     ]);
     const brand = getFactureCompanyBrand('grosafe');
-    expect(brand.displayName).toBe('GROSAFE ÉQUIPEMENT');
+    expect(brand.displayName).toBe('Grosafe Equipements');
   });
 });

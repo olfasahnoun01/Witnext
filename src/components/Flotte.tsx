@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
 import { Truck, Plus, Trash2, Loader2, Bell, CheckCircle2, Pencil, UserCheck, MoreHorizontal, Car, Wrench } from 'lucide-react';
 import {
@@ -36,7 +36,7 @@ import {
   upsertVehicleRemindersForVehicle,
 } from '@/lib/vehicleReminders';
 import { syncVehicleReminderNotifications } from '@/services/notificationService';
-import { getActiveCompanyId } from '@/lib/activeCompany';
+import { getActiveCompanyId, requireActiveCompanyId } from '@/lib/activeCompany';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import { cn } from '@/lib/utils';
 import { FLOTTE_EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
@@ -171,13 +171,15 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
 
   const [assigningVehicleId, setAssigningVehicleId] = useState<string | null>(null);
   const [selectedDriverByVehicle, setSelectedDriverByVehicle] = useState<Record<string, string>>({});
-  const [maintenanceRecords, setMaintenanceRecords] = useState<VehicleMaintenanceRecord[]>(() =>
-    loadMaintenanceRecords(getActiveCompanyId())
-  );
+  const [maintenanceRecords, setMaintenanceRecords] = useState<VehicleMaintenanceRecord[]>([]);
 
-  const reloadMaintenanceRecords = () => {
-    setMaintenanceRecords(loadMaintenanceRecords(getActiveCompanyId()));
-  };
+  const reloadMaintenanceRecords = useCallback(async () => {
+    setMaintenanceRecords(await loadMaintenanceRecords(getActiveCompanyId()));
+  }, []);
+
+  useEffect(() => {
+    void reloadMaintenanceRecords();
+  }, [reloadMaintenanceRecords]);
 
   useEffect(() => {
     setSection(initialSection);
@@ -250,13 +252,13 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
 
   useEffect(() => {
     if (section !== 'status') return;
-    reloadMaintenanceRecords();
+    void reloadMaintenanceRecords();
     void fetchVehicles();
-  }, [section]);
+  }, [section, reloadMaintenanceRecords]);
 
   useCompanyChangeReload(() => {
     void fetchVehicles();
-    reloadMaintenanceRecords();
+    void reloadMaintenanceRecords();
   });
 
   const openAddDialog = () => {
@@ -370,7 +372,7 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
       } else {
         const { data, error } = await supabase
           .from('vehicles')
-          .insert([{ ...payload, company_id: getActiveCompanyId() || undefined } as never])
+          .insert([{ ...payload, company_id: requireActiveCompanyId() } as never])
           .select('id')
           .single();
         if (error) throw error;
@@ -380,7 +382,7 @@ export const Flotte = ({ initialSection = 'flotte' }: { initialSection?: 'flotte
       if (vehicleId) {
         const reminderResult = await upsertVehicleRemindersForVehicle({
           id: vehicleId,
-          company_id: getActiveCompanyId(),
+          company_id: requireActiveCompanyId(),
           kilometrage_actuel: currentKm,
           vidange_interval_km: vidangeInterval,
           vidange_last_km: vidangeLastKm,

@@ -215,10 +215,14 @@ export function useDevisArticleDialogs({
     setIsCreatingArticle(true);
     try {
       const articleCompanyId = getActiveCompanyId();
-      const existingFournQuery = supabase.from('fournisseurs').select('nom');
-      const { data: existingFourns } = await (articleCompanyId
-        ? existingFournQuery.eq('company_id', articleCompanyId)
-        : existingFournQuery);
+      if (!articleCompanyId) {
+        toast.error('Aucune société active');
+        return;
+      }
+      const { data: existingFourns } = await supabase
+        .from('fournisseurs')
+        .select('nom')
+        .eq('company_id', articleCompanyId);
       const existingNames = new Set((existingFourns || []).map((f) => f.nom.toLowerCase()));
 
       const newFournisseurEntries = newArticleFournisseurs.filter(
@@ -230,7 +234,7 @@ export function useDevisArticleDialogs({
           newFournisseurEntries.map((f) => ({
             nom: f.fournisseur_name.trim(),
             specialite: newArticle.category || 'Non catégorisé',
-            company_id: articleCompanyId || undefined,
+            company_id: articleCompanyId,
             phone: f.phone?.trim() || null,
           })) as any
         );
@@ -247,7 +251,7 @@ export function useDevisArticleDialogs({
           fournisseur: primaryFournisseur?.fournisseur_name || null,
           min_stock: newArticle.min_stock,
           image: newArticle.image,
-          company_id: articleCompanyId || undefined,
+          company_id: articleCompanyId,
         } as any)
         .select()
         .single();
@@ -311,7 +315,7 @@ export function useDevisArticleDialogs({
 
       const { data, error } = await supabase
         .from('products')
-        .insert(productsToInsert.map((p) => ({ ...p, company_id: articleCompanyId || undefined })) as any)
+        .insert(productsToInsert.map((p) => ({ ...p, company_id: articleCompanyId })) as any)
         .select();
 
       if (error) {

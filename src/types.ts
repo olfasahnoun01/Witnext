@@ -232,6 +232,7 @@ export interface UnifiedDocument {
   parent_id: string | null; // UUID parent
   notes: string | null;
   metadata: Record<string, any>;
+  company_id?: string | null;
   created_by: string | null;
   updated_by?: string | null;
   creator_name?: string | null;

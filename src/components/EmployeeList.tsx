@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { getActiveCompanyId } from '@/lib/activeCompany';
+import { getActiveCompanyId, requireActiveCompanyId } from '@/lib/activeCompany';
 import { MIN_PASSWORD_LENGTH, validatePasswordLength } from '@/lib/passwordPolicy';
 import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
 import {
@@ -157,7 +157,7 @@ export const EmployeeList = () => {
             email: isChauffeur ? form.email.trim() : null,
             role: form.poste,
             user_id: userId,
-            company_id: getActiveCompanyId() || undefined,
+            company_id: requireActiveCompanyId(),
           } as any]);
 
         if (insertError) throw insertError;

@@ -50,27 +50,23 @@ export const VehiculeStats = () => {
   const [maintenances, setMaintenances] = useState<any[]>([]);
   const [charges, setCharges] = useState<any[]>([]);
 
-  const loadLocalVehicleData = useCallback(() => {
+  const loadLocalVehicleData = useCallback(async () => {
     const companyId = getActiveCompanyId();
-    setMaintenances(loadMaintenanceRecords(companyId));
-    setCharges(loadVehicleCharges(companyId));
+    const [maintenancesData, chargesData] = await Promise.all([
+      loadMaintenanceRecords(companyId),
+      loadVehicleCharges(companyId),
+    ]);
+    setMaintenances(maintenancesData);
+    setCharges(chargesData);
   }, []);
 
   useEffect(() => {
-    loadLocalVehicleData();
-    const companyId = getActiveCompanyId();
-    const maintenanceKey = `grosafe_maintenances_${companyId ?? 'global'}`;
-    const chargesKey = `grosafe_charges_vehicules_${companyId ?? 'global'}`;
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === maintenanceKey || e.key === chargesKey) {
-        loadLocalVehicleData();
-      }
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    void loadLocalVehicleData();
   }, [loadLocalVehicleData]);
 
-  useCompanyChangeReload(loadLocalVehicleData);
+  useCompanyChangeReload(() => {
+    void loadLocalVehicleData();
+  });
 
   useEffect(() => {
     const fetchData = async () => {

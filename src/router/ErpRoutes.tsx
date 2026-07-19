@@ -21,6 +21,7 @@ import {
   HrEmployeesHub,
   Inventory,
   Maintenance,
+  MyProfilePage,
   PermissionsManager,
   PlatformConsole,
   MarketingLeadsAdmin,
@@ -511,6 +512,17 @@ export function ErpRoutes() {
             <SubsectionRoute subsectionId="accounts" requireAdmin>
               <LazyRoute>
                 <PermissionsManager />
+              </LazyRoute>
+            </SubsectionRoute>
+          }
+        />
+
+        <Route
+          path="/profile"
+          element={
+            <SubsectionRoute subsectionId="profile">
+              <LazyRoute>
+                <MyProfilePage />
               </LazyRoute>
             </SubsectionRoute>
           }

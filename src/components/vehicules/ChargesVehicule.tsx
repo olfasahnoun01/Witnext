@@ -32,9 +32,7 @@ import {
 } from '@/lib/vehicleChargesStorage';
 
 export const ChargesVehicule = () => {
-  const [charges, setCharges] = useState<VehicleChargeRecord[]>(() =>
-    loadVehicleCharges(getActiveCompanyId())
-  );
+  const [charges, setCharges] = useState<VehicleChargeRecord[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'assurance' | 'vignette' | 'visite_technique' | 'leasing'>('assurance');
   
@@ -53,19 +51,29 @@ export const ChargesVehicule = () => {
     void fetchVehicles();
   }, [fetchVehicles]);
 
-  const reloadCharges = useCallback(() => {
-    setCharges(loadVehicleCharges(getActiveCompanyId()));
+  const reloadCharges = useCallback(async () => {
+    setCharges(await loadVehicleCharges(getActiveCompanyId()));
   }, []);
+
+  useEffect(() => {
+    void reloadCharges();
+  }, [reloadCharges]);
 
   useCompanyChangeReload(() => {
     void fetchVehicles();
-    reloadCharges();
+    void reloadCharges();
   });
 
-  const persistCharges = useCallback((nextCharges: VehicleChargeRecord[]) => {
+  const persistCharges = useCallback(async (nextCharges: VehicleChargeRecord[]) => {
     setCharges(nextCharges);
-    saveVehicleCharges(getActiveCompanyId(), nextCharges);
-  }, []);
+    try {
+      await saveVehicleCharges(getActiveCompanyId(), nextCharges);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erreur lors de l’enregistrement des charges');
+      await reloadCharges();
+    }
+  }, [reloadCharges]);
 
   const [form, setForm] = useState<Partial<VehicleChargeRecord>>({
     vehicule: '',
@@ -117,13 +125,13 @@ export const ChargesVehicule = () => {
       ...(form as VehicleChargeRecord),
     };
 
-    persistCharges([...charges, newCharge]);
+    void persistCharges([...charges, newCharge]);
     setIsDialogOpen(false);
     toast.success('Charge enregistrée avec succès');
   }, [charges, form, persistCharges]);
 
   const deleteCharge = (id: string) => {
-    persistCharges(charges.filter((c) => c.id !== id));
+    void persistCharges(charges.filter((c) => c.id !== id));
     toast.success('Charge supprimée');
   };
 
