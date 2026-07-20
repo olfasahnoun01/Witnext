@@ -43,6 +43,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { getActiveCompanyId, requireActiveCompanyId } from '@/lib/activeCompany';
+import { useCompanyChangeReload } from '@/contexts/AppCompanyContext';
+import { filterDriverEmployees } from '@/lib/driverEmployees';
 import { getFuelVoucherStatusDisplay, fuelVoucherStatusBadgeClass } from '@/lib/fuelVoucherStatus';
 import { useListPagination } from '@/hooks/useListPagination';
 import { ListPagination } from '@/components/shared/ListPagination';
@@ -76,6 +78,7 @@ interface Employee {
   id: string;
   prenom: string;
   nom: string;
+  role?: string | null;
 }
 
 interface Vehicle {
@@ -127,11 +130,24 @@ export const BonCarburant = () => {
     notes: '',
   });
 
+  const loadDrivers = async () => {
+    const cid = getActiveCompanyId();
+    let q = supabase.from('employees').select('id, prenom, nom, role').order('prenom');
+    if (cid) q = q.eq('company_id' as never, cid);
+    const { data, error } = await q;
+    if (error) throw error;
+    setEmployees(filterDriverEmployees(data || []));
+  };
+
   const openNewDialog = () => {
     setEditingVoucherId(null);
     setKmInitialAutoFilled(false);
     setForm(emptyForm());
     setIsDialogOpen(true);
+    void loadDrivers().catch((error: unknown) => {
+      console.error('Error loading drivers:', error);
+      toast.error('Erreur lors du chargement des conducteurs');
+    });
   };
 
   const getVoucherDistance = (bon: FuelVoucher): number | null => {
@@ -170,21 +186,30 @@ export const BonCarburant = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [bonsRes, empRes, vehRes] = await Promise.all([
-        supabase
-          .from('fuel_vouchers')
-          .select('*, employee:employees(prenom, nom), vehicle:vehicles(modele, matricule)')
-          .order('created_at', { ascending: false }),
-        supabase.from('employees').select('id, prenom, nom').order('prenom'),
-        supabase.from('vehicles').select('id, modele, matricule, constructeur, kilometrage_actuel, type_carburant').order('modele'),
-      ]);
+      const cid = getActiveCompanyId();
+      let bonsQuery = supabase
+        .from('fuel_vouchers')
+        .select('*, employee:employees(prenom, nom), vehicle:vehicles(modele, matricule)')
+        .order('created_at', { ascending: false });
+      let empQuery = supabase.from('employees').select('id, prenom, nom, role').order('prenom');
+      let vehQuery = supabase
+        .from('vehicles')
+        .select('id, modele, matricule, constructeur, kilometrage_actuel, type_carburant')
+        .order('modele');
+      if (cid) {
+        bonsQuery = bonsQuery.eq('company_id' as never, cid);
+        empQuery = empQuery.eq('company_id' as never, cid);
+        vehQuery = vehQuery.eq('company_id' as never, cid);
+      }
+
+      const [bonsRes, empRes, vehRes] = await Promise.all([bonsQuery, empQuery, vehQuery]);
 
       if (bonsRes.error) throw bonsRes.error;
       if (empRes.error) throw empRes.error;
       if (vehRes.error) throw vehRes.error;
 
       setBons((bonsRes.data as any) || []);
-      setEmployees(empRes.data || []);
+      setEmployees(filterDriverEmployees(empRes.data || []));
       setVehicles(vehRes.data || []);
     } catch (error: any) {
       console.error('Error fetching data:', error);
@@ -197,7 +222,7 @@ export const BonCarburant = () => {
   useEffect(() => {
     fetchData();
 
-    const channel = supabase
+    const vouchersChannel = supabase
       .channel('fuel_vouchers_desktop')
       .on(
         'postgres_changes',
@@ -208,10 +233,26 @@ export const BonCarburant = () => {
       )
       .subscribe();
 
+    const employeesChannel = supabase
+      .channel('bon_carburant_employees')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'employees' },
+        () => {
+          void loadDrivers().catch((error: unknown) => {
+            console.error('Error refreshing drivers:', error);
+          });
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(vouchersChannel);
+      supabase.removeChannel(employeesChannel);
     };
   }, []);
+
+  useCompanyChangeReload(fetchData);
 
   const handleSubmit = async () => {
     if (!form.numBon || !form.montant || !form.conducteurId || !form.vehiculeId) {
@@ -313,6 +354,10 @@ export const BonCarburant = () => {
       notes: bon.notes || '',
     });
     setIsDialogOpen(true);
+    void loadDrivers().catch((error: unknown) => {
+      console.error('Error loading drivers:', error);
+      toast.error('Erreur lors du chargement des conducteurs');
+    });
   };
 
   const getDriverName = (bon: FuelVoucher) => {
@@ -643,11 +688,11 @@ export const BonCarburant = () => {
                   onValueChange={(v) => setForm({ ...form, conducteurId: v })}
                 >
                   <SelectTrigger className="rounded-xl border-border bg-background h-11 text-foreground">
-                    <SelectValue placeholder="Sélectionner un employé" />
+                    <SelectValue placeholder="Sélectionner un conducteur" />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border">
                     {employees.length === 0 ? (
-                      <div className="p-2 text-xs text-muted-foreground text-center italic">Aucun employé enregistré</div>
+                      <div className="p-2 text-xs text-muted-foreground text-center italic">Aucun conducteur enregistré</div>
                     ) : (
                       employees.map((emp) => (
                         <SelectItem key={emp.id} value={emp.id}>

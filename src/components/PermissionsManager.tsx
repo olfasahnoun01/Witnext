@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { requireActiveCompanyId } from '@/lib/activeCompany';
+import { ensureDriverEmployeeRecord } from '@/lib/ensureDriverEmployee';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -669,27 +669,28 @@ export const PermissionsManager = () => {
         if (response.error) throw new Error(response.error.message);
         if (response.data?.error) throw new Error(formatError(response.data.error));
         targetUserId = response.data?.user?.id ?? response.data?.user_id ?? null;
+      }
 
-        if (targetUserId && isDriverPosition(position)) {
-          const { prenom, nom } = splitFullName(fullName);
-          const { error: empErr } = await supabase.from('employees').insert({
-            prenom,
-            nom,
-            email: email.trim(),
-            phone: mobilePhone.trim() || null,
-            cin: mobileCin.trim() || null,
-            role: position,
-            user_id: targetUserId,
-            company_id: requireActiveCompanyId(),
-          } as never);
-          if (empErr) {
-            console.warn('[PermissionsManager] employees insert:', empErr.message);
-            toast({
-              title: 'Compte créé',
-              description:
-                "Le compte a été créé mais l'enregistrement employé RH n'a pas pu être ajouté. Vérifiez la liste employés.",
-            });
-          }
+      if (targetUserId && isDriverPosition(position)) {
+        const { prenom, nom } = splitFullName(fullName);
+        const empResult = await ensureDriverEmployeeRecord({
+          userId: targetUserId,
+          prenom,
+          nom,
+          email: email.trim(),
+          phone: mobilePhone.trim() || null,
+          cin: mobileCin.trim() || null,
+          role: position,
+        });
+        if (!empResult.ok) {
+          console.warn('[PermissionsManager] employees upsert:', empResult.message);
+          toast({
+            variant: 'destructive',
+            title: editingUser ? 'Compte mis à jour' : 'Compte créé',
+            description:
+              "Le compte a été enregistré mais l'enregistrement conducteur n'a pas pu être synchronisé. " +
+              empResult.message,
+          });
         }
       }
 
