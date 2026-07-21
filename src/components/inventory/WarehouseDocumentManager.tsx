@@ -13,11 +13,14 @@ import { getActiveCompanyIdForQuery } from '@/lib/activeCompany';
 interface WarehouseDocumentManagerProps {
   type: UnifiedDocumentType;
   title: string;
+  /** Optional JSONB metadata filter (e.g. bl_purpose = envoi_faconnage). */
+  metadataFilter?: { key: string; value: string };
 }
 
 export const WarehouseDocumentManager = ({
   type,
   title,
+  metadataFilter,
 }: WarehouseDocumentManagerProps) => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editDocumentId, setEditDocumentId] = useState<string | null>(null);
@@ -67,7 +70,7 @@ export const WarehouseDocumentManager = ({
       {pendingFromTransaction && (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
           Une transaction stock vient d&apos;être enregistrée. Vous devez créer le{' '}
-          {type === 'BE' ? "bon d'entrée" : 'bon de sortie'} correspondant pour finaliser
+          {type === 'BE' ? "bon d'entrée" : type === 'BL_FOURNISSEUR' ? 'BL fournisseur' : 'bon de sortie'} correspondant pour finaliser
           l&apos;opération.
         </div>
       )}
@@ -83,8 +86,9 @@ export const WarehouseDocumentManager = ({
         key={refreshKey}
         title={title}
         documentTypes={[type]}
-        onEdit={['BE', 'BS', 'BL_CLIENT'].includes(type) ? handleEditDocument : undefined}
-        editableTypes={['BE', 'BS', 'BL_CLIENT']}
+        metadataFilter={metadataFilter}
+        onEdit={['BE', 'BS', 'BL_CLIENT', 'BL_FOURNISSEUR'].includes(type) ? handleEditDocument : undefined}
+        editableTypes={['BE', 'BS', 'BL_CLIENT', 'BL_FOURNISSEUR']}
       />
 
       <DocumentCreationDialog 

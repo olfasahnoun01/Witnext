@@ -30,16 +30,16 @@ import {
 } from '@/lib/supabaseSession';
 import { cn } from '@/lib/utils';
 
-const WAREHOUSE_DOC_TYPES: UnifiedDocumentType[] = ['BE', 'BS', 'BL_CLIENT'];
+const WAREHOUSE_DOC_TYPES: UnifiedDocumentType[] = ['BE', 'BS', 'BL_CLIENT', 'BL_FOURNISSEUR'];
 
-type TypeFilter = 'all' | 'BE' | 'BS' | 'BL_CLIENT';
+type TypeFilter = 'all' | 'BE' | 'BS' | 'BL_CLIENT' | 'BL_FOURNISSEUR';
 
 const TYPE_LABELS: Record<UnifiedDocumentType, string> = {
   DEMANDE_ACHAT: "Demande d'achat",
   BC_CLIENT: 'BC client',
   DEVIS_FOURNISSEUR: 'Devis fournisseur',
   BC_FOURNISSEUR: 'BC fournisseur',
-  BL_FOURNISSEUR: 'BL fournisseur',
+  BL_FOURNISSEUR: 'BL fournisseur (envoi)',
   BE: "Bon d'entrée",
   BS: 'Bon de sortie',
   BL_CLIENT: 'Bon de livraison',
@@ -50,6 +50,7 @@ const TYPE_BADGE_CLASS: Partial<Record<UnifiedDocumentType, string>> = {
   BE: 'bg-success/10 text-success border-success/20',
   BS: 'bg-destructive/10 text-destructive border-destructive/20',
   BL_CLIENT: 'bg-primary/10 text-primary border-primary/20',
+  BL_FOURNISSEUR: 'bg-amber-500/10 text-amber-700 border-amber-500/20 dark:text-amber-300',
 };
 
 function formatDocDate(doc: UnifiedDocument): string {
@@ -138,6 +139,7 @@ export function WarehouseDocumentsReports() {
       BE: documents.filter((d) => d.type === 'BE').length,
       BS: documents.filter((d) => d.type === 'BS').length,
       BL_CLIENT: documents.filter((d) => d.type === 'BL_CLIENT').length,
+      BL_FOURNISSEUR: documents.filter((d) => d.type === 'BL_FOURNISSEUR').length,
     }),
     [documents]
   );
@@ -204,6 +206,7 @@ export function WarehouseDocumentsReports() {
     { id: 'BE', label: `Entrées (${counts.BE})` },
     { id: 'BS', label: `Sorties (${counts.BS})` },
     { id: 'BL_CLIENT', label: `Livraisons (${counts.BL_CLIENT})` },
+    { id: 'BL_FOURNISSEUR', label: `BL four. (${counts.BL_FOURNISSEUR})` },
   ];
 
   return (
@@ -212,7 +215,7 @@ export function WarehouseDocumentsReports() {
         <div>
           <h3 className="text-lg font-semibold text-foreground">Documents Magasin</h3>
           <p className="text-sm text-muted-foreground">
-            Bons d&apos;entrée, de sortie et de livraison enregistrés — aperçu, impression et téléchargement.
+            Bons d&apos;entrée, de sortie, livraisons client et BL fournisseur (façonnage) — aperçu, impression et téléchargement.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

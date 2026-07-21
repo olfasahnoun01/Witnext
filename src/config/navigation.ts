@@ -132,6 +132,7 @@ export const BIG_SECTIONS: BigSection[] = [
       { id: 'be-magasin', label: "Bons d'Entrée", icon: PackageCheck, group: 'Stock' },
       { id: 'bs-magasin', label: 'Bons de Sortie', icon: TrendingUp, group: 'Stock' },
       { id: 'bl-magasin', label: 'Bons de Livraison', icon: Truck, group: 'Stock' },
+      { id: 'bl-fournisseur-magasin', label: 'BL Fournisseur', icon: Truck, group: 'Stock' },
       { id: 'comparison', label: 'Comparaison Prix', icon: GitCompare, group: 'Analyse' },
       { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight, group: 'Analyse' },
       { id: 'barcode-labels', label: 'Étiquettes code-barres', icon: ScanBarcode, group: 'Analyse' },

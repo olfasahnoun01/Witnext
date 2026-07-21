@@ -656,10 +656,14 @@ export const downloadUnifiedDocumentPDF = async (doc: UnifiedDocument) => {
 };
 
 function unifiedDocumentToPdfParams(doc: UnifiedDocument) {
+  const meta = doc.metadata as Record<string, unknown> | undefined;
+  const isOutboundSupplierBl =
+    doc.type === 'BL_FOURNISSEUR' && meta?.bl_purpose === 'envoi_faconnage';
+
   const typeMap: Record<string, DocumentType> = {
     BC_FOURNISSEUR: 'bon_entree',
     BE: 'bon_entree',
-    BL_FOURNISSEUR: 'bon_entree',
+    BL_FOURNISSEUR: isOutboundSupplierBl ? 'bon_livraison' : 'bon_entree',
     BS: 'bon_sortie',
     BL_CLIENT: 'bon_livraison',
     BC_CLIENT: 'bon_livraison',
@@ -697,20 +701,27 @@ function unifiedDocumentToPdfParams(doc: UnifiedDocument) {
     };
   });
 
-  const metadata = doc.metadata as Record<string, unknown> | undefined;
+  const motifLabel = meta?.service_motif_label
+    ? String(meta.service_motif_label)
+    : '';
+  const baseNotes = doc.notes || '';
+  const notesWithMotif =
+    isOutboundSupplierBl && motifLabel
+      ? [baseNotes, `Motif : ${motifLabel}`].filter(Boolean).join('\n')
+      : baseNotes;
 
   return {
     docType,
     docNumber: doc.numero,
-    docDate: (metadata?.document_date as string) || doc.created_at,
-    docValidity: (metadata?.validity as string) || '',
-    transportRef: (metadata?.transport_ref as string) || '',
+    docDate: (meta?.document_date as string) || doc.created_at,
+    docValidity: (meta?.validity as string) || '',
+    transportRef: (meta?.transport_ref as string) || '',
     thirdPartyName:
-      doc.fournisseur_name || doc.client_name || (metadata?.third_party_name as string) || '',
-    thirdPartyAddress: (metadata?.third_party_address as string) || '',
-    thirdPartyTaxId: (metadata?.third_party_tax_id as string) || '',
+      doc.fournisseur_name || doc.client_name || (meta?.third_party_name as string) || '',
+    thirdPartyAddress: (meta?.third_party_address as string) || '',
+    thirdPartyTaxId: (meta?.third_party_tax_id as string) || '',
     docItems,
-    notes: doc.notes || '',
+    notes: notesWithMotif,
   };
 }
 

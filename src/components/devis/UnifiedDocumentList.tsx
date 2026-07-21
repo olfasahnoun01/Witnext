@@ -179,9 +179,11 @@ export const UnifiedDocumentList = ({
     (doc: UnifiedDocument): boolean => {
       if (!onEdit || !editableTypes.includes(doc.type)) return false;
       if (doc.type === 'BL_CLIENT' && invoicedBlIds.has(doc.id)) return false;
+      if (doc.type === 'BL_FOURNISSEUR' && doc.status !== 'PENDING') return false;
       if (isAdmin || isModerator) return true;
       if (user?.id && doc.created_by === user.id) return true;
       if (doc.type === 'BL_CLIENT') return canAccessSubsection('bl-magasin');
+      if (doc.type === 'BL_FOURNISSEUR') return canAccessSubsection('bl-fournisseur-magasin');
       if (doc.type === 'BE') return canAccessSubsection('be-magasin');
       if (doc.type === 'BS') return canAccessSubsection('bs-magasin');
       return false;
@@ -228,6 +230,21 @@ export const UnifiedDocumentList = ({
       loadDocuments();
     } else {
       toast.error("Erreur : " + result.error);
+    }
+  };
+
+  const handleValidateOutboundSupplierBL = async (id: string) => {
+    const confirm = window.confirm(
+      "Valider l'envoi chez le fournisseur ? Un bon de sortie (PENDING) sera créé pour décrémenter le stock."
+    );
+    if (!confirm) return;
+
+    const result = await documentService.validateOutboundSupplierBL(id);
+    if (result.success) {
+      toast.success(`Envoi validé — BS ${result.bsNumero} créé. Validez le BS pour sortir le stock.`);
+      loadDocuments();
+    } else {
+      toast.error('Erreur : ' + result.error);
     }
   };
 
@@ -404,6 +421,15 @@ export const UnifiedDocumentList = ({
                   <span className="font-bold">{doc.fournisseur_name || doc.client_name || 'N/A'}</span>
                 </div>
               )}
+              {doc.type === 'BL_FOURNISSEUR' &&
+                (doc.metadata as Record<string, unknown> | undefined)?.service_motif_label && (
+                <div className="flex justify-between text-sm gap-2">
+                  <span className="text-muted-foreground shrink-0">Motif :</span>
+                  <span className="font-medium text-right">
+                    {String((doc.metadata as Record<string, unknown>).service_motif_label)}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Articles :</span>
                 <span>{doc.lines?.length || 0} articles</span>
@@ -447,6 +473,20 @@ export const UnifiedDocumentList = ({
                   >
                     <ReceiptText className="w-4 h-4" />
                     {invoicedBlIds.has(doc.id) ? 'DÉJÀ FACTURÉ' : 'GÉNÉRER FACTURE'}
+                  </Button>
+                )}
+
+                {doc.type === 'BL_FOURNISSEUR' &&
+                  doc.status === 'PENDING' &&
+                  (doc.metadata as Record<string, unknown> | undefined)?.bl_purpose ===
+                    'envoi_faconnage' && (
+                  <Button
+                    variant="default"
+                    className="w-full gap-2 bg-amber-600 hover:bg-amber-700"
+                    onClick={() => handleValidateOutboundSupplierBL(doc.id)}
+                  >
+                    <Truck className="w-4 h-4" />
+                    VALIDER ENVOI (créer BS)
                   </Button>
                 )}
 

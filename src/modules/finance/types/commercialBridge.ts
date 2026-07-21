@@ -87,7 +87,7 @@ export const WAREHOUSE_DOC_LABELS: Record<WarehouseDocType, string> = {
   BC_CLIENT: 'BC client',
   BC_FOURNISSEUR: 'BC fournisseur',
   BL_CLIENT: 'BL client (bon de livraison)',
-  BL_FOURNISSEUR: 'BL fournisseur (réception)',
+  BL_FOURNISSEUR: 'BL fournisseur',
   BE: 'BE — bon d\'entrée magasin',
   BS: 'BS — bon de sortie magasin',
   FACTURE: 'Facture commerciale (v2)',

@@ -138,6 +138,20 @@ export function ErpRoutes() {
           }
         />
         <Route
+          path="/inventory/supplier-delivery-notes"
+          element={
+            <SubsectionRoute subsectionId="bl-fournisseur-magasin">
+              <LazyRoute>
+                <WarehouseDocumentManager
+                  type="BL_FOURNISSEUR"
+                  title="BL Fournisseur (envoi façonnage)"
+                  metadataFilter={{ key: 'bl_purpose', value: 'envoi_faconnage' }}
+                />
+              </LazyRoute>
+            </SubsectionRoute>
+          }
+        />
+        <Route
           path="/inventory/price-comparison"
           element={
             <SubsectionRoute subsectionId="comparison">

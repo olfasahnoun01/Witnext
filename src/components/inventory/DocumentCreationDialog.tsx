@@ -30,6 +30,21 @@ import { DevisSegmentedGrid, DevisSegmentedOption } from '../devis/DevisFormUi';
 
 type BlPurpose = 'client' | 'magasin_transfer';
 type ArticleMode = 'search' | 'manual';
+type ServiceMotif = 'impression_logo' | 'marquage_noms' | 'broderie' | 'autre';
+
+const SERVICE_MOTIF_OPTIONS: { value: ServiceMotif; label: string }[] = [
+  { value: 'impression_logo', label: 'Impression logo' },
+  { value: 'marquage_noms', label: 'Marquage / impression noms' },
+  { value: 'broderie', label: 'Broderie' },
+  { value: 'autre', label: 'Autre façonnage' },
+];
+
+const SERVICE_MOTIF_LABELS: Record<ServiceMotif, string> = {
+  impression_logo: 'Impression logo',
+  marquage_noms: 'Marquage / impression noms',
+  broderie: 'Broderie',
+  autre: 'Autre façonnage',
+};
 
 type DocumentLine = {
   lineKey: string;
@@ -120,6 +135,7 @@ export const DocumentCreationDialog = ({
   const [partyPhone, setPartyPhone] = useState('');
   const [partySuggestionsOpen, setPartySuggestionsOpen] = useState(false);
   const [blPurpose, setBlPurpose] = useState<BlPurpose>('client');
+  const [serviceMotif, setServiceMotif] = useState<ServiceMotif>('impression_logo');
   const [sourceMagasin, setSourceMagasin] = useState('');
   const [destinationMagasin, setDestinationMagasin] = useState('');
   const [articleMode, setArticleMode] = useState<ArticleMode>('search');
@@ -133,7 +149,8 @@ export const DocumentCreationDialog = ({
   const [fournisseurs, setFournisseurs] = useState<TierRecord[]>([]);
   const [lines, setLines] = useState<DocumentLine[]>([]);
 
-  const tierList = type === 'BE' ? fournisseurs : clients;
+  const isSupplierParty = type === 'BE' || type === 'BL_FOURNISSEUR';
+  const tierList = isSupplierParty ? fournisseurs : clients;
 
   const tierSuggestions = useMemo(() => {
     const q = partyName.trim().toLowerCase();
@@ -153,7 +170,7 @@ export const DocumentCreationDialog = ({
     setPartyTaxId(tier.matricule_fiscal || tier.tax_id || '');
     setPartyPhone(tier.telephone || tier.phone || '');
     setPartySuggestionsOpen(false);
-    if (type === 'BE') {
+    if (isSupplierParty) {
       setFournisseurId(tier.id);
       setClientId(null);
     } else {
@@ -165,7 +182,7 @@ export const DocumentCreationDialog = ({
   const handlePartyNameChange = (value: string) => {
     setPartyName(value);
     setPartySuggestionsOpen(true);
-    if (type === 'BE') {
+    if (isSupplierParty) {
       setFournisseurId(null);
     } else {
       setClientId(null);
@@ -217,6 +234,14 @@ export const DocumentCreationDialog = ({
     setClientId(doc.client_id);
     setFournisseurId(doc.fournisseur_id);
     setBlPurpose(meta.bl_purpose === 'magasin_transfer' ? 'magasin_transfer' : 'client');
+    const motif = String(meta.service_motif ?? 'impression_logo');
+    setServiceMotif(
+      (['impression_logo', 'marquage_noms', 'broderie', 'autre'] as ServiceMotif[]).includes(
+        motif as ServiceMotif
+      )
+        ? (motif as ServiceMotif)
+        : 'autre'
+    );
     setSourceMagasin(String(meta.source_magasin ?? currentCompany?.name ?? ''));
     setDestinationMagasin(String(meta.destination_magasin ?? ''));
     setArticleMode('search');
@@ -313,6 +338,7 @@ export const DocumentCreationDialog = ({
     setPartyPhone('');
     setPartySuggestionsOpen(false);
     setBlPurpose('client');
+    setServiceMotif('impression_logo');
     setSourceMagasin(currentCompany?.name ?? '');
     setDestinationMagasin('');
     setArticleMode('search');
@@ -416,11 +442,16 @@ export const DocumentCreationDialog = ({
       return;
     }
 
+    if (type === 'BL_FOURNISSEUR' && !partyName.trim()) {
+      toast.error('Veuillez indiquer le fournisseur (imprimeur / façonnier)');
+      return;
+    }
+
     setLoading(true);
     try {
       const payload = {
         clientId: type === 'BL_CLIENT' && blPurpose === 'magasin_transfer' ? undefined : (clientId || undefined),
-        fournisseurId: fournisseurId || undefined,
+        fournisseurId: isSupplierParty ? (fournisseurId || undefined) : (fournisseurId || undefined),
         notes,
         metadata: {
           ...(editDoc?.metadata ?? {}),
@@ -443,6 +474,13 @@ export const DocumentCreationDialog = ({
                       destination_magasin: destinationMagasin.trim(),
                     }
                   : {}),
+              }
+            : {}),
+          ...(type === 'BL_FOURNISSEUR'
+            ? {
+                bl_purpose: 'envoi_faconnage',
+                service_motif: serviceMotif,
+                service_motif_label: SERVICE_MOTIF_LABELS[serviceMotif],
               }
             : {}),
           ...(initialData && !isEditMode
@@ -468,7 +506,7 @@ export const DocumentCreationDialog = ({
       const result = isEditMode && editDocumentId
         ? await documentService.updateDocument(editDocumentId, {
             clientId: type === 'BL_CLIENT' && blPurpose === 'magasin_transfer' ? null : (clientId ?? null),
-            fournisseurId: fournisseurId ?? null,
+            fournisseurId: isSupplierParty ? (fournisseurId ?? null) : (fournisseurId ?? null),
             notes: payload.notes,
             metadata: payload.metadata,
             lines: payload.lines,
@@ -498,7 +536,7 @@ export const DocumentCreationDialog = ({
               products: { name: l.product_name, sku: l.sku },
             })),
             client_name: type === 'BL_CLIENT' || type === 'BS' ? partyName.trim() : null,
-            fournisseur_name: type === 'BE' ? partyName.trim() : null,
+            fournisseur_name: isSupplierParty ? partyName.trim() : null,
           };
           await downloadUnifiedDocumentPDF(docForPDF as UnifiedDocument);
         }
@@ -525,11 +563,11 @@ export const DocumentCreationDialog = ({
     'BC_CLIENT': "Bon de Commande Client",
     'DEVIS_FOURNISSEUR': "Devis Fournisseur",
     'BC_FOURNISSEUR': "Bon de Commande Fournisseur",
-    'BL_FOURNISSEUR': "Bon de Livraison Fournisseur",
+    'BL_FOURNISSEUR': "BL Fournisseur — Envoi façonnage",
     'FACTURE': "Facture"
   };
 
-  const partyLabel = type === 'BE' ? 'Fournisseur' : 'Client';
+  const partyLabel = isSupplierParty ? 'Fournisseur' : 'Client';
 
   const handleDialogOpenChange = (nextOpen: boolean) => {
     const companyId = getActiveCompanyIdForQuery();
@@ -617,10 +655,42 @@ export const DocumentCreationDialog = ({
             <h3 className="text-lg font-semibold border-b pb-2 flex items-center gap-2">
               {type === 'BE'
                 ? 'Informations Fournisseur'
-                : type === 'BL_CLIENT'
-                  ? 'Destination du bon de livraison'
-                  : 'Informations Client'}
+                : type === 'BL_FOURNISSEUR'
+                  ? 'Fournisseur (imprimeur / façonnier)'
+                  : type === 'BL_CLIENT'
+                    ? 'Destination du bon de livraison'
+                    : 'Informations Client'}
             </h3>
+
+            {type === 'BL_FOURNISSEUR' && (
+              <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+                <Label className="text-sm font-semibold">Motif de l&apos;envoi</Label>
+                <RadioGroup
+                  value={serviceMotif}
+                  onValueChange={(v) => setServiceMotif(v as ServiceMotif)}
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                >
+                  {SERVICE_MOTIF_OPTIONS.map((opt) => (
+                    <label
+                      key={opt.value}
+                      htmlFor={`blf-motif-${opt.value}`}
+                      className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/40 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+                    >
+                      <RadioGroupItem
+                        value={opt.value}
+                        id={`blf-motif-${opt.value}`}
+                        className="mt-0.5"
+                      />
+                      <span className="font-medium text-sm">{opt.label}</span>
+                    </label>
+                  ))}
+                </RadioGroup>
+                <p className="text-xs text-muted-foreground">
+                  Ex. : envoi d&apos;articles pour impression logo, marquage de noms, broderie…
+                  Précisez le détail dans les notes ou la description des lignes.
+                </p>
+              </div>
+            )}
 
             {type === 'BL_CLIENT' && (
               <RadioGroup

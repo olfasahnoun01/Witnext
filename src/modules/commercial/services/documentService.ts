@@ -689,11 +689,12 @@ export const documentService = {
     if (error || !lines) return { success: false, error: "Impossible de vérifier le stock." };
 
     const shortages = lines
-      .filter(l => (l.products as any).quantity < l.quantity)
-      .map(l => ({
-        name: (l.products as any).name,
+      .filter((l) => l.product_id != null && l.products)
+      .filter((l) => (l.products as { quantity: number }).quantity < l.quantity)
+      .map((l) => ({
+        name: (l.products as { name: string }).name,
         needed: l.quantity,
-        available: (l.products as any).quantity
+        available: (l.products as { quantity: number }).quantity,
       }));
 
     return {
@@ -787,6 +788,101 @@ export const documentService = {
   /**
    * Final validation of a BS: PostgreSQL trigger decrements stock (skips when linked to manual transaction).
    */
+  /**
+   * Validates an outbound BL_FOURNISSEUR (envoi façonnage): marks BL VALIDATED
+   * and creates a PENDING BS so stock can be decremented via existing BS validation.
+   */
+  async validateOutboundSupplierBL(blId: string) {
+    try {
+      const bl = await this.getDocument(blId);
+      if (!bl || bl.type !== 'BL_FOURNISSEUR') {
+        throw new Error('BL fournisseur introuvable');
+      }
+      if ((bl.metadata as Record<string, unknown> | undefined)?.bl_purpose !== 'envoi_faconnage') {
+        throw new Error("Ce BL fournisseur n'est pas un envoi façonnage magasin.");
+      }
+      if (bl.status !== 'PENDING') {
+        throw new Error('Ce BL fournisseur est déjà traité.');
+      }
+
+      const { data: existingBs, error: childErr } = await supabase
+        .from('documents')
+        .select('id')
+        .eq('parent_id', blId)
+        .eq('type', 'BS')
+        .limit(1);
+      if (childErr) throw childErr;
+      if (existingBs && existingBs.length > 0) {
+        throw new Error('Une sortie de stock existe déjà pour ce BL fournisseur.');
+      }
+
+      const stockCheck = await this.checkStockForBC(blId);
+      if (!stockCheck.success) {
+        const list = stockCheck.shortages
+          ?.map((s) => `${s.name} (Besoin: ${s.needed}, Dispo: ${s.available})`)
+          .join(', ');
+        throw new Error(`Stock insuffisant pour: ${list}`);
+      }
+
+      const companyId = resolveDocumentCompanyId(bl);
+      const bsNumero = await this.generateNextNumber('BS');
+      const { data: bs, error: bsError } = await supabase
+        .from('documents')
+        .insert({
+          numero: bsNumero,
+          type: 'BS',
+          status: 'PENDING',
+          fournisseur_id: bl.fournisseur_id,
+          parent_id: blId,
+          company_id: companyId,
+          notes: bl.notes,
+          metadata: {
+            origin: 'bl_fournisseur_envoi',
+            source_bl_numero: bl.numero,
+            third_party_name:
+              bl.fournisseur_name ||
+              (bl.metadata as Record<string, unknown> | undefined)?.third_party_name ||
+              '',
+            service_motif: (bl.metadata as Record<string, unknown> | undefined)?.service_motif,
+            service_motif_label: (bl.metadata as Record<string, unknown> | undefined)
+              ?.service_motif_label,
+          },
+        })
+        .select()
+        .single();
+      if (bsError) throw bsError;
+
+      if (bl.lines && bl.lines.length > 0) {
+        await supabase.from('document_lines').insert(
+          bl.lines.map((l) => ({
+            document_id: bs.id,
+            product_id: l.product_id,
+            quantity: l.quantity,
+            unit_price: l.unit_price,
+            total_price: l.total_price,
+            description: l.description,
+          }))
+        );
+      }
+
+      const { data: updated, error: updErr } = await supabase
+        .from('documents')
+        .update({ status: 'VALIDATED' })
+        .eq('id', blId)
+        .eq('status', 'PENDING')
+        .select('id');
+      if (updErr) throw updErr;
+      if (!updated || updated.length === 0) {
+        throw new Error('Ce BL fournisseur a déjà été validé.');
+      }
+
+      return { success: true, bsId: bs.id, bsNumero: bs.numero };
+    } catch (error: any) {
+      console.error('Error in validateOutboundSupplierBL:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
   async validateBS(bsId: string) {
     try {
       const { data: updated, error } = await supabase
@@ -1007,6 +1103,13 @@ export const documentService = {
             error: 'Ce bon de livraison est déjà facturé et ne peut plus être modifié.',
           };
         }
+      }
+
+      if (existing.type === 'BL_FOURNISSEUR' && existing.status !== 'PENDING') {
+        return {
+          success: false,
+          error: 'Ce BL fournisseur est déjà validé et ne peut plus être modifié.',
+        };
       }
 
       const { error: docError } = await supabase
