@@ -178,7 +178,8 @@ export function RhRapportsInbox() {
           <Inbox className="mx-auto h-10 w-10 mb-3 opacity-50" />
           <p className="font-medium">Aucun rapport reçu</p>
           <p className="text-sm mt-1">
-            Les rapports envoyés depuis l&apos;application mobile chauffeur apparaîtront ici.
+            Les rapports RH enregistrés depuis ce module apparaîtront ici.
+            Les rapports de visite chauffeurs (app mobile) sont dans l&apos;onglet « Visites chauffeurs ».
           </p>
         </div>
       ) : (

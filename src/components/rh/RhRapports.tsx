@@ -25,6 +25,7 @@ import { downloadRhSecurityReportPdf } from '@/utils/rhSecurityReportPdf';
 import { saveRhSecurityReport } from '@/services/rhReportService';
 import { validateUploadFile, MAX_UPLOAD_BYTES } from '@/lib/uploadValidation';
 import { RhRapportsInbox } from '@/components/rh/RhRapportsInbox';
+import { DriverVisitRapportsInbox } from '@/components/rh/DriverVisitRapportsInbox';
 
 function RhRapportsCreateForm() {
   const { toast } = useToast();
@@ -413,21 +414,28 @@ export const RhRapports = () => {
           Rapports RH
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Consultez les rapports envoyés par les chauffeurs (application mobile) ou rédigez un nouveau rapport.
+          Consultez les rapports de visite des chauffeurs (app mobile), les rapports RH enregistrés, ou rédigez un nouveau rapport.
         </p>
       </div>
 
-      <Tabs defaultValue="inbox" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+      <Tabs defaultValue="visits" className="w-full">
+        <TabsList className="grid w-full max-w-2xl grid-cols-3">
+          <TabsTrigger value="visits" className="gap-2">
+            <Car className="h-4 w-4" />
+            Visites chauffeurs
+          </TabsTrigger>
           <TabsTrigger value="inbox" className="gap-2">
             <Inbox className="h-4 w-4" />
-            Rapports reçus
+            Rapports RH
           </TabsTrigger>
           <TabsTrigger value="create" className="gap-2">
             <PenLine className="h-4 w-4" />
             Nouveau rapport
           </TabsTrigger>
         </TabsList>
+        <TabsContent value="visits" className="mt-4">
+          <DriverVisitRapportsInbox />
+        </TabsContent>
         <TabsContent value="inbox" className="mt-4">
           <RhRapportsInbox />
         </TabsContent>
