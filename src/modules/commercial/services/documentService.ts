@@ -1,6 +1,9 @@
 import { supabase } from '@/integrations/supabase/client';
-import { getActiveCompanyId, requireActiveCompanyId } from '@/lib/activeCompany';
-import { filterByCompanyId } from '@/modules/inventory/lib/companyQuery';
+import { requireActiveCompanyId } from '@/lib/activeCompany';
+import {
+  allocateDocumentNumber,
+  isDocumentNumeroUniqueViolation,
+} from '@/lib/documentNumbering';
 import {
   notifyPurchaseRequestCreated,
   notifyPurchaseRequestForwardedToAchat,
@@ -26,43 +29,10 @@ function resolveDocumentCompanyId(parent?: { company_id?: string | null } | null
 export const documentService = {
   /**
    * Generates a sequential number for a specific document type.
-   * Format: [PREFIX]-[YEAR]-[SEQ] (e.g., DF-2024-001)
+   * Format: [PREFIX]-[YEAR]-[SEQ] (e.g. BLF-2026-001). Uses max(seq)+1.
    */
   async generateNextNumber(type: UnifiedDocumentType): Promise<string> {
-    const prefixMap: Record<UnifiedDocumentType, string> = {
-      'DEMANDE_ACHAT': 'DA',
-      'BC_CLIENT': 'BCC',
-      'DEVIS_FOURNISSEUR': 'DF',
-      'BC_FOURNISSEUR': 'BCF',
-      'BL_FOURNISSEUR': 'BLF',
-      'BE': 'BE',
-      'BS': 'BS',
-      'BL_CLIENT': 'BLC',
-      'FACTURE': 'FACT'
-    };
-
-    const prefix = prefixMap[type];
-    const year = new Date().getFullYear();
-    
-    // Count existing documents of this type in the current year (per company).
-    const companyId = getActiveCompanyId();
-    let countQuery = supabase
-      .from('documents')
-      .select('*', { count: 'exact', head: true })
-      .eq('type', type)
-      .filter('numero', 'ilike', `${prefix}-${year}-%`);
-    if (companyId) countQuery = filterByCompanyId(countQuery, companyId);
-    const { count, error } = await countQuery;
-
-    if (error) {
-      console.error('Error generating number:', error);
-      // Never fabricate a random number: that silently creates duplicate/
-      // out-of-sequence document numbers. Fail loudly so the caller aborts.
-      throw new Error(`Numérotation indisponible (${prefix}): ${error.message}`);
-    }
-
-    const nextSeq = (count || 0) + 1;
-    return `${prefix}-${year}-${nextSeq.toString().padStart(3, '0')}`;
+    return allocateDocumentNumber(type);
   },
 
   /**
@@ -1180,26 +1150,45 @@ export const documentService = {
         };
       }
 
-      const numero = await this.generateNextNumber(params.type);
       const { data: { user } } = await supabase.auth.getUser();
 
-      const { data: doc, error: docError } = await supabase
-        .from('documents')
-        .insert({
-          numero,
-          type: params.type,
-          status: params.status || 'PENDING',
-          client_id: params.clientId || null,
-          fournisseur_id: params.fournisseurId || null,
-          notes: params.notes || null,
-          created_by: user?.id ?? null,
-          company_id: companyId,
-          metadata: params.metadata || {},
-        })
-        .select()
-        .single();
+      let doc: { id: string } | null = null;
+      let lastError: { code?: string; message?: string } | null = null;
 
-      if (docError) throw docError;
+      // Retry once if a concurrent create raced on the same numero.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const numero = await this.generateNextNumber(params.type);
+        const { data, error: docError } = await supabase
+          .from('documents')
+          .insert({
+            numero,
+            type: params.type,
+            status: params.status || 'PENDING',
+            client_id: params.clientId || null,
+            fournisseur_id: params.fournisseurId || null,
+            notes: params.notes || null,
+            created_by: user?.id ?? null,
+            company_id: companyId,
+            metadata: params.metadata || {},
+          })
+          .select()
+          .single();
+
+        if (!docError && data) {
+          doc = data;
+          lastError = null;
+          break;
+        }
+
+        lastError = docError;
+        if (!isDocumentNumeroUniqueViolation(docError) || attempt === 1) {
+          throw docError;
+        }
+      }
+
+      if (!doc) {
+        throw lastError ?? new Error('Création du document impossible');
+      }
 
       const linesToInsert = params.lines.map(line => ({
         document_id: doc.id,
