@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import HCaptcha from '@hcaptcha/react-hcaptcha';
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { Loader2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,8 +27,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 const isWebTarget = import.meta.env.VITE_APP_TARGET !== 'electron';
-const hcaptchaSiteKey = import.meta.env.VITE_HCAPTCHA_SITE_KEY?.trim() ?? '';
-const captchaConfigured = isWebTarget && hcaptchaSiteKey.length > 0;
+const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() ?? '';
+const captchaConfigured = isWebTarget && turnstileSiteKey.length > 0;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -64,7 +64,7 @@ const emptyForm = (): FormState => ({
 
 export function LeadCaptureForm({ type, planCode, sourcePath, title, subtitle }: Props) {
   const { toast } = useToast();
-  const captchaRef = useRef<HCaptcha>(null);
+  const captchaRef = useRef<TurnstileInstance>(null);
   const plan = getPlanByCode(planCode);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -132,7 +132,7 @@ export function LeadCaptureForm({ type, planCode, sourcePath, title, subtitle }:
       setSuccess(true);
       setForm(emptyForm());
       setSelectedModules([]);
-      captchaRef.current?.resetCaptcha();
+      captchaRef.current?.reset();
       setCaptchaToken(null);
     } catch (err) {
       toast({
@@ -140,7 +140,7 @@ export function LeadCaptureForm({ type, planCode, sourcePath, title, subtitle }:
         title: 'Envoi impossible',
         description: err instanceof Error ? err.message : 'Réessayez plus tard.',
       });
-      captchaRef.current?.resetCaptcha();
+      captchaRef.current?.reset();
       setCaptchaToken(null);
     } finally {
       setSubmitting(false);
@@ -331,10 +331,10 @@ export function LeadCaptureForm({ type, planCode, sourcePath, title, subtitle }:
 
         {captchaConfigured && (
           <div className="flex justify-center">
-            <HCaptcha
+            <Turnstile
               ref={captchaRef}
-              sitekey={hcaptchaSiteKey}
-              onVerify={(token) => setCaptchaToken(token)}
+              siteKey={turnstileSiteKey}
+              onSuccess={(token) => setCaptchaToken(token)}
               onExpire={() => setCaptchaToken(null)}
             />
           </div>

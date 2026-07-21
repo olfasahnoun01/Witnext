@@ -24,10 +24,10 @@ interface LeadPayload {
   captchaToken?: string
 }
 
-async function verifyHcaptcha(token: string, remoteIp?: string): Promise<boolean> {
-  const secret = Deno.env.get('HCAPTCHA_SECRET_KEY') || Deno.env.get('HCAPTCHA_SECRET')
+async function verifyTurnstile(token: string, remoteIp?: string): Promise<boolean> {
+  const secret = Deno.env.get('TURNSTILE_SECRET_KEY') || Deno.env.get('TURNSTILE_SECRET')
   if (!secret) {
-    console.warn('HCAPTCHA_SECRET_KEY not set — skipping captcha verification (dev only)')
+    console.warn('TURNSTILE_SECRET_KEY not set — skipping captcha verification (dev only)')
     const isProd = (Deno.env.get('DENO_ENV') || Deno.env.get('ENVIRONMENT') || '').toLowerCase() === 'production'
     return !isProd
   }
@@ -38,7 +38,7 @@ async function verifyHcaptcha(token: string, remoteIp?: string): Promise<boolean
   })
   if (remoteIp) body.set('remoteip', remoteIp)
 
-  const res = await fetch('https://hcaptcha.com/siteverify', {
+  const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
@@ -140,8 +140,8 @@ Deno.serve(async (req) => {
     }
 
     const payload = validated.data
-    const siteKey = Deno.env.get('VITE_HCAPTCHA_SITE_KEY') || Deno.env.get('HCAPTCHA_SITE_KEY')
-    const captchaRequired = !!siteKey || !!(Deno.env.get('HCAPTCHA_SECRET_KEY') || Deno.env.get('HCAPTCHA_SECRET'))
+    const siteKey = Deno.env.get('VITE_TURNSTILE_SITE_KEY') || Deno.env.get('TURNSTILE_SITE_KEY')
+    const captchaRequired = !!siteKey || !!(Deno.env.get('TURNSTILE_SECRET_KEY') || Deno.env.get('TURNSTILE_SECRET'))
 
     if (captchaRequired) {
       if (!payload.captchaToken) {
@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
         })
       }
       const remoteIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      const captchaOk = await verifyHcaptcha(payload.captchaToken, remoteIp)
+      const captchaOk = await verifyTurnstile(payload.captchaToken, remoteIp)
       if (!captchaOk) {
         return new Response(JSON.stringify({ error: 'Vérification captcha échouée' }), {
           status: 400,

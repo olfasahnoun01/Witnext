@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import HCaptcha from '@hcaptcha/react-hcaptcha';
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { supabase, supabaseProjectUrl } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { clearSupabaseBrowserSession } from '@/lib/supabaseAuthStorage';
@@ -21,11 +21,11 @@ import {
 } from '@/lib/bossAccess';
 
 const isWebTarget = import.meta.env.VITE_APP_TARGET !== 'electron';
-const hcaptchaSiteKey = import.meta.env.VITE_HCAPTCHA_SITE_KEY?.trim() ?? '';
+const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() ?? '';
 /** Web login sends captcha to Supabase when the site key is configured. */
-const captchaConfigured = isWebTarget && hcaptchaSiteKey.length > 0;
+const captchaConfigured = isWebTarget && turnstileSiteKey.length > 0;
 /** Supabase captcha is enabled server-side — site key must be set for web. */
-const captchaConfigMissing = isWebTarget && hcaptchaSiteKey.length === 0;
+const captchaConfigMissing = isWebTarget && turnstileSiteKey.length === 0;
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -35,7 +35,7 @@ export default function Auth() {
   const [showSessionExpiredAlert, setShowSessionExpiredAlert] = useState(false);
   const [mfaPending, setMfaPending] = useState(false);
   const [checkingMfa, setCheckingMfa] = useState(false);
-  const captchaRef = useRef<HCaptcha>(null);
+  const captchaRef = useRef<TurnstileInstance>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
@@ -43,7 +43,7 @@ export default function Auth() {
 
   const resetCaptcha = useCallback(() => {
     setCaptchaToken(null);
-    captchaRef.current?.resetCaptcha();
+    captchaRef.current?.reset();
   }, []);
 
   const goAfterAuth = useCallback(() => {
@@ -106,7 +106,7 @@ export default function Auth() {
         variant: 'destructive',
         title: 'Captcha non configuré',
         description:
-          'Ajoutez VITE_HCAPTCHA_SITE_KEY dans .env.local, puis redémarrez npm run dev.',
+          'Ajoutez VITE_TURNSTILE_SITE_KEY dans .env.local, puis redémarrez npm run dev.',
       });
       return;
     }
@@ -219,8 +219,8 @@ export default function Auth() {
             <AlertTitle>Configuration captcha manquante</AlertTitle>
             <AlertDescription>
               Supabase exige un captcha à la connexion. Ajoutez{' '}
-              <code className="text-xs">VITE_HCAPTCHA_SITE_KEY</code> dans{' '}
-              <code className="text-xs">.env.local</code> (clé publique hCaptcha), puis redémarrez{' '}
+              <code className="text-xs">VITE_TURNSTILE_SITE_KEY</code> dans{' '}
+              <code className="text-xs">.env.local</code> (clé publique Turnstile), puis redémarrez{' '}
               <code className="text-xs">npm run dev</code>.
             </AlertDescription>
           </Alert>
@@ -311,10 +311,10 @@ export default function Auth() {
 
                 {captchaConfigured && (
                   <div className="flex justify-center overflow-hidden rounded-lg">
-                    <HCaptcha
+                    <Turnstile
                       ref={captchaRef}
-                      sitekey={hcaptchaSiteKey}
-                      onVerify={(token) => setCaptchaToken(token)}
+                      siteKey={turnstileSiteKey}
+                      onSuccess={(token) => setCaptchaToken(token)}
                       onExpire={resetCaptcha}
                       onError={resetCaptcha}
                     />

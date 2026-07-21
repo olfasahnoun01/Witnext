@@ -3,30 +3,28 @@ import react from "@vitejs/plugin-react-swc";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 
-const HCAPTCHA_SCRIPT = "https://js.hcaptcha.com";
-const HCAPTCHA_FRAME = "https://hcaptcha.com https://*.hcaptcha.com";
-const HCAPTCHA_CONNECT = "https://hcaptcha.com https://*.hcaptcha.com";
+const TURNSTILE_HOST = "https://challenges.cloudflare.com";
 
 function buildConnectSrc(mode: string, isElectronTarget: boolean): string {
   const supabaseConnect = "https://*.supabase.co wss://*.supabase.co";
-  const hcaptchaConnect = HCAPTCHA_CONNECT;
+  const turnstileConnect = TURNSTILE_HOST;
 
   if (mode === "development") {
-    return `'self' ${supabaseConnect} ${hcaptchaConnect} ws://localhost:5173 ws://127.0.0.1:5173 http://localhost:5173 http://127.0.0.1:5173 http://127.0.0.1:7501`;
+    return `'self' ${supabaseConnect} ${turnstileConnect} ws://localhost:5173 ws://127.0.0.1:5173 http://localhost:5173 http://127.0.0.1:5173 http://127.0.0.1:7501`;
   }
 
   if (isElectronTarget) {
-    return `'self' ${supabaseConnect} ${hcaptchaConnect}`;
+    return `'self' ${supabaseConnect} ${turnstileConnect}`;
   }
 
-  return `'self' ${supabaseConnect} ${hcaptchaConnect} https://*.vercel.app`;
+  return `'self' ${supabaseConnect} ${turnstileConnect} https://*.vercel.app`;
 }
 
 function buildContentSecurityPolicy(mode: string, isElectronTarget: boolean): string {
   const scriptSrc =
     mode === "development"
-      ? `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${HCAPTCHA_SCRIPT}`
-      : `script-src 'self' ${HCAPTCHA_SCRIPT}`;
+      ? `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${TURNSTILE_HOST}`
+      : `script-src 'self' ${TURNSTILE_HOST}`;
 
   const imgSrc = "img-src 'self' data: blob: https://*.supabase.co";
 
@@ -34,10 +32,10 @@ function buildContentSecurityPolicy(mode: string, isElectronTarget: boolean): st
     "default-src 'self'",
     scriptSrc,
     "worker-src 'self' blob:",
-    `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com ${HCAPTCHA_FRAME}`,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     imgSrc,
-    `frame-src 'self' blob: data: ${HCAPTCHA_FRAME}`,
+    `frame-src 'self' blob: data: ${TURNSTILE_HOST}`,
     `connect-src ${buildConnectSrc(mode, isElectronTarget)}`,
   ].join("; ");
 }

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import HCaptcha from '@hcaptcha/react-hcaptcha';
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -15,9 +15,9 @@ import { provisionMyTenant } from '@/lib/tenantService';
 import { isValidSignupCompanyName, normalizeCompanyName } from '@/lib/tenantTypes';
 
 const isWebTarget = import.meta.env.VITE_APP_TARGET !== 'electron';
-const hcaptchaSiteKey = import.meta.env.VITE_HCAPTCHA_SITE_KEY?.trim() ?? '';
-const captchaConfigured = isWebTarget && hcaptchaSiteKey.length > 0;
-const captchaConfigMissing = isWebTarget && hcaptchaSiteKey.length === 0;
+const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() ?? '';
+const captchaConfigured = isWebTarget && turnstileSiteKey.length > 0;
+const captchaConfigMissing = isWebTarget && turnstileSiteKey.length === 0;
 
 export default function Signup() {
   const [companyName, setCompanyName] = useState('');
@@ -26,14 +26,14 @@ export default function Signup() {
   const [password, setPassword] = useState('');
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const captchaRef = useRef<HCaptcha>(null);
+  const captchaRef = useRef<TurnstileInstance>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { session, isLoading: authLoading } = useAuth();
 
   const resetCaptcha = useCallback(() => {
     setCaptchaToken(null);
-    captchaRef.current?.resetCaptcha();
+    captchaRef.current?.reset();
   }, []);
 
   useEffect(() => {
@@ -68,7 +68,7 @@ export default function Signup() {
       toast({
         variant: 'destructive',
         title: 'Captcha non configuré',
-        description: 'Ajoutez VITE_HCAPTCHA_SITE_KEY dans .env.local.',
+        description: 'Ajoutez VITE_TURNSTILE_SITE_KEY dans .env.local.',
       });
       return;
     }
@@ -230,10 +230,10 @@ export default function Signup() {
 
             {captchaConfigured && (
               <div className="flex justify-center overflow-hidden rounded-lg">
-                <HCaptcha
+                <Turnstile
                   ref={captchaRef}
-                  sitekey={hcaptchaSiteKey}
-                  onVerify={(token) => setCaptchaToken(token)}
+                  siteKey={turnstileSiteKey}
+                  onSuccess={(token) => setCaptchaToken(token)}
                   onExpire={resetCaptcha}
                   onError={resetCaptcha}
                 />

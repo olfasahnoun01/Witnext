@@ -20,7 +20,7 @@ Trial and licence forms submit to Supabase via the `submit-marketing-lead` edge 
 ### Deploy checklist (marketing)
 
 1. Apply migration: `npx supabase db push` (includes `marketing_leads` table).
-2. Set secrets: `HCAPTCHA_SECRET_KEY`, `WEB_APP_ORIGINS` (your Vercel URL).
+2. Set secrets: `TURNSTILE_SECRET_KEY`, `WEB_APP_ORIGINS` (your Vercel URL).
 3. Deploy functions: `npm run supabase:deploy-functions`
 4. **Vercel Deployment Protection:** if enabled, it blocks anonymous visitors from `/`, `/pricing`, `/trial`, and `/buy`. Either disable protection for production or configure exceptions so the marketing pages stay public while the ERP remains staff-only after login.
 
