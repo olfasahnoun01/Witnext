@@ -35,9 +35,11 @@ Trial and licence forms submit to Supabase via the `submit-marketing-lead` edge 
 
 ```sh
 npm install
-cp .env.example .env.local   # set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY
+cp .env.example .env.local   # set VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY, VITE_TURNSTILE_SITE_KEY
 npm run dev                  # http://localhost:5173
 ```
+
+If login captcha fails with **110200**, add `localhost` (and your production domain) under Cloudflare Turnstile → **Hostname Management**, then reload.
 
 ## Scripts
 

@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
-import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
+import type { TurnstileInstance } from '@marsidev/react-turnstile';
 import { Loader2, CheckCircle2 } from 'lucide-react';
+import { TurnstileCaptcha } from '@/components/auth/TurnstileCaptcha';
+import { captchaConfigured } from '@/lib/turnstile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,10 +27,6 @@ import {
   type MarketingLeadType,
 } from '@/services/marketingLeadService';
 import { useToast } from '@/hooks/use-toast';
-
-const isWebTarget = import.meta.env.VITE_APP_TARGET !== 'electron';
-const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() ?? '';
-const captchaConfigured = isWebTarget && turnstileSiteKey.length > 0;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -330,14 +328,10 @@ export function LeadCaptureForm({ type, planCode, sourcePath, title, subtitle }:
         </div>
 
         {captchaConfigured && (
-          <div className="flex justify-center">
-            <Turnstile
-              ref={captchaRef}
-              siteKey={turnstileSiteKey}
-              onSuccess={(token) => setCaptchaToken(token)}
-              onExpire={() => setCaptchaToken(null)}
-            />
-          </div>
+          <TurnstileCaptcha
+            ref={captchaRef}
+            onToken={(token) => setCaptchaToken(token)}
+          />
         )}
 
         <Button type="submit" className="w-full sm:w-auto marketing-btn" disabled={submitting}>

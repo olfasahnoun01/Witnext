@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
+import type { TurnstileInstance } from '@marsidev/react-turnstile';
 import { supabase, supabaseProjectUrl } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { clearSupabaseBrowserSession } from '@/lib/supabaseAuthStorage';
 import { needsMfaVerification } from '@/lib/mfa';
+import { captchaConfigMissing, captchaConfigured } from '@/lib/turnstile';
 import { MfaChallengeForm } from '@/components/auth/MfaChallengeForm';
+import { TurnstileCaptcha } from '@/components/auth/TurnstileCaptcha';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
@@ -19,13 +21,6 @@ import {
   getUserPositionFromMetadata,
   shouldAutoRedirectToBoss,
 } from '@/lib/bossAccess';
-
-const isWebTarget = import.meta.env.VITE_APP_TARGET !== 'electron';
-const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() ?? '';
-/** Web login sends captcha to Supabase when the site key is configured. */
-const captchaConfigured = isWebTarget && turnstileSiteKey.length > 0;
-/** Supabase captcha is enabled server-side — site key must be set for web. */
-const captchaConfigMissing = isWebTarget && turnstileSiteKey.length === 0;
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -310,15 +305,12 @@ export default function Auth() {
                 </div>
 
                 {captchaConfigured && (
-                  <div className="flex justify-center overflow-hidden rounded-lg">
-                    <Turnstile
-                      ref={captchaRef}
-                      siteKey={turnstileSiteKey}
-                      onSuccess={(token) => setCaptchaToken(token)}
-                      onExpire={resetCaptcha}
-                      onError={resetCaptcha}
-                    />
-                  </div>
+                  <TurnstileCaptcha
+                    ref={captchaRef}
+                    onToken={(token) => {
+                      setCaptchaToken(token);
+                    }}
+                  />
                 )}
 
                 <Button

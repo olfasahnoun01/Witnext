@@ -1,8 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
+import type { TurnstileInstance } from '@marsidev/react-turnstile';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { captchaConfigMissing, captchaConfigured } from '@/lib/turnstile';
+import { TurnstileCaptcha } from '@/components/auth/TurnstileCaptcha';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
@@ -13,11 +15,6 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { WitnextLogoBanner } from '@/components/WitnextLogoBanner';
 import { provisionMyTenant } from '@/lib/tenantService';
 import { isValidSignupCompanyName, normalizeCompanyName } from '@/lib/tenantTypes';
-
-const isWebTarget = import.meta.env.VITE_APP_TARGET !== 'electron';
-const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() ?? '';
-const captchaConfigured = isWebTarget && turnstileSiteKey.length > 0;
-const captchaConfigMissing = isWebTarget && turnstileSiteKey.length === 0;
 
 export default function Signup() {
   const [companyName, setCompanyName] = useState('');
@@ -229,15 +226,12 @@ export default function Signup() {
             </div>
 
             {captchaConfigured && (
-              <div className="flex justify-center overflow-hidden rounded-lg">
-                <Turnstile
-                  ref={captchaRef}
-                  siteKey={turnstileSiteKey}
-                  onSuccess={(token) => setCaptchaToken(token)}
-                  onExpire={resetCaptcha}
-                  onError={resetCaptcha}
-                />
-              </div>
+              <TurnstileCaptcha
+                ref={captchaRef}
+                onToken={(token) => {
+                  setCaptchaToken(token);
+                }}
+              />
             )}
 
             <Button
