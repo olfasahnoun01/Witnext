@@ -28,7 +28,10 @@ export function turnstileErrorMessage(code?: string | null): string {
     case '110100':
     case '110110':
     case '400020':
-      return 'Clé Turnstile invalide. Vérifiez VITE_TURNSTILE_SITE_KEY dans .env.local.';
+      return (
+        'Clé Turnstile invalide. Vérifiez VITE_TURNSTILE_SITE_KEY ' +
+        '(Vercel en production, .env.local en local).'
+      );
     case '400070':
       return 'Ce widget Turnstile est désactivé dans le tableau de bord Cloudflare.';
     case '200100':
@@ -44,3 +47,17 @@ export const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() 
 export const isWebTarget = import.meta.env.VITE_APP_TARGET !== 'electron';
 export const captchaConfigured = isWebTarget && turnstileSiteKey.length > 0;
 export const captchaConfigMissing = isWebTarget && turnstileSiteKey.length === 0;
+
+/** User-facing guidance when the public Turnstile site key was not baked into the build. */
+export function captchaConfigMissingMessage(): string {
+  if (import.meta.env.PROD) {
+    return (
+      'Ajoutez VITE_TURNSTILE_SITE_KEY dans les variables d’environnement Vercel ' +
+      '(Production), puis redéployez l’application.'
+    );
+  }
+  return (
+    'Ajoutez VITE_TURNSTILE_SITE_KEY dans .env.local (clé publique Turnstile), ' +
+    'puis redémarrez npm run dev.'
+  );
+}

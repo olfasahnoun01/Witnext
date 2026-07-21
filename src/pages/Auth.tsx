@@ -5,7 +5,11 @@ import { supabase, supabaseProjectUrl } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { clearSupabaseBrowserSession } from '@/lib/supabaseAuthStorage';
 import { needsMfaVerification } from '@/lib/mfa';
-import { captchaConfigMissing, captchaConfigured } from '@/lib/turnstile';
+import {
+  captchaConfigMissing,
+  captchaConfigMissingMessage,
+  captchaConfigured,
+} from '@/lib/turnstile';
 import { MfaChallengeForm } from '@/components/auth/MfaChallengeForm';
 import { TurnstileCaptcha } from '@/components/auth/TurnstileCaptcha';
 import { Button } from '@/components/ui/button';
@@ -100,8 +104,7 @@ export default function Auth() {
       toast({
         variant: 'destructive',
         title: 'Captcha non configuré',
-        description:
-          'Ajoutez VITE_TURNSTILE_SITE_KEY dans .env.local, puis redémarrez npm run dev.',
+        description: captchaConfigMissingMessage(),
       });
       return;
     }
@@ -213,10 +216,7 @@ export default function Auth() {
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Configuration captcha manquante</AlertTitle>
             <AlertDescription>
-              Supabase exige un captcha à la connexion. Ajoutez{' '}
-              <code className="text-xs">VITE_TURNSTILE_SITE_KEY</code> dans{' '}
-              <code className="text-xs">.env.local</code> (clé publique Turnstile), puis redémarrez{' '}
-              <code className="text-xs">npm run dev</code>.
+              Supabase exige un captcha à la connexion. {captchaConfigMissingMessage()}
             </AlertDescription>
           </Alert>
         )}

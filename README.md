@@ -67,7 +67,10 @@ Legacy Electron scripts (`electron:dev`, `electron:build`) remain in `package.js
 2. Set environment variables (Production and Preview):
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_PUBLISHABLE_KEY`
+   - `VITE_TURNSTILE_SITE_KEY` (Cloudflare Turnstile **site** key — same as in `.env.local`)
    - `VITE_APP_TARGET=web`
+   
+   Vite embeds `VITE_*` at **build** time. After adding or changing env vars, trigger a new deployment.
 3. **Vercel Deployment Protection** (optional): use password/SSO if you want to restrict who can reach the app URL before login. Note: full-site protection also blocks the public marketing pages — see [Public marketing site](#public-marketing-site).
 4. `[vercel.json](vercel.json)` rewrites all routes to `index.html` for SPA routing.
 

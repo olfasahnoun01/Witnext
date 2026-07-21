@@ -3,7 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { TurnstileInstance } from '@marsidev/react-turnstile';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { captchaConfigMissing, captchaConfigured } from '@/lib/turnstile';
+import {
+  captchaConfigMissing,
+  captchaConfigMissingMessage,
+  captchaConfigured,
+} from '@/lib/turnstile';
 import { TurnstileCaptcha } from '@/components/auth/TurnstileCaptcha';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,7 +69,7 @@ export default function Signup() {
       toast({
         variant: 'destructive',
         title: 'Captcha non configuré',
-        description: 'Ajoutez VITE_TURNSTILE_SITE_KEY dans .env.local.',
+        description: captchaConfigMissingMessage(),
       });
       return;
     }
