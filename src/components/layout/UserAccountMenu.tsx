@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LogOut, Settings, Shield, User, Users } from 'lucide-react';
+import { CreditCard, LogOut, Settings, Shield, User, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useTenant } from '@/hooks/useTenant';
+import { canViewTenantBilling } from '@/lib/tenantTypes';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -19,13 +21,16 @@ import { cn } from '@/lib/utils';
 
 export const UserAccountMenu = () => {
   const { user, signOut, isAdmin, isPlatformAdmin } = useAuth();
+  const { tenant } = useTenant();
   const [fullName, setFullName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const profilePath = getPathForSubsection('profile');
   const accountsPath = getPathForSubsection('accounts');
   const settingsPath = getPathForSubsection('settings');
+  const billingPath = getPathForSubsection('tenant-billing');
   const platformPath = getPathForSubsection('platform-console');
+  const showBilling = canViewTenantBilling(tenant);
 
   const email = user?.email ?? '';
   const position =
@@ -100,6 +105,17 @@ export const UserAccountMenu = () => {
             Mon profil
           </NavLink>
         </DropdownMenuItem>
+        {showBilling ? (
+          <DropdownMenuItem asChild>
+            <NavLink
+              to={billingPath}
+              className={({ isActive }) => cn('flex items-center', isActive && 'bg-accent')}
+            >
+              <CreditCard className="w-4 h-4 mr-2" />
+              Facturation &amp; licence
+            </NavLink>
+          </DropdownMenuItem>
+        ) : null}
         {isPlatformAdmin ? (
           <>
             <DropdownMenuSeparator />

@@ -7,6 +7,9 @@ export type PlatformTenantRow = {
   plan: 'trial' | 'starter' | 'pro' | 'enterprise';
   status: 'active' | 'suspended' | 'cancelled';
   trialEndsAt: string | null;
+  licenseStartsAt: string | null;
+  licenseEndsAt: string | null;
+  billingCycle: 'monthly' | 'annual' | null;
   maxCompanies: number;
   maxUsers: number;
   createdAt: string;
@@ -21,6 +24,9 @@ type RpcTenantRow = {
   plan: PlatformTenantRow['plan'];
   status: PlatformTenantRow['status'];
   trial_ends_at: string | null;
+  license_starts_at?: string | null;
+  license_ends_at?: string | null;
+  billing_cycle?: string | null;
   max_companies: number;
   max_users: number;
   created_at: string;
@@ -29,6 +35,7 @@ type RpcTenantRow = {
 };
 
 function mapRow(row: RpcTenantRow): PlatformTenantRow {
+  const cycle = row.billing_cycle;
   return {
     tenantId: row.tenant_id,
     tenantName: row.tenant_name,
@@ -36,6 +43,9 @@ function mapRow(row: RpcTenantRow): PlatformTenantRow {
     plan: row.plan,
     status: row.status,
     trialEndsAt: row.trial_ends_at,
+    licenseStartsAt: row.license_starts_at ?? null,
+    licenseEndsAt: row.license_ends_at ?? null,
+    billingCycle: cycle === 'monthly' || cycle === 'annual' ? cycle : null,
     maxCompanies: row.max_companies,
     maxUsers: row.max_users,
     createdAt: row.created_at,
@@ -132,4 +142,38 @@ export async function createTenantWithOwner(input: {
     slug: data?.slug,
     ownerUserId: data?.owner_user_id,
   };
+}
+
+export async function grantTenantLicense(input: {
+  tenantId: string;
+  plan: Exclude<PlatformTenantRow['plan'], 'trial'>;
+  billingCycle: 'monthly' | 'annual';
+  periodStart: string;
+  periodEnd: string;
+  amountHt: number;
+  maxUsers?: number;
+  maxCompanies?: number;
+  notes?: string;
+}): Promise<{ ok: boolean; numero?: string; error?: string }> {
+  const { data, error } = await supabase.rpc('platform_grant_tenant_license', {
+    p_tenant_id: input.tenantId,
+    p_plan: input.plan,
+    p_billing_cycle: input.billingCycle,
+    p_period_start: input.periodStart,
+    p_period_end: input.periodEnd,
+    p_amount_ht: input.amountHt,
+    p_max_users: input.maxUsers ?? null,
+    p_max_companies: input.maxCompanies ?? null,
+    p_notes: input.notes?.trim() || null,
+  });
+
+  if (error) {
+    if (error.message.includes('platform_admin_required')) {
+      return { ok: false, error: 'Accès réservé aux administrateurs plateforme.' };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  const payload = data as { numero?: string } | null;
+  return { ok: true, numero: payload?.numero };
 }

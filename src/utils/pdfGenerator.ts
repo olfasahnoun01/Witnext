@@ -507,7 +507,7 @@ export const generateOfficialPDF = async (params: OfficialPDFParams, options?: {
   doc.text(`Immatriculation voiture : ${transportRef || '________________________'}`, 14, 128);
   
   // Items table
-  const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
+  const showPrice = docType === 'bon_livraison';
   
   const tableData = docItems.map((item, index) => {
     const baseRow = [

@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Building2, Loader2, Plus, RefreshCw, Shield } from 'lucide-react';
+import { Building2, Loader2, Plus, Receipt, RefreshCw, Shield } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import {
   createTenantWithOwner,
+  grantTenantLicense,
   listPlatformTenants,
   setPlatformTenantStatus,
   type PlatformTenantRow,
 } from '@/lib/platformService';
-import { formatAppDateTime } from '@/lib/formatAppDate';
+import { formatAppDate, formatAppDateTime } from '@/lib/formatAppDate';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -32,9 +33,9 @@ import { AccessDenied } from '@/router/RouteGuards';
 
 const PLAN_LABELS: Record<PlatformTenantRow['plan'], string> = {
   trial: 'Essai',
-  starter: 'Starter',
+  starter: 'Essentiel',
   pro: 'Pro',
-  enterprise: 'Enterprise',
+  enterprise: 'Entreprise',
 };
 
 const STATUS_LABELS: Record<PlatformTenantRow['status'], string> = {
@@ -43,12 +44,20 @@ const STATUS_LABELS: Record<PlatformTenantRow['status'], string> = {
   cancelled: 'Annulé',
 };
 
+function addMonthsIso(isoDate: string, months: number): string {
+  const d = new Date(isoDate + 'T12:00:00');
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
 export function PlatformConsole() {
   const { isPlatformAdmin, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [tenants, setTenants] = useState<PlatformTenantRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [licenseOpen, setLicenseOpen] = useState(false);
+  const [licenseTenant, setLicenseTenant] = useState<PlatformTenantRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const [companyName, setCompanyName] = useState('');
@@ -57,6 +66,14 @@ export function PlatformConsole() {
   const [ownerFullName, setOwnerFullName] = useState('');
   const [plan, setPlan] = useState<PlatformTenantRow['plan']>('trial');
   const [maxUsers, setMaxUsers] = useState('5');
+
+  const [licPlan, setLicPlan] = useState<'starter' | 'pro' | 'enterprise'>('pro');
+  const [licCycle, setLicCycle] = useState<'monthly' | 'annual'>('annual');
+  const [licStart, setLicStart] = useState(new Date().toISOString().slice(0, 10));
+  const [licEnd, setLicEnd] = useState(addMonthsIso(new Date().toISOString().slice(0, 10), 12));
+  const [licAmount, setLicAmount] = useState('3990');
+  const [licMaxUsers, setLicMaxUsers] = useState('25');
+  const [licNotes, setLicNotes] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,6 +107,23 @@ export function PlatformConsole() {
     setMaxUsers('5');
   };
 
+  const openLicenseDialog = (tenant: PlatformTenantRow) => {
+    setLicenseTenant(tenant);
+    const start = new Date().toISOString().slice(0, 10);
+    setLicStart(start);
+    setLicCycle('annual');
+    setLicEnd(addMonthsIso(start, 12));
+    const nextPlan =
+      tenant.plan === 'trial' || tenant.plan === 'starter'
+        ? 'pro'
+        : (tenant.plan as 'starter' | 'pro' | 'enterprise');
+    setLicPlan(nextPlan);
+    setLicAmount(nextPlan === 'starter' ? '1490' : nextPlan === 'pro' ? '3990' : '0');
+    setLicMaxUsers(String(tenant.maxUsers || 25));
+    setLicNotes('');
+    setLicenseOpen(true);
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -116,6 +150,43 @@ export function PlatformConsole() {
       });
       setCreateOpen(false);
       resetForm();
+      await load();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleGrantLicense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!licenseTenant) return;
+    setSubmitting(true);
+    try {
+      const periodStart = new Date(licStart + 'T00:00:00').toISOString();
+      const periodEnd = new Date(licEnd + 'T23:59:59').toISOString();
+      const result = await grantTenantLicense({
+        tenantId: licenseTenant.tenantId,
+        plan: licPlan,
+        billingCycle: licCycle,
+        periodStart,
+        periodEnd,
+        amountHt: Number.parseFloat(licAmount) || 0,
+        maxUsers: Math.max(1, Number.parseInt(licMaxUsers, 10) || 1),
+        notes: licNotes,
+      });
+      if (!result.ok) {
+        toast({
+          variant: 'destructive',
+          title: 'Licence impossible',
+          description: result.error,
+        });
+        return;
+      }
+      toast({
+        title: 'Licence activée',
+        description: `Reçu ${result.numero} — ${licenseTenant.tenantName}`,
+      });
+      setLicenseOpen(false);
+      setLicenseTenant(null);
       await load();
     } finally {
       setSubmitting(false);
@@ -162,8 +233,8 @@ export function PlatformConsole() {
             <div>
               <h1 className="text-xl font-semibold text-foreground">Console plateforme</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Créez des organisations clientes et leur compte administrateur. Les admins clients
-                gèrent ensuite leurs propres utilisateurs.
+                Créez des organisations, activez les licences et émettez les reçus visibles dans
+                Facturation côté client.
               </p>
             </div>
           </div>
@@ -204,6 +275,7 @@ export function PlatformConsole() {
                 <tr className="border-b border-border bg-muted/40 text-left text-muted-foreground">
                   <th className="px-4 py-3 font-medium">Organisation</th>
                   <th className="px-4 py-3 font-medium">Plan</th>
+                  <th className="px-4 py-3 font-medium">Fin licence</th>
                   <th className="px-4 py-3 font-medium">Statut</th>
                   <th className="px-4 py-3 font-medium">Sociétés</th>
                   <th className="px-4 py-3 font-medium">Utilisateurs</th>
@@ -219,6 +291,13 @@ export function PlatformConsole() {
                       <div className="text-xs text-muted-foreground">{t.slug}</div>
                     </td>
                     <td className="px-4 py-3">{PLAN_LABELS[t.plan]}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {t.licenseEndsAt
+                        ? formatAppDate(t.licenseEndsAt)
+                        : t.trialEndsAt
+                          ? `Essai → ${formatAppDate(t.trialEndsAt)}`
+                          : '—'}
+                    </td>
                     <td className="px-4 py-3">
                       <Badge
                         variant={
@@ -243,6 +322,16 @@ export function PlatformConsole() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
+                        <Button
+                          type="button"
+                          variant="default"
+                          size="sm"
+                          className="gap-1"
+                          onClick={() => openLicenseDialog(t)}
+                        >
+                          <Receipt className="h-3.5 w-3.5" />
+                          Licence
+                        </Button>
                         {t.status !== 'active' ? (
                           <Button
                             type="button"
@@ -329,9 +418,9 @@ export function PlatformConsole() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="trial">Essai</SelectItem>
-                    <SelectItem value="starter">Starter</SelectItem>
+                    <SelectItem value="starter">Essentiel</SelectItem>
                     <SelectItem value="pro">Pro</SelectItem>
-                    <SelectItem value="enterprise">Enterprise</SelectItem>
+                    <SelectItem value="enterprise">Entreprise</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -353,6 +442,117 @@ export function PlatformConsole() {
               <Button type="submit" disabled={submitting}>
                 {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Créer
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={licenseOpen} onOpenChange={setLicenseOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Activer licence — {licenseTenant?.tenantName ?? ''}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={(e) => void handleGrantLicense(e)} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Offre</Label>
+                <Select
+                  value={licPlan}
+                  onValueChange={(v) => setLicPlan(v as 'starter' | 'pro' | 'enterprise')}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="starter">Essentiel</SelectItem>
+                    <SelectItem value="pro">Pro</SelectItem>
+                    <SelectItem value="enterprise">Entreprise</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Cycle</Label>
+                <Select
+                  value={licCycle}
+                  onValueChange={(v) => {
+                    const cycle = v as 'monthly' | 'annual';
+                    setLicCycle(cycle);
+                    setLicEnd(addMonthsIso(licStart, cycle === 'monthly' ? 1 : 12));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Mensuel</SelectItem>
+                    <SelectItem value="annual">Annuel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Début</Label>
+                <Input
+                  type="date"
+                  value={licStart}
+                  onChange={(e) => {
+                    setLicStart(e.target.value);
+                    setLicEnd(addMonthsIso(e.target.value, licCycle === 'monthly' ? 1 : 12));
+                  }}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Fin de licence</Label>
+                <Input
+                  type="date"
+                  value={licEnd}
+                  onChange={(e) => setLicEnd(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Montant HT (TND)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.001"
+                  value={licAmount}
+                  onChange={(e) => setLicAmount(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Max utilisateurs</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={licMaxUsers}
+                  onChange={(e) => setLicMaxUsers(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Notes (optionnel)</Label>
+              <Input
+                value={licNotes}
+                onChange={(e) => setLicNotes(e.target.value)}
+                placeholder="Réf. devis, paiement…"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Un reçu PDF sera disponible pour le client dans Facturation &amp; licence.
+            </p>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setLicenseOpen(false)}>
+                Annuler
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Activer &amp; émettre reçu
               </Button>
             </DialogFooter>
           </form>

@@ -63,6 +63,7 @@ export const SUBSECTION_ROUTES: Record<string, string> = {
 
   accounts: '/users',
   profile: '/profile',
+  'tenant-billing': '/billing',
   'admin-leads': '/admin/leads',
   'platform-console': '/platform',
   settings: '/settings',
@@ -95,6 +96,7 @@ export function getPageTitle(pathname: string): string {
   if (subsectionId === 'team-chat') return 'Chat Équipe';
   if (subsectionId === 'admin-leads') return 'Demandes commerciales';
   if (subsectionId === 'platform-console') return 'Console plateforme';
+  if (subsectionId === 'tenant-billing') return 'Facturation & licence';
   if (subsectionId === 'finance-rapports') return 'Rapports & Analyses';
   if (subsectionId && SUBSECTION_LABELS[subsectionId]) {
     return SUBSECTION_LABELS[subsectionId];

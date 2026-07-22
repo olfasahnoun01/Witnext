@@ -180,6 +180,7 @@ export const BIG_SECTIONS: BigSection[] = [
     subsections: [
       { id: 'profile', label: 'Mon profil', icon: User },
       { id: 'accounts', label: 'Gestion des Comptes', icon: UsersIcon },
+      { id: 'tenant-billing', label: 'Facturation & licence', icon: CreditCard },
       { id: 'settings', label: 'Paramètres', icon: Settings },
     ],
   },

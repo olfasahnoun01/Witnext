@@ -87,6 +87,9 @@ export const PermissionsManager = lazyWithRetry(() =>
 export const PlatformConsole = lazyWithRetry(() =>
   import('@/pages/admin/PlatformConsole').then((m) => ({ default: m.PlatformConsole }))
 );
+export const TenantBillingPage = lazyWithRetry(() =>
+  import('@/pages/TenantBillingPage').then((m) => ({ default: m.default }))
+);
 export const RDV = lazyWithRetry(() =>
   import('@/components/commercial/RDV').then((m) => ({ default: m.RDV }))
 );

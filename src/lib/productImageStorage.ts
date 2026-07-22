@@ -204,6 +204,10 @@ export async function fetchProductImageRef(productId: number): Promise<string | 
   return ref;
 }
 
+export function invalidateProductImageRef(productId: number): void {
+  imageRefCache.delete(`product:${productId}`);
+}
+
 export function clearProductImageCachesForTests(): void {
   signedUrlCache.clear();
   inflightResolves.clear();

@@ -118,7 +118,7 @@ export const DocumentForm = memo(({
   
   const isEntree = docType === 'bon_entree';
   const thirdPartyLabel = isEntree ? 'Fournisseur' : 'Client';
-  const showPrice = docType === 'bon_livraison' || docType === 'bon_sortie';
+  const showPrice = docType === 'bon_livraison';
 
   // Inline editing state for document items
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);

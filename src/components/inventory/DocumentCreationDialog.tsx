@@ -13,13 +13,14 @@ import { DecimalInput } from '@/components/ui/decimal-input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { 
-  Plus, Trash2, FileText, Download, Save, Loader2, Search, Edit 
+  Plus, Trash2, FileText, Download, Save, Loader2, Search, Edit, ImagePlus, X 
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Product, UnifiedDocument, UnifiedDocumentType } from '@/types';
 import { documentService } from '@/modules/commercial';
 import { toast } from 'sonner';
 import { CategoryProductSelector } from '../shared/CategoryProductSelector';
+import { LazyProductImage } from '@/components/shared/LazyProductImage';
 import { downloadUnifiedDocumentPDF } from '@/utils/pdfGenerator';
 import { PendingWarehouseDocument, clearPendingWarehouseDocument, readPendingWarehouseDocument } from '@/lib/appNavigationStorage';
 import { getActiveCompanyIdForQuery } from '@/lib/activeCompany';
@@ -27,6 +28,11 @@ import { filterByCompanyId } from '@/modules/inventory/lib/companyQuery';
 import { useAppCompany } from '@/contexts/AppCompanyContext';
 import { DevisAnchoredDropdown } from '../devis/DevisAnchoredDropdown';
 import { DevisSegmentedGrid, DevisSegmentedOption } from '../devis/DevisFormUi';
+import { updateProduct } from '@/modules/inventory/services/productRepository';
+import {
+  fetchProductImageRef,
+  invalidateProductImageRef,
+} from '@/lib/productImageStorage';
 
 type BlPurpose = 'client' | 'magasin_transfer';
 type ArticleMode = 'search' | 'manual';
@@ -55,6 +61,10 @@ type DocumentLine = {
   sku: string;
   quantity: number;
   unit_price: number;
+  /** Product photo (data URL or storage path) — warehouse docs; saved onto products.image when catalog. */
+  image: string | null;
+  /** True when the user uploaded/cleared the photo in this session. */
+  imageDirty: boolean;
 };
 
 const MANUAL_LINE_SEP = ' — ';
@@ -150,6 +160,9 @@ export const DocumentCreationDialog = ({
   const [lines, setLines] = useState<DocumentLine[]>([]);
 
   const isSupplierParty = type === 'BE' || type === 'BL_FOURNISSEUR';
+  /** Hide unit price; show line photo upload instead (BE/BS + BL magasin). */
+  const showLinePhoto =
+    type === 'BE' || type === 'BS' || type === 'BL_CLIENT' || type === 'BL_FOURNISSEUR';
   const tierList = isSupplierParty ? fournisseurs : clients;
 
   const tierSuggestions = useMemo(() => {
@@ -216,8 +229,22 @@ export const DocumentCreationDialog = ({
           description: '',
           sku: initialData.sku,
           quantity: initialData.quantity,
-          unit_price: initialData.unitPrice,
+          unit_price: showLinePhoto ? 0 : initialData.unitPrice,
+          image: null,
+          imageDirty: false,
         }]);
+        if (showLinePhoto && initialData.productId) {
+          void fetchProductImageRef(initialData.productId).then((ref) => {
+            if (!ref) return;
+            setLines((prev) =>
+              prev.map((l) =>
+                l.product_id === initialData.productId && !l.imageDirty
+                  ? { ...l, image: ref }
+                  : l
+              )
+            );
+          });
+        }
       } else {
         resetForm();
       }
@@ -256,6 +283,8 @@ export const DocumentCreationDialog = ({
             sku: line.product_sku ?? '',
             quantity: line.quantity,
             unit_price: line.unit_price,
+            image: null,
+            imageDirty: false,
           };
         }
         const decoded = decodeManualLineDescription(line.description ?? line.product_name);
@@ -267,9 +296,28 @@ export const DocumentCreationDialog = ({
           sku: line.product_sku ?? '',
           quantity: line.quantity,
           unit_price: line.unit_price,
+          image: null,
+          imageDirty: false,
         };
       })
     );
+    // Prefetch product photos for warehouse docs with photo column
+    if (showLinePhoto) {
+      const productIds = (doc.lines ?? [])
+        .map((l) => l.product_id)
+        .filter((id): id is number => id != null);
+      void Promise.all(
+        productIds.map(async (id) => {
+          const ref = await fetchProductImageRef(id);
+          if (!ref) return;
+          setLines((prev) =>
+            prev.map((l) =>
+              l.product_id === id && !l.imageDirty ? { ...l, image: ref } : l
+            )
+          );
+        })
+      );
+    }
   };
 
   const loadDocumentForEdit = async (
@@ -361,18 +409,31 @@ export const DocumentCreationDialog = ({
       toast.error("Ce produit est déjà dans la liste");
       return;
     }
+    const lineKey = newLineKey();
     setLines((prev) => [
       ...prev,
       {
-        lineKey: newLineKey(),
+        lineKey,
         product_id: product.id,
         product_name: product.name,
         description: '',
         sku: product.sku || '',
         quantity: 1,
-        unit_price: product.price || 0,
+        unit_price: showLinePhoto ? 0 : (product.price || 0),
+        image: product.image || null,
+        imageDirty: false,
       },
     ]);
+    if (showLinePhoto && !product.image) {
+      void fetchProductImageRef(product.id).then((ref) => {
+        if (!ref) return;
+        setLines((prev) =>
+          prev.map((l) =>
+            l.lineKey === lineKey && !l.imageDirty ? { ...l, image: ref } : l
+          )
+        );
+      });
+    }
   };
 
   const commitManualLine = () => {
@@ -390,7 +451,9 @@ export const DocumentCreationDialog = ({
         description: manualDescription.trim(),
         sku: manualSku.trim(),
         quantity: Math.max(1, manualQuantity),
-        unit_price: manualUnitPrice,
+        unit_price: showLinePhoto ? 0 : manualUnitPrice,
+        image: null,
+        imageDirty: false,
       },
     ]);
     setManualDesignation('');
@@ -404,9 +467,42 @@ export const DocumentCreationDialog = ({
     setLines((prev) => prev.filter((l) => l.lineKey !== lineKey));
   };
 
-  const updateLine = (lineKey: string, field: keyof DocumentLine, value: string | number) => {
+  const updateLine = (lineKey: string, field: keyof DocumentLine, value: string | number | boolean | null) => {
     setLines((prev) =>
       prev.map((l) => (l.lineKey === lineKey ? { ...l, [field]: value } : l))
+    );
+  };
+
+  const handleLineImageUpload = async (lineKey: string, file: File | undefined) => {
+    if (!file) return;
+    try {
+      const { compressImage } = await import('@/lib/imageCompression');
+      const compressed = await compressImage(file);
+      setLines((prev) =>
+        prev.map((l) =>
+          l.lineKey === lineKey ? { ...l, image: compressed, imageDirty: true } : l
+        )
+      );
+    } catch {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = typeof reader.result === 'string' ? reader.result : null;
+        if (!result) return;
+        setLines((prev) =>
+          prev.map((l) =>
+            l.lineKey === lineKey ? { ...l, image: result, imageDirty: true } : l
+          )
+        );
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const clearLineImage = (lineKey: string) => {
+    setLines((prev) =>
+      prev.map((l) =>
+        l.lineKey === lineKey ? { ...l, image: null, imageDirty: true } : l
+      )
     );
   };
 
@@ -495,7 +591,7 @@ export const DocumentCreationDialog = ({
         lines: lines.map((l) => ({
           product_id: l.product_id,
           quantity: l.quantity,
-          unit_price: l.unit_price,
+          unit_price: showLinePhoto ? 0 : l.unit_price,
           description:
             l.product_id == null
               ? encodeManualLineDescription(l.product_name, l.description)
@@ -518,6 +614,22 @@ export const DocumentCreationDialog = ({
           });
 
       if (result.success) {
+        // Persist uploaded photos onto the catalog product (stock table Image column)
+        if (showLinePhoto) {
+          const photoUpdates = lines.filter(
+            (l) => l.product_id != null && l.imageDirty
+          );
+          for (const line of photoUpdates) {
+            await updateProduct(line.product_id!, { image: line.image });
+            invalidateProductImageRef(line.product_id!);
+          }
+          const skippedManual = lines.some((l) => l.product_id == null && l.imageDirty && l.image);
+          if (skippedManual) {
+            toast.message(
+              'Photo ignorée pour les articles en saisie libre — liez un produit catalogue pour l’afficher en stock.'
+            );
+          }
+        }
         toast.success(isEditMode ? 'Document mis à jour' : 'Document créé avec succès');
         if (mandatory || initialData) {
           clearPendingWarehouseDocument();
@@ -530,8 +642,8 @@ export const DocumentCreationDialog = ({
             lines: lines.map((l) => ({
               product_id: l.product_id,
               quantity: l.quantity,
-              unit_price: l.unit_price,
-              total_price: l.quantity * l.unit_price,
+              unit_price: showLinePhoto ? 0 : l.unit_price,
+              total_price: showLinePhoto ? 0 : l.quantity * l.unit_price,
               description: l.description.trim() || null,
               products: { name: l.product_name, sku: l.sku },
             })),
@@ -749,21 +861,24 @@ export const DocumentCreationDialog = ({
                         onChange={(e) => setSourceMagasin(e.target.value)}
                         placeholder="Ex: Dépôt central"
                       />
+                      <datalist id="magasin-options">
+                        {companies.map((c) => (
+                          <option key={c.id} value={c.name} />
+                        ))}
+                      </datalist>
                     </div>
                     <div className="space-y-2">
                       <Label>Magasin de destination</Label>
                       <Input
-                        list="magasin-options"
                         value={destinationMagasin}
                         onChange={(e) => setDestinationMagasin(e.target.value)}
-                        placeholder="Ex: Magasin Sfax"
+                        placeholder="Saisie libre — ex: Magasin Sfax"
+                        autoComplete="off"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Saisie libre (pas de liste déroulante).
+                      </p>
                     </div>
-                    <datalist id="magasin-options">
-                      {companies.map((c) => (
-                        <option key={c.id} value={c.name} />
-                      ))}
-                    </datalist>
                     <p className="text-xs text-muted-foreground">
                       Transfert interne : aucun client n&apos;est associé à ce BL.
                     </p>
@@ -936,14 +1051,16 @@ export const DocumentCreationDialog = ({
                         onChange={(e) => setManualQuantity(Math.max(1, Number(e.target.value) || 1))}
                       />
                     </div>
-                    <div className="md:col-span-2 space-y-1">
-                      <Label className="text-xs text-muted-foreground">Prix HT</Label>
-                      <DecimalInput
-                        value={manualUnitPrice}
-                        onValueChange={setManualUnitPrice}
-                      />
-                    </div>
-                    <div className="md:col-span-1">
+                    {!showLinePhoto && (
+                      <div className="md:col-span-2 space-y-1">
+                        <Label className="text-xs text-muted-foreground">Prix HT</Label>
+                        <DecimalInput
+                          value={manualUnitPrice}
+                          onValueChange={setManualUnitPrice}
+                        />
+                      </div>
+                    )}
+                    <div className={showLinePhoto ? 'md:col-span-3' : 'md:col-span-1'}>
                       <Button type="button" onClick={commitManualLine} className="w-full gap-1">
                         <Plus className="w-4 h-4" />
                       </Button>
@@ -976,8 +1093,14 @@ export const DocumentCreationDialog = ({
                       <tr>
                         <th className="p-4 text-left font-bold text-muted-foreground uppercase tracking-wider text-xs">Produit / Description</th>
                         <th className="p-4 text-center font-bold text-muted-foreground uppercase tracking-wider text-xs w-32">Quantité</th>
-                        <th className="p-4 text-right font-bold text-muted-foreground uppercase tracking-wider text-xs w-32">Prix Unitaire</th>
-                        <th className="p-4 text-right font-bold text-muted-foreground uppercase tracking-wider text-xs w-32">Total HT</th>
+                        {showLinePhoto ? (
+                          <th className="p-4 text-center font-bold text-muted-foreground uppercase tracking-wider text-xs w-40">Photo</th>
+                        ) : (
+                          <>
+                            <th className="p-4 text-right font-bold text-muted-foreground uppercase tracking-wider text-xs w-32">Prix Unitaire</th>
+                            <th className="p-4 text-right font-bold text-muted-foreground uppercase tracking-wider text-xs w-32">Total HT</th>
+                          </>
+                        )}
                         <th className="p-4 w-12"></th>
                       </tr>
                     </thead>
@@ -985,42 +1108,66 @@ export const DocumentCreationDialog = ({
                       {lines.map((line) => (
                         <tr key={line.lineKey} className="hover:bg-muted/30 transition-colors">
                           <td className="p-4">
-                            {line.product_id == null ? (
-                              <div className="space-y-1.5">
-                                <Input
-                                  value={line.product_name}
-                                  onChange={(e) => updateLine(line.lineKey, 'product_name', e.target.value)}
-                                  className="font-semibold"
-                                  placeholder="Nom de l'article"
-                                />
-                                <textarea
-                                  value={line.description}
-                                  onChange={(e) => updateLine(line.lineKey, 'description', e.target.value)}
-                                  placeholder="Description — tailles, couleurs, détails…"
-                                  rows={2}
-                                  className="w-full p-2 rounded-md border bg-background text-xs resize-y min-h-[2.25rem] focus:ring-2 focus:ring-primary focus:outline-none"
-                                />
-                                <Input
-                                  value={line.sku}
-                                  onChange={(e) => updateLine(line.lineKey, 'sku', e.target.value)}
-                                  placeholder="Réf. (optionnel)"
-                                  className="text-xs font-mono h-8"
-                                />
-                                <span className="text-[10px] text-muted-foreground">Saisie libre</span>
+                            <div className="flex gap-3 items-start">
+                              {showLinePhoto && (
+                                <div className="shrink-0">
+                                  {line.image || line.product_id != null ? (
+                                    <LazyProductImage
+                                      productId={line.product_id ?? undefined}
+                                      storedRef={
+                                        line.imageDirty || line.image != null
+                                          ? line.image
+                                          : undefined
+                                      }
+                                      alt={line.product_name}
+                                      className="w-12 h-12 rounded-lg"
+                                    />
+                                  ) : (
+                                    <div className="w-12 h-12 rounded-lg bg-muted/40 flex items-center justify-center">
+                                      <ImagePlus className="w-5 h-5 text-muted-foreground/40" />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                {line.product_id == null ? (
+                                  <div className="space-y-1.5">
+                                    <Input
+                                      value={line.product_name}
+                                      onChange={(e) => updateLine(line.lineKey, 'product_name', e.target.value)}
+                                      className="font-semibold"
+                                      placeholder="Nom de l'article"
+                                    />
+                                    <textarea
+                                      value={line.description}
+                                      onChange={(e) => updateLine(line.lineKey, 'description', e.target.value)}
+                                      placeholder="Description — tailles, couleurs, détails…"
+                                      rows={2}
+                                      className="w-full p-2 rounded-md border bg-background text-xs resize-y min-h-[2.25rem] focus:ring-2 focus:ring-primary focus:outline-none"
+                                    />
+                                    <Input
+                                      value={line.sku}
+                                      onChange={(e) => updateLine(line.lineKey, 'sku', e.target.value)}
+                                      placeholder="Réf. (optionnel)"
+                                      className="text-xs font-mono h-8"
+                                    />
+                                    <span className="text-[10px] text-muted-foreground">Saisie libre</span>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-1.5">
+                                    <div className="font-semibold text-base">{line.product_name}</div>
+                                    <div className="text-xs font-mono text-primary/70">{line.sku}</div>
+                                    <textarea
+                                      value={line.description}
+                                      onChange={(e) => updateLine(line.lineKey, 'description', e.target.value)}
+                                      placeholder="Description — tailles, couleurs, détails…"
+                                      rows={2}
+                                      className="w-full p-2 rounded-md border bg-background text-xs resize-y min-h-[2.25rem] focus:ring-2 focus:ring-primary focus:outline-none"
+                                    />
+                                  </div>
+                                )}
                               </div>
-                            ) : (
-                              <div className="space-y-1.5">
-                                <div className="font-semibold text-base">{line.product_name}</div>
-                                <div className="text-xs font-mono text-primary/70">{line.sku}</div>
-                                <textarea
-                                  value={line.description}
-                                  onChange={(e) => updateLine(line.lineKey, 'description', e.target.value)}
-                                  placeholder="Description — tailles, couleurs, détails…"
-                                  rows={2}
-                                  className="w-full p-2 rounded-md border bg-background text-xs resize-y min-h-[2.25rem] focus:ring-2 focus:ring-primary focus:outline-none"
-                                />
-                              </div>
-                            )}
+                            </div>
                           </td>
                           <td className="p-4">
                             <Input 
@@ -1031,16 +1178,55 @@ export const DocumentCreationDialog = ({
                               onChange={(e) => updateLine(line.lineKey, 'quantity', Number(e.target.value))}
                             />
                           </td>
-                          <td className="p-4 text-right">
-                            <DecimalInput
-                              className="h-10 text-right font-medium"
-                              value={line.unit_price ?? 0}
-                              onValueChange={(v) => updateLine(line.lineKey, 'unit_price', v)}
-                            />
-                          </td>
-                          <td className="p-4 text-right font-bold text-base text-primary">
-                            {(line.quantity * line.unit_price).toFixed(3)}
-                          </td>
+                          {showLinePhoto ? (
+                            <td className="p-4">
+                              <div className="flex flex-col items-center gap-2">
+                                <label className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md border border-dashed border-primary/40 bg-primary/5 text-xs font-medium text-primary cursor-pointer hover:bg-primary/10 transition-colors">
+                                  <ImagePlus className="w-3.5 h-3.5" />
+                                  {line.image ? 'Changer' : 'Importer'}
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      void handleLineImageUpload(line.lineKey, e.target.files?.[0]);
+                                      e.target.value = '';
+                                    }}
+                                  />
+                                </label>
+                                {line.image && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                                    onClick={() => clearLineImage(line.lineKey)}
+                                  >
+                                    <X className="w-3 h-3 mr-1" />
+                                    Retirer
+                                  </Button>
+                                )}
+                                {line.product_id == null && (
+                                  <span className="text-[10px] text-muted-foreground text-center leading-tight">
+                                    Visible en stock si produit catalogue
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          ) : (
+                            <>
+                              <td className="p-4 text-right">
+                                <DecimalInput
+                                  className="h-10 text-right font-medium"
+                                  value={line.unit_price ?? 0}
+                                  onValueChange={(v) => updateLine(line.lineKey, 'unit_price', v)}
+                                />
+                              </td>
+                              <td className="p-4 text-right font-bold text-base text-primary">
+                                {(line.quantity * line.unit_price).toFixed(3)}
+                              </td>
+                            </>
+                          )}
                           <td className="p-4">
                             <Button 
                               variant="ghost" 
@@ -1054,15 +1240,17 @@ export const DocumentCreationDialog = ({
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot className="bg-muted/20 border-t">
-                      <tr>
-                        <td colSpan={3} className="p-6 text-right font-black uppercase tracking-widest text-xs text-muted-foreground">Total Global (TND)</td>
-                        <td className="p-6 text-right font-black text-2xl text-primary">
-                          {lines.reduce((acc, l) => acc + (l.quantity * l.unit_price), 0).toFixed(3)}
-                        </td>
-                        <td></td>
-                      </tr>
-                    </tfoot>
+                    {!showLinePhoto && (
+                      <tfoot className="bg-muted/20 border-t">
+                        <tr>
+                          <td colSpan={3} className="p-6 text-right font-black uppercase tracking-widest text-xs text-muted-foreground">Total Global (TND)</td>
+                          <td className="p-6 text-right font-black text-2xl text-primary">
+                            {lines.reduce((acc, l) => acc + (l.quantity * l.unit_price), 0).toFixed(3)}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
                 </div>
               )}

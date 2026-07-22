@@ -24,6 +24,7 @@ import {
   MyProfilePage,
   PermissionsManager,
   PlatformConsole,
+  TenantBillingPage,
   MarketingLeadsAdmin,
   ReportingModule,
   BarcodeLabelsPage,
@@ -526,6 +527,17 @@ export function ErpRoutes() {
             <SubsectionRoute subsectionId="accounts" requireAdmin>
               <LazyRoute>
                 <PermissionsManager />
+              </LazyRoute>
+            </SubsectionRoute>
+          }
+        />
+
+        <Route
+          path="/billing"
+          element={
+            <SubsectionRoute subsectionId="tenant-billing">
+              <LazyRoute>
+                <TenantBillingPage />
               </LazyRoute>
             </SubsectionRoute>
           }
