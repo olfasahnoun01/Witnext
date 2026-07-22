@@ -391,6 +391,7 @@ export const documentService = {
       description?: string;
       custom_name?: string;
       supplier_name?: string;
+      size?: string;
     }>;
   }) {
     try {
@@ -422,7 +423,7 @@ export const documentService = {
             workflow_stage: params.targetRole === 'responsable_achat' ? 'sent_to_purchasing' : 'submitted',
             stock_review: params.targetRole === 'responsable_achat' ? 'bypassed' : 'pending',
             requester_name: params.requesterName || null,
-            requester_role: params.requesterRole || 'agent_commercial',
+            requester_role: params.requesterRole || 'user',
             target_role: params.targetRole || 'responsable_stock',
             attachment_urls: params.attachment_urls || [],
           },
@@ -442,6 +443,7 @@ export const documentService = {
           description: [
             item.custom_name?.trim(),
             item.supplier_name?.trim() ? `Fournisseur: ${item.supplier_name.trim()}` : '',
+            item.size?.trim() ? `Taille: ${item.size.trim()}` : '',
             item.description?.trim(),
           ]
             .filter(Boolean)

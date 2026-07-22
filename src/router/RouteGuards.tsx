@@ -100,7 +100,9 @@ export function SubsectionRoute({
     subsectionId === 'team-chat' ||
     subsectionId === 'messages' ||
     subsectionId === 'profile' ||
-    subsectionId === 'tenant-billing';
+    subsectionId === 'tenant-billing' ||
+    subsectionId === 'demande-achat' ||
+    subsectionId === 'demande-achat-magasin';
 
   if (requirePlatformAdmin && !isPlatformAdmin) {
     return <AccessDenied />;

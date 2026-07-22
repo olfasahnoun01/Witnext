@@ -54,6 +54,11 @@ export function canAccessSectionWith(
   if (sectionId === ADMIN_ONLY_SECTION_ID) return isAdmin;
   if (isAdmin) return true;
 
+  // Purchase requests are open to every ERP user — surface parent nav sections.
+  if (sectionId === 'magasin' || sectionId === 'achats') {
+    return true;
+  }
+
   if (perms.some((p) => p.section_key === sectionId && (!p.subsection_key || p.subsection_key === ''))) {
     return true;
   }
@@ -73,6 +78,11 @@ export function canAccessSubsectionWith(
   const { isAdmin, perms, subsectionToSection } = ctx;
   if (ADMIN_ONLY_SUBSECTIONS.has(subsectionId)) return isAdmin;
   if (isAdmin) return true;
+
+  // Any authenticated ERP user can create / view purchase requests.
+  if (subsectionId === 'demande-achat' || subsectionId === 'demande-achat-magasin') {
+    return true;
+  }
 
   const sectionId = subsectionToSection[subsectionId];
   if (!sectionId || sectionId === ADMIN_ONLY_SECTION_ID) return false;

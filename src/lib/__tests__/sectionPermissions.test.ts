@@ -38,9 +38,13 @@ describe('sectionPermissions', () => {
     expect(canAccessSubsectionWith('accounts', ctx(perms))).toBe(false);
   });
 
-  it('regular user with no permissions sees nothing except denied subsections', () => {
+  it('regular user with no permissions sees purchase-request sections only', () => {
     expect(canAccessSectionWith('ventes', ctx([]))).toBe(false);
     expect(canAccessSubsectionWith('inventory', ctx([]))).toBe(false);
+    expect(canAccessSectionWith('magasin', ctx([]))).toBe(true);
+    expect(canAccessSectionWith('achats', ctx([]))).toBe(true);
+    expect(canAccessSubsectionWith('demande-achat', ctx([]))).toBe(true);
+    expect(canAccessSubsectionWith('demande-achat-magasin', ctx([]))).toBe(true);
   });
 
   it('magasin grant does not unlock flux suivi via cross-section shortcut', () => {
