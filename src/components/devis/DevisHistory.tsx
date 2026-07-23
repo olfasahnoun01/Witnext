@@ -506,10 +506,48 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     );
   };
 
+  const listNavButtons = (
+    <div className="flex items-center gap-2 flex-wrap">
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className={cn(
+          'h-8 gap-2 border-2',
+          listAccent === 'achat'
+            ? 'border-orange-600 text-orange-800 dark:text-orange-200'
+            : 'border-emerald-600 text-emerald-800 dark:text-emerald-200'
+        )}
+      >
+        <History className="w-4 h-4" />
+        Liste devis
+      </Button>
+      <h3
+        className={cn(
+          'text-lg font-semibold',
+          listAccent === 'achat' ? 'text-orange-950 dark:text-orange-100' : 'text-emerald-950 dark:text-emerald-100'
+        )}
+      >
+        Mes Devis
+      </h3>
+      <Button
+        onClick={onAdd}
+        size="sm"
+        className={cn(
+          'h-8 gap-2',
+          listAccent === 'achat' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-emerald-600 hover:bg-emerald-700'
+        )}
+      >
+        <Plus className="w-4 h-4" />
+        Ajouter Devis
+      </Button>
+    </div>
+  );
+
   if (savedDevis.length === 0) {
     return (
-      <div className="bg-card rounded-xl border border-border p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-6">Mes Devis</h3>
+      <div className={cn('bg-card rounded-xl border p-6', listCardBorder)}>
+        <div className={cn('mb-6 -mx-2 px-2 py-3 rounded-lg', listHeaderBg)}>{listNavButtons}</div>
         <div className="text-center py-12">
           <History className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <p className="text-sm text-muted-foreground">Aucun devis dans l'historique.</p>
@@ -522,19 +560,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
     <>
       <div className={cn('bg-card rounded-xl border p-6', listCardBorder)}>
         <div className={cn('flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6 -mx-2 px-2 py-3 rounded-lg', listHeaderBg)}>
-          <div className="flex items-center gap-4">
-            <h3 className={cn('text-lg font-semibold', listAccent === 'achat' ? 'text-orange-950 dark:text-orange-100' : 'text-emerald-950 dark:text-emerald-100')}>
-              Mes Devis
-            </h3>
-            <Button
-              onClick={onAdd}
-              size="sm"
-              className={cn('h-8 gap-2', listAccent === 'achat' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-emerald-600 hover:bg-emerald-700')}
-            >
-              <Plus className="w-4 h-4" />
-              Ajouter Devis
-            </Button>
-          </div>
+          {listNavButtons}
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -621,7 +647,7 @@ export const DevisHistory = memo(({ savedDevis, canEdit, currentUserId, isAdminO
           Tous les devis dans une seule liste (plus récent en haut), 10 par page. Sélectionnez un jour pour n&apos;afficher que les devis de cette date, puis exportez en Excel.
         </p>
 
-        <div className={cn('overflow-x-auto overflow-y-auto max-h-[min(65vh,36rem)] rounded-lg border', listCardBorder, excelTableClass)}>
+        <div className={cn('overflow-x-auto overflow-y-auto max-h-[calc(100vh-14rem)] rounded-lg border', listCardBorder, excelTableClass)}>
           <table>
             {devisTableHead}
             <tbody>

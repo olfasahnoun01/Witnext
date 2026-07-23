@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { FileText, History, Plus } from 'lucide-react';
+import { FileText, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Devis, DevisItem, BonCommande } from '@/types';
@@ -670,72 +670,43 @@ export const GestionDevis = ({
     );
   }
 
-  const formTabLabel = editingDevis
-    ? 'Modifier'
-    : sectionMode === 'bc'
-      ? 'Nouveau BC'
-      : sectionMode === 'devis'
-        ? 'Nouveau devis'
-        : 'Créer';
-  const formTabTitle = editingDevis
-    ? 'Modifier le document en cours'
-    : sectionMode === 'bc'
-      ? 'Créer un bon de commande'
-      : sectionMode === 'devis'
-        ? 'Créer un devis'
-        : 'Créer un document';
-
   const sectionTabClass = (active: boolean) =>
     cn(
       'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap shrink-0',
       active ? tabActiveClass : 'text-muted-foreground hover:text-foreground hover:bg-background/60'
     );
 
+  const showFormListNav = activeSection === 'form';
+
   return (
     <div className="space-y-3 animate-fade-in">
-      {/* Section tabs — compact bar to maximize form/list area */}
-      <div className={cn('inline-flex flex-wrap items-center gap-0.5 p-0.5 rounded-lg max-w-full', tabBarClass)}>
-        <Button
-          variant={activeSection === 'form' ? 'default' : 'ghost'}
-          onClick={() => {
-            if (activeSection !== 'form') {
-              setActiveSection('form');
-            } else if (!editingDevis) {
-              if (window.confirm("Créer un nouveau devis et effacer le brouillon actuel ?")) {
-                handleAddNew(sectionMode ?? 'devis');
-              }
-            } else {
-              setActiveSection('form');
-            }
-          }}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap shrink-0 ${activeSection === 'form' ? tabActiveClass : 'text-muted-foreground hover:text-foreground hover:bg-background/60'}`}
-        >
-          <Plus className="w-3.5 h-3.5 shrink-0" />
-          {formTabLabel}
-        </Button>
-        <button
-          type="button"
-          title="Liste des devis"
-          onClick={() => requestSectionChange('history')}
-          className={sectionTabClass(activeSection === 'history')}
-        >
-          <History className="w-3.5 h-3.5 shrink-0" />
-          Devis
-          <span className="tabular-nums opacity-80">({savedDevis.length})</span>
-        </button>
-        {!hideListBcTab && (
-          <button
-            type="button"
-            title="Liste des bons de commande"
-            onClick={() => requestSectionChange('bc')}
-            className={sectionTabClass(activeSection === 'bc')}
-          >
-            <FileText className="w-3.5 h-3.5 shrink-0" />
-            BC
-            <span className="tabular-nums opacity-80">({bonsCommande.length})</span>
-          </button>
-        )}
-      </div>
+      {/* List pages use in-list nav (Liste devis / Liste BC). Form keeps a compact back-to-list bar. */}
+      {showFormListNav && (
+        <div className={cn('inline-flex flex-wrap items-center gap-0.5 p-0.5 rounded-lg max-w-full', tabBarClass)}>
+          {pageMode !== 'bc' && (
+            <button
+              type="button"
+              title="Liste des devis"
+              onClick={() => requestSectionChange('history')}
+              className={sectionTabClass(false)}
+            >
+              <History className="w-3.5 h-3.5 shrink-0" />
+              Liste devis
+            </button>
+          )}
+          {(pageMode === 'bc' || !hideListBcTab) && (
+            <button
+              type="button"
+              title="Liste des bons de commande"
+              onClick={() => requestSectionChange('bc')}
+              className={sectionTabClass(false)}
+            >
+              <FileText className="w-3.5 h-3.5 shrink-0" />
+              Liste BC
+            </button>
+          )}
+        </div>
+      )}
 
       {activeSection === 'form' && devisNumber && (
         <DevisForm
@@ -811,7 +782,7 @@ export const GestionDevis = ({
           onDelete={deleteDevis}
           onAdd={() => handleAddNew('bc')}
           onRefresh={loadAll}
-          showAddButton={false}
+          showAddButton
           defaultTypeFilter={initialDevisType ?? 'vente'}
         />
       )}

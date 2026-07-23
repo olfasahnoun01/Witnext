@@ -496,55 +496,59 @@ export const DevisForm = memo(({
       ? Boolean(selectedProduct) && (devisType !== 'vente' || itemPrixTtc > 0)
       : Boolean(itemDesignation.trim()) && (devisType !== 'vente' || itemPrixTtc > 0);
 
+  const accentTone = isAchat ? 'achat' : 'vente';
+
   return (
     <>
-      <DevisZohoShell className={cn('w-full', sidebarOpen ? 'max-w-6xl mx-auto' : 'max-w-none')}>
-        <DevisFormSettingsHeader
-          editingDevis={editingDevis}
-          forceDocType={forceDocType}
-          lockDevisType={lockDevisType}
+      <div className={cn('w-full max-w-none space-y-4', !sidebarOpen && 'px-0')}>
+        {/* Document settings */}
+        <DevisZohoShell className="w-full">
+          <DevisFormSettingsHeader
+            editingDevis={editingDevis}
+            forceDocType={forceDocType}
+            lockDevisType={lockDevisType}
+            docType={docType}
+            setDocType={setDocType}
+            devisType={devisType}
+            setDevisType={setDevisType}
+            isAchat={isAchat}
+            partyExonereDeTva={partyExonereDeTva}
+            thirdPartyTvaStatus={thirdPartyTvaStatus}
+            isTtc={isTtc}
+            onPricingModeChange={handlePricingModeChange}
+            isFodecEnabled={isFodecEnabled}
+            setIsFodecEnabled={setIsFodecEnabled}
+            draftSavedAt={draftSavedAt}
+          />
+        </DevisZohoShell>
+
+        {/* Client / fournisseur — bloc séparé */}
+        <DevisPartyFieldsTable
+          partyLabel={thirdPartyLabel}
+          thirdPartyName={thirdPartyName}
+          onThirdPartyNameChange={handleThirdPartyNameChange}
+          suggestions={filteredThirdParties}
+          onSuggestionSelect={handleThirdPartySuggestionSelect}
+          devisNumber={devisNumber}
+          onDevisNumberChange={setDevisNumber}
+          devisDate={devisDate}
+          onDevisDateChange={setDevisDate}
+          thirdPartyPhone={thirdPartyPhone}
+          onThirdPartyPhoneChange={setThirdPartyPhone}
+          thirdPartyTaxId={thirdPartyTaxId}
+          onThirdPartyTaxIdChange={setThirdPartyTaxId}
+          thirdPartyAddress={thirdPartyAddress}
+          onThirdPartyAddressChange={setThirdPartyAddress}
           docType={docType}
-          setDocType={setDocType}
-          devisType={devisType}
-          setDevisType={setDevisType}
-          isAchat={isAchat}
-          partyExonereDeTva={partyExonereDeTva}
-          thirdPartyTvaStatus={thirdPartyTvaStatus}
-          isTtc={isTtc}
-          onPricingModeChange={handlePricingModeChange}
-          isFodecEnabled={isFodecEnabled}
-          setIsFodecEnabled={setIsFodecEnabled}
-          draftSavedAt={draftSavedAt}
+          documentStatus={documentStatus}
+          onDocumentStatusChange={(v) => setDocumentStatus(v)}
+          showNewParty
+          onNewParty={() => (isAchat ? openNewFournisseurDialog() : openNewClientDialog())}
+          newPartyTitle={isAchat ? 'Nouveau fournisseur' : 'Nouveau client'}
         />
 
-        <div className="px-4 sm:px-6 py-5 border-b border-border/50">
-          <DevisPartyFieldsTable
-            partyLabel={thirdPartyLabel}
-            thirdPartyName={thirdPartyName}
-            onThirdPartyNameChange={handleThirdPartyNameChange}
-            suggestions={filteredThirdParties}
-            onSuggestionSelect={handleThirdPartySuggestionSelect}
-            devisNumber={devisNumber}
-            onDevisNumberChange={setDevisNumber}
-            devisDate={devisDate}
-            onDevisDateChange={setDevisDate}
-            thirdPartyPhone={thirdPartyPhone}
-            onThirdPartyPhoneChange={setThirdPartyPhone}
-            thirdPartyTaxId={thirdPartyTaxId}
-            onThirdPartyTaxIdChange={setThirdPartyTaxId}
-            thirdPartyAddress={thirdPartyAddress}
-            onThirdPartyAddressChange={setThirdPartyAddress}
-            docType={docType}
-            documentStatus={documentStatus}
-            onDocumentStatusChange={(v) => setDocumentStatus(v)}
-            showNewParty
-            onNewParty={() => (isAchat ? openNewFournisseurDialog() : openNewClientDialog())}
-            newPartyTitle={isAchat ? 'Nouveau fournisseur' : 'Nouveau client'}
-          />
-        </div>
-
         {showFournisseurPdfReader && (
-          <div className="px-4 sm:px-6 pt-4 border-b border-border/50">
+          <div className="rounded-xl border-2 border-orange-500/30 overflow-hidden">
             <BcFournisseurPdfReader
               fournisseurs={fournisseurs}
               targetDocType={fournisseurPdfTargetDocType}
@@ -555,81 +559,84 @@ export const DevisForm = memo(({
           </div>
         )}
 
+        {/* Import devis → BC — bloc séparé */}
         {(docType === 'bc' || forceDocType === 'bc') && !editingDevis && onImportDevis && (
-          <div className="px-4 sm:px-6 pt-4 border-b border-border/50">
-            <ImportDevisIntoBcPanel
-              devisList={importableDevis}
-              onImport={onImportDevis}
-              disabled={isSaving}
-            />
-          </div>
+          <ImportDevisIntoBcPanel
+            devisList={importableDevis}
+            onImport={onImportDevis}
+            disabled={isSaving}
+            tone={accentTone}
+          />
         )}
 
-        <DevisFormArticlesSection
-          isAchat={isAchat}
-          devisType={devisType}
-          isFodecEnabled={isFodecEnabled}
-          partyExonereDeTva={partyExonereDeTva}
-          isTtc={isTtc}
-          devisItems={devisItems}
-          articleMode={articleMode}
-          onArticleModeSelect={handleArticleModeSelect}
-          onOpenAddVariant={openAddVariantDialog}
-          onOpenNewArticle={openNewArticleDialog}
-          composerSearchRef={composerSearchRef}
-          onUpdateLine={updateLineItem}
-          onRemoveLine={removeItem}
-          onCommitLine={addItem}
-          canCommitLine={canCommitComposerLine}
-          productSearch={productSearch}
-          onProductSearchChange={setProductSearch}
-          searchResults={searchResults}
-          isSearching={isSearching}
-          selectedProduct={selectedProduct}
-          onSelectProduct={selectExistingProduct}
-          onClearProduct={clearCatalogSelection}
-          itemDesignation={itemDesignation}
-          onItemDesignationChange={setItemDesignation}
-          itemDescription={itemDescription}
-          onItemDescriptionChange={setItemDescription}
-          itemQuantity={itemQuantity}
-          onItemQuantityChange={setItemQuantity}
-          itemPrixAchat={itemPrixAchat}
-          onItemPrixAchatChange={setItemPrixAchat}
-          itemPrixTtc={itemPrixTtc}
-          onItemPrixTtcChange={setItemPrixTtc}
-          itemRemise={itemRemise}
-          onItemRemiseChange={setItemRemise}
-          itemTva={itemTva}
-          onItemTvaChange={setItemTva}
-          itemFodec={itemFodec}
-          onItemFodecChange={setItemFodec}
-        />
+        {/* Tableau articles — contenu principal pleine largeur */}
+        <DevisZohoShell className="w-full">
+          <DevisFormArticlesSection
+            isAchat={isAchat}
+            devisType={devisType}
+            isFodecEnabled={isFodecEnabled}
+            partyExonereDeTva={partyExonereDeTva}
+            isTtc={isTtc}
+            devisItems={devisItems}
+            articleMode={articleMode}
+            onArticleModeSelect={handleArticleModeSelect}
+            onOpenAddVariant={openAddVariantDialog}
+            onOpenNewArticle={openNewArticleDialog}
+            composerSearchRef={composerSearchRef}
+            onUpdateLine={updateLineItem}
+            onRemoveLine={removeItem}
+            onCommitLine={addItem}
+            canCommitLine={canCommitComposerLine}
+            productSearch={productSearch}
+            onProductSearchChange={setProductSearch}
+            searchResults={searchResults}
+            isSearching={isSearching}
+            selectedProduct={selectedProduct}
+            onSelectProduct={selectExistingProduct}
+            onClearProduct={clearCatalogSelection}
+            itemDesignation={itemDesignation}
+            onItemDesignationChange={setItemDesignation}
+            itemDescription={itemDescription}
+            onItemDescriptionChange={setItemDescription}
+            itemQuantity={itemQuantity}
+            onItemQuantityChange={setItemQuantity}
+            itemPrixAchat={itemPrixAchat}
+            onItemPrixAchatChange={setItemPrixAchat}
+            itemPrixTtc={itemPrixTtc}
+            onItemPrixTtcChange={setItemPrixTtc}
+            itemRemise={itemRemise}
+            onItemRemiseChange={setItemRemise}
+            itemTva={itemTva}
+            onItemTvaChange={setItemTva}
+            itemFodec={itemFodec}
+            onItemFodecChange={setItemFodec}
+          />
 
-        <DevisFormNotesSection
-          notes={notes}
-          onNotesChange={setNotes}
-          docType={docType}
-          existingAttachments={existingAttachments}
-          pendingAttachmentFiles={pendingAttachmentFiles}
-          onPendingAttachmentFilesChange={onPendingAttachmentFilesChange}
-          onRemoveExistingAttachment={onRemoveExistingAttachment}
-          isSaving={isSaving}
-          devisTotals={devisTotals}
-          showTva={isTtc && !partyExonereDeTva}
-        />
+          <DevisFormNotesSection
+            notes={notes}
+            onNotesChange={setNotes}
+            docType={docType}
+            existingAttachments={existingAttachments}
+            pendingAttachmentFiles={pendingAttachmentFiles}
+            onPendingAttachmentFilesChange={onPendingAttachmentFilesChange}
+            onRemoveExistingAttachment={onRemoveExistingAttachment}
+            isSaving={isSaving}
+            devisTotals={devisTotals}
+            showTva={isTtc && !partyExonereDeTva}
+          />
 
-        <DevisZohoFooter
-          editing={Boolean(editingDevis)}
-          isSaving={isSaving}
-          onCancel={onCancel}
-          onSave={handleSave}
-          onUpdate={handleUpdate}
-          onSaveDraft={!editingDevis ? handleSaveDraft : undefined}
-          saveLabel={savePrimaryLabel}
-          draftSavedAt={draftSavedAt}
-        />
-      </DevisZohoShell>
+          <DevisZohoFooter
+            editing={Boolean(editingDevis)}
+            isSaving={isSaving}
+            onCancel={onCancel}
+            onSave={handleSave}
+            onUpdate={handleUpdate}
+            onSaveDraft={!editingDevis ? handleSaveDraft : undefined}
+            saveLabel={savePrimaryLabel}
+            draftSavedAt={draftSavedAt}
+          />
+        </DevisZohoShell>
+      </div>
 
       <DevisFormDialogs
         fournisseurDialogProps={fournisseurDialogProps}

@@ -435,9 +435,9 @@ export function DevisZohoSection({
   className?: string;
 }) {
   return (
-    <section className={cn('px-4 sm:px-6 py-5', className)}>
+    <section className={cn('px-4 sm:px-6 py-5 sm:py-6', className)}>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{title}</h3>
+        <h3 className="text-sm font-semibold tracking-wide text-foreground">{title}</h3>
         {action}
       </div>
       {children}

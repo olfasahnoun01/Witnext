@@ -95,15 +95,29 @@ export function DevisPartyFieldsTable({
   const showStatus = docType === 'bc';
 
   return (
-    <div className="rounded-xl border border-border/80 bg-gradient-to-br from-muted/30 via-background to-background p-4 sm:p-5 shadow-sm space-y-4">
+    <div
+      className={cn(
+        'rounded-xl border-2 bg-card p-4 sm:p-5 shadow-sm space-y-4',
+        partyLabel === 'Fournisseur' || partyLabel.toLowerCase().includes('fourn')
+          ? 'border-orange-500/35'
+          : 'border-emerald-500/35'
+      )}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Building2 className="h-4 w-4" aria-hidden />
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div
+            className={cn(
+              'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
+              partyLabel === 'Fournisseur' || partyLabel.toLowerCase().includes('fourn')
+                ? 'bg-orange-500/10 text-orange-700 dark:text-orange-300'
+                : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+            )}
+          >
+            <Building2 className="h-5 w-5" aria-hidden />
           </div>
           <div>
-            <p className="text-sm font-semibold text-foreground">{partyLabel}</p>
-            <p className="text-xs text-muted-foreground">Coordonnées et référence du document</p>
+            <p className="text-base font-semibold text-foreground">Informations {partyLabel.toLowerCase()}</p>
+            <p className="text-xs text-muted-foreground">Coordonnées du tiers et référence du document</p>
           </div>
         </div>
         {showNewParty && (

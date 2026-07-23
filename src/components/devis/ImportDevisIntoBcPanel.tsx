@@ -13,9 +13,10 @@ type Props = {
   devisList: Devis[];
   onImport: (selected: Devis[]) => void;
   disabled?: boolean;
+  tone?: 'vente' | 'achat';
 };
 
-export function ImportDevisIntoBcPanel({ devisList, onImport, disabled }: Props) {
+export function ImportDevisIntoBcPanel({ devisList, onImport, disabled, tone = 'vente' }: Props) {
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
@@ -65,6 +66,8 @@ export function ImportDevisIntoBcPanel({ devisList, onImport, disabled }: Props)
         title="Importer depuis la liste devis"
         description="Aucun devis disponible pour ce type (créez-en un dans Liste Devis)."
         icon={FileDown}
+        tone={tone}
+        className="border-2"
       >
         <p className="text-sm text-muted-foreground">La liste devis est vide pour l&apos;instant.</p>
       </DevisFormSection>
@@ -76,6 +79,8 @@ export function ImportDevisIntoBcPanel({ devisList, onImport, disabled }: Props)
       title="Importer depuis la liste devis"
       description="Sélectionnez un ou plusieurs devis (même client/fournisseur) pour remplir le bon de commande."
       icon={FileDown}
+      tone={tone}
+      className="border-2"
     >
       <div className="space-y-3">
         <div className="relative max-w-md">

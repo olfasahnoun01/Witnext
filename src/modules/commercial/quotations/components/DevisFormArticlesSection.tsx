@@ -91,6 +91,7 @@ export function DevisFormArticlesSection({
   return (
     <DevisZohoSection
       title="Tableau d'articles"
+      className="bg-background"
       action={
         <div className="flex flex-wrap items-center gap-2">
           <DevisSegmentedGrid cols={2}>
@@ -124,42 +125,47 @@ export function DevisFormArticlesSection({
         </div>
       }
     >
-      <DevisArticlesTable
-        items={devisItems}
-        isTtc={isTtc}
-        devisType={devisType}
-        articleMode={articleMode}
-        composerSearchRef={composerSearchRef}
-        onUpdate={onUpdateLine}
-        onRemove={onRemoveLine}
-        onCommitLine={onCommitLine}
-        canCommitLine={canCommitLine}
-        productSearch={productSearch}
-        onProductSearchChange={onProductSearchChange}
-        searchResults={searchResults}
-        isSearching={isSearching}
-        selectedProduct={selectedProduct}
-        onSelectProduct={onSelectProduct}
-        onClearProduct={onClearProduct}
-        itemDesignation={itemDesignation}
-        onItemDesignationChange={onItemDesignationChange}
-        itemDescription={itemDescription}
-        onItemDescriptionChange={onItemDescriptionChange}
-        itemQuantity={itemQuantity}
-        onItemQuantityChange={onItemQuantityChange}
-        itemPrixAchat={itemPrixAchat}
-        onItemPrixAchatChange={onItemPrixAchatChange}
-        itemPrixTtc={itemPrixTtc}
-        onItemPrixTtcChange={onItemPrixTtcChange}
-        itemRemise={itemRemise}
-        onItemRemiseChange={onItemRemiseChange}
-        itemTva={itemTva}
-        onItemTvaChange={onItemTvaChange}
-        itemFodec={itemFodec}
-        onItemFodecChange={onItemFodecChange}
-        partyExonereDeTva={partyExonereDeTva}
-        showFodecColumn={isAchat && isFodecEnabled && !partyExonereDeTva}
-      />
+      <p className="text-xs text-muted-foreground mb-3 -mt-1">
+        Ajoutez et modifiez les lignes ici — zone principale du document.
+      </p>
+      <div className="w-full min-w-0">
+        <DevisArticlesTable
+          items={devisItems}
+          isTtc={isTtc}
+          devisType={devisType}
+          articleMode={articleMode}
+          composerSearchRef={composerSearchRef}
+          onUpdate={onUpdateLine}
+          onRemove={onRemoveLine}
+          onCommitLine={onCommitLine}
+          canCommitLine={canCommitLine}
+          productSearch={productSearch}
+          onProductSearchChange={onProductSearchChange}
+          searchResults={searchResults}
+          isSearching={isSearching}
+          selectedProduct={selectedProduct}
+          onSelectProduct={onSelectProduct}
+          onClearProduct={onClearProduct}
+          itemDesignation={itemDesignation}
+          onItemDesignationChange={onItemDesignationChange}
+          itemDescription={itemDescription}
+          onItemDescriptionChange={onItemDescriptionChange}
+          itemQuantity={itemQuantity}
+          onItemQuantityChange={onItemQuantityChange}
+          itemPrixAchat={itemPrixAchat}
+          onItemPrixAchatChange={onItemPrixAchatChange}
+          itemPrixTtc={itemPrixTtc}
+          onItemPrixTtcChange={onItemPrixTtcChange}
+          itemRemise={itemRemise}
+          onItemRemiseChange={onItemRemiseChange}
+          itemTva={itemTva}
+          onItemTvaChange={onItemTvaChange}
+          itemFodec={itemFodec}
+          onItemFodecChange={onItemFodecChange}
+          partyExonereDeTva={partyExonereDeTva}
+          showFodecColumn={isAchat && isFodecEnabled && !partyExonereDeTva}
+        />
+      </div>
     </DevisZohoSection>
   );
 }

@@ -94,7 +94,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
 
   const loadV2BcFournisseurs = useCallback(async () => {
     if (defaultTypeFilter !== 'achat') {
-      setV2BcFournisseurs([]);
+      setV2BcFournisseurs((prev) => (prev.length === 0 ? prev : []));
       return;
     }
     try {
@@ -111,7 +111,12 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
   }, [loadV2BcFournisseurs, bonsCommande]);
 
   const refreshBcIdsWithBl = useCallback(() => {
-    void fetchBcIdsHavingBonLivraisonVente().then((ids) => setBcIdsWithBl(ids));
+    void fetchBcIdsHavingBonLivraisonVente().then((ids) => {
+      setBcIdsWithBl((prev) => {
+        if (prev.size === ids.size && [...ids].every((id) => prev.has(id))) return prev;
+        return ids;
+      });
+    });
   }, []);
 
   useEffect(() => {
@@ -534,8 +539,30 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
 
   if (mergedBonsCommande.length === 0) {
     return (
-      <div className="bg-card rounded-xl border border-border p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-6">Mes Bons de Commande</h3>
+      <div className={cn('bg-card rounded-xl border p-6', listCardBorder)}>
+        <div className="mb-6 flex items-center gap-2 flex-wrap">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn(
+              'h-8 gap-2 border-2',
+              listAccent === 'achat'
+                ? 'border-orange-600 text-orange-800 dark:text-orange-200'
+                : 'border-emerald-600 text-emerald-800 dark:text-emerald-200'
+            )}
+          >
+            <FileText className="w-4 h-4" />
+            Liste BC
+          </Button>
+          <h3 className="text-lg font-semibold text-foreground">Mes Bons de Commande</h3>
+          {showAddButton && (
+            <Button onClick={onAdd} size="sm" className="h-8 gap-2">
+              <Plus className="w-4 h-4" />
+              Ajouter BC
+            </Button>
+          )}
+        </div>
         <div className="text-center py-12">
           <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <p className="text-sm text-muted-foreground">Aucun bon de commande. Convertissez un devis depuis l'onglet "Mes Devis".</p>
@@ -546,9 +573,23 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
 
   return (
     <>
-      <div className="bg-card rounded-xl border border-border p-6">
+      <div className={cn('bg-card rounded-xl border p-6', listCardBorder)}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={cn(
+                'h-8 gap-2 border-2',
+                listAccent === 'achat'
+                  ? 'border-orange-600 text-orange-800 dark:text-orange-200'
+                  : 'border-emerald-600 text-emerald-800 dark:text-emerald-200'
+              )}
+            >
+              <FileText className="w-4 h-4" />
+              Liste BC
+            </Button>
             <h3 className="text-lg font-semibold text-foreground">Mes Bons de Commande</h3>
             {showAddButton && (
               <Button onClick={onAdd} size="sm" className="h-8 gap-2">
@@ -626,7 +667,7 @@ export const BonCommandeList = memo(({ bonsCommande, currentUserId, isAdminOrMod
           Tous les bons de commande dans une seule liste (plus récent en haut), 10 par page. Sélectionnez un jour pour n&apos;afficher que les BC de cette date, puis exportez en Excel.
         </p>
 
-        <div className={cn('overflow-x-auto rounded-lg border', listCardBorder, excelTableClass)}>
+        <div className={cn('overflow-x-auto overflow-y-auto max-h-[calc(100vh-14rem)] rounded-lg border', listCardBorder, excelTableClass)}>
           <table className="w-full">
             {bcTableHead}
             <tbody>
