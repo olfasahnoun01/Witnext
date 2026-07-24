@@ -33,6 +33,7 @@ import {
   fetchProductImageRef,
   invalidateProductImageRef,
 } from '@/lib/productImageStorage';
+import { cn } from '@/lib/utils';
 
 type BlPurpose = 'client' | 'magasin_transfer';
 type ArticleMode = 'search' | 'manual';
@@ -116,6 +117,8 @@ interface DocumentCreationDialogProps {
   mandatory?: boolean;
   /** When set, the dialog opens in edit mode for an existing document. */
   editDocumentId?: string | null;
+  /** Magasin BL tabs: lock purpose and hide the client/intermagasin radio. */
+  lockedBlPurpose?: BlPurpose | null;
 }
 
 export const DocumentCreationDialog = ({
@@ -126,6 +129,7 @@ export const DocumentCreationDialog = ({
   initialData = null,
   mandatory = false,
   editDocumentId = null,
+  lockedBlPurpose = null,
 }: DocumentCreationDialogProps) => {
   const { companies, currentCompany } = useAppCompany();
   const isEditMode = !!editDocumentId;
@@ -163,6 +167,7 @@ export const DocumentCreationDialog = ({
   /** Hide unit price; show line photo upload instead (BE/BS + BL magasin). */
   const showLinePhoto =
     type === 'BE' || type === 'BS' || type === 'BL_CLIENT' || type === 'BL_FOURNISSEUR';
+  const effectiveBlPurpose: BlPurpose = lockedBlPurpose ?? blPurpose;
   const tierList = isSupplierParty ? fournisseurs : clients;
 
   const tierSuggestions = useMemo(() => {
@@ -385,7 +390,7 @@ export const DocumentCreationDialog = ({
     setPartyTaxId('');
     setPartyPhone('');
     setPartySuggestionsOpen(false);
-    setBlPurpose('client');
+    setBlPurpose(lockedBlPurpose ?? 'client');
     setServiceMotif('impression_logo');
     setSourceMagasin(currentCompany?.name ?? '');
     setDestinationMagasin('');
@@ -399,10 +404,13 @@ export const DocumentCreationDialog = ({
   };
 
   useEffect(() => {
-    if (open && type === 'BL_CLIENT' && !sourceMagasin && currentCompany?.name) {
-      setSourceMagasin(currentCompany.name);
+    if (open && lockedBlPurpose) {
+      setBlPurpose(lockedBlPurpose);
+      if (lockedBlPurpose === 'magasin_transfer' && !sourceMagasin.trim() && currentCompany?.name) {
+        setSourceMagasin(currentCompany.name);
+      }
     }
-  }, [open, type, currentCompany?.name, sourceMagasin]);
+  }, [open, lockedBlPurpose, currentCompany?.name, sourceMagasin]);
 
   const addLine = (product: Product) => {
     if (lines.some((l) => l.product_id === product.id)) {
@@ -512,12 +520,12 @@ export const DocumentCreationDialog = ({
       return;
     }
 
-    if (type === 'BL_CLIENT' && blPurpose === 'client' && !partyName.trim()) {
+    if (type === 'BL_CLIENT' && effectiveBlPurpose === 'client' && !partyName.trim()) {
       toast.error('Veuillez indiquer le client');
       return;
     }
 
-    if (type === 'BL_CLIENT' && blPurpose === 'magasin_transfer') {
+    if (type === 'BL_CLIENT' && effectiveBlPurpose === 'magasin_transfer') {
       if (!sourceMagasin.trim() || !destinationMagasin.trim()) {
         toast.error('Indiquez le magasin d\'origine et le magasin de destination');
         return;
@@ -546,7 +554,7 @@ export const DocumentCreationDialog = ({
     setLoading(true);
     try {
       const payload = {
-        clientId: type === 'BL_CLIENT' && blPurpose === 'magasin_transfer' ? undefined : (clientId || undefined),
+        clientId: type === 'BL_CLIENT' && effectiveBlPurpose === 'magasin_transfer' ? undefined : (clientId || undefined),
         fournisseurId: isSupplierParty ? (fournisseurId || undefined) : (fournisseurId || undefined),
         notes,
         metadata: {
@@ -555,7 +563,7 @@ export const DocumentCreationDialog = ({
           document_date: documentDate,
           validity,
           transport_ref: transportRef,
-          third_party_name: type === 'BL_CLIENT' && blPurpose === 'magasin_transfer'
+          third_party_name: type === 'BL_CLIENT' && effectiveBlPurpose === 'magasin_transfer'
             ? `Transfert: ${sourceMagasin.trim()} → ${destinationMagasin.trim()}`
             : partyName.trim(),
           third_party_address: partyAddress.trim(),
@@ -563,8 +571,8 @@ export const DocumentCreationDialog = ({
           third_party_phone: partyPhone.trim(),
           ...(type === 'BL_CLIENT'
             ? {
-                bl_purpose: blPurpose,
-                ...(blPurpose === 'magasin_transfer'
+                bl_purpose: effectiveBlPurpose,
+                ...(effectiveBlPurpose === 'magasin_transfer'
                   ? {
                       source_magasin: sourceMagasin.trim(),
                       destination_magasin: destinationMagasin.trim(),
@@ -601,7 +609,7 @@ export const DocumentCreationDialog = ({
 
       const result = isEditMode && editDocumentId
         ? await documentService.updateDocument(editDocumentId, {
-            clientId: type === 'BL_CLIENT' && blPurpose === 'magasin_transfer' ? null : (clientId ?? null),
+            clientId: type === 'BL_CLIENT' && effectiveBlPurpose === 'magasin_transfer' ? null : (clientId ?? null),
             fournisseurId: isSupplierParty ? (fournisseurId ?? null) : (fournisseurId ?? null),
             notes: payload.notes,
             metadata: payload.metadata,
@@ -697,11 +705,20 @@ export const DocumentCreationDialog = ({
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent
-        className={`max-w-5xl max-h-[95vh] overflow-y-auto${mandatory ? ' [&>button]:hidden' : ''}`}
+        className={cn(
+          'left-1/2 top-0 h-[100dvh] w-[min(100vw,72rem)] max-h-none max-w-6xl -translate-x-1/2 translate-y-0 rounded-none sm:rounded-none',
+          'flex flex-col gap-0 overflow-hidden p-0 border-x shadow-2xl',
+          // Larger, clearer close control (overrides default DialogContent X)
+          '[&>button]:right-5 [&>button]:top-4 [&>button]:flex [&>button]:h-12 [&>button]:w-12 [&>button]:items-center [&>button]:justify-center',
+          '[&>button]:rounded-lg [&>button]:border [&>button]:border-border [&>button]:bg-muted/80 [&>button]:opacity-100 [&>button]:shadow-sm',
+          '[&>button]:hover:bg-muted [&>button]:hover:opacity-100 [&>button]:hover:text-foreground',
+          '[&>button>svg]:h-7 [&>button>svg]:w-7',
+          mandatory && '[&>button]:hidden'
+        )}
         onInteractOutside={(e) => mandatory && e.preventDefault()}
         onEscapeKeyDown={(e) => mandatory && e.preventDefault()}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0 border-b px-6 py-4 pr-20 text-left">
           <DialogTitle className="text-2xl font-bold flex items-center gap-2">
             <FileText className="w-6 h-6 text-primary" />
             {isEditMode
@@ -720,7 +737,8 @@ export const DocumentCreationDialog = ({
           )}
         </DialogHeader>
 
-        <div className="space-y-8 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6">
+          <div className="space-y-8 py-4">
           {loadingDoc ? (
             <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -804,7 +822,7 @@ export const DocumentCreationDialog = ({
               </div>
             )}
 
-            {type === 'BL_CLIENT' && (
+            {type === 'BL_CLIENT' && !lockedBlPurpose && (
               <RadioGroup
                 value={blPurpose}
                 onValueChange={(v) => {
@@ -851,7 +869,7 @@ export const DocumentCreationDialog = ({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
-                {type === 'BL_CLIENT' && blPurpose === 'magasin_transfer' ? (
+                {type === 'BL_CLIENT' && effectiveBlPurpose === 'magasin_transfer' ? (
                   <>
                     <div className="space-y-2">
                       <Label>Magasin d&apos;origine</Label>
@@ -1258,9 +1276,10 @@ export const DocumentCreationDialog = ({
           </div>
           </>
           )}
+          </div>
         </div>
 
-        <DialogFooter className="gap-3 mt-4 border-t pt-6">
+        <DialogFooter className="shrink-0 gap-3 border-t bg-background px-6 py-4 sm:space-x-0">
           {!mandatory && (
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading || loadingDoc} className="h-12 px-6">
               Annuler

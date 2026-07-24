@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { documentService } from '@/modules/commercial';
-import { enrichUnifiedDocumentDisplay } from '@/lib/unifiedDocumentDisplay';
+import { enrichUnifiedDocumentDisplay, resolveUnifiedDocumentTierName } from '@/lib/unifiedDocumentDisplay';
 import { toast } from 'sonner';
 import { ReceptionDialog } from './ReceptionDialog';
 import { 
@@ -54,6 +54,7 @@ import {
   collectUserIdsForProfiles,
   formatDerniereModification,
   formatModifieePar,
+  formatCreePar,
 } from '@/lib/documentListAudit';
 import { useListPagination } from '@/hooks/useListPagination';
 import { ListPagination } from '@/components/shared/ListPagination';
@@ -61,7 +62,13 @@ import { ListPagination } from '@/components/shared/ListPagination';
 interface UnifiedDocumentListProps {
   title?: string;
   documentTypes?: UnifiedDocumentType[];
-  metadataFilter?: { key: string; value: string };
+  /** Filter on documents.metadata JSONB field. */
+  metadataFilter?: {
+    key: string;
+    value: string;
+    /** Default `eq`. Use `neq_or_null` to exclude a value (incl. missing key). */
+    mode?: 'eq' | 'neq_or_null';
+  };
   /** When provided, shows an edit action for matching document types. */
   onEdit?: (doc: UnifiedDocument) => void;
   editableTypes?: UnifiedDocumentType[];
@@ -119,7 +126,12 @@ export const UnifiedDocumentList = ({
           .in('type', documentTypes);
 
         if (metadataFilter) {
-          query = query.filter(`metadata->>${metadataFilter.key}`, 'eq', metadataFilter.value);
+          const col = `metadata->>${metadataFilter.key}`;
+          if (metadataFilter.mode === 'neq_or_null') {
+            query = query.or(`${col}.is.null,${col}.neq.${metadataFilter.value}`);
+          } else {
+            query = query.filter(col, 'eq', metadataFilter.value);
+          }
         }
 
         return query.order('created_at', { ascending: false }).limit(500);
@@ -183,7 +195,12 @@ export const UnifiedDocumentList = ({
       if (isAdmin || isModerator) return true;
       if (user?.id && doc.created_by === user.id) return true;
       if (doc.type === 'BL_CLIENT') return canAccessSubsection('bl-magasin');
-      if (doc.type === 'BL_FOURNISSEUR') return canAccessSubsection('bl-fournisseur-magasin');
+      if (doc.type === 'BL_FOURNISSEUR') {
+        return (
+          canAccessSubsection('bl-magasin') ||
+          canAccessSubsection('bl-fournisseur-magasin')
+        );
+      }
       if (doc.type === 'BE') return canAccessSubsection('be-magasin');
       if (doc.type === 'BS') return canAccessSubsection('bs-magasin');
       return false;
@@ -314,12 +331,17 @@ export const UnifiedDocumentList = ({
 
   const filteredDocs = useMemo(
     () =>
-      documents.filter(
-        (d) =>
-          d.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          d.fournisseur_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          d.client_name?.toLowerCase().includes(searchTerm.toLowerCase())
-      ),
+      documents.filter((d) => {
+        const q = searchTerm.toLowerCase();
+        if (!q) return true;
+        const tier = resolveUnifiedDocumentTierName(d)?.toLowerCase() ?? '';
+        return (
+          d.numero.toLowerCase().includes(q) ||
+          d.fournisseur_name?.toLowerCase().includes(q) ||
+          d.client_name?.toLowerCase().includes(q) ||
+          tier.includes(q)
+        );
+      }),
     [documents, searchTerm]
   );
 
@@ -418,7 +440,7 @@ export const UnifiedDocumentList = ({
               ) : (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Tiers :</span>
-                  <span className="font-bold">{doc.fournisseur_name || doc.client_name || 'N/A'}</span>
+                  <span className="font-bold">{resolveUnifiedDocumentTierName(doc) || 'N/A'}</span>
                 </div>
               )}
               {doc.type === 'BL_FOURNISSEUR' &&
@@ -437,6 +459,10 @@ export const UnifiedDocumentList = ({
               <div className="flex justify-between text-sm gap-2">
                 <span className="text-muted-foreground shrink-0">Dernière modification :</span>
                 <span className="text-right text-xs">{formatDerniereModification(doc)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Créé par :</span>
+                <span className="font-medium">{formatCreePar(doc)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Modifiée par :</span>

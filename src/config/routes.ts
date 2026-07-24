@@ -14,7 +14,8 @@ export const SUBSECTION_ROUTES: Record<string, string> = {
   'be-magasin': '/inventory/entry-notes',
   'bs-magasin': '/inventory/exit-notes',
   'bl-magasin': '/inventory/delivery-notes',
-  'bl-fournisseur-magasin': '/inventory/supplier-delivery-notes',
+  // Legacy: merged into Bons de Livraison tabs
+  'bl-fournisseur-magasin': '/inventory/delivery-notes?tab=fournisseur',
   comparison: '/inventory/price-comparison',
   transactions: '/inventory/stock',
   'barcode-labels': '/inventory/barcode-labels',

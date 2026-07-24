@@ -56,6 +56,11 @@ export function formatDerniereModification(doc: DocumentAuditFields): string {
   return dateStr;
 }
 
+/** Name of the document creator. */
+export function formatCreePar(doc: DocumentAuditFields): string {
+  return doc.creator_name?.trim() || '-';
+}
+
 /** Name of last editor when different from creator; otherwise "-". */
 export function formatModifieePar(doc: DocumentAuditFields): string {
   if (!doc.updated_by || !doc.created_by || doc.updated_by === doc.created_by) {

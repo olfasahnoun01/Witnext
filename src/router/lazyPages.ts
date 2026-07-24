@@ -43,6 +43,11 @@ export const WarehouseDocumentManager = lazyWithRetry(() =>
     default: m.WarehouseDocumentManager,
   }))
 );
+export const WarehouseDeliveryNotesManager = lazyWithRetry(() =>
+  import('@/components/inventory/WarehouseDeliveryNotesManager').then((m) => ({
+    default: m.WarehouseDeliveryNotesManager,
+  }))
+);
 export const Planning = lazyWithRetry(() =>
   import('@/components/Planning').then((m) => ({ default: m.Planning }))
 );

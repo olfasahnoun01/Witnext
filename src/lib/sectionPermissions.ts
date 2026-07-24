@@ -93,6 +93,15 @@ export function canAccessSubsectionWith(
   if (perms.some((p) => p.section_key === sectionId && p.subsection_key === subsectionId)) {
     return true;
   }
+  // Legacy BL fournisseur subsection → unified Bons de Livraison
+  if (
+    subsectionId === 'bl-magasin' &&
+    perms.some(
+      (p) => p.section_key === 'magasin' && p.subsection_key === 'bl-fournisseur-magasin'
+    )
+  ) {
+    return true;
+  }
   if (sectionId === 'commercial' && COMMERCIAL_SUBSECTIONS.has(subsectionId)) {
     return hasLegacyCommercialAccess(perms, subsectionId);
   }

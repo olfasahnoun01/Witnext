@@ -1,12 +1,18 @@
 import { useState, useMemo, useCallback, useEffect, memo } from 'react';
-import { formatAppDate, formatAppDateTime, formatAppMonthYear } from '@/lib/formatAppDate';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Truck, Trash2, Download, Eye, Loader2, Search, X, Receipt, GitMerge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BonLivraison } from '@/types';
 import { computeSavedDocumentTotals } from '@/lib/devisPricing';
-import { downloadDevisPDF, getDevisPDFBlobUrl, DevisPDFData } from '@/utils/pdfGenerator';
+import {
+  downloadDevisPDF,
+  downloadUnifiedDocumentPDF,
+  getDevisPDFBlobUrl,
+  getUnifiedDocumentPDFBlob,
+  DevisPDFData,
+} from '@/utils/pdfGenerator';
 import { pdfPreviewDialogContentClassName } from '@/lib/pdfPreviewDialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -18,6 +24,8 @@ import {
   createFactureFromMultipleBonsLivraisonVente,
   fetchBlIdsHavingFactureVente,
 } from '@/services/factureService';
+import { documentService } from '@/modules/commercial';
+import { fetchBlClientDocumentsAsBonLivraison } from '@/lib/blClientList';
 import { validateBlMergeForFacture } from '@/lib/mergeCommercialDocuments';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CommercialAttachmentBadges } from '@/components/shared/CommercialAttachmentBadges';
@@ -27,6 +35,8 @@ import { VENTES_EXCEL_TABLE_CLASS } from '@/lib/tableStyles';
 import { cn } from '@/lib/utils';
 import { useListPagination } from '@/hooks/useListPagination';
 import { ListPagination } from '@/components/shared/ListPagination';
+import { formatAppDate } from '@/lib/formatAppDate';
+import { getPathForSubsection } from '@/config/routes';
 
 interface BonLivraisonListProps {
   bonsLivraison: BonLivraison[];
@@ -54,6 +64,10 @@ const toBlPDFData = (bl: BonLivraison): DevisPDFData => ({
   is_bl: true,
 });
 
+function isMagasinBl(bl: BonLivraison): boolean {
+  return !!bl.document_v2_id;
+}
+
 export const BonLivraisonList = memo(({
   bonsLivraison,
   currentUserId,
@@ -62,15 +76,45 @@ export const BonLivraisonList = memo(({
   onDelete,
   onRefresh,
 }: BonLivraisonListProps) => {
+  const navigate = useNavigate();
   const [deleteConfirm, setDeleteConfirm] = useState<BonLivraison | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState('');
   const [isGenerating, setIsGenerating] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [blIdsWithFacture, setBlIdsWithFacture] = useState<Set<number>>(new Set());
+  const [v2InvoicedIds, setV2InvoicedIds] = useState<Set<string>>(new Set());
   const [factureBusyId, setFactureBusyId] = useState<number | null>(null);
   const [selectedBlIds, setSelectedBlIds] = useState<Set<number>>(new Set());
   const [mergeFactureBusy, setMergeFactureBusy] = useState(false);
+  const [magasinBls, setMagasinBls] = useState<BonLivraison[]>([]);
+  const [deleting, setDeleting] = useState(false);
+
+  const loadMagasinBls = useCallback(async () => {
+    try {
+      const rows = await fetchBlClientDocumentsAsBonLivraison();
+      setMagasinBls(rows);
+      const ids = rows.map((r) => r.document_v2_id!).filter(Boolean);
+      if (ids.length > 0) {
+        const invoiced = await documentService.fetchBlIdsWithInvoice(ids);
+        setV2InvoicedIds(invoiced);
+      } else {
+        setV2InvoicedIds(new Set());
+      }
+    } catch (e) {
+      console.warn('[BonLivraisonList] magasin BL_CLIENT:', e);
+      setMagasinBls([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadMagasinBls();
+  }, [loadMagasinBls, bonsLivraison]);
+
+  const mergedBls = useMemo(
+    () => [...magasinBls, ...bonsLivraison.filter((bl) => bl.is_bl && !bl.document_v2_id)],
+    [magasinBls, bonsLivraison]
+  );
 
   const refreshBlIdsWithFacture = useCallback(() => {
     void fetchBlIdsHavingFactureVente().then((ids) => setBlIdsWithFacture(ids));
@@ -81,13 +125,16 @@ export const BonLivraisonList = memo(({
   }, [bonsLivraison, refreshBlIdsWithFacture]);
 
   useEffect(() => {
-    const onRefreshFactures = () => refreshBlIdsWithFacture();
+    const onRefreshFactures = () => {
+      refreshBlIdsWithFacture();
+      void loadMagasinBls();
+    };
     window.addEventListener('grosafe:factures-refresh', onRefreshFactures);
     return () => window.removeEventListener('grosafe:factures-refresh', onRefreshFactures);
-  }, [refreshBlIdsWithFacture]);
+  }, [refreshBlIdsWithFacture, loadMagasinBls]);
 
   const filtered = useMemo(() => {
-    let result = bonsLivraison.filter((bl) => bl.type === 'vente');
+    let result = mergedBls.filter((bl) => bl.type === 'vente');
     const term = searchTerm.trim().toLowerCase();
     if (term) {
       result = result.filter(
@@ -98,7 +145,7 @@ export const BonLivraisonList = memo(({
       );
     }
     return sortDevisListRecentFirst(result);
-  }, [bonsLivraison, searchTerm]);
+  }, [mergedBls, searchTerm]);
 
   const {
     slice: blPage,
@@ -111,13 +158,32 @@ export const BonLivraisonList = memo(({
   } = useListPagination(filtered, searchTerm);
 
   const selectedBlList = useMemo(
-    () => bonsLivraison.filter((bl) => selectedBlIds.has(bl.id)),
-    [bonsLivraison, selectedBlIds]
+    () => mergedBls.filter((bl) => selectedBlIds.has(bl.id) && !isMagasinBl(bl)),
+    [mergedBls, selectedBlIds]
+  );
+
+  const isFactured = useCallback(
+    (bl: BonLivraison) => {
+      if (bl.document_v2_id) return v2InvoicedIds.has(bl.document_v2_id);
+      return blIdsWithFacture.has(bl.id);
+    },
+    [blIdsWithFacture, v2InvoicedIds]
   );
 
   const handlePreview = useCallback(async (bl: BonLivraison) => {
     setIsGenerating(bl.id);
     try {
+      if (bl.document_v2_id) {
+        const doc = await documentService.getDocument(bl.document_v2_id);
+        if (!doc) {
+          toast.error('Document introuvable');
+          return;
+        }
+        const blob = await getUnifiedDocumentPDFBlob(doc);
+        setPreviewTitle(`BL ${bl.devis_number}`);
+        setPreviewUrl(URL.createObjectURL(blob));
+        return;
+      }
       const url = await getDevisPDFBlobUrl(toBlPDFData(bl));
       setPreviewTitle(`BL ${bl.devis_number}`);
       setPreviewUrl(url);
@@ -129,6 +195,15 @@ export const BonLivraisonList = memo(({
   const handleDownload = useCallback(async (bl: BonLivraison) => {
     setIsGenerating(bl.id);
     try {
+      if (bl.document_v2_id) {
+        const doc = await documentService.getDocument(bl.document_v2_id);
+        if (!doc) {
+          toast.error('Document introuvable');
+          return;
+        }
+        await downloadUnifiedDocumentPDF(doc);
+        return;
+      }
       await downloadDevisPDF(toBlPDFData(bl));
     } finally {
       setIsGenerating(null);
@@ -141,15 +216,43 @@ export const BonLivraisonList = memo(({
     setPreviewTitle('');
   }, [previewUrl]);
 
+  const handleEdit = useCallback(
+    (bl: BonLivraison) => {
+      if (bl.document_v2_id) {
+        toast.message('Modification depuis Magasin & Stock → Bons de livraison');
+        navigate(getPathForSubsection('bl-magasin'));
+        return;
+      }
+      onEdit(bl);
+    },
+    [navigate, onEdit]
+  );
+
   const handleGenerateFacture = useCallback(async (bl: BonLivraison) => {
-    if (blIdsWithFacture.has(bl.id)) {
-      toast.info('Une facture existe déjà pour ce BL. Ouvrez Ventes → Factures.');
+    if (isFactured(bl)) {
+      toast.info(
+        bl.document_v2_id
+          ? 'Une facture existe déjà pour ce BL (Magasin).'
+          : 'Une facture existe déjà pour ce BL. Ouvrez Ventes → Factures.'
+      );
       return;
     }
     const ok = window.confirm(`Générer la facture à partir du BL ${bl.devis_number} ?`);
     if (!ok) return;
     setFactureBusyId(bl.id);
     try {
+      if (bl.document_v2_id) {
+        const result = await documentService.createInvoiceFromBL(bl.document_v2_id);
+        if (result.success) {
+          toast.success('Facture créée depuis ce BL magasin.');
+          setV2InvoicedIds((prev) => new Set(prev).add(bl.document_v2_id!));
+          void loadMagasinBls();
+          onRefresh?.();
+        } else {
+          toast.error(result.error);
+        }
+        return;
+      }
       const result = await createFactureFromBonLivraisonVente(bl);
       if (result.success) {
         toast.success(`Facture ${result.numero} créée. Retrouvez-la dans Ventes → Factures.`);
@@ -162,7 +265,7 @@ export const BonLivraisonList = memo(({
     } finally {
       setFactureBusyId(null);
     }
-  }, [blIdsWithFacture, onRefresh]);
+  }, [isFactured, loadMagasinBls, onRefresh]);
 
   const handleMergeFacture = useCallback(async () => {
     const check = validateBlMergeForFacture(selectedBlList);
@@ -199,14 +302,37 @@ export const BonLivraisonList = memo(({
     }
   }, [selectedBlList, blIdsWithFacture, onRefresh]);
 
-  if (bonsLivraison.length === 0) {
+  const confirmDelete = useCallback(async () => {
+    if (!deleteConfirm) return;
+    setDeleting(true);
+    try {
+      if (deleteConfirm.document_v2_id) {
+        const result = await documentService.deleteDocument(deleteConfirm.document_v2_id);
+        if (result.success) {
+          toast.success('BL magasin supprimé');
+          void loadMagasinBls();
+          onRefresh?.();
+        } else {
+          toast.error(result.error || 'Suppression impossible');
+        }
+      } else {
+        onDelete(deleteConfirm);
+      }
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm(null);
+    }
+  }, [deleteConfirm, loadMagasinBls, onDelete, onRefresh]);
+
+  if (mergedBls.length === 0) {
     return (
       <div className="bg-card rounded-xl border border-border p-6">
         <h3 className="text-lg font-semibold text-foreground mb-6">Bons de Livraison</h3>
         <div className="text-center py-12">
           <Truck className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <p className="text-sm text-muted-foreground">
-            Aucun bon de livraison. Créez-en un depuis la liste des bons de commande (bouton BL).
+            Aucun bon de livraison. Créez-en un depuis un BC vente, ou depuis Magasin &amp; Stock → Bons
+            de livraison (Client).
           </p>
         </div>
       </div>
@@ -257,7 +383,8 @@ export const BonLivraisonList = memo(({
         </div>
 
         <p className="text-xs text-muted-foreground mb-4">
-          Les BL sont créés depuis les BC vente. La facture se génère ici après livraison. Liste paginée (10 par page).
+          Inclut les BL créés depuis les BC vente et les BL client Magasin &amp; Stock. Liste paginée
+          (10 par page).
         </p>
 
         <div className={cn('overflow-x-auto overflow-y-auto max-h-[min(65vh,36rem)] rounded-lg border border-emerald-500/25', VENTES_EXCEL_TABLE_CLASS)}>
@@ -290,13 +417,24 @@ export const BonLivraisonList = memo(({
                   const generating = isGenerating === bl.id;
                   const totalQty = bl.items.reduce((s, i) => s + i.quantity, 0);
                   const canDelete = isAdminOrMod || (currentUserId && bl.created_by === currentUserId);
+                  const fromMagasin = isMagasinBl(bl);
+                  const factured = isFactured(bl);
                   return (
-                    <tr key={bl.id} className="border-b border-border/50 hover:bg-muted/30">
+                    <tr
+                      key={bl.document_v2_id ?? bl.id}
+                      className="border-b border-border/50 hover:bg-muted/30"
+                    >
                       <td className="py-3 px-2">
                         <Checkbox
                           checked={selectedBlIds.has(bl.id)}
-                          disabled={blIdsWithFacture.has(bl.id)}
+                          disabled={fromMagasin || factured}
+                          title={
+                            fromMagasin
+                              ? 'Fusion facture réservée aux BL créés depuis un BC vente'
+                              : undefined
+                          }
                           onCheckedChange={(v) => {
+                            if (fromMagasin) return;
                             setSelectedBlIds((prev) => {
                               const next = new Set(prev);
                               if (v === true) next.add(bl.id);
@@ -306,7 +444,16 @@ export const BonLivraisonList = memo(({
                           }}
                         />
                       </td>
-                      <td className="py-3 px-4 text-sm font-medium">{bl.devis_number}</td>
+                      <td className="py-3 px-4 text-sm font-medium">
+                        <div className="flex flex-col gap-0.5">
+                          <span>{bl.devis_number}</span>
+                          {fromMagasin && (
+                            <span className="text-[10px] font-normal text-muted-foreground uppercase tracking-wide">
+                              Magasin
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-3 px-4 text-sm text-muted-foreground">{bl.source_bc_number || '-'}</td>
                       <td className="py-3 px-4 text-sm text-muted-foreground">
                         {formatAppDate(bl.devis_date)}
@@ -355,7 +502,7 @@ export const BonLivraisonList = memo(({
                             variant="outline"
                             size="sm"
                             className="h-8 gap-1 text-xs"
-                            disabled={blIdsWithFacture.has(bl.id) || factureBusyId === bl.id}
+                            disabled={factured || factureBusyId === bl.id}
                             onClick={() => void handleGenerateFacture(bl)}
                           >
                             {factureBusyId === bl.id ? (
@@ -363,9 +510,15 @@ export const BonLivraisonList = memo(({
                             ) : (
                               <Receipt className="w-3.5 h-3.5" />
                             )}
-                            {blIdsWithFacture.has(bl.id) ? 'Facturé' : 'Facture'}
+                            {factured ? 'Facturé' : 'Facture'}
                           </Button>
-                          <Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => onEdit(bl)}>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8"
+                            onClick={() => handleEdit(bl)}
+                          >
                             Modifier
                           </Button>
                           {canDelete && (
@@ -397,22 +550,23 @@ export const BonLivraisonList = memo(({
         />
       </div>
 
-      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && !deleting && setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer le BL {deleteConfirm?.devis_number} ?</AlertDialogTitle>
             <AlertDialogDescription>Cette action est irréversible.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                if (deleteConfirm) onDelete(deleteConfirm);
-                setDeleteConfirm(null);
+              disabled={deleting}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmDelete();
               }}
             >
-              Supprimer
+              {deleting ? 'Suppression…' : 'Supprimer'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

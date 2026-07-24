@@ -14,7 +14,7 @@ interface WarehouseDocumentManagerProps {
   type: UnifiedDocumentType;
   title: string;
   /** Optional JSONB metadata filter (e.g. bl_purpose = envoi_faconnage). */
-  metadataFilter?: { key: string; value: string };
+  metadataFilter?: { key: string; value: string; mode?: 'eq' | 'neq_or_null' };
 }
 
 export const WarehouseDocumentManager = ({

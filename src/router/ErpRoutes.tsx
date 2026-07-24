@@ -41,6 +41,7 @@ import {
   UnifiedDocumentList,
   VehiculeStats,
   WarehouseDocumentManager,
+  WarehouseDeliveryNotesManager,
 } from '@/router/lazyPages';
 import { BootstrapGate, RouteLoader, SubsectionRoute } from '@/router/RouteGuards';
 
@@ -133,24 +134,14 @@ export function ErpRoutes() {
           element={
             <SubsectionRoute subsectionId="bl-magasin">
               <LazyRoute>
-                <WarehouseDocumentManager type="BL_CLIENT" title="Bons de Livraison (Magasin)" />
+                <WarehouseDeliveryNotesManager />
               </LazyRoute>
             </SubsectionRoute>
           }
         />
         <Route
           path="/inventory/supplier-delivery-notes"
-          element={
-            <SubsectionRoute subsectionId="bl-fournisseur-magasin">
-              <LazyRoute>
-                <WarehouseDocumentManager
-                  type="BL_FOURNISSEUR"
-                  title="BL Fournisseur (envoi façonnage)"
-                  metadataFilter={{ key: 'bl_purpose', value: 'envoi_faconnage' }}
-                />
-              </LazyRoute>
-            </SubsectionRoute>
-          }
+          element={<Navigate to="/inventory/delivery-notes?tab=fournisseur" replace />}
         />
         <Route
           path="/inventory/price-comparison"
